@@ -11,6 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Readiness probe
+         * @description Actively pings PostgreSQL (via Prisma) and Redis. Returns 200 only when BOTH are reachable; 503 if either is down. The body reports each dependency so operators can see which one failed.
+         */
         get: operations["HealthController_check"];
         put?: never;
         post?: never;
@@ -36,17 +40,169 @@ export interface paths {
         patch: operations["LineUserController_updateRichMenu"];
         trace?: never;
     };
+    "/api/v1/auth/system/csrf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Issue a CSRF token.
+         * @description Safe method, no state change, no session required. Echo the returned token in the `x-csrf-token` header on every state-changing request. The token is not one-shot and survives login.
+         */
+        get: operations["AuthSystemController_getCsrf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/system/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Log in with email + password.
+         * @description Sets the `eb.sid` session cookie. Returns the user, never a token. Rate limited to 5 attempts / 15 min per (IP + email) and 20 / 15 min per IP.
+         */
+        post: operations["AuthSystemController_login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/system/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Destroy the current session.
+         * @description Removes the session from Redis and clears the cookie. A replayed logout returns 401 — the session no longer exists.
+         */
+        post: operations["AuthSystemController_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/system/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The currently authenticated back-office user.
+         * @description Read fresh from the database on every request (D-9), so a demotion or suspension is reflected immediately. Used to rehydrate a session after a page reload or a backend restart.
+         */
+        get: operations["AuthSystemController_me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system-users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List back-office users, paginated.
+         * @description Soft-deleted rows are excluded from `data` and from `meta.total`. Ordered `createdAt DESC, id DESC`. A page beyond the last one is a 200 with an empty `data`, not a 404.
+         */
+        get: operations["SystemUsersController_list"];
+        put?: never;
+        /**
+         * Create a back-office user.
+         * @description The only creation path besides the offline seed script. There is no public registration. `lineUserId` is not accepted — any extra key is a 400.
+         */
+        post: operations["SystemUsersController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system-users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one back-office user.
+         * @description A soft-deleted id returns a 404 byte-identical to an id that never existed.
+         */
+        get: operations["SystemUsersController_findOne"];
+        put?: never;
+        post?: never;
+        /**
+         * Soft-delete a back-office user.
+         * @description Marks the user as removed; never a hard delete, so the `createdById` audit chain stays resolvable. A second DELETE on the same id is a 404, identical to an id that never existed. Nobody may delete their own account. The email stays permanently burned — restore the row instead of re-creating it.
+         */
+        delete: operations["SystemUsersController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a back-office user.
+         * @description Never the password and never the email. `role` is SUPER_ADMIN-write-only and is rejected on key presence, so an ADMIN sending any valid role value gets 403. Nobody may change their own `role` or `isActive`. An empty body is a 400.
+         */
+        patch: operations["SystemUsersController_update"];
+        trace?: never;
+    };
+    "/api/v1/system-users/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a soft-deleted back-office user.
+         * @description Un-deletes the row and changes nothing else. A user suspended before deletion comes back suspended; their original password still works. Their `id`, `createdById`, `createdAt`, `role` and `isActive` are unchanged.
+         */
+        post: operations["SystemUsersController_restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         HealthResponseDto: {
             /**
-             * @description Liveness indicator.
+             * @description Overall readiness. `ok` (HTTP 200) only when every dependency is `up`; `error` (HTTP 503) when any dependency is `down`.
              * @example ok
              * @enum {string}
              */
-            status: "ok";
+            status: "ok" | "error";
             /**
              * @description Process uptime in seconds.
              * @example 12.34
@@ -63,6 +219,12 @@ export interface components {
              * @enum {string}
              */
             db: "up" | "down";
+            /**
+             * @description Redis connectivity (a `PING` probe). Backs the session store and rate limits.
+             * @example up
+             * @enum {string}
+             */
+            redis: "up" | "down";
         };
         UpdateUserRichMenuDto: {
             /**
@@ -90,6 +252,137 @@ export interface components {
             /** @example 2026-07-07T10:00:00.000Z */
             followedAt: string;
         };
+        CsrfTokenResponseDto: {
+            /**
+             * @description Send as the `x-csrf-token` header on state-changing requests.
+             * @example a3f1c0d9e8b7…
+             */
+            csrfToken: string;
+        };
+        LoginDto: {
+            /** @example admin@easybook.local */
+            email: string;
+            /**
+             * Format: password
+             * @example correct horse battery staple
+             */
+            password: string;
+        };
+        LoginResponseDto: {
+            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
+            id: string;
+            /** @example admin@easybook.local */
+            email: string;
+            /** @example Ada Lovelace */
+            name: string;
+            /**
+             * @example ADMIN
+             * @enum {string}
+             */
+            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+        };
+        ErrorResponseDto: {
+            /** @example 401 */
+            statusCode: number;
+            /** @example Unauthorized */
+            error: string;
+            /** @example Invalid email or password. */
+            message: string;
+        };
+        SystemUserResponseDto: {
+            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
+            id: string;
+            /** @example admin@easybook.local */
+            email: string;
+            /** @example Ada Lovelace */
+            name: string;
+            /**
+             * @example STAFF
+             * @enum {string}
+             */
+            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            /** @example Teacher */
+            position: string;
+            /** @example Computer Science */
+            department: string;
+            /** @example 02-123-4567 ext. 101 */
+            phoneNumber: string | null;
+            /** @example https://cdn.example.com/a.jpg */
+            profilePictureUrl: string | null;
+            /** @example true */
+            isActive: boolean;
+            /**
+             * @description Linked LineUser.id (a cuid), or null. NOT the LINE "U…" identifier. Read-only; set by a future endpoint.
+             * @example clx9z8y7x6w5v4u3t2s1r0q9
+             */
+            readonly lineUserId: string | null;
+            /** @example 2026-07-08T11:00:00.000Z */
+            lastLoginAt: string | null;
+            /** @example 2026-07-08T10:00:00.000Z */
+            createdAt: string;
+        };
+        CreateSystemUserDto: {
+            /** @example ada@easybook.local */
+            email: string;
+            /** Format: password */
+            password: string;
+            /** @example Ada Lovelace */
+            name: string;
+            /**
+             * @default STAFF
+             * @enum {string}
+             */
+            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            /**
+             * @description Free text, e.g. Teacher / Admin Staff / Director.
+             * @example Teacher
+             */
+            position: string;
+            /**
+             * @description Free text, e.g. academic department or group.
+             * @example Computer Science
+             */
+            department: string;
+            /** @example 02-123-4567 ext. 101 */
+            phoneNumber?: string;
+            /** @example https://cdn.example.com/avatars/ada.jpg */
+            profilePictureUrl?: string;
+        };
+        PaginationMetaDto: {
+            /** @example 1 */
+            page: number;
+            /** @example 20 */
+            limit: number;
+            /**
+             * @description Non-deleted rows only.
+             * @example 42
+             */
+            total: number;
+            /**
+             * @description ceil(total / limit); 0 when total is 0.
+             * @example 3
+             */
+            totalPages: number;
+        };
+        PaginatedSystemUsersResponseDto: {
+            data: components["schemas"]["SystemUserResponseDto"][];
+            meta: components["schemas"]["PaginationMetaDto"];
+        };
+        UpdateSystemUserDto: {
+            /** @example Ada Lovelace */
+            name?: string;
+            /** @example Teacher */
+            position?: string;
+            /** @example Computer Science */
+            department?: string;
+            /** @example 02-123-4567 ext. 101 */
+            phoneNumber?: string | null;
+            profilePictureUrl?: string | null;
+            /** @enum {string} */
+            role?: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            /** @example false */
+            isActive?: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -108,8 +401,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Service is up (and whether the database is reachable). */
+            /** @description Service is ready: the database and Redis are both reachable. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResponseDto"];
+                };
+            };
+            /** @description Service is not ready: the database and/or Redis is unreachable. Body carries the per-dependency breakdown. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -141,6 +443,559 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LineUserResponseDto"];
+                };
+            };
+        };
+    };
+    AuthSystemController_getCsrf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A CSRF token and its signed cookie. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CsrfTokenResponseDto"];
+                };
+            };
+        };
+    };
+    AuthSystemController_login: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description From `GET /auth/system/csrf`. */
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginDto"];
+            };
+        };
+        responses: {
+            /** @description Authenticated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponseDto"];
+                };
+            };
+            /** @description Unknown email, wrong password, suspended, or deleted — one identical response. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing or stale CSRF token. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Rate limited. Carries a `Retry-After` header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AuthSystemController_logout: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session destroyed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example true */
+                        success?: boolean;
+                    };
+                };
+            };
+            /** @description No, expired, or already-destroyed session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing or stale CSRF token. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AuthSystemController_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemUserResponseDto"];
+                };
+            };
+            /** @description No session, expired, suspended, or deleted user. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SystemUsersController_list: {
+        parameters: {
+            query?: {
+                /** @description 1-based page number. */
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of users. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedSystemUsersResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF has no access to this collection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SystemUsersController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSystemUserDto"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemUserResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Not a SUPER_ADMIN, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description That email is already taken (including by a soft-deleted user). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SystemUsersController_findOne: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemUserResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF has no access to this collection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SystemUsersController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Soft-deleted. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Not a SUPER_ADMIN; CSRF failure; or deleting your own account. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or already-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Would remove the last active SUPER_ADMIN, or lost a concurrent-write race. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SystemUsersController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSystemUserDto"];
+            };
+        };
+        responses: {
+            /** @description Updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemUserResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF; CSRF failure; a self-mutation rule; or a policy denial. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Would remove the last active SUPER_ADMIN, or lost a concurrent-write race. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SystemUsersController_restore: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Restored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemUserResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Not a SUPER_ADMIN, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The row is not deleted. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
         };
