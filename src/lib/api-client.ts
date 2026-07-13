@@ -22,9 +22,16 @@ export const api = createClient<paths>({
 export type HealthResponse = components['schemas']['HealthResponseDto']
 
 export async function getHealth(): Promise<HealthResponse> {
-  const { data } = await api.GET('/api/v1/health')
-  if (!data) {
-    throw new Error('Request failed: /api/v1/health')
+  // /health is a readiness gate: 200 (`status:'ok'`) when Postgres AND Redis are both
+  // reachable, 503 (`status:'error'`) with the SAME body shape when either is down.
+  // openapi-fetch routes a 2xx body to `data` and a non-2xx body to `error`; both are
+  // valid readiness snapshots, so return whichever is present and let the caller branch
+  // on `status`. Only a request that never lands (network error, non-JSON body) leaves
+  // both undefined — that throws, surfacing as the caller's unreachable state.
+  const { data, error, response } = await api.GET('/api/v1/health')
+  const snapshot = data ?? error
+  if (!snapshot) {
+    throw new Error(`Request failed: /api/v1/health (${response.status})`)
   }
-  return data
+  return snapshot
 }

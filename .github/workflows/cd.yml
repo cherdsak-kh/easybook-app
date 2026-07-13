@@ -1,0 +1,119 @@
+name: CD (staging)
+run-name: CD - ${{ github.event.workflow_run.head_branch }} staging (by @${{ github.actor }}) -- ${{ github.event.workflow_run.head_commit.message }}
+
+# Fires only after CI (build-and-push) has completed successfully on master, so this workflow
+# never deploys an image that failed lint/test/audit or that never got pushed to GHCR. Mirrors
+# easybook-service/.github/workflows/cd.yml's trigger/concurrency/run-name conventions.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+
+# Overlapping master pushes QUEUE rather than cancel, matching the backend's policy — even though
+# this deploy has no migration step to half-apply, keeping the two CD workflows' concurrency
+# semantics consistent avoids surprises if this ever grows a stateful step later.
+concurrency:
+  group: deploy-staging-frontend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to staging
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+      GHCR_OWNER: ${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # --------------------------------------------------------------------
+      # 1. Ship the compose file. Runtime-secrets model (matches the backend): the image built by
+      #    CI is secret-free — VITE_API_URL/VITE_LIFF_ID are still literal placeholder sentinels
+      #    inside it. INFISICAL_TOKEN is injected fresh below, per run, from GitHub Secrets,
+      #    straight into the SSH session's env (never written to disk on the server as plaintext
+      #    by this workflow) — the container's docker-entrypoint.sh resolves the real values from
+      #    Infisical at container START.
+      # --------------------------------------------------------------------
+      - name: Copy docker-compose.staging.yml to the server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          port: ${{ secrets.STAGING_SSH_PORT || '22' }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          source: 'docker-compose.staging.yml'
+          target: '~/easybook-app'
+          strip_components: 0
+
+      # --------------------------------------------------------------------
+      # 2. GHCR auth + deploy + health gate, all in one SSH session so a failure at any step
+      #    propagates as a non-zero exit and fails this job loudly (`set -euo pipefail` below —
+      #    no swallowed errors, no partial success reported as green). No `script_stop: true` on
+      #    the ssh-action — that option breaks the `until` health-poll retry loop (already hit and
+      #    removed on the backend for the same reason).
+      # --------------------------------------------------------------------
+      - name: Deploy + health-gate
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          GHCR_OWNER: ${{ env.GHCR_OWNER }}
+          # Passed via GitHub Secrets -> SSH env, straight into the container at start (see
+          # docker-compose.staging.yml's environment: block, which references these same host env
+          # vars). Never persisted to a file on the server by this workflow, never baked into any
+          # image layer. GitHub Actions masks this value in logs automatically. Same credential
+          # trio the backend's cd.yml already uses.
+          INFISICAL_TOKEN: ${{ secrets.INFISICAL_TOKEN }}
+          INFISICAL_PROJECT_ID: ${{ secrets.INFISICAL_PROJECT_ID }}
+          INFISICAL_ENV: staging
+          # Server's own persistent GHCR pull credential (read:packages). Same credential the
+          # backend's deploy already provisioned on this box — see
+          # easybook-service/docs/staging-runbook.md §3. Not re-provisioned here, just reused.
+          GHCR_PULL_USER: ${{ secrets.GHCR_PULL_USER }}
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          port: ${{ secrets.STAGING_SSH_PORT || '22' }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          envs: IMAGE_TAG,GHCR_OWNER,INFISICAL_TOKEN,INFISICAL_PROJECT_ID,INFISICAL_ENV,GHCR_PULL_USER,GHCR_PULL_TOKEN
+          script: |
+            set -euo pipefail
+            cd ~/easybook-app
+
+            IMAGE="ghcr.io/${GHCR_OWNER}/easybook-app:${IMAGE_TAG}"
+
+            echo "== [1/4] GHCR login =="
+            echo "$GHCR_PULL_TOKEN" | docker login ghcr.io -u "$GHCR_PULL_USER" --password-stdin
+
+            echo "== [2/4] Pull image =="
+            docker pull "$IMAGE"
+
+            echo "== [3/4] Deploy (static app + runtime Infisical substitution, no migration phase) =="
+            export IMAGE_TAG GHCR_OWNER INFISICAL_TOKEN INFISICAL_PROJECT_ID INFISICAL_ENV
+            docker compose -f docker-compose.staging.yml up -d
+
+            echo "== [4/4] Health gate: poll GET / on the published host port (2200) =="
+            # Health-GATED deploy, not zero-downtime: single replica, brief cutover blip while the
+            # new container starts. We do not declare success until it actually answers 200 — if
+            # it never does within the timeout, fail loudly instead of leaving a broken container
+            # running silently "deployed".
+            timeout_seconds=90
+            interval_seconds=3
+            elapsed=0
+            until curl -fsS -o /dev/null "http://localhost:2200/"; do
+              if [ "$elapsed" -ge "$timeout_seconds" ]; then
+                echo "Health check did not pass within ${timeout_seconds}s — deploy FAILED." >&2
+                docker logs --tail 100 easybook-app || true
+                exit 1
+              fi
+              sleep "$interval_seconds"
+              elapsed=$((elapsed + interval_seconds))
+            done
+            echo "Health check passed after ~${elapsed}s. Deploy of ${IMAGE_TAG} successful."
+
+            echo "== Image retention: prune dangling images only (never the running/rollback tag) =="
+            docker image prune -f

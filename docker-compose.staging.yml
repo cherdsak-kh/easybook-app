@@ -1,0 +1,53 @@
+# Staging deploy compose file for easybook-app (frontend). SCP'd to the staging server by the CD
+# workflow (.github/workflows/cd.yml) and driven with `docker compose -f docker-compose.staging.yml
+# up -d` (Docker Compose v2, space syntax — not the EOL `docker-compose` hyphen binary).
+#
+# This is a SEPARATE, standalone container from easybook-service: a static nginx server with no
+# app logic, no database, no session, no Redis. It does NOT join `easybook-network` and does NOT
+# declare Postgres/Redis — those belong exclusively to easybook-service's compose file. There is
+# nothing here for this file to accidentally take down.
+#
+# Runtime-secrets model (matches easybook-service's docker-compose.staging.yml): the image itself
+# is secret-free — VITE_API_URL/VITE_LIFF_ID are literal placeholder sentinels baked in at BUILD
+# time (see Dockerfile). The container's docker-entrypoint.sh resolves the REAL values from
+# Infisical at container START, via `infisical run --`, then substitutes them into the compiled
+# static assets before nginx starts. INFISICAL_TOKEN / INFISICAL_PROJECT_ID / INFISICAL_ENV below
+# are therefore required at container start, exactly like the backend's own runtime Infisical
+# injection — sourced from the host env the CD workflow's SSH step exports before `up -d`.
+#
+# IMAGE_TAG is the immutable commit SHA the CI workflow pushed to GHCR (never `latest`), exported
+# into the SSH session's env by the CD workflow before `up -d`.
+
+services:
+  easybook-app:
+    image: ghcr.io/${GHCR_OWNER}/easybook-app:${IMAGE_TAG}
+    container_name: easybook-app
+    restart: unless-stopped
+    ports:
+      # Host port 2200 matches the app's conceptual dev port (see CLAUDE.md) and does NOT clash
+      # with the backend's 3300. The staging box's outer Nginx (same one documented in
+      # easybook-service/docs/staging-runbook.md §1, external to this repo — no config for it
+      # lives here) is expected to reverse-proxy the public frontend hostname/path to
+      # 127.0.0.1:2200, the same way it proxies the API hostname/path to 127.0.0.1:3300. Both
+      # containers listen on 127.0.0.1 only via the host's own Docker port publishing; the
+      # container's internal nginx still listens on :80.
+      - '2200:80'
+    # Sensible ceilings for a single small static-file server, not a production capacity plan —
+    # revisit if/when real staging traffic numbers exist. Lighter than the backend's since nginx
+    # serving static files is far cheaper than a Node app.
+    mem_limit: 128m
+    cpus: 0.5
+    environment:
+      # Required at container start by docker-entrypoint.sh; missing/empty values make the
+      # entrypoint abort loudly rather than serve unsubstituted placeholder JS (see Dockerfile /
+      # docker-entrypoint.sh). Values come from the host env the CD workflow's SSH step exports
+      # before `docker compose up -d` (never written to a file on the server).
+      INFISICAL_TOKEN: ${INFISICAL_TOKEN}
+      INFISICAL_PROJECT_ID: ${INFISICAL_PROJECT_ID}
+      INFISICAL_ENV: ${INFISICAL_ENV:-staging}
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:80/']
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
