@@ -273,8 +273,10 @@ export interface components {
             id: string;
             /** @example admin@easybook.local */
             email: string;
-            /** @example Ada Lovelace */
-            name: string;
+            /** @example Ada */
+            firstName: string;
+            /** @example Lovelace */
+            lastName: string;
             /**
              * @example ADMIN
              * @enum {string}
@@ -294,8 +296,10 @@ export interface components {
             id: string;
             /** @example admin@easybook.local */
             email: string;
-            /** @example Ada Lovelace */
-            name: string;
+            /** @example Ada */
+            firstName: string;
+            /** @example Lovelace */
+            lastName: string;
             /**
              * @example STAFF
              * @enum {string}
@@ -326,8 +330,10 @@ export interface components {
             email: string;
             /** Format: password */
             password: string;
-            /** @example Ada Lovelace */
-            name: string;
+            /** @example Ada */
+            firstName: string;
+            /** @example Lovelace */
+            lastName: string;
             /**
              * @default STAFF
              * @enum {string}
@@ -369,8 +375,10 @@ export interface components {
             meta: components["schemas"]["PaginationMetaDto"];
         };
         UpdateSystemUserDto: {
-            /** @example Ada Lovelace */
-            name?: string;
+            /** @example Ada */
+            firstName?: string;
+            /** @example Lovelace */
+            lastName?: string;
             /** @example Teacher */
             position?: string;
             /** @example Computer Science */
