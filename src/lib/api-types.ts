@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Service welcome banner
+         * @description Returns a small liveness banner at the service root (no `/api/v1` prefix). For dependency-aware readiness use GET /api/v1/health instead.
+         */
+        get: operations["AppController_getInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -38,6 +58,46 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["LineUserController_updateRichMenu"];
+        trace?: never;
+    };
+    "/api/v1/line-users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List LINE users, paginated.
+         * @description Soft-deleted rows are excluded from `data` and from `meta.total`. Optional `search` is a case-insensitive substring match on `displayName`; optional `access` narrows to one state. Ordered `followedAt DESC, id DESC`. A page beyond the last one is a 200 with an empty `data`, not a 404.
+         */
+        get: operations["LineUsersController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Approve or block a LINE user (update `access`).
+         * @description Sets `access` (Approve → ALLOWED, Block → BLOCKED). Returns the updated row. An unknown or soft-deleted id is a 404 that reveals nothing about deletion; an empty body, a bad enum value, or any extra key is a 400.
+         */
+        patch: operations["LineUsersController_updateAccess"];
         trace?: never;
     };
     "/api/v1/auth/system/csrf": {
@@ -196,6 +256,23 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AppInfoResponseDto: {
+            /**
+             * @description Human-readable confirmation that the service is up.
+             * @example EasyBook API is running
+             */
+            message: string;
+            /**
+             * @description Coarse service-state banner. Always `active` when the root is reachable; dependency-aware readiness lives at GET /api/v1/health.
+             * @example active
+             */
+            status: string;
+            /**
+             * @description Server time (ISO 8601) when the banner was produced.
+             * @example 2026-07-13T14:45:22.815Z
+             */
+            timestamp: string;
+        };
         HealthResponseDto: {
             /**
              * @description Overall readiness. `ok` (HTTP 200) only when every dependency is `up`; `error` (HTTP 503) when any dependency is `down`.
@@ -234,11 +311,18 @@ export interface components {
             richMenuType: "TYPE_1" | "TYPE_2";
         };
         LineUserResponseDto: {
+            /**
+             * @description The LineUser.id (a cuid) — the PATCH /line-users/:id target key.
+             * @example clx1a2b3c4d5e6f7g8h9i0j1
+             */
+            id: string;
             /** @example U0123456789abcdef0123456789abcdef */
             lineUserId: string;
             /** @example Alice */
             displayName: string | null;
             pictureUrl: string | null;
+            /** @example Out for lunch 🍜 */
+            statusMessage: string | null;
             /**
              * @example TYPE_1
              * @enum {string}
@@ -251,6 +335,42 @@ export interface components {
             access: "PENDING" | "ALLOWED" | "BLOCKED";
             /** @example 2026-07-07T10:00:00.000Z */
             followedAt: string;
+        };
+        PaginationMetaDto: {
+            /** @example 1 */
+            page: number;
+            /** @example 20 */
+            limit: number;
+            /**
+             * @description Non-deleted rows only.
+             * @example 42
+             */
+            total: number;
+            /**
+             * @description ceil(total / limit); 0 when total is 0.
+             * @example 3
+             */
+            totalPages: number;
+        };
+        PaginatedLineUsersResponseDto: {
+            data: components["schemas"]["LineUserResponseDto"][];
+            meta: components["schemas"]["PaginationMetaDto"];
+        };
+        ErrorResponseDto: {
+            /** @example 401 */
+            statusCode: number;
+            /** @example Unauthorized */
+            error: string;
+            /** @example Invalid email or password. */
+            message: string;
+        };
+        UpdateLineUserAccessDto: {
+            /**
+             * @description The user's new access state. Approve → ALLOWED, Block → BLOCKED (the frontend never sends PENDING, but it is accepted).
+             * @example ALLOWED
+             * @enum {string}
+             */
+            access: "PENDING" | "ALLOWED" | "BLOCKED";
         };
         CsrfTokenResponseDto: {
             /**
@@ -282,14 +402,6 @@ export interface components {
              * @enum {string}
              */
             role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
-        };
-        ErrorResponseDto: {
-            /** @example 401 */
-            statusCode: number;
-            /** @example Unauthorized */
-            error: string;
-            /** @example Invalid email or password. */
-            message: string;
         };
         SystemUserResponseDto: {
             /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
@@ -354,22 +466,6 @@ export interface components {
             /** @example https://cdn.example.com/avatars/ada.jpg */
             profilePictureUrl?: string;
         };
-        PaginationMetaDto: {
-            /** @example 1 */
-            page: number;
-            /** @example 20 */
-            limit: number;
-            /**
-             * @description Non-deleted rows only.
-             * @example 42
-             */
-            total: number;
-            /**
-             * @description ceil(total / limit); 0 when total is 0.
-             * @example 3
-             */
-            totalPages: number;
-        };
         PaginatedSystemUsersResponseDto: {
             data: components["schemas"]["SystemUserResponseDto"][];
             meta: components["schemas"]["PaginationMetaDto"];
@@ -400,6 +496,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    AppController_getInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The service is up and serving requests. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppInfoResponseDto"];
+                };
+            };
+        };
+    };
     HealthController_check: {
         parameters: {
             query?: never;
@@ -451,6 +567,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LineUserResponseDto"];
+                };
+            };
+        };
+    };
+    LineUsersController_list: {
+        parameters: {
+            query?: {
+                /** @description 1-based page number. */
+                page?: number;
+                limit?: number;
+                /** @description Case-insensitive substring match on `displayName`. Trimmed; empty/absent → no name filter. */
+                search?: string;
+                /** @description Narrows the list to a single access state. An invalid value is a 400. */
+                access?: "PENDING" | "ALLOWED" | "BLOCKED";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of LINE users. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedLineUsersResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF has no access to this collection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineUsersController_updateAccess: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLineUserAccessDto"];
+            };
+        };
+        responses: {
+            /** @description Updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
         };
