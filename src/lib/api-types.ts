@@ -44,6 +44,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/line-users/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the authenticated LINE user's access status + registration.
+         * @description Header-derived and param-less: the caller reads only their own status (identity = the verified `sub`). A LIFF-first user with no prior row gets a fresh `UNREGISTERED` state and `registration: null`. The single call the client portal makes after LIFF auth to pick which of the four screens to render.
+         */
+        get: operations["LineRegistrationController_getStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/registration/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the selectable department + personnel-role options.
+         * @description Combined payload so the registration/edit form makes ONE call. Returns only NON-deleted options, each list ordered `name ASC`. Ids feed `departmentId`/`personnelRoleId` on register/edit.
+         */
+        get: operations["LineRegistrationController_getOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit the registration form (UNREGISTERED → PENDING).
+         * @description Creates the 1:1 registration for the authenticated LINE user and moves them to `PENDING` (rich menu stays `TYPE_1`). `departmentId`/`personnelRoleId` must reference non-deleted options. Returns the caller’s status view so the frontend can route to the Pending screen without a second call. There is no `lineUserId` body field — the identity is the verified `sub`.
+         */
+        post: operations["LineRegistrationController_register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/registration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit your registration while PENDING (full re-submit).
+         * @description A caller whose `access` is strictly `PENDING` may update all their registration fields. `ALLOWED`/`BLOCKED`/`UNREGISTERED` → `403` (no partial write). `access` stays `PENDING` and the rich menu stays `TYPE_1`; no LINE push fires. Same validation as register (options must be non-deleted; a `staffId` taken by another registration → `409`; re-submitting your own is fine). No `lineUserId` body field.
+         */
+        patch: operations["LineRegistrationController_updateRegistration"];
+        trace?: never;
+    };
     "/api/v1/line-users": {
         parameters: {
             query?: never;
@@ -82,46 +162,6 @@ export interface paths {
          * @description Sets `access` (Approve → ALLOWED, Block → BLOCKED). Returns the updated row. An unknown or soft-deleted id is a 404 that reveals nothing about deletion; an empty body, a bad enum value, or any extra key is a 400.
          */
         patch: operations["LineUsersController_updateAccess"];
-        trace?: never;
-    };
-    "/api/v1/line-users/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get the authenticated LINE user's access status + registration.
-         * @description Header-derived and param-less: the caller reads only their own status (identity = the verified `sub`). A LIFF-first user with no prior row gets a fresh `UNREGISTERED` state and `registration: null`. The single call the client portal makes after LIFF auth to pick which of the four screens to render.
-         */
-        get: operations["LineRegistrationController_getStatus"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/line-users/register": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Submit the registration form (UNREGISTERED → PENDING).
-         * @description Creates the 1:1 registration for the authenticated LINE user and moves them to `PENDING` (rich menu stays `TYPE_1`). Returns the caller’s status view so the frontend can route to the Pending screen without a second call. There is no `lineUserId` body field — the identity is the verified `sub`.
-         */
-        post: operations["LineRegistrationController_register"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/v1/auth/system/csrf": {
@@ -276,6 +316,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/departments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List department options.
+         * @description Non-deleted options only, ordered `name ASC`.
+         */
+        get: operations["DepartmentsController_list"];
+        put?: never;
+        /**
+         * Create a department option.
+         * @description A name that collides with an ACTIVE option is a 409; a name matching only soft-deleted rows succeeds (names are reusable after soft-delete).
+         */
+        post: operations["DepartmentsController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/departments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Soft-delete a department option.
+         * @description Sets `deletedAt`; never a hard delete, so registrations referencing it keep resolving its name. A second DELETE on the same id is a 404. The name becomes reusable.
+         */
+        delete: operations["DepartmentsController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a department option.
+         * @description An unknown or soft-deleted id is a 404; an active-name collision is a 409.
+         */
+        patch: operations["DepartmentsController_update"];
+        trace?: never;
+    };
+    "/api/v1/personnel-roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List personnel-role options.
+         * @description Non-deleted options only, ordered `name ASC`.
+         */
+        get: operations["PersonnelRolesController_list"];
+        put?: never;
+        /**
+         * Create a personnel-role option.
+         * @description A name that collides with an ACTIVE option is a 409; a name matching only soft-deleted rows succeeds (names are reusable after soft-delete).
+         */
+        post: operations["PersonnelRolesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/personnel-roles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Soft-delete a personnel-role option.
+         * @description Sets `deletedAt`; never a hard delete, so registrations referencing it keep resolving its name. A second DELETE on the same id is a 404. The name becomes reusable.
+         */
+        delete: operations["PersonnelRolesController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a personnel-role option.
+         * @description An unknown or soft-deleted id is a 404; an active-name collision is a 409.
+         */
+        patch: operations["PersonnelRolesController_update"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -327,19 +463,127 @@ export interface components {
              */
             redis: "up" | "down";
         };
+        LineUserRegistrationResponseDto: {
+            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
+            id: string;
+            /** @example Somchai */
+            firstName: string;
+            /** @example Jaidee */
+            lastName: string;
+            /** @example 6412345678 */
+            staffId: string;
+            /** @example 081-234-5678 */
+            phone: string;
+            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
+            departmentId: string;
+            /**
+             * @description Resolved department name.
+             * @example Computer Science
+             */
+            department: string;
+            /** @example clx9z8y7x6w5v4u3t2s1r0q9 */
+            personnelRoleId: string;
+            /**
+             * @description Resolved personnel-role name.
+             * @example Teacher
+             */
+            personnelRole: string;
+            /** @example 2026-07-14T10:00:00.000Z */
+            createdAt: string;
+            /** @example 2026-07-14T10:00:00.000Z */
+            updatedAt: string;
+        };
+        LineUserStatusResponseDto: {
+            /**
+             * @example PENDING
+             * @enum {string}
+             */
+            access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
+            registration: components["schemas"]["LineUserRegistrationResponseDto"] | null;
+        };
+        ErrorResponseDto: {
+            /** @example 401 */
+            statusCode: number;
+            /** @example Unauthorized */
+            error: string;
+            /** @example Invalid email or password. */
+            message: string;
+        };
+        OptionDto: {
+            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
+            id: string;
+            /** @example Computer Science */
+            name: string;
+        };
+        RegistrationOptionsResponseDto: {
+            departments: components["schemas"]["OptionDto"][];
+            personnelRoles: components["schemas"]["OptionDto"][];
+        };
+        CreateLineUserRegistrationDto: {
+            /** @example Somchai */
+            firstName: string;
+            /** @example Jaidee */
+            lastName: string;
+            /**
+             * @description University staff/personnel ID. Globally unique.
+             * @example 6412345678
+             */
+            staffId: string;
+            /** @example 081-234-5678 */
+            phone: string;
+            /**
+             * @description Id of a non-deleted Department option (from GET /line-users/registration/options).
+             * @example clx1a2b3c4d5e6f7g8h9i0j1
+             */
+            departmentId: string;
+            /**
+             * @description Id of a non-deleted PersonnelRole option (from GET /line-users/registration/options).
+             * @example clx9z8y7x6w5v4u3t2s1r0q9
+             */
+            personnelRoleId: string;
+        };
+        UpdateLineUserRegistrationDto: {
+            /** @example Somchai */
+            firstName: string;
+            /** @example Jaidee */
+            lastName: string;
+            /**
+             * @description University staff/personnel ID. Globally unique.
+             * @example 6412345678
+             */
+            staffId: string;
+            /** @example 081-234-5678 */
+            phone: string;
+            /**
+             * @description Id of a non-deleted Department option (from GET /line-users/registration/options).
+             * @example clx1a2b3c4d5e6f7g8h9i0j1
+             */
+            departmentId: string;
+            /**
+             * @description Id of a non-deleted PersonnelRole option (from GET /line-users/registration/options).
+             * @example clx9z8y7x6w5v4u3t2s1r0q9
+             */
+            personnelRoleId: string;
+        };
         LineUserRegistrationSummaryDto: {
             /** @example Somchai */
             firstName: string;
             /** @example Jaidee */
             lastName: string;
             /** @example 6412345678 */
-            studentStaffId: string;
+            staffId: string;
             /** @example 081-234-5678 */
             phone: string;
-            /** @example Computer Science */
+            /**
+             * @description Resolved department name.
+             * @example Computer Science
+             */
             department: string;
-            /** @example Student */
-            role: string;
+            /**
+             * @description Resolved personnel-role name.
+             * @example Teacher
+             */
+            personnelRole: string;
         };
         LineUserResponseDto: {
             /**
@@ -389,14 +633,6 @@ export interface components {
             data: components["schemas"]["LineUserResponseDto"][];
             meta: components["schemas"]["PaginationMetaDto"];
         };
-        ErrorResponseDto: {
-            /** @example 401 */
-            statusCode: number;
-            /** @example Unauthorized */
-            error: string;
-            /** @example Invalid email or password. */
-            message: string;
-        };
         UpdateLineUserAccessDto: {
             /**
              * @description The user's new access state. Approve → ALLOWED, Block → BLOCKED (the frontend never sends PENDING, but it is accepted).
@@ -404,57 +640,6 @@ export interface components {
              * @enum {string}
              */
             access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
-        };
-        LineUserRegistrationResponseDto: {
-            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
-            id: string;
-            /** @example Somchai */
-            firstName: string;
-            /** @example Jaidee */
-            lastName: string;
-            /** @example 6412345678 */
-            studentStaffId: string;
-            /** @example 081-234-5678 */
-            phone: string;
-            /** @example Computer Science */
-            department: string;
-            /** @example Student */
-            role: string;
-            /** @example 2026-07-14T10:00:00.000Z */
-            createdAt: string;
-            /** @example 2026-07-14T10:00:00.000Z */
-            updatedAt: string;
-        };
-        LineUserStatusResponseDto: {
-            /**
-             * @example PENDING
-             * @enum {string}
-             */
-            access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
-            registration: components["schemas"]["LineUserRegistrationResponseDto"] | null;
-        };
-        CreateLineUserRegistrationDto: {
-            /** @example Somchai */
-            firstName: string;
-            /** @example Jaidee */
-            lastName: string;
-            /**
-             * @description University student or staff ID. Globally unique.
-             * @example 6412345678
-             */
-            studentStaffId: string;
-            /** @example 081-234-5678 */
-            phone: string;
-            /**
-             * @description Free text, e.g. academic department or faculty.
-             * @example Computer Science
-             */
-            department: string;
-            /**
-             * @description Free text, e.g. Student / Staff / Teacher.
-             * @example Student
-             */
-            role: string;
         };
         CsrfTokenResponseDto: {
             /**
@@ -571,6 +756,42 @@ export interface components {
             /** @example false */
             isActive?: boolean;
         };
+        DepartmentResponseDto: {
+            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
+            id: string;
+            /** @example Computer Science */
+            name: string;
+            /** @example 2026-07-14T10:00:00.000Z */
+            createdAt: string;
+            /** @example 2026-07-14T10:00:00.000Z */
+            updatedAt: string;
+        };
+        CreateDepartmentDto: {
+            /** @example Computer Science */
+            name: string;
+        };
+        UpdateDepartmentDto: {
+            /** @example Computer Engineering */
+            name: string;
+        };
+        PersonnelRoleResponseDto: {
+            /** @example clx9z8y7x6w5v4u3t2s1r0q9 */
+            id: string;
+            /** @example Teacher */
+            name: string;
+            /** @example 2026-07-14T10:00:00.000Z */
+            createdAt: string;
+            /** @example 2026-07-14T10:00:00.000Z */
+            updatedAt: string;
+        };
+        CreatePersonnelRoleDto: {
+            /** @example Teacher */
+            name: string;
+        };
+        UpdatePersonnelRoleDto: {
+            /** @example Senior Lecturer */
+            name: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -625,6 +846,211 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponseDto"];
+                };
+            };
+        };
+    };
+    LineRegistrationController_getStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller’s current status. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserStatusResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineRegistrationController_getOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The available options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationOptionsResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineRegistrationController_register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLineUserRegistrationDto"];
+            };
+        };
+        responses: {
+            /** @description Registered; access is now PENDING. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserStatusResponseDto"];
+                };
+            };
+            /** @description Missing/blank field, bad phone, a deleted/unknown option id, or an unknown extra key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Already registered, or the staff ID is taken. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineRegistrationController_updateRegistration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLineUserRegistrationDto"];
+            };
+        };
+        responses: {
+            /** @description Updated; still PENDING. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserStatusResponseDto"];
+                };
+            };
+            /** @description Missing/blank field, bad phone, a deleted/unknown option id, or an unknown extra key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller is not PENDING (ALLOWED / BLOCKED / UNREGISTERED). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The staff ID is taken by another registration. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
         };
@@ -739,104 +1165,6 @@ export interface operations {
             };
             /** @description Session store unavailable. */
             503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponseDto"];
-                };
-            };
-        };
-    };
-    LineRegistrationController_getStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The caller’s current status. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LineUserStatusResponseDto"];
-                };
-            };
-            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponseDto"];
-                };
-            };
-            /** @description LINE verification endpoint unreachable (retryable). */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponseDto"];
-                };
-            };
-        };
-    };
-    LineRegistrationController_register: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateLineUserRegistrationDto"];
-            };
-        };
-        responses: {
-            /** @description Registered; access is now PENDING. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LineUserStatusResponseDto"];
-                };
-            };
-            /** @description Missing/blank field, bad phone, or an unknown extra key. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponseDto"];
-                };
-            };
-            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponseDto"];
-                };
-            };
-            /** @description Already registered, or the student/staff ID is taken. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponseDto"];
-                };
-            };
-            /** @description LINE verification endpoint unreachable (retryable). */
-            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1380,6 +1708,486 @@ export interface operations {
                 };
             };
             /** @description The row is not deleted. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    DepartmentsController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartmentResponseDto"][];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF has no access. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    DepartmentsController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDepartmentDto"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartmentResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    DepartmentsController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Soft-deleted. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or already-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    DepartmentsController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDepartmentDto"];
+            };
+        };
+        responses: {
+            /** @description Renamed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartmentResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    PersonnelRolesController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonnelRoleResponseDto"][];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF has no access. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    PersonnelRolesController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePersonnelRoleDto"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonnelRoleResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    PersonnelRolesController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Soft-deleted. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or already-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    PersonnelRolesController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePersonnelRoleDto"];
+            };
+        };
+        responses: {
+            /** @description Renamed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonnelRoleResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
             409: {
                 headers: {
                     [name: string]: unknown;

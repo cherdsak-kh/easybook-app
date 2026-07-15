@@ -48,10 +48,10 @@ const registration = (
 ): NonNullable<LineUser['registration']> => ({
   firstName: 'Somchai',
   lastName: 'Jaidee',
-  studentStaffId: '6412345678',
+  staffId: '6412345678',
   phone: '081-234-5678',
   department: 'Computer Science',
-  role: 'Student',
+  personnelRole: 'Teacher',
   ...overrides,
 })
 
@@ -162,9 +162,9 @@ describe('LineUsersPage', () => {
           registration: registration({
             firstName: 'Somchai',
             lastName: 'Jaidee',
-            studentStaffId: '6412345678',
+            staffId: '6412345678',
             phone: '081-234-5678',
-            role: 'Student',
+            personnelRole: 'Teacher',
             department: 'Computer Science',
           }),
         }),
@@ -175,10 +175,11 @@ describe('LineUsersPage', () => {
     const row = (await screen.findByText('Alice')).closest('li') as HTMLElement
     expect(within(row).getByText('Somchai Jaidee')).toBeInTheDocument()
     expect(within(row).getByText('6412345678')).toBeInTheDocument()
-    // The applicant's phone is now surfaced alongside the rest (PII decision reversed).
+    // The applicant's phone is surfaced alongside the rest (PII decision reversed).
     expect(within(row).getByText('Phone')).toBeInTheDocument()
     expect(within(row).getByText('081-234-5678')).toBeInTheDocument()
-    expect(within(row).getByText('Student')).toBeInTheDocument()
+    // The resolved personnel-role + department names render (dynamic options).
+    expect(within(row).getByText('Teacher')).toBeInTheDocument()
     expect(within(row).getByText('Computer Science')).toBeInTheDocument()
   })
 

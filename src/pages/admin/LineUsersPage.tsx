@@ -281,13 +281,13 @@ function RegistrationDetails({ registration }: { registration: LineUser['registr
       </p>
     )
   }
-  const { firstName, lastName, studentStaffId, phone, role, department } = registration
+  const { firstName, lastName, staffId, phone, personnelRole, department } = registration
   return (
     <dl className="grid w-full grid-cols-2 gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2 text-xs sm:grid-cols-3 dark:border-slate-800">
       <Detail label="Real name" value={`${firstName} ${lastName}`.trim() || '—'} />
-      <Detail label="ID" value={studentStaffId} />
+      <Detail label="Staff ID" value={staffId} />
       <Detail label="Phone" value={phone} />
-      <Detail label="Role" value={role} />
+      <Detail label="Role" value={personnelRole} />
       <Detail label="Department" value={department} />
     </dl>
   )

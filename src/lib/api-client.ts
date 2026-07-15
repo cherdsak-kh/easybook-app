@@ -133,6 +133,18 @@ export type LineUserRegistrationSummary =
   components['schemas']['LineUserRegistrationSummaryDto']
 export type CreateLineUserRegistration =
   components['schemas']['CreateLineUserRegistrationDto']
+export type UpdateLineUserRegistration =
+  components['schemas']['UpdateLineUserRegistrationDto']
+
+/** Dynamic registration option lists (admin-curated Departments / PersonnelRoles). */
+export type RegistrationOptions = components['schemas']['RegistrationOptionsResponseDto']
+export type RegistrationOption = components['schemas']['OptionDto']
+
+/** Admin option-management (Department / PersonnelRole) shapes. */
+export type Department = components['schemas']['DepartmentResponseDto']
+export type PersonnelRole = components['schemas']['PersonnelRoleResponseDto']
+/** Both option create/rename bodies are structurally `{ name }`. */
+export type OptionInput = components['schemas']['CreateDepartmentDto']
 
 /** The Allow/Block actions the LINE Users UI may send — never PENDING. */
 export type AccessAction = Extract<AppAccess, 'ALLOWED' | 'BLOCKED'>
@@ -288,6 +300,37 @@ export async function registerLineUser(
   return data
 }
 
+/**
+ * The admin-curated Department / PersonnelRole options that populate the
+ * registration + PENDING-edit form's dropdowns. Only non-deleted options are
+ * returned; ids feed `departmentId` / `personnelRoleId` on register/edit.
+ */
+export async function getRegistrationOptions(idToken: string): Promise<RegistrationOptions> {
+  const { data, error, response } = await api.GET('/api/v1/line-users/registration/options', {
+    headers: bearer(idToken),
+  })
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * PENDING self-edit: a PENDING user re-submits ALL their registration fields.
+ * Backend rejects with 403 if they are no longer PENDING, 400 for a
+ * deleted/unknown option, and 409 (`STAFF_ID_TAKEN`) for a taken staff id.
+ * Returns the refreshed status view so the UI can re-render the Pending screen.
+ */
+export async function updateLineUserRegistration(
+  body: UpdateLineUserRegistration,
+  idToken: string,
+): Promise<LineUserStatus> {
+  const { data, error, response } = await api.PATCH('/api/v1/line-users/registration', {
+    headers: bearer(idToken),
+    body,
+  })
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
 // ---------------------------------------------------------------------------
 // System (staff) users.
 // ---------------------------------------------------------------------------
@@ -351,4 +394,89 @@ export async function restoreSystemUser(id: string): Promise<SystemUser> {
   )
   if (!data) throw new ApiError(response.status, messageFrom(error, response))
   return data
+}
+
+// ---------------------------------------------------------------------------
+// Registration options (Department / PersonnelRole) — admin CRUD.
+//
+// Cookie-session + `x-csrf-token` double-submit, SUPER_ADMIN/ADMIN only (the
+// backend 403s STAFF). DELETE performs a server-side SOFT delete (the row
+// disappears from the active list; there is no restore in this scope). A
+// create/rename that collides with an active name → 409 (`NAME_TAKEN`).
+// ---------------------------------------------------------------------------
+
+export async function listDepartments(): Promise<Department[]> {
+  const { data, error, response } = await api.GET('/api/v1/departments')
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+export async function createDepartment(body: OptionInput): Promise<Department> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/departments', {
+      params: { header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+export async function patchDepartment(id: string, body: OptionInput): Promise<Department> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.PATCH('/api/v1/departments/{id}', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/** Soft-delete a department option. Returns nothing on 204. */
+export async function deleteDepartment(id: string): Promise<void> {
+  const { error, response } = await withCsrfRetry(() =>
+    api.DELETE('/api/v1/departments/{id}', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+    }),
+  )
+  if (!response.ok) throw new ApiError(response.status, messageFrom(error, response))
+}
+
+export async function listPersonnelRoles(): Promise<PersonnelRole[]> {
+  const { data, error, response } = await api.GET('/api/v1/personnel-roles')
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+export async function createPersonnelRole(body: OptionInput): Promise<PersonnelRole> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/personnel-roles', {
+      params: { header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+export async function patchPersonnelRole(id: string, body: OptionInput): Promise<PersonnelRole> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.PATCH('/api/v1/personnel-roles/{id}', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/** Soft-delete a personnel-role option. Returns nothing on 204. */
+export async function deletePersonnelRole(id: string): Promise<void> {
+  const { error, response } = await withCsrfRetry(() =>
+    api.DELETE('/api/v1/personnel-roles/{id}', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+    }),
+  )
+  if (!response.ok) throw new ApiError(response.status, messageFrom(error, response))
 }

@@ -1,8 +1,9 @@
 import { act } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { HomePage } from '@/pages/HomePage'
 import * as liffLib from '@/lib/liff'
 import * as apiClient from '@/lib/api-client'
+import type { LineUserRegistration, RegistrationOptions } from '@/lib/api-client'
 
 // Mock the LIFF wrapper AND the api-client at their import boundaries (repo
 // convention). These are the only two places @line/liff and network calls live,
@@ -29,7 +30,9 @@ vi.mock('@/lib/api-client', () => {
   return {
     ApiError,
     getLineUserStatus: vi.fn(),
+    getRegistrationOptions: vi.fn(),
     registerLineUser: vi.fn(),
+    updateLineUserRegistration: vi.fn(),
   }
 })
 
@@ -41,7 +44,9 @@ const mockLogin = vi.mocked(liffLib.login)
 const mockGetFriendship = vi.mocked(liffLib.getFriendship)
 const mockGetIdToken = vi.mocked(liffLib.getIdToken)
 const mockGetStatus = vi.mocked(apiClient.getLineUserStatus)
+const mockGetOptions = vi.mocked(apiClient.getRegistrationOptions)
 const mockRegister = vi.mocked(apiClient.registerLineUser)
+const mockUpdate = vi.mocked(apiClient.updateLineUserRegistration)
 
 const MARK_LOGO = '/logo/easybook-logo-512px-no-bg.svg'
 const WORDMARK_LOGO = '/logo/easybook-logo-text-1024px-no-bg.svg'
@@ -49,6 +54,34 @@ const TOKEN = 'id-token-xyz'
 /** OBS-2 auth-error copy — must match HomePage's AuthErrorScreen verbatim. */
 const AUTH_ERROR_MESSAGE =
   "LINE Authentication failed: Missing ID Token. Please contact support or verify that the LINE login channel has the 'openid' scope configured."
+
+const OPTIONS: RegistrationOptions = {
+  departments: [
+    { id: 'dept-cs', name: 'Computer Science' },
+    { id: 'dept-math', name: 'Mathematics' },
+  ],
+  personnelRoles: [
+    { id: 'role-teacher', name: 'Teacher' },
+    { id: 'role-support', name: 'Support Staff' },
+  ],
+}
+
+function registration(overrides: Partial<LineUserRegistration> = {}): LineUserRegistration {
+  return {
+    id: 'reg1',
+    firstName: 'Somchai',
+    lastName: 'Jaidee',
+    staffId: '6412345678',
+    phone: '081-234-5678',
+    departmentId: 'dept-cs',
+    department: 'Computer Science',
+    personnelRoleId: 'role-teacher',
+    personnelRole: 'Teacher',
+    createdAt: '2026-07-14T10:00:00.000Z',
+    updatedAt: '2026-07-14T10:00:00.000Z',
+    ...overrides,
+  }
+}
 
 /** Advance past the minimum splash window and flush the async gate chain. */
 async function resolveSplash() {
@@ -58,22 +91,24 @@ async function resolveSplash() {
   await flush()
 }
 
-/** Flush a few microtask turns for the awaited gate/handler promises. */
+/** Flush a few microtask turns for the awaited gate/handler/option promises. */
 async function flush() {
   await act(async () => {
+    await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
   })
 }
 
-/** Fill the registration form with valid values (role stays the default Student). */
+/** Fill the registration form with valid values, selecting the dynamic options. */
 function fillRegistration() {
   fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Somchai' } })
   fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Jaidee' } })
-  fireEvent.change(screen.getByLabelText('Student ID'), { target: { value: '6412345678' } })
+  fireEvent.change(screen.getByLabelText('Staff ID'), { target: { value: '6412345678' } })
   fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '081-234-5678' } })
-  fireEvent.change(screen.getByLabelText('Department'), { target: { value: 'Computer Science' } })
+  fireEvent.change(screen.getByLabelText('Department'), { target: { value: 'dept-cs' } })
+  fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'role-teacher' } })
 }
 
 beforeEach(() => {
@@ -87,7 +122,9 @@ beforeEach(() => {
   mockGetFriendship.mockResolvedValue({ friendFlag: true })
   mockGetIdToken.mockReturnValue(TOKEN)
   mockGetStatus.mockResolvedValue({ access: 'UNREGISTERED', registration: null })
-  mockRegister.mockResolvedValue({ access: 'PENDING', registration: null })
+  mockGetOptions.mockResolvedValue(OPTIONS)
+  mockRegister.mockResolvedValue({ access: 'PENDING', registration: registration() })
+  mockUpdate.mockResolvedValue({ access: 'PENDING', registration: registration() })
 })
 
 afterEach(() => {
@@ -99,7 +136,7 @@ describe('HomePage — splash', () => {
     render(<HomePage />)
     expect(screen.getByRole('status', { name: 'Loading EasyBook' })).toBeInTheDocument()
     expect(screen.queryByText(/Hello,/)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /log in with line/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /เข้าสู่ระบบด้วย LINE/ })).not.toBeInTheDocument()
   })
 
   it('uses the wordmark logo on the splash in a web browser', () => {
@@ -120,7 +157,7 @@ describe('HomePage — web login card', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    expect(screen.getByRole('button', { name: /log in with line/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /เข้าสู่ระบบด้วย LINE/ })).toBeInTheDocument()
     expect(mockLogin).not.toHaveBeenCalled()
   })
 
@@ -128,7 +165,7 @@ describe('HomePage — web login card', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: /log in with line/i }))
+    fireEvent.click(screen.getByRole('button', { name: /เข้าสู่ระบบด้วย LINE/ }))
 
     expect(mockLogin).toHaveBeenCalledTimes(1)
   })
@@ -145,9 +182,7 @@ describe('HomePage — friendship gate (AC-F)', () => {
     expect(
       screen.getByAltText('QR code to add the EasyBook LINE Official Account'),
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /check friendship status/i }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /ตรวจสอบสถานะการเพิ่มเพื่อน/ })).toBeInTheDocument()
     // The status gate never ran while the friendship gate is open.
     expect(mockGetStatus).not.toHaveBeenCalled()
   })
@@ -161,7 +196,7 @@ describe('HomePage — friendship gate (AC-F)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: /check friendship status/i }))
+    fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบสถานะการเพิ่มเพื่อน/ }))
     await flush()
 
     expect(mockGetStatus).toHaveBeenCalledTimes(1)
@@ -174,22 +209,30 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
     mockInitLiff.mockResolvedValue({ displayName: 'Alice', userId: 'U1' })
   })
 
-  it('UNREGISTERED → shows the registration form', async () => {
+  it('UNREGISTERED → shows the registration form with option dropdowns (SC-F2)', async () => {
     mockGetStatus.mockResolvedValue({ access: 'UNREGISTERED', registration: null })
     render(<HomePage />)
     await resolveSplash()
 
     expect(screen.getByRole('button', { name: /submit registration/i })).toBeInTheDocument()
     expect(mockGetStatus).toHaveBeenCalledWith(TOKEN)
+    // Options were fetched with the bearer token and rendered as <option>s.
+    expect(mockGetOptions).toHaveBeenCalledWith(TOKEN)
+    const dept = screen.getByLabelText('Department') as HTMLSelectElement
+    expect(within(dept).getByRole('option', { name: 'Computer Science' })).toBeInTheDocument()
+    expect(within(dept).getByRole('option', { name: 'Mathematics' })).toBeInTheDocument()
+    const role = screen.getByLabelText('Role') as HTMLSelectElement
+    expect(within(role).getByRole('option', { name: 'Teacher' })).toBeInTheDocument()
   })
 
-  it('PENDING → shows the pending screen', async () => {
-    mockGetStatus.mockResolvedValue({ access: 'PENDING', registration: null })
+  it('PENDING → shows the pending screen with an Edit affordance', async () => {
+    mockGetStatus.mockResolvedValue({ access: 'PENDING', registration: registration() })
     render(<HomePage />)
     await resolveSplash()
 
     expect(screen.getByText(/Registration pending/i)).toBeInTheDocument()
     expect(screen.getByText(/wait for an administrator to approve/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /edit registration/i })).toBeInTheDocument()
   })
 
   it('ALLOWED → shows the greeting', async () => {
@@ -219,14 +262,14 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
   })
 })
 
-describe('HomePage — registration submit (AC-F2)', () => {
+describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
   beforeEach(() => {
     mockInitLiff.mockResolvedValue({ displayName: 'Alice', userId: 'U1' })
     mockGetStatus.mockResolvedValue({ access: 'UNREGISTERED', registration: null })
   })
 
-  it('submits the mapped DTO with the bearer token and moves to Pending', async () => {
-    mockRegister.mockResolvedValue({ access: 'PENDING', registration: null })
+  it('submits the id-based DTO with the bearer token and moves to Pending', async () => {
+    mockRegister.mockResolvedValue({ access: 'PENDING', registration: registration() })
     render(<HomePage />)
     await resolveSplash()
 
@@ -238,10 +281,10 @@ describe('HomePage — registration submit (AC-F2)', () => {
       {
         firstName: 'Somchai',
         lastName: 'Jaidee',
-        studentStaffId: '6412345678',
+        staffId: '6412345678',
         phone: '081-234-5678',
-        department: 'Computer Science',
-        role: 'Student',
+        departmentId: 'dept-cs',
+        personnelRoleId: 'role-teacher',
       },
       TOKEN,
     )
@@ -257,19 +300,11 @@ describe('HomePage — registration submit (AC-F2)', () => {
 
     expect(mockRegister).not.toHaveBeenCalled()
     expect(screen.getByText('First name is required.')).toBeInTheDocument()
+    expect(screen.getByText('Please select a department.')).toBeInTheDocument()
   })
 
-  it('the ID field label follows the selected role', async () => {
-    render(<HomePage />)
-    await resolveSplash()
-
-    expect(screen.getByLabelText('Student ID')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'Staff' } })
-    expect(screen.getByLabelText('Staff ID')).toBeInTheDocument()
-  })
-
-  it('surfaces a 409 (ID taken) as a non-crashing error, staying on the form', async () => {
-    mockRegister.mockRejectedValue(new apiClient.ApiError(409, 'STUDENT_STAFF_ID_TAKEN'))
+  it('surfaces a 409 (staff ID taken) as a non-crashing error, staying on the form', async () => {
+    mockRegister.mockRejectedValue(new apiClient.ApiError(409, 'STAFF_ID_TAKEN'))
     render(<HomePage />)
     await resolveSplash()
 
@@ -278,7 +313,101 @@ describe('HomePage — registration submit (AC-F2)', () => {
     await flush()
 
     expect(screen.getByRole('button', { name: /submit registration/i })).toBeInTheDocument()
-    expect(screen.getByText('STUDENT_STAFF_ID_TAKEN')).toBeInTheDocument()
+    expect(screen.getByText('STAFF_ID_TAKEN')).toBeInTheDocument()
+  })
+})
+
+describe('HomePage — PENDING self-edit (SC-F3)', () => {
+  beforeEach(() => {
+    mockInitLiff.mockResolvedValue({ displayName: 'Alice', userId: 'U1' })
+    mockGetStatus.mockResolvedValue({ access: 'PENDING', registration: registration() })
+  })
+
+  it('Edit → pre-fills the form, PATCHes edited values, and returns to Pending', async () => {
+    const edited = registration({ firstName: 'Somsak' })
+    mockUpdate.mockResolvedValue({ access: 'PENDING', registration: edited })
+    render(<HomePage />)
+    await resolveSplash()
+
+    fireEvent.click(screen.getByRole('button', { name: /edit registration/i }))
+    await flush()
+
+    // Pre-filled from the existing registration.
+    expect(screen.getByLabelText('First name')).toHaveValue('Somchai')
+    expect(screen.getByLabelText('Staff ID')).toHaveValue('6412345678')
+    expect(screen.getByLabelText('Department')).toHaveValue('dept-cs')
+
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Somsak' } })
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    await flush()
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      {
+        firstName: 'Somsak',
+        lastName: 'Jaidee',
+        staffId: '6412345678',
+        phone: '081-234-5678',
+        departmentId: 'dept-cs',
+        personnelRoleId: 'role-teacher',
+      },
+      TOKEN,
+    )
+    // Back on the Pending screen with the refreshed name.
+    expect(screen.getByText(/Registration pending/i)).toBeInTheDocument()
+    expect(screen.getByText('Somsak Jaidee')).toBeInTheDocument()
+  })
+
+  it('renders a 403 (no longer PENDING) as a refresh prompt, staying on the form', async () => {
+    mockUpdate.mockRejectedValue(new apiClient.ApiError(403, 'REGISTRATION_NOT_EDITABLE'))
+    render(<HomePage />)
+    await resolveSplash()
+
+    fireEvent.click(screen.getByRole('button', { name: /edit registration/i }))
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    await flush()
+
+    expect(screen.getByText(/can no longer be edited/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument()
+  })
+
+  it('renders a 409 (staff ID taken) inline on edit', async () => {
+    mockUpdate.mockRejectedValue(new apiClient.ApiError(409, 'STAFF_ID_TAKEN'))
+    render(<HomePage />)
+    await resolveSplash()
+
+    fireEvent.click(screen.getByRole('button', { name: /edit registration/i }))
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    await flush()
+
+    expect(screen.getByText('STAFF_ID_TAKEN')).toBeInTheDocument()
+  })
+
+  it('renders a 400 (deleted/invalid option) inline on edit', async () => {
+    mockUpdate.mockRejectedValue(new apiClient.ApiError(400, 'INVALID_DEPARTMENT'))
+    render(<HomePage />)
+    await resolveSplash()
+
+    fireEvent.click(screen.getByRole('button', { name: /edit registration/i }))
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    await flush()
+
+    expect(screen.getByText('INVALID_DEPARTMENT')).toBeInTheDocument()
+  })
+
+  it('Cancel returns to Pending without calling the backend', async () => {
+    render(<HomePage />)
+    await resolveSplash()
+
+    fireEvent.click(screen.getByRole('button', { name: /edit registration/i }))
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    await flush()
+
+    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(screen.getByText(/Registration pending/i)).toBeInTheDocument()
   })
 })
 
@@ -320,13 +449,15 @@ describe('HomePage — local-dev mock path (no LIFF id)', () => {
     await resolveSplash()
 
     // Web signed-out → login card; the dev mock login enters the gate flow.
-    fireEvent.click(screen.getByRole('button', { name: /log in with line/i }))
+    fireEvent.click(screen.getByRole('button', { name: /เข้าสู่ระบบด้วย LINE/ }))
     await flush()
 
-    // Status short-circuits to a mock UNREGISTERED → the registration form.
+    // Status short-circuits to a mock UNREGISTERED → the registration form, whose
+    // dropdowns are populated by the mock options (no backend call).
     expect(screen.getByRole('button', { name: /submit registration/i })).toBeInTheDocument()
     expect(mockGetStatus).not.toHaveBeenCalled()
-    expect(mockLogin).not.toHaveBeenCalled()
+    expect(mockGetOptions).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Department')).toBeInTheDocument()
 
     // A mock submit transitions to Pending WITHOUT hitting the backend.
     fillRegistration()
@@ -357,10 +488,9 @@ describe('HomePage — OBS-2: configured LIFF but no ID token', () => {
 
     // No backend calls were issued …
     expect(mockGetStatus).not.toHaveBeenCalled()
+    expect(mockGetOptions).not.toHaveBeenCalled()
     expect(mockRegister).not.toHaveBeenCalled()
     // … and the mock flow did NOT run (no registration form appeared).
-    expect(
-      screen.queryByRole('button', { name: /submit registration/i }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /submit registration/i })).not.toBeInTheDocument()
   })
 })

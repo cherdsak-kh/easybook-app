@@ -18,6 +18,15 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    to: '/admin/dashboard/options',
+    label: 'Registration Options',
+    icon: (
+      <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+        <path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6l-8-4Zm-1.2 13.4-3.2-3.2 1.4-1.4 1.8 1.8 4.2-4.2 1.4 1.4-5.6 5.6Z" />
+      </svg>
+    ),
+  },
+  {
     to: '/admin/dashboard/staff',
     label: 'Staff',
     icon: (
