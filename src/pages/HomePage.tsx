@@ -12,12 +12,16 @@ import {
 import {
   ApiError,
   getLineUserStatus,
+  getRegistrationOptions,
   registerLineUser,
+  updateLineUserRegistration,
   type AppAccess,
   type CreateLineUserRegistration,
+  type LineUserRegistration,
   type LineUserStatus,
+  type RegistrationOptions,
 } from '@/lib/api-client'
-import { RegistrationForm } from '@/components/RegistrationForm'
+import { RegistrationForm, type RegistrationFormValues } from '@/components/RegistrationForm'
 import { FullPageSpinner } from '@/components/Spinner'
 
 /** Square brand mark — used inside the LINE client where space is tight. */
@@ -42,6 +46,7 @@ type View =
   | { kind: 'resolving' }
   | { kind: 'add-friend' }
   | { kind: 'registration' }
+  | { kind: 'editing' }
   | { kind: 'pending' }
   | { kind: 'allowed' }
   | { kind: 'blocked' }
@@ -49,6 +54,56 @@ type View =
   | { kind: 'auth-error' }
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+/**
+ * DEV AFFORDANCE: option lists used by the registration/edit form when LIFF is
+ * NOT configured (no `VITE_LIFF_ID`), so the whole flow — including the dynamic
+ * dropdowns — stays walkable without a backend. Never used when LIFF is real.
+ */
+const MOCK_OPTIONS: RegistrationOptions = {
+  departments: [
+    { id: 'dept-cs', name: 'Computer Science' },
+    { id: 'dept-math', name: 'Mathematics' },
+  ],
+  personnelRoles: [
+    { id: 'role-teacher', name: 'Teacher' },
+    { id: 'role-support', name: 'Support Staff' },
+  ],
+}
+
+const nameOf = (opts: RegistrationOptions['departments'], id: string): string =>
+  opts.find((o) => o.id === id)?.name ?? id
+
+/** Build a mock registration record from a submitted DTO (dev mock path only). */
+function mockRegistrationFrom(dto: CreateLineUserRegistration): LineUserRegistration {
+  const now = new Date().toISOString()
+  return {
+    id: 'mock-registration',
+    firstName: dto.firstName,
+    lastName: dto.lastName,
+    staffId: dto.staffId,
+    phone: dto.phone,
+    departmentId: dto.departmentId,
+    department: nameOf(MOCK_OPTIONS.departments, dto.departmentId),
+    personnelRoleId: dto.personnelRoleId,
+    personnelRole: nameOf(MOCK_OPTIONS.personnelRoles, dto.personnelRoleId),
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+/** Derive the form's pre-fill values from an existing registration (edit mode). */
+function initialFrom(reg: LineUserRegistration | null): RegistrationFormValues | undefined {
+  if (!reg) return undefined
+  return {
+    firstName: reg.firstName,
+    lastName: reg.lastName,
+    staffId: reg.staffId,
+    phone: reg.phone,
+    departmentId: reg.departmentId,
+    personnelRoleId: reg.personnelRoleId,
+  }
+}
 
 /**
  * Client Portal onboarding flow.
@@ -84,11 +139,27 @@ export function HomePage() {
   const [rechecking, setRechecking] = useState(false)
   const [recheckHint, setRecheckHint] = useState<string | null>(null)
 
+  // The caller's current registration (populated on the status gate; used to
+  // pre-fill the PENDING edit form and echo submitted details on Pending).
+  const [registration, setRegistration] = useState<LineUserRegistration | null>(null)
+
   const active = useRef(true)
   // The verified LIFF ID token used as the bearer; null in local-dev/mock mode.
   const idTokenRef = useRef<string | null>(null)
   // DEV AFFORDANCE: the simulated status used when there is no real ID token.
   const mockStatusRef = useRef<LineUserStatus>({ access: 'UNREGISTERED', registration: null })
+
+  /**
+   * Loads the dynamic Department / PersonnelRole option lists for the form.
+   * Uses the bearer token when LIFF is real; falls back to {@link MOCK_OPTIONS}
+   * in unconfigured local dev so the form stays walkable without a backend.
+   */
+  const loadOptions = useCallback(async (): Promise<RegistrationOptions> => {
+    if (!isLiffConfigured()) return MOCK_OPTIONS
+    const token = idTokenRef.current
+    if (!token) throw new ApiError(401, 'Missing LINE session.')
+    return getRegistrationOptions(token)
+  }, [])
 
   const route = useCallback((access: AppAccess) => {
     switch (access) {
@@ -132,6 +203,7 @@ export function HomePage() {
         status = await getLineUserStatus(token)
       }
       if (!active.current) return
+      setRegistration(status.registration)
       route(status.access)
     } catch {
       if (!active.current) return
@@ -231,8 +303,12 @@ export function HomePage() {
         // the flow is walkable without a backend. Mirrors the mock-login path.
         // Gated on isLiffConfigured() (OBS-2): a real-but-tokenless channel must
         // never fake a submit — the status gate already routes it to auth-error.
-        mockStatusRef.current = { access: 'PENDING', registration: null }
-        if (active.current) setView({ kind: 'pending' })
+        const reg = mockRegistrationFrom(dto)
+        mockStatusRef.current = { access: 'PENDING', registration: reg }
+        if (active.current) {
+          setRegistration(reg)
+          setView({ kind: 'pending' })
+        }
         return
       }
       const token = idTokenRef.current
@@ -244,10 +320,55 @@ export function HomePage() {
       }
       const status = await registerLineUser(dto, token)
       if (!active.current) return
+      setRegistration(status.registration)
       route(status.access)
     } catch (err) {
       if (!active.current) return
       setSubmitError(messageForRegister(err))
+    } finally {
+      if (active.current) setSubmitting(false)
+    }
+  }
+
+  /** Open the PENDING edit form (pre-filled from the current registration). */
+  function handleStartEdit() {
+    setSubmitError(null)
+    setView({ kind: 'editing' })
+  }
+
+  /** Cancel the edit and return to the Pending screen. */
+  function handleCancelEdit() {
+    setSubmitError(null)
+    setView({ kind: 'pending' })
+  }
+
+  async function handleEditSubmit(dto: CreateLineUserRegistration) {
+    setSubmitError(null)
+    setSubmitting(true)
+    try {
+      if (!isLiffConfigured()) {
+        // DEV AFFORDANCE: mock a successful self-edit without a backend.
+        const reg = mockRegistrationFrom(dto)
+        mockStatusRef.current = { access: 'PENDING', registration: reg }
+        if (active.current) {
+          setRegistration(reg)
+          setView({ kind: 'pending' })
+        }
+        return
+      }
+      const token = idTokenRef.current
+      if (!token) {
+        if (active.current) setView({ kind: 'auth-error' })
+        return
+      }
+      const status = await updateLineUserRegistration(dto, token)
+      if (!active.current) return
+      setRegistration(status.registration)
+      // Success → back to the (refreshed) Pending screen. `access` stays PENDING.
+      route(status.access)
+    } catch (err) {
+      if (!active.current) return
+      setSubmitError(messageForEdit(err))
     } finally {
       if (active.current) setSubmitting(false)
     }
@@ -269,14 +390,29 @@ export function HomePage() {
     case 'registration':
       return (
         <RegistrationForm
+          mode="create"
+          loadOptions={loadOptions}
           onSubmit={handleRegister}
           submitting={submitting}
           serverError={submitError}
           displayName={profile?.displayName}
         />
       )
+    case 'editing':
+      return (
+        <RegistrationForm
+          mode="edit"
+          loadOptions={loadOptions}
+          onSubmit={handleEditSubmit}
+          submitting={submitting}
+          serverError={submitError}
+          displayName={profile?.displayName}
+          initial={initialFrom(registration)}
+          onCancel={handleCancelEdit}
+        />
+      )
     case 'pending':
-      return <PendingScreen profile={profile} />
+      return <PendingScreen profile={profile} registration={registration} onEdit={handleStartEdit} />
     case 'allowed':
       return <HelloScreen profile={profile} />
     case 'blocked':
@@ -294,11 +430,36 @@ export function HomePage() {
 function messageForRegister(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 409) {
-      // Either already registered, or the student/staff ID is taken.
+      // Either already registered, or the staff ID is taken.
       return err.message || 'This ID is already registered. Please check your details.'
     }
     if (err.status === 400) {
       return err.message || 'Please check the form and try again.'
+    }
+    if (err.status === 401) {
+      return 'Your LINE session has expired. Please reopen the app and try again.'
+    }
+    if (err.status === 502) {
+      return 'We could not reach LINE to verify you. Please try again in a moment.'
+    }
+    return err.message || 'Something went wrong. Please try again.'
+  }
+  return 'Something went wrong. Please try again.'
+}
+
+/** Map a PENDING self-edit failure to a user-facing, non-crashing message. */
+function messageForEdit(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 403) {
+      // No longer PENDING (an admin approved/blocked in the meantime).
+      return 'Your registration can no longer be edited — please reopen the app to refresh your status.'
+    }
+    if (err.status === 409) {
+      return err.message || 'That staff ID is already in use. Please check your details.'
+    }
+    if (err.status === 400) {
+      // A selected option was removed, or a field is invalid.
+      return err.message || 'Please review your selections and try again.'
     }
     if (err.status === 401) {
       return 'Your LINE session has expired. Please reopen the app and try again.'
@@ -351,8 +512,20 @@ function HelloScreen({ profile }: { profile: LiffProfile | null }) {
   )
 }
 
-/** PENDING: registered, awaiting an administrator's approval. */
-function PendingScreen({ profile }: { profile: LiffProfile | null }) {
+/**
+ * PENDING: registered, awaiting an administrator's approval. Echoes the submitted
+ * details and offers an "Edit registration" affordance (backend permits edits
+ * only while PENDING).
+ */
+function PendingScreen({
+  profile,
+  registration,
+  onEdit,
+}: {
+  profile: LiffProfile | null
+  registration: LineUserRegistration | null
+  onEdit: () => void
+}) {
   return (
     <StatusCard
       tone="amber"
@@ -364,7 +537,44 @@ function PendingScreen({ profile }: { profile: LiffProfile | null }) {
           received. Please wait for an administrator to approve your access.
         </>
       }
+      action={
+        <>
+          {registration && (
+            <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-left text-sm dark:border-slate-800">
+              <SummaryItem
+                label="Name"
+                value={`${registration.firstName} ${registration.lastName}`.trim()}
+              />
+              <SummaryItem label="Staff ID" value={registration.staffId} />
+              <SummaryItem label="Phone" value={registration.phone} />
+              <SummaryItem label="Department" value={registration.department} />
+              <SummaryItem label="Role" value={registration.personnelRole} />
+            </dl>
+          )}
+          <button
+            type="button"
+            onClick={onEdit}
+            className="mt-6 inline-flex w-full items-center justify-center rounded-xl border border-amber-300 px-5 py-2.5 font-semibold text-amber-800 transition-colors hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10 dark:focus-visible:ring-offset-slate-900"
+          >
+            Edit registration
+          </button>
+        </>
+      }
     />
+  )
+}
+
+/** A labelled read-only value inside the Pending summary. */
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[0.7rem] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        {label}
+      </dt>
+      <dd className="truncate text-slate-700 dark:text-slate-200" title={value}>
+        {value || '—'}
+      </dd>
+    </div>
   )
 }
 
@@ -416,11 +626,10 @@ function AddFriendScreen({
       <div className="w-full max-w-sm">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-            Add EasyBook on LINE
+            เพิ่มเพื่อน EasyBook บน LINE
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            To continue, add our Official Account as a friend. Scan the QR code below in LINE, or open
-            it on another device.
+            เพื่อดำเนินการต่อ โปรดเพิ่มบัญชีทางการของเราเป็นเพื่อน โดยสแกนคิวอาร์โค้ดด้านล่างผ่านแอปพลิเคชัน LINE หรือเปิดผ่านอุปกรณ์อื่น
           </p>
 
           <div className="mt-6 flex justify-center">
@@ -434,9 +643,9 @@ function AddFriendScreen({
           </div>
 
           <ol className="mt-6 space-y-1 text-left text-sm text-slate-600 dark:text-slate-300">
-            <li>1. Open LINE and tap the QR scanner.</li>
-            <li>2. Scan the code above and add EasyBook.</li>
-            <li>3. Come back here and tap the button below.</li>
+            <li>1. เปิดแอปพลิเคชัน LINE และเลือกตัวสแกนคิวอาร์โค้ด</li>
+            <li>2. สแกนคิวอาร์โค้ดด้านบน และกดเพิ่มเพื่อน EasyBook</li>
+            <li>3. กลับมาที่หน้านี้ และกดปุ่มด้านล่าง</li>
           </ol>
 
           {hint && (
@@ -451,7 +660,7 @@ function AddFriendScreen({
             disabled={rechecking}
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60 dark:focus-visible:ring-offset-slate-900"
           >
-            {rechecking ? 'Checking…' : 'Check Friendship Status'}
+            {rechecking ? 'กำลังตรวจสอบ...' : 'ตรวจสอบสถานะการเพิ่มเพื่อน'}
           </button>
         </div>
       </div>
@@ -532,10 +741,10 @@ function LineLoginScreen({ onLogin }: { onLogin: () => void }) {
             className="mx-auto h-14 w-auto max-w-[70%]"
           />
           <h1 className="mt-6 text-xl font-bold text-slate-900 dark:text-slate-100">
-            Welcome to EasyBook
+            ยินดีต้อนรับสู่ EasyBook
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            Log in with your LINE account to book and manage your appointments.
+            เข้าสู่ระบบด้วยบัญชี LINE ของคุณเพื่อใช้งานระบบ
           </p>
 
           <button
@@ -544,7 +753,7 @@ function LineLoginScreen({ onLogin }: { onLogin: () => void }) {
             className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#06C755] px-4 py-3 font-semibold text-white transition-colors hover:bg-[#05b34c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#06C755] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >
             <LineGlyph className="h-5 w-5" />
-            Log in with LINE
+            เข้าสู่ระบบด้วย LINE
           </button>
         </div>
       </div>
