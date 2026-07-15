@@ -527,7 +527,7 @@ function LineLoginScreen({ onLogin }: { onLogin: () => void }) {
       <div className="w-full max-w-sm">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <img
-            src={LOGO_WORDMARK}
+            src={LOGO_MARK}
             alt="EasyBook"
             className="mx-auto h-14 w-auto max-w-[70%]"
           />
