@@ -38,9 +38,22 @@ function lineUser(overrides: Partial<LineUser> = {}): LineUser {
     richMenuType: 'TYPE_1',
     access: 'PENDING',
     followedAt: '2026-07-01T00:00:00.000Z',
+    registration: null,
     ...overrides,
   }
 }
+
+const registration = (
+  overrides: Partial<NonNullable<LineUser['registration']>> = {},
+): NonNullable<LineUser['registration']> => ({
+  firstName: 'Somchai',
+  lastName: 'Jaidee',
+  studentStaffId: '6412345678',
+  phone: '081-234-5678',
+  department: 'Computer Science',
+  role: 'Student',
+  ...overrides,
+})
 
 function page(data: LineUser[], meta: Partial<PaginatedLineUsers['meta']> = {}): PaginatedLineUsers {
   return {
@@ -137,5 +150,48 @@ describe('LineUsersPage', () => {
     expect(
       await screen.findByText('You do not have permission to view LINE users.'),
     ).toBeInTheDocument()
+  })
+
+  it("shows a registered row's registration details (AC-F7)", async () => {
+    mockList.mockResolvedValue(
+      page([
+        lineUser({
+          id: 'a',
+          displayName: 'Alice',
+          access: 'PENDING',
+          registration: registration({
+            firstName: 'Somchai',
+            lastName: 'Jaidee',
+            studentStaffId: '6412345678',
+            phone: '081-234-5678',
+            role: 'Student',
+            department: 'Computer Science',
+          }),
+        }),
+      ]),
+    )
+    renderPage()
+
+    const row = (await screen.findByText('Alice')).closest('li') as HTMLElement
+    expect(within(row).getByText('Somchai Jaidee')).toBeInTheDocument()
+    expect(within(row).getByText('6412345678')).toBeInTheDocument()
+    // The applicant's phone is now surfaced alongside the rest (PII decision reversed).
+    expect(within(row).getByText('Phone')).toBeInTheDocument()
+    expect(within(row).getByText('081-234-5678')).toBeInTheDocument()
+    expect(within(row).getByText('Student')).toBeInTheDocument()
+    expect(within(row).getByText('Computer Science')).toBeInTheDocument()
+  })
+
+  it('renders the "Not registered" fallback (no phone shown) for a row without a registration (AC-F7)', async () => {
+    mockList.mockResolvedValue(
+      page([lineUser({ id: 'a', displayName: 'Bob', access: 'UNREGISTERED', registration: null })]),
+    )
+    renderPage()
+
+    const row = (await screen.findByText('Bob')).closest('li') as HTMLElement
+    expect(within(row).getByText('Not registered')).toBeInTheDocument()
+    // No registration → no phone label/value leaks into the row.
+    expect(within(row).queryByText('Phone')).not.toBeInTheDocument()
+    expect(within(row).queryByText('081-234-5678')).not.toBeInTheDocument()
   })
 })

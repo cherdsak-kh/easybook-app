@@ -81,6 +81,11 @@ function invalidateCsrf(): void {
 
 const csrfMiddleware: Middleware = {
   async onRequest({ request }) {
+    // Bearer-authenticated requests (the LINE-consumer status/register endpoints)
+    // are cookieless and carry no ambient authority, so the double-submit CSRF
+    // that protects the admin cookie session does not apply — skip it entirely so
+    // we never fire a stray GET /auth/system/csrf for a LINE-portal call.
+    if (request.headers.has('authorization')) return request
     if (UNSAFE_METHODS.has(request.method.toUpperCase())) {
       request.headers.set('x-csrf-token', await getCsrf())
     }
@@ -120,6 +125,14 @@ export type LineUser = components['schemas']['LineUserResponseDto']
 export type PaginatedLineUsers = components['schemas']['PaginatedLineUsersResponseDto']
 export type AppAccess = LineUser['access']
 export type PaginationMeta = components['schemas']['PaginationMetaDto']
+
+/** LINE consumer (client-portal) status + registration shapes. */
+export type LineUserStatus = components['schemas']['LineUserStatusResponseDto']
+export type LineUserRegistration = components['schemas']['LineUserRegistrationResponseDto']
+export type LineUserRegistrationSummary =
+  components['schemas']['LineUserRegistrationSummaryDto']
+export type CreateLineUserRegistration =
+  components['schemas']['CreateLineUserRegistrationDto']
 
 /** The Allow/Block actions the LINE Users UI may send — never PENDING. */
 export type AccessAction = Extract<AppAccess, 'ALLOWED' | 'BLOCKED'>
@@ -228,6 +241,49 @@ export async function patchLineUserAccess(
       body: { access },
     }),
   )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+// ---------------------------------------------------------------------------
+// LINE consumer (client portal) — bearer-authenticated with the LIFF ID token.
+//
+// These are the FIRST LINE-consumer-authenticated endpoints: they authenticate
+// with `Authorization: Bearer <id_token>` (the LINE ID token from
+// `liff.getIDToken()`), NOT the admin cookie session. They are cookieless, so the
+// CSRF middleware skips them (it bails when an Authorization header is present).
+// `register` is CSRF-exempt on the backend; we still send the bearer.
+// ---------------------------------------------------------------------------
+
+function bearer(idToken: string): { Authorization: string } {
+  return { Authorization: `Bearer ${idToken}` }
+}
+
+/**
+ * The single call the client portal makes after LIFF auth to pick which of the
+ * four screens (UNREGISTERED / PENDING / ALLOWED / BLOCKED) to render.
+ */
+export async function getLineUserStatus(idToken: string): Promise<LineUserStatus> {
+  const { data, error, response } = await api.GET('/api/v1/line-users/status', {
+    headers: bearer(idToken),
+  })
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * Submit the registration form (UNREGISTERED → PENDING). Returns the caller's
+ * new status view (access is now PENDING) so the UI can route straight to the
+ * Pending screen without a second GET /status.
+ */
+export async function registerLineUser(
+  body: CreateLineUserRegistration,
+  idToken: string,
+): Promise<LineUserStatus> {
+  const { data, error, response } = await api.POST('/api/v1/line-users/register', {
+    headers: bearer(idToken),
+    body,
+  })
   if (!data) throw new ApiError(response.status, messageFrom(error, response))
   return data
 }
