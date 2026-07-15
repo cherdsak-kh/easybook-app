@@ -44,22 +44,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/line/users/{lineUserId}/rich-menu": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["LineUserController_updateRichMenu"];
-        trace?: never;
-    };
     "/api/v1/line-users": {
         parameters: {
             query?: never;
@@ -98,6 +82,46 @@ export interface paths {
          * @description Sets `access` (Approve → ALLOWED, Block → BLOCKED). Returns the updated row. An unknown or soft-deleted id is a 404 that reveals nothing about deletion; an empty body, a bad enum value, or any extra key is a 400.
          */
         patch: operations["LineUsersController_updateAccess"];
+        trace?: never;
+    };
+    "/api/v1/line-users/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the authenticated LINE user's access status + registration.
+         * @description Header-derived and param-less: the caller reads only their own status (identity = the verified `sub`). A LIFF-first user with no prior row gets a fresh `UNREGISTERED` state and `registration: null`. The single call the client portal makes after LIFF auth to pick which of the four screens to render.
+         */
+        get: operations["LineRegistrationController_getStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit the registration form (UNREGISTERED → PENDING).
+         * @description Creates the 1:1 registration for the authenticated LINE user and moves them to `PENDING` (rich menu stays `TYPE_1`). Returns the caller’s status view so the frontend can route to the Pending screen without a second call. There is no `lineUserId` body field — the identity is the verified `sub`.
+         */
+        post: operations["LineRegistrationController_register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/auth/system/csrf": {
@@ -303,12 +327,19 @@ export interface components {
              */
             redis: "up" | "down";
         };
-        UpdateUserRichMenuDto: {
-            /**
-             * @example TYPE_2
-             * @enum {string}
-             */
-            richMenuType: "TYPE_1" | "TYPE_2";
+        LineUserRegistrationSummaryDto: {
+            /** @example Somchai */
+            firstName: string;
+            /** @example Jaidee */
+            lastName: string;
+            /** @example 6412345678 */
+            studentStaffId: string;
+            /** @example 081-234-5678 */
+            phone: string;
+            /** @example Computer Science */
+            department: string;
+            /** @example Student */
+            role: string;
         };
         LineUserResponseDto: {
             /**
@@ -332,9 +363,11 @@ export interface components {
              * @example PENDING
              * @enum {string}
              */
-            access: "PENDING" | "ALLOWED" | "BLOCKED";
+            access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
             /** @example 2026-07-07T10:00:00.000Z */
             followedAt: string;
+            /** @description The user's registration summary, or null for a follower who never submitted the form. */
+            registration: components["schemas"]["LineUserRegistrationSummaryDto"] | null;
         };
         PaginationMetaDto: {
             /** @example 1 */
@@ -370,7 +403,58 @@ export interface components {
              * @example ALLOWED
              * @enum {string}
              */
-            access: "PENDING" | "ALLOWED" | "BLOCKED";
+            access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
+        };
+        LineUserRegistrationResponseDto: {
+            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
+            id: string;
+            /** @example Somchai */
+            firstName: string;
+            /** @example Jaidee */
+            lastName: string;
+            /** @example 6412345678 */
+            studentStaffId: string;
+            /** @example 081-234-5678 */
+            phone: string;
+            /** @example Computer Science */
+            department: string;
+            /** @example Student */
+            role: string;
+            /** @example 2026-07-14T10:00:00.000Z */
+            createdAt: string;
+            /** @example 2026-07-14T10:00:00.000Z */
+            updatedAt: string;
+        };
+        LineUserStatusResponseDto: {
+            /**
+             * @example PENDING
+             * @enum {string}
+             */
+            access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
+            registration: components["schemas"]["LineUserRegistrationResponseDto"] | null;
+        };
+        CreateLineUserRegistrationDto: {
+            /** @example Somchai */
+            firstName: string;
+            /** @example Jaidee */
+            lastName: string;
+            /**
+             * @description University student or staff ID. Globally unique.
+             * @example 6412345678
+             */
+            studentStaffId: string;
+            /** @example 081-234-5678 */
+            phone: string;
+            /**
+             * @description Free text, e.g. academic department or faculty.
+             * @example Computer Science
+             */
+            department: string;
+            /**
+             * @description Free text, e.g. Student / Staff / Teacher.
+             * @example Student
+             */
+            role: string;
         };
         CsrfTokenResponseDto: {
             /**
@@ -545,32 +629,6 @@ export interface operations {
             };
         };
     };
-    LineUserController_updateRichMenu: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                lineUserId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateUserRichMenuDto"];
-            };
-        };
-        responses: {
-            /** @description Updated user. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LineUserResponseDto"];
-                };
-            };
-        };
-    };
     LineUsersController_list: {
         parameters: {
             query?: {
@@ -580,7 +638,7 @@ export interface operations {
                 /** @description Case-insensitive substring match on `displayName`. Trimmed; empty/absent → no name filter. */
                 search?: string;
                 /** @description Narrows the list to a single access state. An invalid value is a 400. */
-                access?: "PENDING" | "ALLOWED" | "BLOCKED";
+                access?: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
             };
             header?: never;
             path?: never;
@@ -681,6 +739,104 @@ export interface operations {
             };
             /** @description Session store unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineRegistrationController_getStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller’s current status. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserStatusResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineRegistrationController_register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLineUserRegistrationDto"];
+            };
+        };
+        responses: {
+            /** @description Registered; access is now PENDING. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserStatusResponseDto"];
+                };
+            };
+            /** @description Missing/blank field, bad phone, or an unknown extra key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Already registered, or the student/staff ID is taken. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -14,7 +14,7 @@ import { useAuth } from '@/auth/useAuth'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
 const PAGE_SIZE = 20
-const ACCESS_OPTIONS: readonly AppAccess[] = ['PENDING', 'ALLOWED', 'BLOCKED']
+const ACCESS_OPTIONS: readonly AppAccess[] = ['UNREGISTERED', 'PENDING', 'ALLOWED', 'BLOCKED']
 
 function formatFollowedAt(iso: string): string {
   const d = new Date(iso)
@@ -224,6 +224,7 @@ export function LineUsersPage() {
                   pending={pendingId === user.id}
                   onChange={changeAccess}
                 />
+                <RegistrationDetails registration={user.registration} />
               </li>
             ))}
           </ul>
@@ -260,6 +261,48 @@ export function LineUsersPage() {
         </nav>
       )}
     </section>
+  )
+}
+
+/**
+ * The registration credentials submitted by the user, so an admin approves a
+ * *person* rather than a bare LINE handle. `registration` is `null` for a
+ * follower who never completed the form — rendered as a muted "Not registered".
+ *
+ * Note: the admin list DTO (`LineUserRegistrationSummaryDto`) now includes the
+ * applicant's phone (PII decision reversed so admins can vet registrations — see
+ * the 2026-07-15 follow-up in 03_implement_log.md), shown alongside the rest.
+ */
+function RegistrationDetails({ registration }: { registration: LineUser['registration'] }) {
+  if (!registration) {
+    return (
+      <p className="w-full border-t border-slate-100 pt-2 text-xs italic text-slate-400 dark:border-slate-800 dark:text-slate-500">
+        Not registered
+      </p>
+    )
+  }
+  const { firstName, lastName, studentStaffId, phone, role, department } = registration
+  return (
+    <dl className="grid w-full grid-cols-2 gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2 text-xs sm:grid-cols-3 dark:border-slate-800">
+      <Detail label="Real name" value={`${firstName} ${lastName}`.trim() || '—'} />
+      <Detail label="ID" value={studentStaffId} />
+      <Detail label="Phone" value={phone} />
+      <Detail label="Role" value={role} />
+      <Detail label="Department" value={department} />
+    </dl>
+  )
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[0.7rem] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        {label}
+      </dt>
+      <dd className="truncate text-slate-700 dark:text-slate-200" title={value}>
+        {value || '—'}
+      </dd>
+    </div>
   )
 }
 
