@@ -7,6 +7,8 @@ import * as apiClient from '@/lib/api-client'
 import type { PaginatedSystemUsers, SystemUser } from '@/lib/api-client'
 
 const UI = UI_STRINGS.staff
+/** `TempPasswordDialog`'s copy, rendered through `StaffPage`. */
+const TEMP = UI_STRINGS.staff.tempPassword
 
 vi.mock('@/lib/api-client', () => {
   class ApiError extends Error {
@@ -221,13 +223,13 @@ describe('StaffPage', () => {
     const dialog = await screen.findByRole('dialog')
     expect(mockReset).toHaveBeenCalledWith('other')
     expect(within(dialog).getByTestId('temp-password-value')).toHaveTextContent('Kp7Rn2Tq9Wx4Yb6C')
-    // States plainly that it is not retrievable. `TempPasswordDialog` is out of
-    // this refactor's scope (it has no test file of its own), so its copy stays
-    // a literal here.
-    expect(within(dialog).getByText(/only time it will be shown/i)).toBeInTheDocument()
+    // States plainly that it is not retrievable, and titles itself by the action
+    // that issued the password — a reset, not a create.
+    expect(within(dialog).getByText(TEMP.warning)).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: TEMP.resetTitle })).toBeInTheDocument()
 
     // Closing drops the plaintext for good — it is not re-derivable from state.
-    fireEvent.click(within(dialog).getByRole('button', { name: 'I have saved it' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: TEMP.acknowledge }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(screen.queryByText('Kp7Rn2Tq9Wx4Yb6C')).not.toBeInTheDocument()
   })
@@ -248,10 +250,13 @@ describe('StaffPage', () => {
     fireEvent.click(screen.getByRole('button', { name: UI.confirmReset }))
 
     const dialog = await screen.findByRole('dialog')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Copy' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: TEMP.copy }))
 
+    // The exact plaintext reaches the clipboard — not a truncated or stale value.
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('Kp7Rn2Tq9Wx4Yb6C'))
-    expect(await within(dialog).findByRole('button', { name: 'Copied' })).toBeInTheDocument()
+    expect(await within(dialog).findByRole('button', { name: TEMP.copied })).toBeInTheDocument()
+    // The success status is announced, not just the button label flipped.
+    expect(await within(dialog).findByText(TEMP.copySuccess)).toBeInTheDocument()
   })
 
   it('surfaces a failed reset inline and shows no dialog', async () => {

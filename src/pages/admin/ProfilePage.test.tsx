@@ -2,8 +2,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { ProfilePage } from '@/pages/admin/ProfilePage'
+import { UI_STRINGS } from '@/constants/ui-strings'
 import * as apiClient from '@/lib/api-client'
 import type { SystemUser } from '@/lib/api-client'
+
+const UI = UI_STRINGS.profile
 
 vi.mock('@/lib/api-client', () => {
   class ApiError extends Error {
@@ -84,38 +87,47 @@ describe('ProfilePage', () => {
     mockGetMe.mockResolvedValue(null)
     renderPage()
 
-    expect(await screen.findByText('Could not load your profile. Please try again.')).toBeInTheDocument()
+    expect(await screen.findByText(UI.loadFailed)).toBeInTheDocument()
 
     mockGetMe.mockResolvedValue(makeUser())
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
-    expect(await screen.findByLabelText('First name')).toBeInTheDocument()
+    // Counted relative to the calls already made (AuthProvider probes /me on
+    // mount too), so this asserts the retry genuinely re-issues the request
+    // rather than just re-rendering stale state.
+    const before = mockGetMe.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: UI_STRINGS.common.tryAgain }))
+    expect(await screen.findByLabelText(UI.firstName)).toBeInTheDocument()
+    expect(mockGetMe.mock.calls.length).toBeGreaterThan(before)
   })
 
   // ------------------------------------------------------------------- AC-F7
 
   it('renders role, Position and department READ-ONLY with a managed-by note (AC-F7)', async () => {
     renderPage()
-    await screen.findByLabelText('First name')
+    await screen.findByLabelText(UI.firstName)
 
-    // Present as values...
-    expect(screen.getByText('Admin')).toBeInTheDocument()
+    // Present as values. `Teacher`/`Computer Science` stay literal on purpose:
+    // they are FIXTURE data flowing out of the `/me` embed, not UI copy — the
+    // assertion is that the resolved embed renders, which a dictionary constant
+    // would not express.
     expect(screen.getByText('Teacher')).toBeInTheDocument()
     expect(screen.getByText('Computer Science')).toBeInTheDocument()
-    expect(screen.getByText(/A Super Admin manages this/)).toBeInTheDocument()
+    // The wire role `ADMIN` maps through the label table to its display name.
+    expect(screen.getByText(UI_STRINGS.roles.ADMIN)).toBeInTheDocument()
+    expect(screen.getByText(UI.managedNote, { exact: false })).toBeInTheDocument()
 
     // ...but not as editable form controls. The self-edit DTO has no such
     // fields, so there must be nothing to type into.
-    expect(screen.queryByLabelText('Role')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Position')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Department')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(UI.role)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(UI.position)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(UI.department)).not.toBeInTheDocument()
   })
 
   it('PATCHes ONLY the self-editable fields — never role/department/personnelRole (AC-F7)', async () => {
     mockUpdate.mockResolvedValue(makeUser({ firstName: 'Grace' }))
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText('First name'), { target: { value: 'Grace' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.change(await screen.findByLabelText(UI.firstName), { target: { value: 'Grace' } })
+    fireEvent.click(screen.getByRole('button', { name: UI.saveChanges }))
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
     const body = mockUpdate.mock.calls[0][0]
@@ -138,10 +150,10 @@ describe('ProfilePage', () => {
     mockUpdate.mockResolvedValue(makeUser({ phoneNumber: null }))
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText('Phone number (optional)'), {
+    fireEvent.change(await screen.findByLabelText(UI.phoneNumber), {
       target: { value: '' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.saveChanges }))
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1))
     const body = mockUpdate.mock.calls[0][0]
@@ -153,24 +165,29 @@ describe('ProfilePage', () => {
     mockUpdate.mockResolvedValue(makeUser({ firstName: 'Grace' }))
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText('First name'), { target: { value: 'Grace' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.change(await screen.findByLabelText(UI.firstName), { target: { value: 'Grace' } })
+    fireEvent.click(screen.getByRole('button', { name: UI.saveChanges }))
 
-    expect(await screen.findByText('Profile saved.')).toBeInTheDocument()
+    expect(await screen.findByText(UI.saved)).toBeInTheDocument()
   })
 
   it('surfaces a save failure inline', async () => {
     mockUpdate.mockRejectedValue(new apiClient.ApiError(400, 'phoneNumber contains unsupported characters.'))
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText('Phone number (optional)'), {
+    fireEvent.change(await screen.findByLabelText(UI.phoneNumber), {
       target: { value: '!!!' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.saveChanges }))
 
+    // Literal on purpose: the SERVER's 400 message, proving it is rendered
+    // verbatim instead of being replaced by the canned `saveInvalid` fallback.
     expect(
       await screen.findByText('phoneNumber contains unsupported characters.'),
     ).toBeInTheDocument()
+    expect(screen.queryByText(UI.saveInvalid)).not.toBeInTheDocument()
+    // A failed save must not claim success.
+    expect(screen.queryByText(UI.saved)).not.toBeInTheDocument()
   })
 
   // ------------------------------------------------------- Avatar (AC-F8)
@@ -182,11 +199,11 @@ describe('ProfilePage', () => {
     )
     renderPage()
 
-    const input = await screen.findByLabelText('Profile picture')
+    const input = await screen.findByLabelText(UI.avatarLabel)
     fireEvent.change(input, { target: { files: [file] } })
 
     await waitFor(() => expect(mockUpload).toHaveBeenCalledWith(file))
-    const img = await screen.findByAltText<HTMLImageElement>('Your profile picture')
+    const img = await screen.findByAltText<HTMLImageElement>(UI.avatarAlt)
     // Rendered from the response body — the URL is never constructed client-side.
     expect(img.src).toBe('https://cdn.example.com/avatars/u1/abc.png')
   })
@@ -198,11 +215,14 @@ describe('ProfilePage', () => {
     )
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText('Profile picture'), {
+    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), {
       target: { files: [file] },
     })
 
+    // Literal on purpose: the SERVER's sniff-failure message, surfaced verbatim
+    // rather than replaced by the canned `avatarRejected` fallback.
     expect(await screen.findByText('Avatar must be a JPEG, PNG or WEBP image.')).toBeInTheDocument()
+    expect(screen.queryByText(UI.avatarRejected)).not.toBeInTheDocument()
   })
 
   it('maps a 502 (storage unreachable) to its own message (AC-F8)', async () => {
@@ -210,26 +230,26 @@ describe('ProfilePage', () => {
     mockUpload.mockRejectedValue(new apiClient.ApiError(502, 'Bad Gateway'))
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText('Profile picture'), {
+    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), {
       target: { files: [file] },
     })
 
-    expect(
-      await screen.findByText('Image storage is unavailable right now. Please try again in a moment.'),
-    ).toBeInTheDocument()
+    // A 502 gets its own branch — never the raw 'Bad Gateway' and never the
+    // generic upload-failed message.
+    expect(await screen.findByText(UI.avatarStorageDown)).toBeInTheDocument()
+    expect(screen.queryByText('Bad Gateway')).not.toBeInTheDocument()
+    expect(screen.queryByText(UI.avatarUploadFailed)).not.toBeInTheDocument()
   })
 
   it('rejects an oversized file client-side without calling the API (AC-F8)', async () => {
     const file = fakeFile('huge.png', 'image/png', 2 * 1024 * 1024 + 1)
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText('Profile picture'), {
+    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), {
       target: { files: [file] },
     })
 
-    expect(
-      await screen.findByText('That image is larger than 2 MB. Please choose a smaller one.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(UI.avatarTooLarge)).toBeInTheDocument()
     expect(mockUpload).not.toHaveBeenCalled()
   })
 
@@ -238,26 +258,25 @@ describe('ProfilePage', () => {
     mockUpload.mockResolvedValue(makeUser({ profilePictureUrl: 'https://cdn.example.com/a.png' }))
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText('Profile picture'), {
+    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), {
       target: { files: [file] },
     })
 
     // The pre-check must be `> 2 MiB`, not `>=`, or it would refuse a file the
     // server would have accepted.
     await waitFor(() => expect(mockUpload).toHaveBeenCalledWith(file))
+    expect(screen.queryByText(UI.avatarTooLarge)).not.toBeInTheDocument()
   })
 
   it('rejects an unsupported type client-side without calling the API (AC-F8)', async () => {
     const file = fakeFile('doc.pdf', 'application/pdf', 1024)
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText('Profile picture'), {
+    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), {
       target: { files: [file] },
     })
 
-    expect(
-      await screen.findByText('Unsupported image type. Please choose a JPEG, PNG or WEBP file.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(UI.avatarBadType)).toBeInTheDocument()
     expect(mockUpload).not.toHaveBeenCalled()
   })
 
@@ -266,10 +285,10 @@ describe('ProfilePage', () => {
     mockUpload.mockReturnValue(new Promise(() => {}))
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText('Profile picture'), {
+    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), {
       target: { files: [file] },
     })
 
-    expect(await screen.findByText('Uploading…')).toBeInTheDocument()
+    expect(await screen.findByText(UI.avatarUploading)).toBeInTheDocument()
   })
 })

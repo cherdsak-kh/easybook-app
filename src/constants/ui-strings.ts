@@ -184,6 +184,39 @@ export const UI_STRINGS = {
       invalid: 'Please check the highlighted fields and try again.',
       saveFailed: 'Could not save. Please try again.',
     },
+
+    /**
+     * The show-once temporary-password dialog (`TempPasswordDialog`), reached
+     * from both create and reset. Asserted through `StaffPage.test.tsx` rather
+     * than a test file of its own — which is exactly why it belongs here: the
+     * component/test copy pair it duplicates is real, just split across files.
+     */
+    tempPassword: {
+      /** Title depends on which action issued the password. */
+      createdTitle: 'Staff member created',
+      resetTitle: 'Password reset',
+
+      /**
+       * Split, not a `(userLabel) => string` formatter, because the dialog
+       * renders the name emphasised *between* these two halves:
+       * `{introBefore} <span class="font-medium">{userLabel}</span>{introAfter}`.
+       * Joining them into one formatter would drop the emphasis.
+       */
+      introBefore: 'Temporary password for',
+      introAfter: '. They must change it the first time they sign in.',
+
+      warning: 'Copy it now — this is the only time it will be shown. It cannot be retrieved again.',
+
+      copy: 'Copy',
+      copied: 'Copied',
+      copySuccess:
+        'Copied to the clipboard. Deliver it to them directly — never by an unsecured channel.',
+      /** Clipboard denied/insecure context — soft failure, the value is on screen. */
+      copyFailed: 'Could not copy automatically. Select the password above and copy it manually.',
+
+      /** The only way to dismiss: closing must be a conscious acknowledgement. */
+      acknowledge: 'I have saved it',
+    },
   },
 
   // ------------------------------------------------------------------ Profile

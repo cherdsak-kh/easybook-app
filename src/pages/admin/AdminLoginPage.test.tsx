@@ -2,8 +2,11 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { AdminLoginPage } from '@/pages/admin/AdminLoginPage'
+import { UI_STRINGS } from '@/constants/ui-strings'
 import * as apiClient from '@/lib/api-client'
 import type { LoginResponse } from '@/lib/api-client'
+
+const UI = UI_STRINGS.auth.login
 
 vi.mock('@/lib/api-client', () => ({
   getMe: vi.fn(),
@@ -47,13 +50,14 @@ describe('AdminLoginPage', () => {
     mockLogin.mockResolvedValue({ ok: true, user: loginResponse() })
     renderLogin()
 
-    fireEvent.change(await screen.findByLabelText('อีเมล'), {
+    fireEvent.change(await screen.findByLabelText(UI.email), {
       target: { value: 'admin@easybook.local' },
     })
-    fireEvent.change(screen.getByLabelText('รหัสผ่าน'), { target: { value: 'secret' } })
-    fireEvent.click(screen.getByRole('button', { name: 'เข้าสู่ระบบ' }))
+    fireEvent.change(screen.getByLabelText(UI.password), { target: { value: 'secret' } })
+    fireEvent.click(screen.getByRole('button', { name: UI.submit }))
 
     expect(await screen.findByText('Dashboard Home')).toBeInTheDocument()
+    // Behavioural: the exact credentials typed are forwarded, in order, untouched.
     expect(mockLogin).toHaveBeenCalledWith('admin@easybook.local', 'secret')
   })
 
@@ -61,26 +65,29 @@ describe('AdminLoginPage', () => {
     mockLogin.mockResolvedValue({ ok: false, status: 401, message: 'Invalid' })
     renderLogin()
 
-    fireEvent.change(await screen.findByLabelText('อีเมล'), {
+    fireEvent.change(await screen.findByLabelText(UI.email), {
       target: { value: 'admin@easybook.local' },
     })
-    fireEvent.change(screen.getByLabelText('รหัสผ่าน'), { target: { value: 'wrong' } })
-    fireEvent.click(screen.getByRole('button', { name: 'เข้าสู่ระบบ' }))
+    fireEvent.change(screen.getByLabelText(UI.password), { target: { value: 'wrong' } })
+    fireEvent.click(screen.getByRole('button', { name: UI.submit }))
 
-    expect(await screen.findByText('อีเมลหรือรหัสผ่านไม่ถูกต้อง')).toBeInTheDocument()
+    // Behavioural: a 401 maps to the bad-credentials branch (not the generic
+    // `failed` one) and does NOT navigate away.
+    expect(await screen.findByText(UI.badCredentials)).toBeInTheDocument()
     expect(screen.queryByText('Dashboard Home')).not.toBeInTheDocument()
     // Still on the login form.
-    expect(screen.getByLabelText('อีเมล')).toBeInTheDocument()
+    expect(screen.getByLabelText(UI.email)).toBeInTheDocument()
   })
 
   it('validates the email format before calling the API', async () => {
     renderLogin()
 
-    fireEvent.change(await screen.findByLabelText('อีเมล'), { target: { value: 'not-an-email' } })
-    fireEvent.change(screen.getByLabelText('รหัสผ่าน'), { target: { value: 'secret' } })
-    fireEvent.click(screen.getByRole('button', { name: 'เข้าสู่ระบบ' }))
+    fireEvent.change(await screen.findByLabelText(UI.email), { target: { value: 'not-an-email' } })
+    fireEvent.change(screen.getByLabelText(UI.password), { target: { value: 'secret' } })
+    fireEvent.click(screen.getByRole('button', { name: UI.submit }))
 
-    expect(await screen.findByText('โปรดระบุอีเมลให้ถูกต้อง')).toBeInTheDocument()
+    expect(await screen.findByText(UI.emailInvalid)).toBeInTheDocument()
+    // Behavioural: the client-side guard short-circuits — no request is made.
     expect(mockLogin).not.toHaveBeenCalled()
   })
 })

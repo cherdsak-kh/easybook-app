@@ -3,8 +3,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { FORCE_PASSWORD_CHANGE_PATH, ProtectedRoute } from '@/auth/ProtectedRoute'
 import { ForcePasswordChangePage } from '@/pages/admin/ForcePasswordChangePage'
+import { UI_STRINGS } from '@/constants/ui-strings'
 import * as apiClient from '@/lib/api-client'
 import type { SystemUser } from '@/lib/api-client'
+
+const UI = UI_STRINGS.auth.forcePasswordChange
 
 vi.mock('@/lib/api-client', () => {
   class ApiError extends Error {
@@ -89,15 +92,15 @@ async function fillForm({
   next = VALID_NEW,
   confirm = next,
 }: { current?: string; next?: string; confirm?: string } = {}) {
-  fireEvent.change(await screen.findByLabelText('Current (temporary) password'), {
+  fireEvent.change(await screen.findByLabelText(UI.currentPassword), {
     target: { value: current },
   })
-  fireEvent.change(screen.getByLabelText('New password'), { target: { value: next } })
-  fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: confirm } })
+  fireEvent.change(screen.getByLabelText(UI.newPassword), { target: { value: next } })
+  fireEvent.change(screen.getByLabelText(UI.confirmPassword), { target: { value: confirm } })
 }
 
 function submit() {
-  fireEvent.click(screen.getByRole('button', { name: 'Change password' }))
+  fireEvent.click(screen.getByRole('button', { name: UI.submit }))
 }
 
 beforeEach(() => {
@@ -127,12 +130,16 @@ describe('ForcePasswordChangePage', () => {
     await fillForm()
     submit()
 
-    // The message is rendered inline...
+    // The message is rendered inline. This literal is deliberately NOT a
+    // dictionary constant: it is the SERVER's message, asserted against the
+    // fixture above to prove the backend text is surfaced verbatim rather than
+    // swallowed and replaced with the canned `UI.invalid` fallback.
     expect(await screen.findByText('The current password is incorrect.')).toBeInTheDocument()
+    expect(screen.queryByText(UI.invalid)).not.toBeInTheDocument()
     // ...and the user stays on the screen: no bounce to login, no logout call.
     // A 400 here is a typo, not session death — treating it as a 401 would dump
     // the user at a login screen whose password no longer works.
-    expect(screen.getByLabelText('Current (temporary) password')).toBeInTheDocument()
+    expect(screen.getByLabelText(UI.currentPassword)).toBeInTheDocument()
     expect(screen.queryByText('Login Page')).not.toBeInTheDocument()
     expect(mockLogout).not.toHaveBeenCalled()
   })
@@ -183,8 +190,10 @@ describe('ForcePasswordChangePage', () => {
     await fillForm({ next: 'short', confirm: 'short' })
     submit()
 
+    // The bound is read from the api-client constant the component itself uses,
+    // so tightening the rule cannot leave this message asserting a stale number.
     expect(
-      await screen.findByText('Your new password must be at least 12 characters.'),
+      await screen.findByText(UI.tooShort(apiClient.PASSWORD_MIN_LENGTH)),
     ).toBeInTheDocument()
     expect(mockChange).not.toHaveBeenCalled()
   })
@@ -195,9 +204,7 @@ describe('ForcePasswordChangePage', () => {
     await fillForm({ current: VALID_NEW, next: VALID_NEW, confirm: VALID_NEW })
     submit()
 
-    expect(
-      await screen.findByText('Your new password must be different from your current one.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(UI.mustDiffer)).toBeInTheDocument()
     expect(mockChange).not.toHaveBeenCalled()
   })
 
@@ -207,7 +214,7 @@ describe('ForcePasswordChangePage', () => {
     await fillForm({ next: VALID_NEW, confirm: 'something-else-entirely' })
     submit()
 
-    expect(await screen.findByText('The passwords do not match.')).toBeInTheDocument()
+    expect(await screen.findByText(UI.mismatch)).toBeInTheDocument()
     expect(mockChange).not.toHaveBeenCalled()
   })
 
@@ -218,16 +225,17 @@ describe('ForcePasswordChangePage', () => {
     await fillForm()
     submit()
 
-    expect(
-      await screen.findByText('Could not change your password. Please try again.'),
-    ).toBeInTheDocument()
+    // A 503 is neither 400 nor 401: it must land on the generic failure message
+    // rather than being mistaken for a wrong password or a dead session.
+    expect(await screen.findByText(UI.failed)).toBeInTheDocument()
+    expect(mockLogout).not.toHaveBeenCalled()
   })
 
   it('always lets the user log out of the gated screen', async () => {
     mockLogout.mockResolvedValue(undefined)
     renderScreen()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Log out' }))
+    fireEvent.click(await screen.findByRole('button', { name: UI.logout }))
 
     await waitFor(() => expect(mockLogout).toHaveBeenCalledTimes(1))
     expect(await screen.findByText('Login Page')).toBeInTheDocument()
