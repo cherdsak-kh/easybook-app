@@ -3,25 +3,32 @@ import {
   ApiError,
   deleteSystemUser,
   listSystemUsers,
+  resetSystemUserPassword,
   type PaginatedSystemUsers,
-  type SystemRole,
   type SystemUser,
+  type SystemUserWithTemporaryPassword,
 } from '@/lib/api-client'
 import { Spinner } from '@/components/Spinner'
 import { StaffFormModal } from '@/components/admin/StaffFormModal'
+import { TempPasswordDialog } from '@/components/admin/TempPasswordDialog'
 import { useAuth } from '@/auth/useAuth'
+import { UI_STRINGS } from '@/constants/ui-strings'
 
+const UI = UI_STRINGS.staff
 const PAGE_SIZE = 20
-const ROLE_LABEL: Record<SystemRole, string> = {
-  SUPER_ADMIN: 'Super Admin',
-  ADMIN: 'Admin',
-  STAFF: 'Staff',
-}
 
 type ModalState =
   | { kind: 'closed' }
   | { kind: 'create' }
   | { kind: 'edit'; user: SystemUser }
+
+/**
+ * The one-time temporary password, held ONLY while its dialog is open. Closing
+ * the dialog drops it; it is never persisted anywhere and never re-fetchable.
+ */
+type TempPasswordState =
+  | { kind: 'none' }
+  | { kind: 'shown'; password: string; userLabel: string; reason: 'created' | 'reset' }
 
 /**
  * Staff (`SystemUser`) management (design §5.3). Lists back-office accounts and
@@ -41,6 +48,8 @@ export function StaffPage() {
   const [modal, setModal] = useState<ModalState>({ kind: 'closed' })
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [tempPassword, setTempPassword] = useState<TempPasswordState>({ kind: 'none' })
+  const [resettingId, setResettingId] = useState<string | null>(null)
 
   const reqId = useRef(0)
 
@@ -61,9 +70,7 @@ export function StaffPage() {
           return
         }
         setError(
-          err instanceof ApiError && err.status === 403
-            ? 'You do not have permission to view staff.'
-            : 'Could not load staff. Please try again.',
+          err instanceof ApiError && err.status === 403 ? UI.listForbidden : UI.listFailed,
         )
         setLoading(false)
       })
@@ -73,9 +80,44 @@ export function StaffPage() {
     load()
   }, [load])
 
-  function handleSaved() {
+  function handleSaved(saved: SystemUser | SystemUserWithTemporaryPassword) {
     setModal({ kind: 'closed' })
+    // A create response carries the one-time plaintext; an edit response does not.
+    if ('temporaryPassword' in saved) {
+      setTempPassword({
+        kind: 'shown',
+        password: saved.temporaryPassword,
+        userLabel: `${saved.firstName} ${saved.lastName} (${saved.email})`,
+        reason: 'created',
+      })
+    }
     load()
+  }
+
+  async function resetPassword(user: SystemUser) {
+    setBusyId(user.id)
+    setActionError(null)
+    try {
+      const result = await resetSystemUserPassword(user.id)
+      setResettingId(null)
+      setTempPassword({
+        kind: 'shown',
+        password: result.temporaryPassword,
+        userLabel: `${result.firstName} ${result.lastName} (${result.email})`,
+        reason: 'reset',
+      })
+      load()
+    } catch (err: unknown) {
+      if (err instanceof ApiError && err.status === 401) {
+        expireSession()
+        return
+      }
+      setActionError(
+        err instanceof ApiError && err.status === 403 ? UI.resetForbidden : UI.resetFailed,
+      )
+    } finally {
+      setBusyId(null)
+    }
   }
 
   async function deactivate(user: SystemUser) {
@@ -92,8 +134,8 @@ export function StaffPage() {
       }
       setActionError(
         err instanceof ApiError && err.status === 403
-          ? 'You do not have permission to deactivate this account.'
-          : 'Could not deactivate the account. Please try again.',
+          ? UI.deactivateForbidden
+          : UI.deactivateFailed,
       )
     } finally {
       setBusyId(null)
@@ -109,11 +151,9 @@ export function StaffPage() {
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 id="staff-heading" className="text-xl font-bold text-slate-900 dark:text-slate-100">
-            Staff
+            {UI.heading}
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Manage back-office user accounts.
-          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{UI.subheading}</p>
         </div>
         {isSuperAdmin && (
           <button
@@ -121,7 +161,7 @@ export function StaffPage() {
             onClick={() => setModal({ kind: 'create' })}
             className="shrink-0 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
           >
-            Add staff
+            {UI.addStaff}
           </button>
         )}
       </div>
@@ -149,7 +189,7 @@ export function StaffPage() {
 
         {!loading && !error && users.length === 0 && (
           <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
-            No staff accounts found.
+            {UI.empty}
           </div>
         )}
 
@@ -159,6 +199,9 @@ export function StaffPage() {
               const isSelf = user.id === currentUser?.id
               const canDeactivate = isSuperAdmin && !isSelf
               const canEditRole = isSuperAdmin && !isSelf
+              // Hidden on your own row: the backend 403s a self-reset (use the
+              // change-password screen instead).
+              const canResetPassword = isSuperAdmin && !isSelf
               return (
                 <li
                   key={user.id}
@@ -171,17 +214,24 @@ export function StaffPage() {
                       </span>
                       {!user.isActive && (
                         <span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                          Inactive
+                          {UI.inactiveBadge}
+                        </span>
+                      )}
+                      {user.mustChangePassword && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+                          {UI.passwordNotSetBadge}
                         </span>
                       )}
                     </p>
+                    {/* The resolved `{id,name}` embeds — a soft-deleted option
+                        still resolves its name here, forever (AC-F2). */}
                     <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                      {user.email} · {user.position}, {user.department}
+                      {user.email} · {user.personnelRole.name}, {user.department.name}
                     </p>
                   </div>
 
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                    {ROLE_LABEL[user.role]}
+                    {UI_STRINGS.roles[user.role]}
                   </span>
 
                   <div className="flex items-center gap-2">
@@ -190,8 +240,46 @@ export function StaffPage() {
                       onClick={() => setModal({ kind: 'edit', user })}
                       className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
-                      Edit
+                      {UI.edit}
                     </button>
+
+                    {canResetPassword &&
+                      (resettingId === user.id ? (
+                        <span className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => resetPassword(user)}
+                            disabled={busyId === user.id}
+                            className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-60"
+                          >
+                            {busyId === user.id ? (
+                              <Spinner label={UI.resetting} />
+                            ) : (
+                              UI.confirmReset
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setResettingId(null)}
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                          >
+                            {UI_STRINGS.common.cancel}
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActionError(null)
+                            setConfirmingId(null)
+                            setResettingId(user.id)
+                          }}
+                          aria-label={UI.resetPasswordFor(`${user.firstName} ${user.lastName}`)}
+                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                          {UI.resetPassword}
+                        </button>
+                      ))}
 
                     {canDeactivate &&
                       (confirmingId === user.id ? (
@@ -202,24 +290,31 @@ export function StaffPage() {
                             disabled={busyId === user.id}
                             className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-60"
                           >
-                            {busyId === user.id ? <Spinner label="Deactivating…" /> : 'Confirm'}
+                            {busyId === user.id ? (
+                              <Spinner label={UI.deactivating} />
+                            ) : (
+                              UI_STRINGS.common.confirm
+                            )}
                           </button>
                           <button
                             type="button"
                             onClick={() => setConfirmingId(null)}
                             className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                           >
-                            Cancel
+                            {UI_STRINGS.common.cancel}
                           </button>
                         </span>
                       ) : (
                         <button
                           type="button"
-                          onClick={() => setConfirmingId(user.id)}
-                          aria-label={`Deactivate ${user.firstName} ${user.lastName}`}
+                          onClick={() => {
+                            setResettingId(null)
+                            setConfirmingId(user.id)
+                          }}
+                          aria-label={UI.deactivateUser(`${user.firstName} ${user.lastName}`)}
                           className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
                         >
-                          Deactivate
+                          {UI.deactivate}
                         </button>
                       ))}
                   </div>
@@ -243,12 +338,10 @@ export function StaffPage() {
 
       {meta && totalPages > 0 && (
         <nav
-          aria-label="Pagination"
+          aria-label={UI.pagination.label}
           className="mt-4 flex items-center justify-between text-sm text-slate-600 dark:text-slate-300"
         >
-          <span>
-            Page {meta.page} of {totalPages} · {meta.total} total
-          </span>
+          <span>{UI.pagination.summary(meta.page, totalPages, meta.total)}</span>
           <div className="flex gap-2">
             <button
               type="button"
@@ -256,7 +349,7 @@ export function StaffPage() {
               disabled={page <= 1 || loading}
               className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
             >
-              Previous
+              {UI.pagination.previous}
             </button>
             <button
               type="button"
@@ -264,7 +357,7 @@ export function StaffPage() {
               disabled={page >= totalPages || loading}
               className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
             >
-              Next
+              {UI.pagination.next}
             </button>
           </div>
         </nav>
@@ -276,6 +369,16 @@ export function StaffPage() {
           canEditRole={isSuperAdmin}
           onClose={() => setModal({ kind: 'closed' })}
           onSaved={handleSaved}
+        />
+      )}
+
+      {tempPassword.kind === 'shown' && (
+        <TempPasswordDialog
+          password={tempPassword.password}
+          userLabel={tempPassword.userLabel}
+          reason={tempPassword.reason}
+          // Closing drops the plaintext from state entirely — it is gone for good.
+          onClose={() => setTempPassword({ kind: 'none' })}
         />
       )}
     </section>

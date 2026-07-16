@@ -121,6 +121,17 @@ export type LoginResponse = components['schemas']['LoginResponseDto']
 export type PaginatedSystemUsers = components['schemas']['PaginatedSystemUsersResponseDto']
 export type CreateSystemUserBody = components['schemas']['CreateSystemUserDto']
 export type UpdateSystemUserBody = components['schemas']['UpdateSystemUserDto']
+/**
+ * A `SystemUser` plus the one-time `temporaryPassword`. Returned ONLY by
+ * `createSystemUser` and `resetSystemUserPassword` — the plaintext is shown once
+ * and is never retrievable again, so it must never be persisted or logged.
+ */
+export type SystemUserWithTemporaryPassword =
+  components['schemas']['SystemUserWithTemporaryPasswordDto']
+/** The `{ id, name }` Department / PersonnelRole embed resolved on every read. */
+export type SystemUserOption = components['schemas']['SystemUserOptionDto']
+/** The four self-editable profile fields. `role`/`department`/`personnelRole` are absent by design. */
+export type UpdateOwnProfileBody = components['schemas']['UpdateOwnProfileDto']
 export type LineUser = components['schemas']['LineUserResponseDto']
 export type PaginatedLineUsers = components['schemas']['PaginatedLineUsersResponseDto']
 export type AppAccess = LineUser['access']
@@ -208,6 +219,93 @@ export async function logout(): Promise<void> {
       params: { header: { 'x-csrf-token': '' } },
     }),
   )
+}
+
+// ---------------------------------------------------------------------------
+// Self-service (the signed-in user acting on themselves).
+// ---------------------------------------------------------------------------
+
+/** New-password rules, mirrored from the backend DTO. The server is the control. */
+export const PASSWORD_MIN_LENGTH = 12
+export const PASSWORD_MAX_LENGTH = 128
+
+/**
+ * Change your own password — the forced-reset door AND the voluntary one.
+ * `currentPassword` is required: without it a hijacked session would be a
+ * one-request account takeover.
+ *
+ * CRITICAL: a WRONG `currentPassword` is a **400, never a 401**. Callers must
+ * render it inline and must NOT treat it as session death — a 401 here means the
+ * session genuinely died. On success the server clears `mustChangePassword`;
+ * re-probe `getMe()` rather than trusting local state.
+ */
+export async function changeOwnPassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const { error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/auth/system/password', {
+      params: { header: { 'x-csrf-token': '' } },
+      body: { currentPassword, newPassword },
+    }),
+  )
+  if (!response.ok) throw new ApiError(response.status, messageFrom(error, response))
+}
+
+/**
+ * Edit your own profile. Accepts EXACTLY `firstName`, `lastName`, `phoneNumber`,
+ * `profilePictureUrl` — `role`, `departmentId` and `personnelRoleId` are absent
+ * from the DTO, so sending one is a 400 (`forbidNonWhitelisted`). A SUPER_ADMIN
+ * manages those via `patchSystemUser`.
+ */
+export async function updateOwnProfile(body: UpdateOwnProfileBody): Promise<SystemUser> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.PATCH('/api/v1/auth/system/me', {
+      params: { header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * Avatar constraints, mirrored client-side for fast feedback only — the server
+ * enforces them authoritatively (and sniffs magic bytes, which we cannot).
+ *
+ * The size limit is EXCLUSIVE: the backend accepts a file of exactly 2 MiB and
+ * rejects 2 MiB + 1, so the reject condition here must be `> AVATAR_MAX_BYTES`,
+ * never `>=`, or the client would reject a file the server would have taken.
+ */
+export const AVATAR_MAX_BYTES = 2 * 1024 * 1024
+export const AVATAR_ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
+
+/**
+ * Upload your own avatar: `multipart/form-data`, one part named `file`, straight
+ * to the backend (it proxies to R2 — this is NOT a presign flow). The CSRF token
+ * rides as a HEADER (the middleware attaches it); putting it in the form body
+ * would be a 400.
+ *
+ * Returns the UPDATED user with `profilePictureUrl` already pointing at the new
+ * object — render from this body rather than constructing the URL.
+ */
+export async function uploadOwnAvatar(file: File): Promise<SystemUser> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/auth/system/me/avatar', {
+      params: { header: { 'x-csrf-token': '' } },
+      // The generated type calls `file` a binary string; the wire wants a File.
+      body: { file: file as unknown as string },
+      // Returning FormData makes openapi-fetch drop its JSON Content-Type so the
+      // browser sets the multipart boundary itself.
+      bodySerializer(body: { file: string }) {
+        const form = new FormData()
+        form.append('file', body.file as unknown as File)
+        return form
+      },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
 }
 
 // ---------------------------------------------------------------------------
@@ -351,11 +449,35 @@ export async function listSystemUsers(
   return data
 }
 
-export async function createSystemUser(body: CreateSystemUserBody): Promise<SystemUser> {
+/**
+ * Create a staff account. The SERVER issues the password — there is no
+ * `password` field — and returns `temporaryPassword` EXACTLY ONCE in this
+ * response. Show it to the admin once, then let it fall out of scope.
+ */
+export async function createSystemUser(
+  body: CreateSystemUserBody,
+): Promise<SystemUserWithTemporaryPassword> {
   const { data, error, response } = await withCsrfRetry(() =>
     api.POST('/api/v1/system-users', {
       params: { header: { 'x-csrf-token': '' } },
       body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * Issue a NEW temporary password for someone else (SUPER_ADMIN only; never
+ * yourself — the backend 403s a self-reset). The plaintext comes back exactly
+ * once, in `temporaryPassword`.
+ */
+export async function resetSystemUserPassword(
+  id: string,
+): Promise<SystemUserWithTemporaryPassword> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/system-users/{id}/reset-password', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
     }),
   )
   if (!data) throw new ApiError(response.status, messageFrom(error, response))

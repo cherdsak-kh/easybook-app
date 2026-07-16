@@ -37,6 +37,28 @@ const NAV_ITEMS: NavItem[] = [
   },
 ]
 
+/** Self-service, available to every role — not a management surface. */
+const ACCOUNT_ITEMS: NavItem[] = [
+  {
+    to: '/admin/dashboard/profile',
+    label: 'My Profile',
+    icon: (
+      <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z" />
+      </svg>
+    ),
+  },
+]
+
+const linkClass = ({ isActive }: { isActive: boolean }) =>
+  [
+    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+    isActive
+      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+  ].join(' ')
+
 /**
  * Dashboard navigation. Rendered inside a landmark `<nav>`; the active route is
  * highlighted via `NavLink`'s `isActive`. On mobile the parent slides this in a
@@ -49,20 +71,17 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         Management
       </p>
       {NAV_ITEMS.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            [
-              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
-              isActive
-                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
-            ].join(' ')
-          }
-        >
+        <NavLink key={item.to} to={item.to} onClick={onNavigate} className={linkClass}>
+          {item.icon}
+          <span>{item.label}</span>
+        </NavLink>
+      ))}
+
+      <p className="px-3 pb-2 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        Account
+      </p>
+      {ACCOUNT_ITEMS.map((item) => (
+        <NavLink key={item.to} to={item.to} onClick={onNavigate} className={linkClass}>
           {item.icon}
           <span>{item.label}</span>
         </NavLink>

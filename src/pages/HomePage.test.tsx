@@ -1,9 +1,18 @@
 import { act } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { HomePage } from '@/pages/HomePage'
+import { ID_COUNT } from '@/components/RegistrationForm'
 import * as liffLib from '@/lib/liff'
 import * as apiClient from '@/lib/api-client'
 import type { LineUserRegistration, RegistrationOptions } from '@/lib/api-client'
+
+/**
+ * Derived from `RegistrationForm`'s own rule rather than hardcoded: a 13-char
+ * literal here went silently invalid when that rule last changed, blocking
+ * submit and reddening the payload assertions below for unrelated-looking
+ * reasons.
+ */
+const VALID_STAFF_ID = '6'.repeat(ID_COUNT)
 
 // Mock the LIFF wrapper AND the api-client at their import boundaries (repo
 // convention). These are the only two places @line/liff and network calls live,
@@ -71,7 +80,7 @@ function registration(overrides: Partial<LineUserRegistration> = {}): LineUserRe
     id: 'reg1',
     firstName: 'Somchai',
     lastName: 'Jaidee',
-    staffId: '6412345678901',
+    staffId: VALID_STAFF_ID,
     phone: '0812345678',
     departmentId: 1,
     department: 'Computer Science',
@@ -105,7 +114,7 @@ async function flush() {
 function fillRegistration() {
   fireEvent.change(screen.getByLabelText('ชื่อจริง'), { target: { value: 'Somchai' } })
   fireEvent.change(screen.getByLabelText('นามสกุล'), { target: { value: 'Jaidee' } })
-  fireEvent.change(screen.getByLabelText('รหัสบุคลากร'), { target: { value: '6412345678901' } })
+  fireEvent.change(screen.getByLabelText('รหัสบุคลากร'), { target: { value: VALID_STAFF_ID } })
   fireEvent.change(screen.getByLabelText('เบอร์โทรศัพท์'), { target: { value: '0812345678' } })
   // <select> values are DOM strings — the stringified integer option ids.
   fireEvent.change(screen.getByLabelText('ฝ่าย / แผนก'), { target: { value: '1' } })
@@ -286,7 +295,7 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
       {
         firstName: 'Somchai',
         lastName: 'Jaidee',
-        staffId: '6412345678901',
+        staffId: VALID_STAFF_ID,
         phone: '0812345678',
         departmentId: 1,
         personnelRoleId: 10,
@@ -340,7 +349,7 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     // Pre-filled from the existing registration — the numeric option id is
     // stringified so the <select> keeps the current option selected.
     expect(screen.getByLabelText('ชื่อจริง')).toHaveValue('Somchai')
-    expect(screen.getByLabelText('รหัสบุคลากร')).toHaveValue('6412345678901')
+    expect(screen.getByLabelText('รหัสบุคลากร')).toHaveValue(VALID_STAFF_ID)
     expect(screen.getByLabelText('ฝ่าย / แผนก')).toHaveValue('1')
 
     fireEvent.change(screen.getByLabelText('ชื่อจริง'), { target: { value: 'Somsak' } })
@@ -352,7 +361,7 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
       {
         firstName: 'Somsak',
         lastName: 'Jaidee',
-        staffId: '6412345678901',
+        staffId: VALID_STAFF_ID,
         phone: '0812345678',
         departmentId: 1,
         personnelRoleId: 10,

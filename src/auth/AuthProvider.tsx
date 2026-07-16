@@ -17,6 +17,11 @@ function toAdminUser(u: SystemUser | LoginResponse): AdminUser {
     firstName: u.firstName,
     lastName: u.lastName,
     role: u.role,
+    // `LoginResponseDto` has no `mustChangePassword`; only `GET /auth/system/me`
+    // carries it. Absent → false, so a transient /me failure can never trap a
+    // normal user on the reset screen. The server gate is the real control: a
+    // genuinely gated user is 403'd everywhere and the next /me probe routes them.
+    mustChangePassword: 'mustChangePassword' in u ? u.mustChangePassword : false,
   }
 }
 
@@ -47,7 +52,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
     const result = await apiLogin(email, password)
     if (result.ok) {
-      setUser(toAdminUser(result.user))
+      // The login body cannot tell us whether this user is confined to the
+      // force-reset screen (`LoginResponseDto` has no `mustChangePassword`), and
+      // someone logging in with a temporary password is exactly the case that
+      // matters. Re-probe /me — it is exempt from the server gate, so it always
+      // answers — and fall back to the login body if that probe fails.
+      const me = await getMe()
+      setUser(toAdminUser(me ?? result.user))
       setStatus('authenticated')
     }
     return result

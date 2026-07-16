@@ -15,6 +15,15 @@ export interface AdminUser {
   firstName: string
   lastName: string
   role: SystemRole
+  /**
+   * True while a server-issued temporary password is outstanding. Sourced from
+   * `GET /auth/system/me` (the login response does NOT carry it), and used to
+   * route to the force-reset screen.
+   *
+   * This is UX only — the backend 403s every gated route regardless. Never treat
+   * this flag as the control.
+   */
+  mustChangePassword: boolean
 }
 
 export interface AuthContextValue {

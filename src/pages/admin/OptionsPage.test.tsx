@@ -2,8 +2,11 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { OptionsPage } from '@/pages/admin/OptionsPage'
+import { UI_STRINGS } from '@/constants/ui-strings'
 import * as apiClient from '@/lib/api-client'
 import type { Department, PersonnelRole } from '@/lib/api-client'
+
+const UI = UI_STRINGS.options
 
 vi.mock('@/lib/api-client', () => {
   class ApiError extends Error {
@@ -36,6 +39,7 @@ const mockCreateDept = vi.mocked(apiClient.createDepartment)
 const mockPatchDept = vi.mocked(apiClient.patchDepartment)
 const mockDeleteDept = vi.mocked(apiClient.deleteDepartment)
 const mockListRoles = vi.mocked(apiClient.listPersonnelRoles)
+const mockCreateRole = vi.mocked(apiClient.createPersonnelRole)
 
 function dept(overrides: Partial<Department> = {}): Department {
   return {
@@ -67,9 +71,20 @@ function renderPage() {
   )
 }
 
-/** The Departments management section, as a labelled region. */
+/**
+ * The Departments management section, as a labelled region.
+ *
+ * Matched on the EXACT heading the page renders, because both sides now read it
+ * from the same dictionary entry. Previously this had to match a loose `/^Departments/`
+ * prefix to survive the Thai gloss being appended out-of-band — that workaround
+ * is what the dictionary removes the need for.
+ */
 function departmentsRegion() {
-  return within(screen.getByRole('region', { name: 'Departments' }))
+  return within(screen.getByRole('region', { name: UI.departments.title }))
+}
+
+function personnelRolesRegion() {
+  return within(screen.getByRole('region', { name: UI.personnelRoles.title }))
 }
 
 beforeEach(() => {
@@ -84,11 +99,13 @@ describe('OptionsPage', () => {
     renderPage()
 
     expect(await departmentsRegion().findByText('Computer Science')).toBeInTheDocument()
-    expect(
-      within(screen.getByRole('region', { name: 'Personnel Roles' })).getByText('Teacher'),
-    ).toBeInTheDocument()
+    expect(personnelRolesRegion().getByText('Teacher')).toBeInTheDocument()
     expect(mockListDepts).toHaveBeenCalledTimes(1)
     expect(mockListRoles).toHaveBeenCalledTimes(1)
+    // Each section is wired to its OWN endpoint — a swap here would render the
+    // roles list under the Departments heading and still look plausible.
+    expect(departmentsRegion().queryByText('Teacher')).not.toBeInTheDocument()
+    expect(personnelRolesRegion().queryByText('Computer Science')).not.toBeInTheDocument()
   })
 
   it('creates a department and re-fetches the list', async () => {
@@ -96,15 +113,21 @@ describe('OptionsPage', () => {
     renderPage()
     await departmentsRegion().findByText('Computer Science')
 
-    fireEvent.click(departmentsRegion().getByRole('button', { name: 'Add' }))
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Physics' } })
+    fireEvent.click(departmentsRegion().getByRole('button', { name: UI.add }))
+    // The dialog is scoped to the resource it was opened from.
+    expect(
+      screen.getByRole('heading', { name: UI.form.addTitle(UI.departments.noun) }),
+    ).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(UI.nameLabel), { target: { value: 'Physics' } })
     // After the successful create, the list re-fetch returns both rows.
     mockListDepts.mockResolvedValue([dept(), dept({ id: 2, name: 'Physics' })])
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: UI_STRINGS.common.save }))
 
     await waitFor(() => expect(mockCreateDept).toHaveBeenCalledWith({ name: 'Physics' }))
     expect(await departmentsRegion().findByText('Physics')).toBeInTheDocument()
     expect(mockListDepts).toHaveBeenCalledTimes(2)
+    // The department create must never leak into the roles resource.
+    expect(mockCreateRole).not.toHaveBeenCalled()
   })
 
   it('surfaces a 409 (name taken) inline in the create dialog', async () => {
@@ -112,13 +135,16 @@ describe('OptionsPage', () => {
     renderPage()
     await departmentsRegion().findByText('Computer Science')
 
-    fireEvent.click(departmentsRegion().getByRole('button', { name: 'Add' }))
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Computer Science' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(departmentsRegion().getByRole('button', { name: UI.add }))
+    fireEvent.change(screen.getByLabelText(UI.nameLabel), { target: { value: 'Computer Science' } })
+    fireEvent.click(screen.getByRole('button', { name: UI_STRINGS.common.save }))
 
-    expect(await screen.findByText('That name is already in use.')).toBeInTheDocument()
-    // The dialog stays open (list not re-fetched beyond the initial mount).
+    expect(await screen.findByText(UI.form.nameTaken)).toBeInTheDocument()
+    // The dialog stays open (list not re-fetched beyond the initial mount) so the
+    // typed name is not lost.
     expect(mockListDepts).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByLabelText(UI.nameLabel)).toHaveValue('Computer Science')
   })
 
   it('renames a department', async () => {
@@ -126,15 +152,21 @@ describe('OptionsPage', () => {
     renderPage()
     await departmentsRegion().findByText('Computer Science')
 
-    fireEvent.click(departmentsRegion().getByRole('button', { name: 'Rename' }))
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Computer Engineering' } })
+    fireEvent.click(departmentsRegion().getByRole('button', { name: UI.rename }))
+    // Rename pre-fills the row's current name rather than opening blank.
+    expect(screen.getByLabelText(UI.nameLabel)).toHaveValue('Computer Science')
+    fireEvent.change(screen.getByLabelText(UI.nameLabel), {
+      target: { value: 'Computer Engineering' },
+    })
     mockListDepts.mockResolvedValue([dept({ name: 'Computer Engineering' })])
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: UI_STRINGS.common.save }))
 
+    // PATCHes the row's id (not its index/name) with the new name.
     await waitFor(() =>
       expect(mockPatchDept).toHaveBeenCalledWith(1, { name: 'Computer Engineering' }),
     )
     expect(await departmentsRegion().findByText('Computer Engineering')).toBeInTheDocument()
+    expect(mockCreateDept).not.toHaveBeenCalled()
   })
 
   it('soft-deletes a department (confirm) and the row disappears', async () => {
@@ -142,24 +174,44 @@ describe('OptionsPage', () => {
     renderPage()
     await departmentsRegion().findByText('Computer Science')
 
-    fireEvent.click(departmentsRegion().getByRole('button', { name: 'Delete Computer Science' }))
+    fireEvent.click(
+      departmentsRegion().getByRole('button', { name: UI.deleteRow('Computer Science') }),
+    )
+    // Nothing is sent until the confirm step is clicked.
+    expect(mockDeleteDept).not.toHaveBeenCalled()
+
     // Confirm step, then the re-fetch returns an empty list.
     mockListDepts.mockResolvedValue([])
-    fireEvent.click(departmentsRegion().getByRole('button', { name: 'Confirm' }))
+    fireEvent.click(departmentsRegion().getByRole('button', { name: UI_STRINGS.common.confirm }))
 
     await waitFor(() => expect(mockDeleteDept).toHaveBeenCalledWith(1))
     await waitFor(() =>
       expect(departmentsRegion().queryByText('Computer Science')).not.toBeInTheDocument(),
     )
     expect(mockListDepts).toHaveBeenCalledTimes(2)
+    // The now-empty list shows its own empty state, not a blank panel.
+    expect(departmentsRegion().getByText(UI.empty(UI.departments.title))).toBeInTheDocument()
   })
 
   it('surfaces a 403 (STAFF denied) as a non-crashing notice', async () => {
     mockListDepts.mockRejectedValue(new apiClient.ApiError(403, 'Forbidden'))
     renderPage()
 
-    expect(
-      await departmentsRegion().findByText('You do not have permission to manage departments.'),
-    ).toBeInTheDocument()
+    // The message interpolates the section title. Both sides build it from the
+    // same entry, so this can now assert the WHOLE message (as an alert) rather
+    // than a loose prefix regex.
+    const alert = await departmentsRegion().findByRole('alert')
+    expect(alert).toHaveTextContent(UI.loadForbidden(UI.departments.title))
+    // A 403 on one resource must not blank the other, nor the page itself.
+    expect(personnelRolesRegion().getByText('Teacher')).toBeInTheDocument()
+  })
+
+  it('distinguishes a 403 from a generic load failure', async () => {
+    mockListDepts.mockRejectedValue(new apiClient.ApiError(500, 'Boom'))
+    renderPage()
+
+    const alert = await departmentsRegion().findByRole('alert')
+    expect(alert).toHaveTextContent(UI.loadFailed(UI.departments.title))
+    expect(alert).not.toHaveTextContent(UI.loadForbidden(UI.departments.title))
   })
 })

@@ -2,8 +2,14 @@ import { useEffect, useId, useState } from 'react'
 import type { CreateLineUserRegistration, RegistrationOptions } from '@/lib/api-client'
 import { Spinner } from '@/components/Spinner'
 
-/** Staff/personnel ID: non-empty, up to 50 chars (matches the backend DTO). */
-const ID_COUNT = 13
+/**
+ * Required length of a staff/personnel ID. Exported so tests derive their
+ * fixtures from it (`'1'.repeat(ID_COUNT)`) rather than hardcoding a 13-char
+ * literal: when this rule last changed out-of-band, the hardcoded fixtures went
+ * silently invalid and blocked submission, cascading into unrelated payload
+ * assertions. A string dictionary cannot catch that class of drift; this can.
+ */
+export const ID_COUNT = 13
 
 export interface RegistrationFormValues {
   firstName: string

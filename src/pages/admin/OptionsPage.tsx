@@ -15,15 +15,20 @@ import {
 } from '@/lib/api-client'
 import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
+import { UI_STRINGS, type OptionCopy } from '@/constants/ui-strings'
+
+const UI = UI_STRINGS.options
 
 /** The common shape shared by `Department` and `PersonnelRole` rows. */
 type OptionRow = Department | PersonnelRole
 
 interface OptionResource {
-  /** Section heading, e.g. "Departments". */
-  title: string
-  /** Singular noun for copy, e.g. "department". */
-  noun: string
+  /**
+   * This section's `{ title, noun }` copy. Points at the shared dictionary — the
+   * strings deliberately do not live on this object any more, so the tests can
+   * assert against the same values the page renders.
+   */
+  copy: OptionCopy
   list: () => Promise<OptionRow[]>
   create: (body: OptionInput) => Promise<OptionRow>
   rename: (id: number, body: OptionInput) => Promise<OptionRow>
@@ -31,8 +36,7 @@ interface OptionResource {
 }
 
 const DEPARTMENTS: OptionResource = {
-  title: 'Departments (ฝ่าย/แผนก)',
-  noun: 'department',
+  copy: UI.departments,
   list: listDepartments,
   create: createDepartment,
   rename: patchDepartment,
@@ -40,8 +44,7 @@ const DEPARTMENTS: OptionResource = {
 }
 
 const PERSONNEL_ROLES: OptionResource = {
-  title: 'Personnel Roles (ตำแหน่ง/บทบาท)',
-  noun: 'personnel role',
+  copy: UI.personnelRoles,
   list: listPersonnelRoles,
   create: createPersonnelRole,
   rename: patchPersonnelRole,
@@ -60,11 +63,9 @@ export function OptionsPage() {
     <section aria-labelledby="options-heading" className="mx-auto w-full max-w-4xl">
       <div className="mb-6">
         <h1 id="options-heading" className="text-xl font-bold text-slate-900 dark:text-slate-100">
-          Registration Options
+          {UI.heading}
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Manage the departments and roles people choose from when they register.
-        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{UI.subheading}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -110,8 +111,8 @@ function OptionManager({ resource }: { resource: OptionResource }) {
         }
         setError(
           err instanceof ApiError && err.status === 403
-            ? `You do not have permission to manage ${resource.title.toLowerCase()}.`
-            : `Could not load ${resource.title.toLowerCase()}. Please try again.`,
+            ? UI.loadForbidden(resource.copy.title)
+            : UI.loadFailed(resource.copy.title),
         )
         setLoading(false)
       })
@@ -139,13 +140,11 @@ function OptionManager({ resource }: { resource: OptionResource }) {
         return
       }
       if (err instanceof ApiError && err.status === 404) {
-        setActionError('That option was already removed — refreshing the list.')
+        setActionError(UI.removeGone)
         load()
       } else {
         setActionError(
-          err instanceof ApiError && err.status === 403
-            ? 'You do not have permission to remove this option.'
-            : 'Could not remove the option. Please try again.',
+          err instanceof ApiError && err.status === 403 ? UI.removeForbidden : UI.removeFailed,
         )
       }
     } finally {
@@ -162,7 +161,7 @@ function OptionManager({ resource }: { resource: OptionResource }) {
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 id={headingId} className="text-base font-semibold text-slate-900 dark:text-slate-100">
-          {resource.title}
+          {resource.copy.title}
         </h2>
         <button
           type="button"
@@ -172,7 +171,7 @@ function OptionManager({ resource }: { resource: OptionResource }) {
           }}
           className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
         >
-          Add
+          {UI.add}
         </button>
       </div>
 
@@ -199,7 +198,7 @@ function OptionManager({ resource }: { resource: OptionResource }) {
 
         {!loading && !error && rows.length === 0 && (
           <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-            No {resource.title.toLowerCase()} yet. Add one to get started.
+            {UI.empty(resource.copy.title)}
           </div>
         )}
 
@@ -222,7 +221,7 @@ function OptionManager({ resource }: { resource: OptionResource }) {
                     }}
                     className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
-                    Rename
+                    {UI.rename}
                   </button>
                   {confirmingId === row.id ? (
                     <span className="flex items-center gap-1">
@@ -232,14 +231,18 @@ function OptionManager({ resource }: { resource: OptionResource }) {
                         disabled={busyId === row.id}
                         className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-60"
                       >
-                        {busyId === row.id ? <Spinner label="Removing…" /> : 'Confirm'}
+                        {busyId === row.id ? (
+                          <Spinner label={UI.removing} />
+                        ) : (
+                          UI_STRINGS.common.confirm
+                        )}
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmingId(null)}
                         className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
-                        Cancel
+                        {UI_STRINGS.common.cancel}
                       </button>
                     </span>
                   ) : (
@@ -249,10 +252,10 @@ function OptionManager({ resource }: { resource: OptionResource }) {
                         setActionError(null)
                         setConfirmingId(row.id)
                       }}
-                      aria-label={`Delete ${row.name}`}
+                      aria-label={UI.deleteRow(row.name)}
                       className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
                     >
-                      Delete
+                      {UI.delete}
                     </button>
                   )}
                 </div>
@@ -264,7 +267,7 @@ function OptionManager({ resource }: { resource: OptionResource }) {
 
       {modal.kind !== 'closed' && (
         <OptionFormModal
-          noun={resource.noun}
+          noun={resource.copy.noun}
           mode={modal.kind}
           row={modal.kind === 'rename' ? modal.row : undefined}
           save={(name) =>
@@ -283,11 +286,11 @@ function OptionManager({ resource }: { resource: OptionResource }) {
 
 /** Map a create/rename error status to a friendly message. */
 function saveErrorMessage(status: number, noun: string): string {
-  if (status === 409) return 'That name is already in use.'
-  if (status === 403) return 'You do not have permission to perform this action.'
-  if (status === 404) return `That ${noun} no longer exists.`
-  if (status === 400) return 'Please enter a valid name.'
-  return 'Could not save. Please try again.'
+  if (status === 409) return UI.form.nameTaken
+  if (status === 403) return UI.form.forbidden
+  if (status === 404) return UI.form.gone(noun)
+  if (status === 400) return UI.form.invalid
+  return UI.form.saveFailed
 }
 
 function OptionFormModal({
@@ -328,7 +331,7 @@ function OptionFormModal({
     e.preventDefault()
     const trimmed = name.trim()
     if (!trimmed) {
-      setError('Please enter a name.')
+      setError(UI.form.nameRequired)
       return
     }
     setError(null)
@@ -341,11 +344,7 @@ function OptionFormModal({
         onUnauthorized()
         return
       }
-      setError(
-        err instanceof ApiError
-          ? saveErrorMessage(err.status, noun)
-          : 'Could not save. Please try again.',
-      )
+      setError(err instanceof ApiError ? saveErrorMessage(err.status, noun) : UI.form.saveFailed)
     } finally {
       setSubmitting(false)
     }
@@ -357,7 +356,7 @@ function OptionFormModal({
     <div className="fixed inset-0 z-40 flex items-end justify-center sm:items-center">
       <button
         type="button"
-        aria-label="Close dialog"
+        aria-label={UI_STRINGS.common.closeDialog}
         className="absolute inset-0 bg-slate-900/50"
         onClick={onClose}
       />
@@ -368,7 +367,7 @@ function OptionFormModal({
         className="relative z-10 w-full max-w-sm rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl dark:bg-slate-900"
       >
         <h2 id={titleId} className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-100">
-          {mode === 'create' ? `Add ${noun}` : `Rename ${noun}`}
+          {mode === 'create' ? UI.form.addTitle(noun) : UI.form.renameTitle(noun)}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-3">
@@ -386,7 +385,7 @@ function OptionFormModal({
               htmlFor="option-name"
               className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
             >
-              Name
+              {UI.nameLabel}
             </label>
             <input
               ref={inputRef}
@@ -404,14 +403,18 @@ function OptionFormModal({
               onClick={onClose}
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              Cancel
+              {UI_STRINGS.common.cancel}
             </button>
             <button
               type="submit"
               disabled={submitting}
               className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60"
             >
-              {submitting ? <Spinner label="Saving…" /> : 'Save'}
+              {submitting ? (
+                <Spinner label={UI_STRINGS.common.saving} />
+              ) : (
+                UI_STRINGS.common.save
+              )}
             </button>
           </div>
         </form>

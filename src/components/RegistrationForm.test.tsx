@@ -1,6 +1,13 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { RegistrationForm, type RegistrationFormValues } from '@/components/RegistrationForm'
+import { ID_COUNT, RegistrationForm, type RegistrationFormValues } from '@/components/RegistrationForm'
 import type { RegistrationOptions } from '@/lib/api-client'
+
+/**
+ * Derived from the component's own rule, not a hardcoded 13-char literal: if
+ * `ID_COUNT` changes, this fixture stays valid instead of silently failing
+ * validation and blocking every submit assertion below.
+ */
+const VALID_STAFF_ID = '6'.repeat(ID_COUNT)
 
 const OPTIONS: RegistrationOptions = {
   departments: [
@@ -18,7 +25,7 @@ const OPTIONS: RegistrationOptions = {
 const INITIAL: RegistrationFormValues = {
   firstName: 'Somchai',
   lastName: 'Jaidee',
-  staffId: '6412345678901',
+  staffId: VALID_STAFF_ID,
   phone: '0812345678',
   departmentId: '1',
   personnelRoleId: '10',
@@ -43,7 +50,7 @@ function setup(props: Partial<React.ComponentProps<typeof RegistrationForm>> = {
 function fillIdentity() {
   fireEvent.change(screen.getByLabelText('ชื่อจริง'), { target: { value: 'Somchai' } })
   fireEvent.change(screen.getByLabelText('นามสกุล'), { target: { value: 'Jaidee' } })
-  fireEvent.change(screen.getByLabelText('รหัสบุคลากร'), { target: { value: '6412345678901' } })
+  fireEvent.change(screen.getByLabelText('รหัสบุคลากร'), { target: { value: VALID_STAFF_ID } })
   fireEvent.change(screen.getByLabelText('เบอร์โทรศัพท์'), { target: { value: '0812345678' } })
 }
 
@@ -109,7 +116,7 @@ describe('RegistrationForm — dynamic options', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       firstName: 'Somchai',
       lastName: 'Jaidee',
-      staffId: '6412345678901',
+      staffId: VALID_STAFF_ID,
       phone: '0812345678',
       departmentId: 2,
       personnelRoleId: 11,
@@ -136,7 +143,7 @@ describe('RegistrationForm — edit mode', () => {
 
     await screen.findByLabelText('ฝ่าย / แผนก')
     expect(screen.getByLabelText('ชื่อจริง')).toHaveValue('Somchai')
-    expect(screen.getByLabelText('รหัสบุคลากร')).toHaveValue('6412345678901')
+    expect(screen.getByLabelText('รหัสบุคลากร')).toHaveValue(VALID_STAFF_ID)
     // The pre-filled numeric id ('1') keeps its option selected in the <select>.
     expect(screen.getByLabelText('ฝ่าย / แผนก')).toHaveValue('1')
     expect(screen.getByRole('button', { name: 'บันทึกข้อมูล' })).toBeInTheDocument()

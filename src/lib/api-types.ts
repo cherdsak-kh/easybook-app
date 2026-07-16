@@ -215,7 +215,7 @@ export interface paths {
         put?: never;
         /**
          * Destroy the current session.
-         * @description Removes the session from Redis and clears the cookie. A replayed logout returns 401 — the session no longer exists.
+         * @description Removes the session from Redis and clears the cookie. A replayed logout returns 401 — the session no longer exists. Reachable while a password change is required.
          */
         post: operations["AuthSystemController_logout"];
         delete?: never;
@@ -233,11 +233,55 @@ export interface paths {
         };
         /**
          * The currently authenticated back-office user.
-         * @description Read fresh from the database on every request (D-9), so a demotion or suspension is reflected immediately. Used to rehydrate a session after a page reload or a backend restart.
+         * @description Read fresh from the database on every request (D-9), so a demotion or suspension is reflected immediately. Used to rehydrate a session after a page reload or a backend restart. Reachable while a password change is required — `mustChangePassword` in this body is what the SPA routes off.
          */
         get: operations["AuthSystemController_me"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update your own profile.
+         * @description Self-service. Accepts EXACTLY `firstName`, `lastName`, `phoneNumber`, `profilePictureUrl`. `role`, `isActive`, `departmentId`, `personnelRoleId`, `email`, `password` and `lineUserId` are absent from the DTO, so any attempt to set one is a 400 — a SUPER_ADMIN manages those via PATCH /system-users/:id. An empty body is a 400. `phoneNumber`/`profilePictureUrl` accept an explicit null to clear them.
+         */
+        patch: operations["AuthSystemController_updateOwnProfile"];
+        trace?: never;
+    };
+    "/api/v1/auth/system/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change your own password (forced or voluntary).
+         * @description Requires `currentPassword`: without it a hijacked session becomes a permanent account takeover in one request. A WRONG current password is a 400, never a 401 — the session is valid, only the re-auth failed, and a 401 would log you out for a typo. The new password must be >= 12 chars and differ from the current one. On success `mustChangePassword` clears and the very NEXT request to any previously-gated route succeeds on the same cookie — no re-login, because SessionGuard re-reads the user every request. The session is deliberately NOT destroyed.
+         */
+        post: operations["AuthSystemController_changePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/system/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload your own avatar.
+         * @description Multipart, one part named `file`. The server enforces size (2 MB) and type: the declared MIME is a first filter only — the real control is a MAGIC-BYTE sniff, and the stored ContentType and key extension are derived from the SNIFFED type, never from the filename. Returns the updated user with `profilePictureUrl` already pointing at the new object; re-render from this body rather than constructing the URL. The CSRF token is a HEADER and works fine with multipart — do not put it in the form body.
+         */
+        post: operations["AuthSystemController_uploadOwnAvatar"];
         delete?: never;
         options?: never;
         head?: never;
@@ -259,7 +303,7 @@ export interface paths {
         put?: never;
         /**
          * Create a back-office user.
-         * @description The only creation path besides the offline seed script. There is no public registration. `lineUserId` is not accepted — any extra key is a 400.
+         * @description The only creation path besides the offline seed script. There is no public registration. The SERVER issues a temporary password and returns it EXACTLY ONCE as `temporaryPassword` — it is argon2id-hashed at rest, never logged, and never retrievable again; deliver it out-of-band. `password` and `lineUserId` are not accepted — any extra key is a 400. `departmentId`/`personnelRoleId` must reference ACTIVE options.
          */
         post: operations["SystemUsersController_create"];
         delete?: never;
@@ -310,6 +354,26 @@ export interface paths {
          * @description Un-deletes the row and changes nothing else. A user suspended before deletion comes back suspended; their original password still works. Their `id`, `createdById`, `createdAt`, `role` and `isActive` are unchanged.
          */
         post: operations["SystemUsersController_restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system-users/{id}/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue a new temporary password for a user.
+         * @description Generates a new temporary password, stores only its argon2id digest, and sets `mustChangePassword` — confining the target to the password-change screen until they set their own. The plaintext is returned EXACTLY ONCE as `temporaryPassword`; deliver it out-of-band. You cannot reset your OWN password (use POST /auth/system/password). A SUSPENDED user is a valid target — the flags are orthogonal — though they still cannot log in.
+         */
+        post: operations["SystemUsersController_resetPassword"];
         delete?: never;
         options?: never;
         head?: never;
@@ -681,6 +745,12 @@ export interface components {
              */
             role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
         };
+        SystemUserOptionDto: {
+            /** @example 3 */
+            id: number;
+            /** @example Computer Science */
+            name: string;
+        };
         SystemUserResponseDto: {
             /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
             id: string;
@@ -691,14 +761,19 @@ export interface components {
             /** @example Lovelace */
             lastName: string;
             /**
+             * @description Back-office RBAC. The ONLY field that grants privilege — never `personnelRole`.
              * @example STAFF
              * @enum {string}
              */
             role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
-            /** @example Teacher */
-            position: string;
-            /** @example Computer Science */
-            department: string;
+            department: components["schemas"]["SystemUserOptionDto"];
+            /** @description Job title. NOT `role` — grants zero privilege. */
+            personnelRole: components["schemas"]["SystemUserOptionDto"];
+            /**
+             * @description True while a temp password is outstanding; every route except logout / GET me / POST password answers 403.
+             * @example false
+             */
+            mustChangePassword: boolean;
             /** @example 02-123-4567 ext. 101 */
             phoneNumber: string | null;
             /** @example https://cdn.example.com/a.jpg */
@@ -715,11 +790,24 @@ export interface components {
             /** @example 2026-07-08T10:00:00.000Z */
             createdAt: string;
         };
+        UpdateOwnProfileDto: {
+            /** @example Ada */
+            firstName?: string;
+            /** @example Lovelace */
+            lastName?: string;
+            /** @example 02-123-4567 ext. 101 */
+            phoneNumber?: string | null;
+            profilePictureUrl?: string | null;
+        };
+        ChangePasswordDto: {
+            /** Format: password */
+            currentPassword: string;
+            /** Format: password */
+            newPassword: string;
+        };
         CreateSystemUserDto: {
             /** @example ada@easybook.local */
             email: string;
-            /** Format: password */
-            password: string;
             /** @example Ada */
             firstName: string;
             /** @example Lovelace */
@@ -730,19 +818,63 @@ export interface components {
              */
             role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
             /**
-             * @description Free text, e.g. Teacher / Admin Staff / Director.
-             * @example Teacher
+             * @description Department option id. Must reference an ACTIVE (non-soft-deleted) option — otherwise 400.
+             * @example 3
              */
-            position: string;
+            departmentId: number;
             /**
-             * @description Free text, e.g. academic department or group.
-             * @example Computer Science
+             * @description PersonnelRole option id — the job title ("Position" in the UI). NOT `role`; grants zero privilege. Must reference an ACTIVE option — otherwise 400.
+             * @example 5
              */
-            department: string;
+            personnelRoleId: number;
             /** @example 02-123-4567 ext. 101 */
             phoneNumber?: string;
             /** @example https://cdn.example.com/avatars/ada.jpg */
             profilePictureUrl?: string;
+        };
+        SystemUserWithTemporaryPasswordDto: {
+            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
+            id: string;
+            /** @example admin@easybook.local */
+            email: string;
+            /** @example Ada */
+            firstName: string;
+            /** @example Lovelace */
+            lastName: string;
+            /**
+             * @description Back-office RBAC. The ONLY field that grants privilege — never `personnelRole`.
+             * @example STAFF
+             * @enum {string}
+             */
+            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            department: components["schemas"]["SystemUserOptionDto"];
+            /** @description Job title. NOT `role` — grants zero privilege. */
+            personnelRole: components["schemas"]["SystemUserOptionDto"];
+            /**
+             * @description True while a temp password is outstanding; every route except logout / GET me / POST password answers 403.
+             * @example false
+             */
+            mustChangePassword: boolean;
+            /** @example 02-123-4567 ext. 101 */
+            phoneNumber: string | null;
+            /** @example https://cdn.example.com/a.jpg */
+            profilePictureUrl: string | null;
+            /** @example true */
+            isActive: boolean;
+            /**
+             * @description Linked LineUser.id (a cuid), or null. NOT the LINE "U…" identifier. Read-only; set by a future endpoint.
+             * @example clx9z8y7x6w5v4u3t2s1r0q9
+             */
+            readonly lineUserId: string | null;
+            /** @example 2026-07-08T11:00:00.000Z */
+            lastLoginAt: string | null;
+            /** @example 2026-07-08T10:00:00.000Z */
+            createdAt: string;
+            /**
+             * @description SHOWN EXACTLY ONCE. Not stored in plaintext, not retrievable, not logged. Deliver it out-of-band; the recipient must change it at first login.
+             * @example Kp7Rn2Tq9Wx4Yb6C
+             */
+            temporaryPassword: string;
         };
         PaginatedSystemUsersResponseDto: {
             data: components["schemas"]["SystemUserResponseDto"][];
@@ -753,10 +885,16 @@ export interface components {
             firstName?: string;
             /** @example Lovelace */
             lastName?: string;
-            /** @example Teacher */
-            position?: string;
-            /** @example Computer Science */
-            department?: string;
+            /**
+             * @description Department option id.
+             * @example 3
+             */
+            departmentId?: number;
+            /**
+             * @description PersonnelRole option id — the job title ("Position" in the UI). NOT `role`; grants zero privilege.
+             * @example 5
+             */
+            personnelRoleId?: number;
             /** @example 02-123-4567 ext. 101 */
             phoneNumber?: string | null;
             profilePictureUrl?: string | null;
@@ -1362,6 +1500,210 @@ export interface operations {
             };
         };
     };
+    AuthSystemController_updateOwnProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateOwnProfileDto"];
+            };
+        };
+        responses: {
+            /** @description Updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemUserResponseDto"];
+                };
+            };
+            /** @description Empty body, a forbidden key, or a bad value. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure, or a password change is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AuthSystemController_changePassword: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordDto"];
+            };
+        };
+        responses: {
+            /** @description Password changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example true */
+                        success?: boolean;
+                    };
+                };
+            };
+            /** @description Validation failed, the current password is wrong, or the new password matches the current one. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session — or a suspended/deleted user, which fires first. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing or stale CSRF token. NEVER the forced-reset gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AuthSystemController_uploadOwnAvatar: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description JPEG, PNG or WEBP. Max 2 MB.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Uploaded. The updated user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemUserResponseDto"];
+                };
+            };
+            /** @description No file, wrong field name, unsupported/mismatched image type, or larger than 2 MB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure, or a password change is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The object store rejected the upload or was unreachable. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
     SystemUsersController_list: {
         parameters: {
             query?: {
@@ -1428,13 +1770,22 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Created. */
+            /** @description Created. Carries the one-time `temporaryPassword`. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SystemUserResponseDto"];
+                    "application/json": components["schemas"]["SystemUserWithTemporaryPasswordDto"];
+                };
+            };
+            /** @description Validation failed, or departmentId/personnelRoleId is unknown or soft-deleted. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
             /** @description No session. */
@@ -1446,7 +1797,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description Not a SUPER_ADMIN, or CSRF failure. */
+            /** @description Not a SUPER_ADMIN, CSRF failure, or a password change is required. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1724,6 +2075,66 @@ export interface operations {
             };
             /** @description The row is not deleted. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SystemUsersController_resetPassword: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reset. Carries the one-time `temporaryPassword`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemUserWithTemporaryPasswordDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Not a SUPER_ADMIN; CSRF failure; resetting your own password; or a password change is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
