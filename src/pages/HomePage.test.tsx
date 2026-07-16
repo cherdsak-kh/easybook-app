@@ -57,12 +57,12 @@ const AUTH_ERROR_MESSAGE =
 
 const OPTIONS: RegistrationOptions = {
   departments: [
-    { id: 'dept-cs', name: 'Computer Science' },
-    { id: 'dept-math', name: 'Mathematics' },
+    { id: 1, name: 'Computer Science' },
+    { id: 2, name: 'Mathematics' },
   ],
   personnelRoles: [
-    { id: 'role-teacher', name: 'Teacher' },
-    { id: 'role-support', name: 'Support Staff' },
+    { id: 10, name: 'Teacher' },
+    { id: 11, name: 'Support Staff' },
   ],
 }
 
@@ -71,11 +71,11 @@ function registration(overrides: Partial<LineUserRegistration> = {}): LineUserRe
     id: 'reg1',
     firstName: 'Somchai',
     lastName: 'Jaidee',
-    staffId: '6412345678',
-    phone: '081-234-5678',
-    departmentId: 'dept-cs',
+    staffId: '6412345678901',
+    phone: '0812345678',
+    departmentId: 1,
     department: 'Computer Science',
-    personnelRoleId: 'role-teacher',
+    personnelRoleId: 10,
     personnelRole: 'Teacher',
     createdAt: '2026-07-14T10:00:00.000Z',
     updatedAt: '2026-07-14T10:00:00.000Z',
@@ -103,12 +103,13 @@ async function flush() {
 
 /** Fill the registration form with valid values, selecting the dynamic options. */
 function fillRegistration() {
-  fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Somchai' } })
-  fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Jaidee' } })
-  fireEvent.change(screen.getByLabelText('Staff ID'), { target: { value: '6412345678' } })
-  fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '081-234-5678' } })
-  fireEvent.change(screen.getByLabelText('Department'), { target: { value: 'dept-cs' } })
-  fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'role-teacher' } })
+  fireEvent.change(screen.getByLabelText('ชื่อจริง'), { target: { value: 'Somchai' } })
+  fireEvent.change(screen.getByLabelText('นามสกุล'), { target: { value: 'Jaidee' } })
+  fireEvent.change(screen.getByLabelText('รหัสบุคลากร'), { target: { value: '6412345678901' } })
+  fireEvent.change(screen.getByLabelText('เบอร์โทรศัพท์'), { target: { value: '0812345678' } })
+  // <select> values are DOM strings — the stringified integer option ids.
+  fireEvent.change(screen.getByLabelText('ฝ่าย / แผนก'), { target: { value: '1' } })
+  fireEvent.change(screen.getByLabelText('ตำแหน่ง / บทบาท'), { target: { value: '10' } })
 }
 
 beforeEach(() => {
@@ -214,14 +215,14 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    expect(screen.getByRole('button', { name: /submit registration/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' })).toBeInTheDocument()
     expect(mockGetStatus).toHaveBeenCalledWith(TOKEN)
     // Options were fetched with the bearer token and rendered as <option>s.
     expect(mockGetOptions).toHaveBeenCalledWith(TOKEN)
-    const dept = screen.getByLabelText('Department') as HTMLSelectElement
+    const dept = screen.getByLabelText('ฝ่าย / แผนก') as HTMLSelectElement
     expect(within(dept).getByRole('option', { name: 'Computer Science' })).toBeInTheDocument()
     expect(within(dept).getByRole('option', { name: 'Mathematics' })).toBeInTheDocument()
-    const role = screen.getByLabelText('Role') as HTMLSelectElement
+    const role = screen.getByLabelText('ตำแหน่ง / บทบาท') as HTMLSelectElement
     expect(within(role).getByRole('option', { name: 'Teacher' })).toBeInTheDocument()
   })
 
@@ -230,9 +231,11 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    expect(screen.getByText(/Registration pending/i)).toBeInTheDocument()
-    expect(screen.getByText(/wait for an administrator to approve/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /edit registration/i })).toBeInTheDocument()
+    expect(screen.getByText(/รอการอนุมัติลงทะเบียน/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/โปรดรอผู้ดูแลระบบพิจารณาอนุมัติสิทธิ์การเข้าใช้งาน/),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' })).toBeInTheDocument()
   })
 
   it('ALLOWED → shows the greeting', async () => {
@@ -274,33 +277,35 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
     await resolveSplash()
 
     fillRegistration()
-    fireEvent.click(screen.getByRole('button', { name: /submit registration/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' }))
     await flush()
 
+    // Regression guard: the option ids must be submitted as NUMBERS (the backend
+    // now validates them with `@IsInt()` and 400s a stringified id).
     expect(mockRegister).toHaveBeenCalledWith(
       {
         firstName: 'Somchai',
         lastName: 'Jaidee',
-        staffId: '6412345678',
-        phone: '081-234-5678',
-        departmentId: 'dept-cs',
-        personnelRoleId: 'role-teacher',
+        staffId: '6412345678901',
+        phone: '0812345678',
+        departmentId: 1,
+        personnelRoleId: 10,
       },
       TOKEN,
     )
-    expect(screen.getByText(/Registration pending/i)).toBeInTheDocument()
+    expect(screen.getByText(/รอการอนุมัติลงทะเบียน/)).toBeInTheDocument()
   })
 
   it('blocks submit and shows field errors when required fields are empty', async () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: /submit registration/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' }))
     await flush()
 
     expect(mockRegister).not.toHaveBeenCalled()
-    expect(screen.getByText('First name is required.')).toBeInTheDocument()
-    expect(screen.getByText('Please select a department.')).toBeInTheDocument()
+    expect(screen.getByText('โปรดระบุชื่อจริง')).toBeInTheDocument()
+    expect(screen.getByText('โปรดเลือกฝ่าย/แผนก')).toBeInTheDocument()
   })
 
   it('surfaces a 409 (staff ID taken) as a non-crashing error, staying on the form', async () => {
@@ -309,10 +314,10 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
     await resolveSplash()
 
     fillRegistration()
-    fireEvent.click(screen.getByRole('button', { name: /submit registration/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' }))
     await flush()
 
-    expect(screen.getByRole('button', { name: /submit registration/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' })).toBeInTheDocument()
     expect(screen.getByText('STAFF_ID_TAKEN')).toBeInTheDocument()
   })
 })
@@ -329,31 +334,33 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: /edit registration/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' }))
     await flush()
 
-    // Pre-filled from the existing registration.
-    expect(screen.getByLabelText('First name')).toHaveValue('Somchai')
-    expect(screen.getByLabelText('Staff ID')).toHaveValue('6412345678')
-    expect(screen.getByLabelText('Department')).toHaveValue('dept-cs')
+    // Pre-filled from the existing registration — the numeric option id is
+    // stringified so the <select> keeps the current option selected.
+    expect(screen.getByLabelText('ชื่อจริง')).toHaveValue('Somchai')
+    expect(screen.getByLabelText('รหัสบุคลากร')).toHaveValue('6412345678901')
+    expect(screen.getByLabelText('ฝ่าย / แผนก')).toHaveValue('1')
 
-    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Somsak' } })
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    fireEvent.change(screen.getByLabelText('ชื่อจริง'), { target: { value: 'Somsak' } })
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกข้อมูล' }))
     await flush()
 
+    // Regression guard: the edit PATCH also carries NUMERIC option ids.
     expect(mockUpdate).toHaveBeenCalledWith(
       {
         firstName: 'Somsak',
         lastName: 'Jaidee',
-        staffId: '6412345678',
-        phone: '081-234-5678',
-        departmentId: 'dept-cs',
-        personnelRoleId: 'role-teacher',
+        staffId: '6412345678901',
+        phone: '0812345678',
+        departmentId: 1,
+        personnelRoleId: 10,
       },
       TOKEN,
     )
     // Back on the Pending screen with the refreshed name.
-    expect(screen.getByText(/Registration pending/i)).toBeInTheDocument()
+    expect(screen.getByText(/รอการอนุมัติลงทะเบียน/)).toBeInTheDocument()
     expect(screen.getByText('Somsak Jaidee')).toBeInTheDocument()
   })
 
@@ -362,13 +369,13 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: /edit registration/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' }))
     await flush()
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกข้อมูล' }))
     await flush()
 
     expect(screen.getByText(/can no longer be edited/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'บันทึกข้อมูล' })).toBeInTheDocument()
   })
 
   it('renders a 409 (staff ID taken) inline on edit', async () => {
@@ -376,9 +383,9 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: /edit registration/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' }))
     await flush()
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกข้อมูล' }))
     await flush()
 
     expect(screen.getByText('STAFF_ID_TAKEN')).toBeInTheDocument()
@@ -389,9 +396,9 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: /edit registration/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' }))
     await flush()
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกข้อมูล' }))
     await flush()
 
     expect(screen.getByText('INVALID_DEPARTMENT')).toBeInTheDocument()
@@ -401,13 +408,13 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: /edit registration/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' }))
     await flush()
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'ยกเลิก' }))
     await flush()
 
     expect(mockUpdate).not.toHaveBeenCalled()
-    expect(screen.getByText(/Registration pending/i)).toBeInTheDocument()
+    expect(screen.getByText(/รอการอนุมัติลงทะเบียน/)).toBeInTheDocument()
   })
 })
 
@@ -454,18 +461,18 @@ describe('HomePage — local-dev mock path (no LIFF id)', () => {
 
     // Status short-circuits to a mock UNREGISTERED → the registration form, whose
     // dropdowns are populated by the mock options (no backend call).
-    expect(screen.getByRole('button', { name: /submit registration/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' })).toBeInTheDocument()
     expect(mockGetStatus).not.toHaveBeenCalled()
     expect(mockGetOptions).not.toHaveBeenCalled()
-    expect(screen.getByLabelText('Department')).toBeInTheDocument()
+    expect(screen.getByLabelText('ฝ่าย / แผนก')).toBeInTheDocument()
 
     // A mock submit transitions to Pending WITHOUT hitting the backend.
     fillRegistration()
-    fireEvent.click(screen.getByRole('button', { name: /submit registration/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' }))
     await flush()
 
     expect(mockRegister).not.toHaveBeenCalled()
-    expect(screen.getByText(/Registration pending/i)).toBeInTheDocument()
+    expect(screen.getByText(/รอการอนุมัติลงทะเบียน/)).toBeInTheDocument()
   })
 })
 
@@ -491,6 +498,6 @@ describe('HomePage — OBS-2: configured LIFF but no ID token', () => {
     expect(mockGetOptions).not.toHaveBeenCalled()
     expect(mockRegister).not.toHaveBeenCalled()
     // … and the mock flow did NOT run (no registration form appeared).
-    expect(screen.queryByRole('button', { name: /submit registration/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'ยืนยันการลงทะเบียน' })).not.toBeInTheDocument()
   })
 })

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
+import type { LoginResult } from '@/lib/api-client'
 
 interface LocationState {
   from?: { pathname?: string }
@@ -12,15 +13,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /** Map a failed login status to a user-facing message. */
 function loginErrorMessage(status: number, retryAfter?: string | null): string {
-  if (status === 401) return 'Incorrect email or password.'
+  if (status === 401) return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
   if (status === 429) {
     const secs = retryAfter ? Number(retryAfter) : NaN
     return Number.isFinite(secs) && secs > 0
-      ? `Too many attempts. Try again in ${secs} seconds.`
-      : 'Too many attempts. Please try again later.'
+      ? `ทำรายการซ้ำหลายครั้งเกินไป โปรดลองใหม่อีกครั้งใน ${secs} วินาที`
+      : 'ทำรายการซ้ำหลายครั้งเกินไป โปรดลองใหม่อีกครั้งในภายหลัง'
   }
-  if (status === 503) return 'The service is temporarily unavailable. Please try again shortly.'
-  return 'Could not sign in. Please try again.'
+  if (status === 503) return 'ระบบไม่สามารถใช้งานได้ชั่วคราว โปรดลองใหม่อีกครั้งในภายหลัง'
+  return 'ไม่สามารถเข้าสู่ระบบได้ โปรดลองใหม่อีกครั้ง'
 }
 
 /**
@@ -53,25 +54,25 @@ export function AdminLoginPage() {
     setFormError(null)
 
     if (!EMAIL_RE.test(email)) {
-      setFieldError('Enter a valid email address.')
+      setFieldError('โปรดระบุอีเมลให้ถูกต้อง')
       return
     }
     if (password.length === 0) {
-      setFieldError('Enter your password.')
+      setFieldError('โปรดระบุรหัสผ่าน')
       return
     }
     setFieldError(null)
 
     setSubmitting(true)
     try {
-      const result = await login(email, password)
+      const result = (await login(email, password)) as LoginResult
       if (result.ok) {
         navigate(from, { replace: true })
       } else {
         setFormError(loginErrorMessage(result.status, result.retryAfter))
       }
     } catch {
-      setFormError('Could not reach the server. Please try again.')
+      setFormError('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ โปรดลองใหม่อีกครั้ง')
     } finally {
       setSubmitting(false)
     }
@@ -81,9 +82,9 @@ export function AdminLoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">EasyBook Admin</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">EasyBook Management System</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Sign in to the back-office console
+            เข้าสู่ระบบบริหารจัดการส่วนหลังบ้าน
           </p>
         </div>
 
@@ -106,7 +107,7 @@ export function AdminLoginPage() {
               htmlFor="admin-email"
               className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
             >
-              Email
+              อีเมล
             </label>
             <input
               id="admin-email"
@@ -118,7 +119,7 @@ export function AdminLoginPage() {
               aria-invalid={fieldError != null}
               aria-describedby={fieldError ? 'admin-field-error' : undefined}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              placeholder="admin@easybook.local"
+              placeholder="example@mail.com"
             />
           </div>
 
@@ -127,7 +128,7 @@ export function AdminLoginPage() {
               htmlFor="admin-password"
               className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
             >
-              Password
+              รหัสผ่าน
             </label>
             <input
               id="admin-password"
@@ -139,6 +140,7 @@ export function AdminLoginPage() {
               aria-invalid={fieldError != null}
               aria-describedby={fieldError ? 'admin-field-error' : undefined}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              placeholder="********"
             />
           </div>
 
@@ -153,7 +155,7 @@ export function AdminLoginPage() {
             disabled={submitting}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60 dark:focus-visible:ring-offset-slate-900"
           >
-            {submitting ? <Spinner label="Signing in…" /> : 'Sign in'}
+            {submitting ? <Spinner label="กำลังเข้าสู่ระบบ…" /> : 'เข้าสู่ระบบ'}
           </button>
         </form>
       </div>

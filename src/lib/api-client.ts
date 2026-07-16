@@ -422,7 +422,7 @@ export async function createDepartment(body: OptionInput): Promise<Department> {
   return data
 }
 
-export async function patchDepartment(id: string, body: OptionInput): Promise<Department> {
+export async function patchDepartment(id: number, body: OptionInput): Promise<Department> {
   const { data, error, response } = await withCsrfRetry(() =>
     api.PATCH('/api/v1/departments/{id}', {
       params: { path: { id }, header: { 'x-csrf-token': '' } },
@@ -434,7 +434,7 @@ export async function patchDepartment(id: string, body: OptionInput): Promise<De
 }
 
 /** Soft-delete a department option. Returns nothing on 204. */
-export async function deleteDepartment(id: string): Promise<void> {
+export async function deleteDepartment(id: number): Promise<void> {
   const { error, response } = await withCsrfRetry(() =>
     api.DELETE('/api/v1/departments/{id}', {
       params: { path: { id }, header: { 'x-csrf-token': '' } },
@@ -460,7 +460,7 @@ export async function createPersonnelRole(body: OptionInput): Promise<PersonnelR
   return data
 }
 
-export async function patchPersonnelRole(id: string, body: OptionInput): Promise<PersonnelRole> {
+export async function patchPersonnelRole(id: number, body: OptionInput): Promise<PersonnelRole> {
   const { data, error, response } = await withCsrfRetry(() =>
     api.PATCH('/api/v1/personnel-roles/{id}', {
       params: { path: { id }, header: { 'x-csrf-token': '' } },
@@ -472,7 +472,7 @@ export async function patchPersonnelRole(id: string, body: OptionInput): Promise
 }
 
 /** Soft-delete a personnel-role option. Returns nothing on 204. */
-export async function deletePersonnelRole(id: string): Promise<void> {
+export async function deletePersonnelRole(id: number): Promise<void> {
   const { error, response } = await withCsrfRetry(() =>
     api.DELETE('/api/v1/personnel-roles/{id}', {
       params: { path: { id }, header: { 'x-csrf-token': '' } },

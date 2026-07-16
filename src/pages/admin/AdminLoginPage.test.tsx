@@ -47,11 +47,11 @@ describe('AdminLoginPage', () => {
     mockLogin.mockResolvedValue({ ok: true, user: loginResponse() })
     renderLogin()
 
-    fireEvent.change(await screen.findByLabelText('Email'), {
+    fireEvent.change(await screen.findByLabelText('อีเมล'), {
       target: { value: 'admin@easybook.local' },
     })
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    fireEvent.change(screen.getByLabelText('รหัสผ่าน'), { target: { value: 'secret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'เข้าสู่ระบบ' }))
 
     expect(await screen.findByText('Dashboard Home')).toBeInTheDocument()
     expect(mockLogin).toHaveBeenCalledWith('admin@easybook.local', 'secret')
@@ -61,26 +61,26 @@ describe('AdminLoginPage', () => {
     mockLogin.mockResolvedValue({ ok: false, status: 401, message: 'Invalid' })
     renderLogin()
 
-    fireEvent.change(await screen.findByLabelText('Email'), {
+    fireEvent.change(await screen.findByLabelText('อีเมล'), {
       target: { value: 'admin@easybook.local' },
     })
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    fireEvent.change(screen.getByLabelText('รหัสผ่าน'), { target: { value: 'wrong' } })
+    fireEvent.click(screen.getByRole('button', { name: 'เข้าสู่ระบบ' }))
 
-    expect(await screen.findByText('Incorrect email or password.')).toBeInTheDocument()
+    expect(await screen.findByText('อีเมลหรือรหัสผ่านไม่ถูกต้อง')).toBeInTheDocument()
     expect(screen.queryByText('Dashboard Home')).not.toBeInTheDocument()
     // Still on the login form.
-    expect(screen.getByLabelText('Email')).toBeInTheDocument()
+    expect(screen.getByLabelText('อีเมล')).toBeInTheDocument()
   })
 
   it('validates the email format before calling the API', async () => {
     renderLogin()
 
-    fireEvent.change(await screen.findByLabelText('Email'), { target: { value: 'not-an-email' } })
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    fireEvent.change(await screen.findByLabelText('อีเมล'), { target: { value: 'not-an-email' } })
+    fireEvent.change(screen.getByLabelText('รหัสผ่าน'), { target: { value: 'secret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'เข้าสู่ระบบ' }))
 
-    expect(await screen.findByText('Enter a valid email address.')).toBeInTheDocument()
+    expect(await screen.findByText('โปรดระบุอีเมลให้ถูกต้อง')).toBeInTheDocument()
     expect(mockLogin).not.toHaveBeenCalled()
   })
 })

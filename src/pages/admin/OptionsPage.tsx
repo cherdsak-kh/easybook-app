@@ -26,12 +26,12 @@ interface OptionResource {
   noun: string
   list: () => Promise<OptionRow[]>
   create: (body: OptionInput) => Promise<OptionRow>
-  rename: (id: string, body: OptionInput) => Promise<OptionRow>
-  remove: (id: string) => Promise<void>
+  rename: (id: number, body: OptionInput) => Promise<OptionRow>
+  remove: (id: number) => Promise<void>
 }
 
 const DEPARTMENTS: OptionResource = {
-  title: 'Departments',
+  title: 'Departments (ฝ่าย/แผนก)',
   noun: 'department',
   list: listDepartments,
   create: createDepartment,
@@ -40,7 +40,7 @@ const DEPARTMENTS: OptionResource = {
 }
 
 const PERSONNEL_ROLES: OptionResource = {
-  title: 'Personnel Roles',
+  title: 'Personnel Roles (ตำแหน่ง/บทบาท)',
   noun: 'personnel role',
   list: listPersonnelRoles,
   create: createPersonnelRole,
@@ -85,8 +85,8 @@ function OptionManager({ resource }: { resource: OptionResource }) {
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [modal, setModal] = useState<ModalState>({ kind: 'closed' })
-  const [confirmingId, setConfirmingId] = useState<string | null>(null)
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  const [busyId, setBusyId] = useState<number | null>(null)
 
   const reqId = useRef(0)
   const headingId = useId()

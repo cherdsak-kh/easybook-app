@@ -62,17 +62,17 @@ const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
  */
 const MOCK_OPTIONS: RegistrationOptions = {
   departments: [
-    { id: 'dept-cs', name: 'Computer Science' },
-    { id: 'dept-math', name: 'Mathematics' },
+    { id: 1, name: 'Computer Science' },
+    { id: 2, name: 'Mathematics' },
   ],
   personnelRoles: [
-    { id: 'role-teacher', name: 'Teacher' },
-    { id: 'role-support', name: 'Support Staff' },
+    { id: 10, name: 'Teacher' },
+    { id: 11, name: 'Support Staff' },
   ],
 }
 
-const nameOf = (opts: RegistrationOptions['departments'], id: string): string =>
-  opts.find((o) => o.id === id)?.name ?? id
+const nameOf = (opts: RegistrationOptions['departments'], id: number): string =>
+  opts.find((o) => o.id === id)?.name ?? String(id)
 
 /** Build a mock registration record from a submitted DTO (dev mock path only). */
 function mockRegistrationFrom(dto: CreateLineUserRegistration): LineUserRegistration {
@@ -92,7 +92,12 @@ function mockRegistrationFrom(dto: CreateLineUserRegistration): LineUserRegistra
   }
 }
 
-/** Derive the form's pre-fill values from an existing registration (edit mode). */
+/**
+ * Derive the form's pre-fill values from an existing registration (edit mode).
+ * The option ids come back as integers, but a `<select value>` is compared as a
+ * DOM string — so stringify them here to keep the currently-selected option
+ * highlighted (the form re-parses them to integers on submit).
+ */
 function initialFrom(reg: LineUserRegistration | null): RegistrationFormValues | undefined {
   if (!reg) return undefined
   return {
@@ -100,8 +105,8 @@ function initialFrom(reg: LineUserRegistration | null): RegistrationFormValues |
     lastName: reg.lastName,
     staffId: reg.staffId,
     phone: reg.phone,
-    departmentId: reg.departmentId,
-    personnelRoleId: reg.personnelRoleId,
+    departmentId: String(reg.departmentId),
+    personnelRoleId: String(reg.personnelRoleId),
   }
 }
 
@@ -287,7 +292,7 @@ export function HomePage() {
       if (friendFlag) {
         await runStatusGate()
       } else {
-        setRecheckHint("We still can't see you as a friend yet. Add the account, then try again.")
+        setRecheckHint("ระบบยังไม่พบสถานะการเป็นเพื่อน โปรดเพิ่มบัญชีทางการเป็นเพื่อนแล้วลองใหม่อีกครั้ง")
       }
     } finally {
       if (active.current) setRechecking(false)
@@ -530,11 +535,10 @@ function PendingScreen({
     <StatusCard
       tone="amber"
       icon="clock"
-      title="Registration pending"
+      title="รอการอนุมัติลงทะเบียน"
       body={
         <>
-          {profile?.displayName ? `Thanks, ${profile.displayName}. ` : ''}Your registration has been
-          received. Please wait for an administrator to approve your access.
+          {profile?.displayName ? `ขอบคุณ ${profile.displayName} ` : ''}ระบบได้รับข้อมูลการลงทะเบียนของคุณแล้ว โปรดรอผู้ดูแลระบบพิจารณาอนุมัติสิทธิ์การเข้าใช้งาน
         </>
       }
       action={
@@ -542,13 +546,13 @@ function PendingScreen({
           {registration && (
             <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-left text-sm dark:border-slate-800">
               <SummaryItem
-                label="Name"
+                label="ชื่อ-นามสกุล"
                 value={`${registration.firstName} ${registration.lastName}`.trim()}
               />
-              <SummaryItem label="Staff ID" value={registration.staffId} />
-              <SummaryItem label="Phone" value={registration.phone} />
-              <SummaryItem label="Department" value={registration.department} />
-              <SummaryItem label="Role" value={registration.personnelRole} />
+              <SummaryItem label="รหัสบุคลากร" value={registration.staffId} />
+              <SummaryItem label="เบอร์โทรศัพท์" value={registration.phone} />
+              <SummaryItem label="ฝ่าย/แผนก" value={registration.department} />
+              <SummaryItem label="ตำแหน่ง/บทบาท" value={registration.personnelRole} />
             </dl>
           )}
           <button
@@ -556,7 +560,7 @@ function PendingScreen({
             onClick={onEdit}
             className="mt-6 inline-flex w-full items-center justify-center rounded-xl border border-amber-300 px-5 py-2.5 font-semibold text-amber-800 transition-colors hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10 dark:focus-visible:ring-offset-slate-900"
           >
-            Edit registration
+            แก้ไขข้อมูลลงทะเบียน
           </button>
         </>
       }

@@ -2,10 +2,8 @@ import { useEffect, useId, useState } from 'react'
 import type { CreateLineUserRegistration, RegistrationOptions } from '@/lib/api-client'
 import { Spinner } from '@/components/Spinner'
 
-/** Loose, Thai-friendly phone shape — mirrors the backend DTO's `phone` regex. */
-const PHONE_RE = /^[0-9+\-() ]{6,20}$/
 /** Staff/personnel ID: non-empty, up to 50 chars (matches the backend DTO). */
-const ID_MAX = 50
+const ID_COUNT = 13
 
 export interface RegistrationFormValues {
   firstName: string
@@ -29,15 +27,18 @@ type Errors = Partial<Record<keyof RegistrationFormValues, string>>
 
 function validate(f: RegistrationFormValues): Errors {
   const e: Errors = {}
-  if (!f.firstName.trim()) e.firstName = 'First name is required.'
-  if (!f.lastName.trim()) e.lastName = 'Last name is required.'
-  if (!f.staffId.trim()) e.staffId = 'Staff ID is required.'
-  else if (f.staffId.trim().length > ID_MAX) e.staffId = `Staff ID must be ${ID_MAX} characters or fewer.`
-  if (!f.phone.trim()) e.phone = 'Phone number is required.'
-  else if (!PHONE_RE.test(f.phone.trim()))
-    e.phone = 'Enter a valid phone number (digits, spaces, + - ( ) only).'
-  if (!f.departmentId) e.departmentId = 'Please select a department.'
-  if (!f.personnelRoleId) e.personnelRoleId = 'Please select a role.'
+  if (!f.firstName.trim()) e.firstName = 'โปรดระบุชื่อจริง'
+  else if (/\d/.test(f.firstName)) e.firstName = 'ชื่อจริงจะต้องไม่มีตัวเลข'
+  if (!f.lastName.trim()) e.lastName = 'โปรดระบุนามสกุล'
+  else if (/\d/.test(f.lastName)) e.lastName = 'นามสกุลจะต้องไม่มีตัวเลข'
+  if (!f.staffId.trim()) e.staffId = 'โปรดระบุรหัสบุคลากร'
+  else if (!/^[0-9]+$/.test(f.staffId.trim())) e.staffId = 'รหัสบุคลากรต้องเป็นตัวเลขเท่านั้น'
+  else if (f.staffId.trim().length !== ID_COUNT) e.staffId = `รหัสบุคลากรจะต้องมี ${ID_COUNT} ตัว`
+  if (!f.phone.trim()) e.phone = 'โปรดระบุเบอร์โทรศัพท์'
+  else if (!/^[0-9]+$/.test(f.phone.trim())) e.phone = 'เบอร์โทรศัพท์ต้องเป็นตัวเลขเท่านั้น'
+  else if (f.phone.trim().length !== 10) e.phone = 'เบอร์โทรศัพท์ต้องมี 10 หลัก'
+  if (!f.departmentId) e.departmentId = 'โปรดเลือกฝ่าย/แผนก'
+  if (!f.personnelRoleId) e.personnelRoleId = 'โปรดเลือกตำแหน่ง/บทบาท'
   return e
 }
 
@@ -135,14 +136,18 @@ export function RegistrationForm({
       lastName: fields.lastName.trim(),
       staffId: fields.staffId.trim(),
       phone: fields.phone.trim(),
-      departmentId: fields.departmentId,
-      personnelRoleId: fields.personnelRoleId,
+      // <select> values are always DOM strings; the backend now types the option
+      // ids as integers (`@IsInt()`), so coerce before submitting. `validate`
+      // above guarantees a non-empty selection, so `Number()` yields a real
+      // integer here and can never emit `NaN` from the placeholder.
+      departmentId: Number(fields.departmentId),
+      personnelRoleId: Number(fields.personnelRoleId),
     })
   }
 
-  const heading = mode === 'edit' ? 'Edit your registration' : 'Complete your registration'
-  const submitLabel = mode === 'edit' ? 'Save changes' : 'Submit registration'
-  const submittingLabel = mode === 'edit' ? 'Saving…' : 'Submitting…'
+  const heading = mode === 'edit' ? 'แก้ไขข้อมูลลงทะเบียน' : 'กรอกข้อมูลลงทะเบียน'
+  const submitLabel = mode === 'edit' ? 'บันทึกข้อมูล' : 'ยืนยันการลงทะเบียน'
+  const submittingLabel = mode === 'edit' ? 'กำลังบันทึกข้อมูล…' : 'กำลังยืนยันการลงทะเบียน…'
 
   return (
     <main className="flex min-h-screen justify-center bg-slate-50 px-4 py-8 dark:bg-slate-950">
@@ -151,8 +156,8 @@ export function RegistrationForm({
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{heading}</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {mode === 'edit'
-              ? 'Update your details below and re-submit for approval.'
-              : `${displayName ? `Hi ${displayName}! ` : ''}Tell us who you are so an administrator can approve your access.`}
+              ? 'อัปเดตข้อมูลของคุณด้านล่าง และส่งเพื่อขออนุมัติอีกครั้ง'
+              : `${displayName ? `สวัสดี ${displayName}! ` : ''}โปรดระบุข้อมูลของคุณ เพื่อให้ผู้ดูแลระบบพิจารณาอนุมัติสิทธิ์การเข้าใช้งาน`}
           </p>
 
           {serverError && (
@@ -208,7 +213,7 @@ export function RegistrationForm({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field
                     id={`${uid}-first`}
-                    label="First name"
+                    label="ชื่อจริง"
                     value={fields.firstName}
                     onChange={(v) => set('firstName', v)}
                     error={errors.firstName}
@@ -217,7 +222,7 @@ export function RegistrationForm({
                   />
                   <Field
                     id={`${uid}-last`}
-                    label="Last name"
+                    label="นามสกุล"
                     value={fields.lastName}
                     onChange={(v) => set('lastName', v)}
                     error={errors.lastName}
@@ -228,7 +233,7 @@ export function RegistrationForm({
 
                 <Field
                   id={`${uid}-id`}
-                  label="Staff ID"
+                  label="รหัสบุคลากร"
                   value={fields.staffId}
                   onChange={(v) => set('staffId', v)}
                   error={errors.staffId}
@@ -238,7 +243,7 @@ export function RegistrationForm({
 
                 <Field
                   id={`${uid}-phone`}
-                  label="Phone"
+                  label="เบอร์โทรศัพท์"
                   value={fields.phone}
                   onChange={(v) => set('phone', v)}
                   error={errors.phone}
@@ -249,23 +254,23 @@ export function RegistrationForm({
 
                 <SelectField
                   id={`${uid}-dept`}
-                  label="Department"
+                  label="ฝ่าย / แผนก"
                   value={fields.departmentId}
                   onChange={(v) => set('departmentId', v)}
                   error={errors.departmentId}
                   options={options.departments}
-                  placeholder="Select a department"
+                  placeholder="เลือกฝ่าย/แผนก"
                   disabled={submitting}
                 />
 
                 <SelectField
                   id={`${uid}-role`}
-                  label="Role"
+                  label="ตำแหน่ง / บทบาท"
                   value={fields.personnelRoleId}
                   onChange={(v) => set('personnelRoleId', v)}
                   error={errors.personnelRoleId}
                   options={options.personnelRoles}
-                  placeholder="Select a role"
+                  placeholder="เลือกตำแหน่ง/บทบาท"
                   disabled={submitting}
                 />
 
@@ -277,7 +282,7 @@ export function RegistrationForm({
                       disabled={submitting}
                       className="flex-1 rounded-xl border border-slate-300 px-4 py-3 font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
-                      Cancel
+                      ยกเลิก
                     </button>
                   )}
                   <button
@@ -364,7 +369,7 @@ function SelectField({
   value: string
   onChange: (value: string) => void
   error?: string
-  options: readonly { id: string; name: string }[]
+  options: readonly { id: number; name: string }[]
   placeholder: string
   disabled?: boolean
 }) {

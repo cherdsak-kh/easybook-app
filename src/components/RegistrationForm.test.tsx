@@ -4,22 +4,24 @@ import type { RegistrationOptions } from '@/lib/api-client'
 
 const OPTIONS: RegistrationOptions = {
   departments: [
-    { id: 'dept-cs', name: 'Computer Science' },
-    { id: 'dept-math', name: 'Mathematics' },
+    { id: 1, name: 'Computer Science' },
+    { id: 2, name: 'Mathematics' },
   ],
   personnelRoles: [
-    { id: 'role-teacher', name: 'Teacher' },
-    { id: 'role-support', name: 'Support Staff' },
+    { id: 10, name: 'Teacher' },
+    { id: 11, name: 'Support Staff' },
   ],
 }
 
+// `RegistrationFormValues` holds the raw <select> strings — the stringified
+// integer option ids — which the form parses back to numbers on submit.
 const INITIAL: RegistrationFormValues = {
   firstName: 'Somchai',
   lastName: 'Jaidee',
-  staffId: '6412345678',
-  phone: '081-234-5678',
-  departmentId: 'dept-cs',
-  personnelRoleId: 'role-teacher',
+  staffId: '6412345678901',
+  phone: '0812345678',
+  departmentId: '1',
+  personnelRoleId: '10',
 }
 
 function setup(props: Partial<React.ComponentProps<typeof RegistrationForm>> = {}) {
@@ -39,10 +41,10 @@ function setup(props: Partial<React.ComponentProps<typeof RegistrationForm>> = {
 }
 
 function fillIdentity() {
-  fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Somchai' } })
-  fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Jaidee' } })
-  fireEvent.change(screen.getByLabelText('Staff ID'), { target: { value: '6412345678' } })
-  fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '081-234-5678' } })
+  fireEvent.change(screen.getByLabelText('ชื่อจริง'), { target: { value: 'Somchai' } })
+  fireEvent.change(screen.getByLabelText('นามสกุล'), { target: { value: 'Jaidee' } })
+  fireEvent.change(screen.getByLabelText('รหัสบุคลากร'), { target: { value: '6412345678901' } })
+  fireEvent.change(screen.getByLabelText('เบอร์โทรศัพท์'), { target: { value: '0812345678' } })
 }
 
 describe('RegistrationForm — dynamic options', () => {
@@ -58,10 +60,10 @@ describe('RegistrationForm — dynamic options', () => {
     expect(screen.getByTestId('options-loading')).toBeInTheDocument()
 
     resolveOpts(OPTIONS)
-    const dept = (await screen.findByLabelText('Department')) as HTMLSelectElement
+    const dept = (await screen.findByLabelText('ฝ่าย / แผนก')) as HTMLSelectElement
     expect(within(dept).getByRole('option', { name: 'Computer Science' })).toBeInTheDocument()
     expect(within(dept).getByRole('option', { name: 'Mathematics' })).toBeInTheDocument()
-    const roleSel = screen.getByLabelText('Role') as HTMLSelectElement
+    const roleSel = screen.getByLabelText('ตำแหน่ง / บทบาท') as HTMLSelectElement
     expect(within(roleSel).getByRole('option', { name: 'Teacher' })).toBeInTheDocument()
     // No "student" wording remains anywhere in the form.
     expect(screen.queryByText(/student/i)).not.toBeInTheDocument()
@@ -80,7 +82,7 @@ describe('RegistrationForm — dynamic options', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /try again/i }))
 
-    expect(await screen.findByLabelText('Department')).toBeInTheDocument()
+    expect(await screen.findByLabelText('ฝ่าย / แผนก')).toBeInTheDocument()
     expect(loadOptions).toHaveBeenCalledTimes(2)
   })
 
@@ -91,38 +93,39 @@ describe('RegistrationForm — dynamic options', () => {
     setup({ loadOptions })
 
     expect(await screen.findByText(/temporarily unavailable/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /submit registration/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' })).toBeDisabled()
   })
 
-  it('submits the id-based DTO once options are chosen', async () => {
+  it('submits the id-based DTO with NUMERIC option ids once options are chosen', async () => {
     const { onSubmit } = setup()
-    await screen.findByLabelText('Department')
+    await screen.findByLabelText('ฝ่าย / แผนก')
 
     fillIdentity()
-    fireEvent.change(screen.getByLabelText('Department'), { target: { value: 'dept-math' } })
-    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'role-support' } })
-    fireEvent.click(screen.getByRole('button', { name: /submit registration/i }))
+    // <select> values are DOM strings; the form must coerce them to integers.
+    fireEvent.change(screen.getByLabelText('ฝ่าย / แผนก'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('ตำแหน่ง / บทบาท'), { target: { value: '11' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
       firstName: 'Somchai',
       lastName: 'Jaidee',
-      staffId: '6412345678',
-      phone: '081-234-5678',
-      departmentId: 'dept-math',
-      personnelRoleId: 'role-support',
+      staffId: '6412345678901',
+      phone: '0812345678',
+      departmentId: 2,
+      personnelRoleId: 11,
     })
   })
 
   it('blocks submit until a department and role are selected', async () => {
     const { onSubmit } = setup()
-    await screen.findByLabelText('Department')
+    await screen.findByLabelText('ฝ่าย / แผนก')
 
     fillIdentity() // identity valid, but no options selected yet
-    fireEvent.click(screen.getByRole('button', { name: /submit registration/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' }))
 
     expect(onSubmit).not.toHaveBeenCalled()
-    expect(screen.getByText('Please select a department.')).toBeInTheDocument()
-    expect(screen.getByText('Please select a role.')).toBeInTheDocument()
+    expect(screen.getByText('โปรดเลือกฝ่าย/แผนก')).toBeInTheDocument()
+    expect(screen.getByText('โปรดเลือกตำแหน่ง/บทบาท')).toBeInTheDocument()
   })
 })
 
@@ -131,22 +134,23 @@ describe('RegistrationForm — edit mode', () => {
     const onCancel = vi.fn()
     setup({ mode: 'edit', initial: INITIAL, onCancel })
 
-    await screen.findByLabelText('Department')
-    expect(screen.getByLabelText('First name')).toHaveValue('Somchai')
-    expect(screen.getByLabelText('Staff ID')).toHaveValue('6412345678')
-    expect(screen.getByLabelText('Department')).toHaveValue('dept-cs')
-    expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument()
+    await screen.findByLabelText('ฝ่าย / แผนก')
+    expect(screen.getByLabelText('ชื่อจริง')).toHaveValue('Somchai')
+    expect(screen.getByLabelText('รหัสบุคลากร')).toHaveValue('6412345678901')
+    // The pre-filled numeric id ('1') keeps its option selected in the <select>.
+    expect(screen.getByLabelText('ฝ่าย / แผนก')).toHaveValue('1')
+    expect(screen.getByRole('button', { name: 'บันทึกข้อมูล' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'ยกเลิก' }))
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
   it('emits edited values via onSubmit', async () => {
     const { onSubmit } = setup({ mode: 'edit', initial: INITIAL })
-    await screen.findByLabelText('Department')
+    await screen.findByLabelText('ฝ่าย / แผนก')
 
-    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Somsak' } })
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    fireEvent.change(screen.getByLabelText('ชื่อจริง'), { target: { value: 'Somsak' } })
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกข้อมูล' }))
 
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ firstName: 'Somsak' })),

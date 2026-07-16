@@ -45,7 +45,7 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
         </svg>
       </button>
 
-      <span className="font-semibold text-slate-900 dark:text-slate-100">EasyBook Admin</span>
+      <span className="font-semibold text-slate-900 dark:text-slate-100">EasyBook Management System</span>
 
       <div className="ml-auto flex items-center gap-3">
         {user && (

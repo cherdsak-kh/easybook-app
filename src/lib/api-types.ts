@@ -474,15 +474,21 @@ export interface components {
             staffId: string;
             /** @example 081-234-5678 */
             phone: string;
-            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
-            departmentId: string;
+            /**
+             * @description Auto-increment integer id.
+             * @example 1
+             */
+            departmentId: number;
             /**
              * @description Resolved department name.
              * @example Computer Science
              */
             department: string;
-            /** @example clx9z8y7x6w5v4u3t2s1r0q9 */
-            personnelRoleId: string;
+            /**
+             * @description Auto-increment integer id.
+             * @example 1
+             */
+            personnelRoleId: number;
             /**
              * @description Resolved personnel-role name.
              * @example Teacher
@@ -510,8 +516,11 @@ export interface components {
             message: string;
         };
         OptionDto: {
-            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
-            id: string;
+            /**
+             * @description Auto-increment integer id.
+             * @example 1
+             */
+            id: number;
             /** @example Computer Science */
             name: string;
         };
@@ -532,15 +541,15 @@ export interface components {
             /** @example 081-234-5678 */
             phone: string;
             /**
-             * @description Id of a non-deleted Department option (from GET /line-users/registration/options).
-             * @example clx1a2b3c4d5e6f7g8h9i0j1
+             * @description Integer id of a non-deleted Department option (from GET /line-users/registration/options).
+             * @example 1
              */
-            departmentId: string;
+            departmentId: number;
             /**
-             * @description Id of a non-deleted PersonnelRole option (from GET /line-users/registration/options).
-             * @example clx9z8y7x6w5v4u3t2s1r0q9
+             * @description Integer id of a non-deleted PersonnelRole option (from GET /line-users/registration/options).
+             * @example 1
              */
-            personnelRoleId: string;
+            personnelRoleId: number;
         };
         UpdateLineUserRegistrationDto: {
             /** @example Somchai */
@@ -555,15 +564,15 @@ export interface components {
             /** @example 081-234-5678 */
             phone: string;
             /**
-             * @description Id of a non-deleted Department option (from GET /line-users/registration/options).
-             * @example clx1a2b3c4d5e6f7g8h9i0j1
+             * @description Integer id of a non-deleted Department option (from GET /line-users/registration/options).
+             * @example 1
              */
-            departmentId: string;
+            departmentId: number;
             /**
-             * @description Id of a non-deleted PersonnelRole option (from GET /line-users/registration/options).
-             * @example clx9z8y7x6w5v4u3t2s1r0q9
+             * @description Integer id of a non-deleted PersonnelRole option (from GET /line-users/registration/options).
+             * @example 1
              */
-            personnelRoleId: string;
+            personnelRoleId: number;
         };
         LineUserRegistrationSummaryDto: {
             /** @example Somchai */
@@ -757,8 +766,11 @@ export interface components {
             isActive?: boolean;
         };
         DepartmentResponseDto: {
-            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
-            id: string;
+            /**
+             * @description Auto-increment integer id.
+             * @example 1
+             */
+            id: number;
             /** @example Computer Science */
             name: string;
             /** @example 2026-07-14T10:00:00.000Z */
@@ -775,8 +787,11 @@ export interface components {
             name: string;
         };
         PersonnelRoleResponseDto: {
-            /** @example clx9z8y7x6w5v4u3t2s1r0q9 */
-            id: string;
+            /**
+             * @description Auto-increment integer id.
+             * @example 1
+             */
+            id: number;
             /** @example Teacher */
             name: string;
             /** @example 2026-07-14T10:00:00.000Z */
@@ -1843,7 +1858,7 @@ export interface operations {
                 "x-csrf-token": string;
             };
             path: {
-                id: string;
+                id: number;
             };
             cookie?: never;
         };
@@ -1901,7 +1916,7 @@ export interface operations {
                 "x-csrf-token": string;
             };
             path: {
-                id: string;
+                id: number;
             };
             cookie?: never;
         };
@@ -2083,7 +2098,7 @@ export interface operations {
                 "x-csrf-token": string;
             };
             path: {
-                id: string;
+                id: number;
             };
             cookie?: never;
         };
@@ -2141,7 +2156,7 @@ export interface operations {
                 "x-csrf-token": string;
             };
             path: {
-                id: string;
+                id: number;
             };
             cookie?: never;
         };

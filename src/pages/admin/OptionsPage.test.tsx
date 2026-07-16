@@ -39,7 +39,7 @@ const mockListRoles = vi.mocked(apiClient.listPersonnelRoles)
 
 function dept(overrides: Partial<Department> = {}): Department {
   return {
-    id: 'd1',
+    id: 1,
     name: 'Computer Science',
     createdAt: '2026-07-14T10:00:00.000Z',
     updatedAt: '2026-07-14T10:00:00.000Z',
@@ -49,7 +49,7 @@ function dept(overrides: Partial<Department> = {}): Department {
 
 function role(overrides: Partial<PersonnelRole> = {}): PersonnelRole {
   return {
-    id: 'r1',
+    id: 1,
     name: 'Teacher',
     createdAt: '2026-07-14T10:00:00.000Z',
     updatedAt: '2026-07-14T10:00:00.000Z',
@@ -92,14 +92,14 @@ describe('OptionsPage', () => {
   })
 
   it('creates a department and re-fetches the list', async () => {
-    mockCreateDept.mockResolvedValue(dept({ id: 'd2', name: 'Physics' }))
+    mockCreateDept.mockResolvedValue(dept({ id: 2, name: 'Physics' }))
     renderPage()
     await departmentsRegion().findByText('Computer Science')
 
     fireEvent.click(departmentsRegion().getByRole('button', { name: 'Add' }))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Physics' } })
     // After the successful create, the list re-fetch returns both rows.
-    mockListDepts.mockResolvedValue([dept(), dept({ id: 'd2', name: 'Physics' })])
+    mockListDepts.mockResolvedValue([dept(), dept({ id: 2, name: 'Physics' })])
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(mockCreateDept).toHaveBeenCalledWith({ name: 'Physics' }))
@@ -132,7 +132,7 @@ describe('OptionsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(mockPatchDept).toHaveBeenCalledWith('d1', { name: 'Computer Engineering' }),
+      expect(mockPatchDept).toHaveBeenCalledWith(1, { name: 'Computer Engineering' }),
     )
     expect(await departmentsRegion().findByText('Computer Engineering')).toBeInTheDocument()
   })
@@ -147,7 +147,7 @@ describe('OptionsPage', () => {
     mockListDepts.mockResolvedValue([])
     fireEvent.click(departmentsRegion().getByRole('button', { name: 'Confirm' }))
 
-    await waitFor(() => expect(mockDeleteDept).toHaveBeenCalledWith('d1'))
+    await waitFor(() => expect(mockDeleteDept).toHaveBeenCalledWith(1))
     await waitFor(() =>
       expect(departmentsRegion().queryByText('Computer Science')).not.toBeInTheDocument(),
     )
