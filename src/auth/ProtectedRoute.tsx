@@ -1,25 +1,19 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { FullPageSpinner } from '@/components/Spinner'
+import { ROUTES } from '@/constants/routes'
 import { useAuth } from './useAuth'
 
 /**
- * The forced password-change screen. Lives inside `ProtectedRoute` (you must be
- * signed in to reach it) but outside `DashboardLayout` (there is nothing to
- * navigate to while gated).
- */
-export const FORCE_PASSWORD_CHANGE_PATH = '/admin/force-password-change'
-
-/**
- * Gate for `/admin/dashboard/*` (design §5.2):
+ * Gate for `{ROUTES.dashboard}/*` (design §5.2):
  *  - `loading`        → render a spinner; do NOT render the dashboard and do NOT
  *                       redirect yet (no dashboard flash before the probe resolves).
  *  - `authenticated`  → render the protected children.
- *  - `unauthenticated`→ redirect to `/admin/login`, preserving the intended path
- *                       in router state so post-login can return the user here.
+ *  - `unauthenticated`→ redirect to {@link ROUTES.login}, preserving the intended
+ *                       path in router state so post-login can return the user here.
  *
  * Plus the forced-reset redirect: while `mustChangePassword` is true the user is
- * sent to {@link FORCE_PASSWORD_CHANGE_PATH} and kept there. That route renders
+ * sent to {@link ROUTES.forcePasswordChange} and kept there. That route renders
  * itself (the redirect skips its own path, so it cannot loop).
  *
  * This redirect is **UX, never the control**: the backend 403s every gated route
@@ -36,11 +30,14 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (status === 'unauthenticated') {
-    return <Navigate to="/admin/login" replace state={{ from: location }} />
+    // `state.from` is the return path: AdminLoginPage reads it back and sends the
+    // user to where they were headed. Dropping it fails silently (you get the
+    // dashboard instead of the page you asked for), so it must stay.
+    return <Navigate to={ROUTES.login} replace state={{ from: location }} />
   }
 
-  if (user?.mustChangePassword && location.pathname !== FORCE_PASSWORD_CHANGE_PATH) {
-    return <Navigate to={FORCE_PASSWORD_CHANGE_PATH} replace />
+  if (user?.mustChangePassword && location.pathname !== ROUTES.forcePasswordChange) {
+    return <Navigate to={ROUTES.forcePasswordChange} replace />
   }
 
   return <>{children}</>

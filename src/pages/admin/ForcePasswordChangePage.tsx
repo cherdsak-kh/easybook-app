@@ -8,10 +8,10 @@ import {
 } from '@/lib/api-client'
 import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
+import { ROUTES } from '@/constants/routes'
 import { UI_STRINGS } from '@/constants/ui-strings'
 
 const UI = UI_STRINGS.auth.forcePasswordChange
-const DASHBOARD = '/admin/dashboard'
 
 interface Fields {
   currentPassword: string
@@ -88,7 +88,7 @@ export function ForcePasswordChangePage() {
       await changeOwnPassword(fields.currentPassword, fields.newPassword)
       // Re-read the flag from the server instead of assuming it flipped.
       await refresh()
-      navigate(DASHBOARD, { replace: true })
+      navigate(ROUTES.dashboard, { replace: true })
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 401) {
         // A genuine session death — and ONLY this. Never a wrong password.
@@ -111,7 +111,7 @@ export function ForcePasswordChangePage() {
     setLoggingOut(true)
     try {
       await logout()
-      navigate('/admin/login', { replace: true })
+      navigate(ROUTES.login, { replace: true })
     } finally {
       setLoggingOut(false)
     }

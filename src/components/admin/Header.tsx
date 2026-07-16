@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
+import { ROUTES } from '@/constants/routes'
 import type { AdminUser } from '@/auth/auth-context'
 
 /** Human-friendly role label. */
@@ -26,7 +27,7 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
     setLoggingOut(true)
     try {
       await logout()
-      navigate('/admin/login', { replace: true })
+      navigate(ROUTES.login, { replace: true })
     } finally {
       setLoggingOut(false)
     }

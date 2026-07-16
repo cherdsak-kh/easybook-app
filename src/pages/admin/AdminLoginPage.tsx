@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
+import { ROUTES } from '@/constants/routes'
 import { UI_STRINGS } from '@/constants/ui-strings'
 import type { LoginResult } from '@/lib/api-client'
 
@@ -11,7 +12,6 @@ interface LocationState {
   from?: { pathname?: string }
 }
 
-const DASHBOARD = '/admin/dashboard'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /** Map a failed login status to a user-facing message. */
@@ -35,7 +35,9 @@ export function AdminLoginPage() {
   const { status, login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const from = (location.state as LocationState | null)?.from?.pathname ?? DASHBOARD
+  // The return path ProtectedRoute stashed on redirect; the dashboard is the
+  // fallback for a direct visit to the login page.
+  const from = (location.state as LocationState | null)?.from?.pathname ?? ROUTES.dashboard
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
+import { ROUTES } from '@/constants/routes'
 
 interface NavItem {
   to: string
@@ -9,7 +10,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   {
-    to: '/admin/dashboard/line-users',
+    to: ROUTES.lineUsers,
     label: 'LINE Users',
     icon: (
       <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
@@ -18,7 +19,7 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
-    to: '/admin/dashboard/options',
+    to: ROUTES.options,
     label: 'Registration Options',
     icon: (
       <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
@@ -27,7 +28,7 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
-    to: '/admin/dashboard/staff',
+    to: ROUTES.staff,
     label: 'Staff',
     icon: (
       <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
@@ -40,7 +41,7 @@ const NAV_ITEMS: NavItem[] = [
 /** Self-service, available to every role — not a management surface. */
 const ACCOUNT_ITEMS: NavItem[] = [
   {
-    to: '/admin/dashboard/profile',
+    to: ROUTES.profile,
     label: 'My Profile',
     icon: (
       <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">

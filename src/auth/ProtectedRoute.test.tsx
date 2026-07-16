@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
-import { FORCE_PASSWORD_CHANGE_PATH, ProtectedRoute } from '@/auth/ProtectedRoute'
+import { ProtectedRoute } from '@/auth/ProtectedRoute'
+import { ROUTES } from '@/constants/routes'
 import * as apiClient from '@/lib/api-client'
 import type { SystemUser } from '@/lib/api-client'
 
@@ -34,14 +35,14 @@ function makeUser(overrides: Partial<SystemUser> = {}): SystemUser {
   }
 }
 
-function renderGuarded(initialPath = '/admin/dashboard') {
+function renderGuarded(initialPath: string = ROUTES.dashboard) {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
       <AuthProvider>
         <Routes>
-          <Route path="/admin/login" element={<div>Login Page</div>} />
+          <Route path={ROUTES.login} element={<div>Login Page</div>} />
           <Route
-            path="/admin/dashboard"
+            path={ROUTES.dashboard}
             element={
               <ProtectedRoute>
                 <div>Dashboard Content</div>
@@ -49,7 +50,7 @@ function renderGuarded(initialPath = '/admin/dashboard') {
             }
           />
           <Route
-            path={FORCE_PASSWORD_CHANGE_PATH}
+            path={ROUTES.forcePasswordChange}
             element={
               <ProtectedRoute>
                 <div>Force Reset Screen</div>
@@ -67,7 +68,7 @@ beforeEach(() => {
 })
 
 describe('ProtectedRoute', () => {
-  it('redirects an unauthenticated visitor to /admin/login (AC-F1)', async () => {
+  it('redirects an unauthenticated visitor to /backend/login (AC-F1)', async () => {
     mockGetMe.mockResolvedValue(null) // 401 → unauthenticated
     renderGuarded()
 
@@ -95,7 +96,7 @@ describe('ProtectedRoute', () => {
   // --- Forced-reset gate (AC-F5). UX on top of the server gate, never a substitute.
   it('routes a gated user away from the dashboard to the force-reset screen (AC-F5)', async () => {
     mockGetMe.mockResolvedValue(makeUser({ mustChangePassword: true }))
-    renderGuarded('/admin/dashboard')
+    renderGuarded(ROUTES.dashboard)
 
     expect(await screen.findByText('Force Reset Screen')).toBeInTheDocument()
     expect(screen.queryByText('Dashboard Content')).not.toBeInTheDocument()
@@ -103,7 +104,7 @@ describe('ProtectedRoute', () => {
 
   it('renders the force-reset screen itself while gated, without redirect-looping (AC-F5)', async () => {
     mockGetMe.mockResolvedValue(makeUser({ mustChangePassword: true }))
-    renderGuarded(FORCE_PASSWORD_CHANGE_PATH)
+    renderGuarded(ROUTES.forcePasswordChange)
 
     // The redirect skips its own path, so the screen renders rather than
     // bouncing against itself forever.
@@ -112,7 +113,7 @@ describe('ProtectedRoute', () => {
 
   it('lets a user through once mustChangePassword is false (AC-F6)', async () => {
     mockGetMe.mockResolvedValue(makeUser({ mustChangePassword: false }))
-    renderGuarded('/admin/dashboard')
+    renderGuarded(ROUTES.dashboard)
 
     expect(await screen.findByText('Dashboard Content')).toBeInTheDocument()
     expect(screen.queryByText('Force Reset Screen')).not.toBeInTheDocument()
@@ -120,7 +121,7 @@ describe('ProtectedRoute', () => {
 
   it('sends a gated but unauthenticated visitor to login, not the reset screen', async () => {
     mockGetMe.mockResolvedValue(null)
-    renderGuarded('/admin/dashboard')
+    renderGuarded(ROUTES.dashboard)
 
     expect(await screen.findByText('Login Page')).toBeInTheDocument()
     expect(screen.queryByText('Force Reset Screen')).not.toBeInTheDocument()

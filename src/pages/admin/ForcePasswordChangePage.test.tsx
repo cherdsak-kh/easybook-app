@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
-import { FORCE_PASSWORD_CHANGE_PATH, ProtectedRoute } from '@/auth/ProtectedRoute'
+import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { ForcePasswordChangePage } from '@/pages/admin/ForcePasswordChangePage'
+import { ROUTES } from '@/constants/routes'
 import { UI_STRINGS } from '@/constants/ui-strings'
 import * as apiClient from '@/lib/api-client'
 import type { SystemUser } from '@/lib/api-client'
@@ -61,12 +62,12 @@ function makeUser(overrides: Partial<SystemUser> = {}): SystemUser {
  */
 function renderScreen() {
   return render(
-    <MemoryRouter initialEntries={[FORCE_PASSWORD_CHANGE_PATH]}>
+    <MemoryRouter initialEntries={[ROUTES.forcePasswordChange]}>
       <AuthProvider>
         <Routes>
-          <Route path="/admin/login" element={<div>Login Page</div>} />
+          <Route path={ROUTES.login} element={<div>Login Page</div>} />
           <Route
-            path={FORCE_PASSWORD_CHANGE_PATH}
+            path={ROUTES.forcePasswordChange}
             element={
               <ProtectedRoute>
                 <ForcePasswordChangePage />
@@ -74,7 +75,7 @@ function renderScreen() {
             }
           />
           <Route
-            path="/admin/dashboard"
+            path={ROUTES.dashboard}
             element={
               <ProtectedRoute>
                 <div>Dashboard Content</div>

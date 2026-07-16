@@ -7,28 +7,36 @@ import { OptionsPage } from '@/pages/admin/OptionsPage'
 import { ProfilePage } from '@/pages/admin/ProfilePage'
 import { StaffPage } from '@/pages/admin/StaffPage'
 import { DashboardLayout } from '@/components/admin/DashboardLayout'
-import { FORCE_PASSWORD_CHANGE_PATH, ProtectedRoute } from '@/auth/ProtectedRoute'
+import { ProtectedRoute } from '@/auth/ProtectedRoute'
+import { DASHBOARD_CHILDREN, ROUTES } from '@/constants/routes'
 
 /**
- * Route tree (design §5.1):
- *  - `/admin/login`                  → the admin login form.
- *  - `/admin/force-password-change`  → the forced reset screen. Protected (you
+ * Route tree (design §5.1). Paths come from `@/constants/routes` — the portal is
+ * based at `/backend`, and rebasing it is one edit there, not a sweep here.
+ *
+ *  - `{ROUTES.login}`                → the admin login form.
+ *  - `{ROUTES.forcePasswordChange}`  → the forced reset screen. Protected (you
  *                                      must be signed in) but deliberately
  *                                      OUTSIDE `DashboardLayout`: while gated
  *                                      there is nowhere else to navigate to.
- *  - `/admin/dashboard/*`            → protected shell (sidebar + header) with
+ *  - `{ROUTES.dashboard}/*`          → protected shell (sidebar + header) with
  *                                      the `line-users` / `options` / `staff` /
  *                                      `profile` nested pages.
  *  - `/*`                            → the existing Hello-World client
- *                                      placeholder, unchanged. Kept last so it
- *                                      only catches non-admin paths.
+ *                                      placeholder, unchanged. Kept LAST: React
+ *                                      Router ranks specific paths above this
+ *                                      catch-all, so the portal branch wins and
+ *                                      `/*` only catches non-portal paths.
+ *
+ * Note the file tree still says `pages/admin` / `components/admin`. That is
+ * deliberate: URL paths are not file paths, and only the URL was rebased.
  */
 function App() {
   return (
     <Routes>
-      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path={ROUTES.login} element={<AdminLoginPage />} />
       <Route
-        path={FORCE_PASSWORD_CHANGE_PATH}
+        path={ROUTES.forcePasswordChange}
         element={
           <ProtectedRoute>
             <ForcePasswordChangePage />
@@ -36,18 +44,18 @@ function App() {
         }
       />
       <Route
-        path="/admin/dashboard"
+        path={ROUTES.dashboard}
         element={
           <ProtectedRoute>
             <DashboardLayout />
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="line-users" replace />} />
-        <Route path="line-users" element={<LineUsersPage />} />
-        <Route path="options" element={<OptionsPage />} />
-        <Route path="staff" element={<StaffPage />} />
-        <Route path="profile" element={<ProfilePage />} />
+        <Route index element={<Navigate to={DASHBOARD_CHILDREN.lineUsers} replace />} />
+        <Route path={DASHBOARD_CHILDREN.lineUsers} element={<LineUsersPage />} />
+        <Route path={DASHBOARD_CHILDREN.options} element={<OptionsPage />} />
+        <Route path={DASHBOARD_CHILDREN.staff} element={<StaffPage />} />
+        <Route path={DASHBOARD_CHILDREN.profile} element={<ProfilePage />} />
       </Route>
       <Route path="/*" element={<HomePage />} />
     </Routes>

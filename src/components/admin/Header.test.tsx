@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { Header } from '@/components/admin/Header'
+import { ROUTES } from '@/constants/routes'
 import * as apiClient from '@/lib/api-client'
 import type { SystemUser } from '@/lib/api-client'
 
@@ -36,14 +37,11 @@ function makeUser(overrides: Partial<SystemUser> = {}): SystemUser {
 
 function renderHeader() {
   return render(
-    <MemoryRouter initialEntries={['/admin/dashboard/line-users']}>
+    <MemoryRouter initialEntries={[ROUTES.lineUsers]}>
       <AuthProvider>
         <Routes>
-          <Route
-            path="/admin/dashboard/line-users"
-            element={<Header onMenuToggle={() => {}} />}
-          />
-          <Route path="/admin/login" element={<div>Login Page</div>} />
+          <Route path={ROUTES.lineUsers} element={<Header onMenuToggle={() => {}} />} />
+          <Route path={ROUTES.login} element={<div>Login Page</div>} />
         </Routes>
       </AuthProvider>
     </MemoryRouter>,
