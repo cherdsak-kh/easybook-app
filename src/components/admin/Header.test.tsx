@@ -61,6 +61,38 @@ describe('Header', () => {
     expect(screen.getByText('Super Admin')).toBeInTheDocument()
   })
 
+  it('renders the brand mark beside the product name, decoratively', async () => {
+    mockGetMe.mockResolvedValue(makeUser())
+    const { container } = renderHeader()
+    await screen.findByText('Ada Lovelace')
+
+    // Not queryable by role/alt precisely BECAUSE it is decorative, which is the
+    // property under test.
+    const logo = container.querySelector('img[src="/logo/easybook-logo-512px-no-bg.svg"]')
+    expect(logo).toBeInTheDocument()
+    // The adjacent "EasyBook Management System" text already names the product;
+    // alt text here would announce it twice.
+    expect(logo).toHaveAttribute('alt', '')
+  })
+
+  it("shows the signed-in user's avatar from the /me probe", async () => {
+    mockGetMe.mockResolvedValue(makeUser({ profilePictureUrl: 'https://cdn.example.com/me.jpg' }))
+    renderHeader()
+
+    // Proves the session probe carries profilePictureUrl through to the header —
+    // the login response has no such field, so only /me can supply it.
+    const img = await screen.findByTestId<HTMLImageElement>('avatar-image')
+    expect(img.src).toBe('https://cdn.example.com/me.jpg')
+  })
+
+  it('falls back to initials when the signed-in user has no picture', async () => {
+    mockGetMe.mockResolvedValue(makeUser({ profilePictureUrl: null }))
+    renderHeader()
+
+    expect(await screen.findByTestId('avatar-fallback')).toHaveTextContent('AL')
+    expect(screen.queryByTestId('avatar-image')).not.toBeInTheDocument()
+  })
+
   it('logs out and returns to the login page (AC-F5)', async () => {
     mockGetMe.mockResolvedValue(makeUser())
     mockLogout.mockResolvedValue(undefined)

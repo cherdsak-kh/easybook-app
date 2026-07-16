@@ -1,12 +1,15 @@
+import { useEffect, useRef } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { ProfilePage } from '@/pages/admin/ProfilePage'
 import { UI_STRINGS } from '@/constants/ui-strings'
 import * as apiClient from '@/lib/api-client'
+import * as cropImage from '@/lib/crop-image'
 import type { SystemUser } from '@/lib/api-client'
 
 const UI = UI_STRINGS.profile
+const CROP = UI_STRINGS.profile.avatarCrop
 
 vi.mock('@/lib/api-client', () => {
   class ApiError extends Error {
@@ -29,9 +32,61 @@ vi.mock('@/lib/api-client', () => {
   }
 })
 
+/**
+ * jsdom has no canvas 2D context and decodes no images, so the real crop→Blob
+ * path cannot run here. Mocking it at the import boundary (the repo's
+ * `vi.mock('@/lib/...')` convention) is exactly why that logic lives in its own
+ * module: it leaves the COMPONENT's behaviour — dialog opens, confirm uploads
+ * the returned file, errors render — fully assertable.
+ */
+vi.mock('@/lib/crop-image', () => {
+  class CropError extends Error {
+    reason: string
+    constructor(reason: string, message: string) {
+      super(message)
+      this.name = 'CropError'
+      this.reason = reason
+    }
+  }
+  return { CropError, cropImageToFile: vi.fn() }
+})
+
+/**
+ * The real cropper reports its selection only after the image loads and its
+ * container is measured — neither happens in jsdom, so `onCropComplete` would
+ * never fire and Confirm would stay disabled forever. This stand-in reports a
+ * fixed selection once on mount.
+ */
+const CROPPED_AREA = { x: 10, y: 20, width: 300, height: 300 }
+
+vi.mock('react-easy-crop', () => {
+  // Named (not an inline arrow) so it reads as a component to rules-of-hooks.
+  function CropperStub({
+    onCropComplete,
+  }: {
+    onCropComplete: (area: unknown, areaPixels: typeof CROPPED_AREA) => void
+  }) {
+    // Held in a ref so the one-shot effect never re-fires on the parent's
+    // inline-arrow identity change (which would loop through setState).
+    const cb = useRef(onCropComplete)
+    cb.current = onCropComplete
+    useEffect(() => {
+      cb.current({ x: 0, y: 0, width: 100, height: 100 }, CROPPED_AREA)
+    }, [])
+    return <div data-testid="cropper" />
+  }
+  return { default: CropperStub }
+})
+
 const mockGetMe = vi.mocked(apiClient.getMe)
 const mockUpdate = vi.mocked(apiClient.updateOwnProfile)
 const mockUpload = vi.mocked(apiClient.uploadOwnAvatar)
+const mockCrop = vi.mocked(cropImage.cropImageToFile)
+
+/** What the crop module hands back: already square, JPEG, and size-checked. */
+function croppedFile(): File {
+  return new File(['cropped-jpeg-bytes'], 'avatar.jpg', { type: 'image/jpeg' })
+}
 
 function makeUser(overrides: Partial<SystemUser> = {}): SystemUser {
   return {
@@ -73,7 +128,16 @@ function fakeFile(name: string, type: string, size: number): File {
 beforeEach(() => {
   vi.clearAllMocks()
   mockGetMe.mockResolvedValue(makeUser())
+  mockCrop.mockResolvedValue(croppedFile())
 })
+
+/** Pick a file, then confirm the crop — the only route to an upload now. */
+async function pickAndConfirm(file: File) {
+  fireEvent.change(await screen.findByLabelText(UI.avatarLabel), { target: { files: [file] } })
+  const confirm = await screen.findByRole('button', { name: CROP.confirm })
+  await waitFor(() => expect(confirm).toBeEnabled())
+  fireEvent.click(confirm)
+}
 
 describe('ProfilePage', () => {
   it('shows a skeleton while /me is in flight, then the profile', async () => {
@@ -192,20 +256,42 @@ describe('ProfilePage', () => {
 
   // ------------------------------------------------------- Avatar (AC-F8)
 
-  it('uploads an avatar and re-renders from the response without a reload (AC-F8)', async () => {
+  it('uploads the CROPPED file and re-renders from the response without a reload (AC-F8)', async () => {
     const file = fakeFile('me.png', 'image/png', 1024)
+    const cropped = croppedFile()
+    mockCrop.mockResolvedValue(cropped)
     mockUpload.mockResolvedValue(
       makeUser({ profilePictureUrl: 'https://cdn.example.com/avatars/u1/abc.png' }),
     )
     renderPage()
 
-    const input = await screen.findByLabelText(UI.avatarLabel)
-    fireEvent.change(input, { target: { files: [file] } })
+    await pickAndConfirm(file)
 
-    await waitFor(() => expect(mockUpload).toHaveBeenCalledWith(file))
+    // The CROPPED file goes to the wire, never the original the user picked.
+    //
+    // `toBe`, NOT `toHaveBeenCalledWith`: vitest deep-compares by enumerable own
+    // properties, and a File has none — so every File matches every other File
+    // and `toHaveBeenCalledWith(cropped)` would pass even when the ORIGINAL was
+    // uploaded. Reference identity is the only assertion with teeth here.
+    await waitFor(() => expect(mockUpload).toHaveBeenCalledTimes(1))
+    expect(mockUpload.mock.calls[0][0]).toBe(cropped)
+    expect(mockUpload.mock.calls[0][0]).not.toBe(file)
+
     const img = await screen.findByAltText<HTMLImageElement>(UI.avatarAlt)
     // Rendered from the response body — the URL is never constructed client-side.
     expect(img.src).toBe('https://cdn.example.com/avatars/u1/abc.png')
+  })
+
+  it('crops against the backend size limit, from the cropper selection (AC-F8)', async () => {
+    renderPage()
+    await pickAndConfirm(fakeFile('me.png', 'image/png', 1024))
+
+    await waitFor(() => expect(mockCrop).toHaveBeenCalledTimes(1))
+    const [, area, options] = mockCrop.mock.calls[0]
+    // The region the cropper reported — not the whole image.
+    expect(area).toEqual(CROPPED_AREA)
+    // Bounded by the SAME limit the server enforces, so the two cannot drift.
+    expect(options.maxBytes).toBe(apiClient.AVATAR_MAX_BYTES)
   })
 
   it('renders a server 400 (bad type / failed sniff) inline (AC-F8)', async () => {
@@ -215,9 +301,7 @@ describe('ProfilePage', () => {
     )
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), {
-      target: { files: [file] },
-    })
+    await pickAndConfirm(file)
 
     // Literal on purpose: the SERVER's sniff-failure message, surfaced verbatim
     // rather than replaced by the canned `avatarRejected` fallback.
@@ -230,9 +314,7 @@ describe('ProfilePage', () => {
     mockUpload.mockRejectedValue(new apiClient.ApiError(502, 'Bad Gateway'))
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), {
-      target: { files: [file] },
-    })
+    await pickAndConfirm(file)
 
     // A 502 gets its own branch — never the raw 'Bad Gateway' and never the
     // generic upload-failed message.
@@ -241,7 +323,7 @@ describe('ProfilePage', () => {
     expect(screen.queryByText(UI.avatarUploadFailed)).not.toBeInTheDocument()
   })
 
-  it('rejects an oversized file client-side without calling the API (AC-F8)', async () => {
+  it('rejects an oversized file client-side without cropping or calling the API (AC-F8)', async () => {
     const file = fakeFile('huge.png', 'image/png', 2 * 1024 * 1024 + 1)
     renderPage()
 
@@ -251,20 +333,25 @@ describe('ProfilePage', () => {
 
     expect(await screen.findByText(UI.avatarTooLarge)).toBeInTheDocument()
     expect(mockUpload).not.toHaveBeenCalled()
+    // Rejected at the door: no point opening a cropper for a file that cannot
+    // be sent.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mockCrop).not.toHaveBeenCalled()
   })
 
   it('accepts a file of EXACTLY 2 MiB — the backend limit is exclusive (AC-F8)', async () => {
     const file = fakeFile('exact.png', 'image/png', 2 * 1024 * 1024)
+    const cropped = croppedFile()
+    mockCrop.mockResolvedValue(cropped)
     mockUpload.mockResolvedValue(makeUser({ profilePictureUrl: 'https://cdn.example.com/a.png' }))
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), {
-      target: { files: [file] },
-    })
+    await pickAndConfirm(file)
 
     // The pre-check must be `> 2 MiB`, not `>=`, or it would refuse a file the
-    // server would have accepted.
-    await waitFor(() => expect(mockUpload).toHaveBeenCalledWith(file))
+    // server would have accepted. Identity again — see the note above.
+    await waitFor(() => expect(mockUpload).toHaveBeenCalledTimes(1))
+    expect(mockUpload.mock.calls[0][0]).toBe(cropped)
     expect(screen.queryByText(UI.avatarTooLarge)).not.toBeInTheDocument()
   })
 
@@ -278,6 +365,7 @@ describe('ProfilePage', () => {
 
     expect(await screen.findByText(UI.avatarBadType)).toBeInTheDocument()
     expect(mockUpload).not.toHaveBeenCalled()
+    expect(mockCrop).not.toHaveBeenCalled()
   })
 
   it('shows a pending state while the upload is in flight (AC-F8)', async () => {
@@ -285,10 +373,77 @@ describe('ProfilePage', () => {
     mockUpload.mockReturnValue(new Promise(() => {}))
     renderPage()
 
-    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), {
-      target: { files: [file] },
-    })
+    await pickAndConfirm(file)
 
     expect(await screen.findByText(UI.avatarUploading)).toBeInTheDocument()
+  })
+
+  // --------------------------------------------------- Crop dialog (Task 3)
+
+  it('opens the 1:1 crop dialog on file select instead of uploading straight away', async () => {
+    const file = fakeFile('me.png', 'image/png', 1024)
+    renderPage()
+
+    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), { target: { files: [file] } })
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: CROP.title })).toBeInTheDocument()
+    // Picking is NOT confirming: nothing is cropped or sent until they say so.
+    expect(mockCrop).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+
+  it('cancelling the crop dialog uploads nothing', async () => {
+    const file = fakeFile('me.png', 'image/png', 1024)
+    renderPage()
+
+    fireEvent.change(await screen.findByLabelText(UI.avatarLabel), { target: { files: [file] } })
+    fireEvent.click(await screen.findByRole('button', { name: UI_STRINGS.common.cancel }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(mockCrop).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+
+  it('closes the crop dialog once the crop is confirmed', async () => {
+    mockUpload.mockResolvedValue(makeUser({ profilePictureUrl: 'https://cdn.example.com/a.jpg' }))
+    renderPage()
+
+    await pickAndConfirm(fakeFile('me.png', 'image/png', 1024))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('surfaces an oversize-AFTER-crop result in the dialog and uploads nothing (AC-F8)', async () => {
+    // The pre-check passed on the ORIGINAL, but re-encoding can grow a file past
+    // 2 MiB — the quality ladder bottomed out and still overshot.
+    mockCrop.mockRejectedValue(
+      new cropImage.CropError('too-large', 'The cropped image is still over the size limit.'),
+    )
+    renderPage()
+
+    await pickAndConfirm(fakeFile('me.png', 'image/png', 1024))
+
+    expect(await screen.findByText(CROP.stillTooLarge)).toBeInTheDocument()
+    // Never fire a request that is a guaranteed 400...
+    expect(mockUpload).not.toHaveBeenCalled()
+    // ...and keep the dialog open, because zooming in is the fix and the zoom
+    // control lives inside it.
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByLabelText(CROP.zoom)).toBeInTheDocument()
+  })
+
+  it('surfaces a failed crop (undecodable image) in the dialog (AC-F8)', async () => {
+    mockCrop.mockRejectedValue(new cropImage.CropError('decode', 'nope'))
+    renderPage()
+
+    await pickAndConfirm(fakeFile('me.png', 'image/png', 1024))
+
+    // A decode failure is a different message from the size failure: a different
+    // action fixes each.
+    expect(await screen.findByText(CROP.failed)).toBeInTheDocument()
+    expect(screen.queryByText(CROP.stillTooLarge)).not.toBeInTheDocument()
+    expect(mockUpload).not.toHaveBeenCalled()
   })
 })

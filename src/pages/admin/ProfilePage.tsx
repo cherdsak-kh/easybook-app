@@ -9,6 +9,8 @@ import {
   type SystemUser,
 } from '@/lib/api-client'
 import { Spinner } from '@/components/Spinner'
+import { Avatar } from '@/components/admin/Avatar'
+import { AvatarCropModal } from '@/components/admin/AvatarCropModal'
 import { useAuth } from '@/auth/useAuth'
 import { UI_STRINGS } from '@/constants/ui-strings'
 
@@ -26,10 +28,6 @@ function toFields(u: SystemUser): Fields {
     lastName: u.lastName,
     phoneNumber: u.phoneNumber ?? '',
   }
-}
-
-function initials(u: SystemUser): string {
-  return `${u.firstName.charAt(0)}${u.lastName.charAt(0)}`.toUpperCase()
 }
 
 /** Client-side pre-check. The server re-checks everything and sniffs magic bytes. */
@@ -67,6 +65,8 @@ export function ProfilePage() {
 
   const [avatarBusy, setAvatarBusy] = useState(false)
   const [avatarError, setAvatarError] = useState<string | null>(null)
+  /** The picked file awaiting a crop. Non-null ⇔ the crop dialog is open. */
+  const [cropping, setCropping] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(() => {
@@ -132,16 +132,34 @@ export function ProfilePage() {
     }
   }
 
-  async function handleAvatar(file: File) {
+  /**
+   * A file was PICKED — it is not uploaded yet. Pre-check it, then hand it to the
+   * crop dialog; `handleCropped` is the only path to the network, so every stored
+   * avatar is a 1:1 crop by construction.
+   */
+  function handlePicked(file: File) {
     setAvatarError(null)
     const rejection = fileRejection(file)
     if (rejection) {
       setAvatarError(rejection)
+      // Let the same file be re-picked after a rejection.
+      if (fileRef.current) fileRef.current.value = ''
       return
     }
+    setCropping(file)
+  }
+
+  /**
+   * `cropped` is the modal's output: already square, JPEG, and verified against
+   * `AVATAR_MAX_BYTES` — cropping can INCREASE size, so the modal re-checks
+   * rather than trusting the pre-check that ran on the original at pick time.
+   */
+  async function handleCropped(cropped: File) {
+    setCropping(null)
+    setAvatarError(null)
     setAvatarBusy(true)
     try {
-      const updated = await uploadOwnAvatar(file)
+      const updated = await uploadOwnAvatar(cropped)
       // Re-render straight from the response — never construct the URL.
       setMe(updated)
       await refresh()
@@ -203,20 +221,15 @@ export function ProfilePage() {
       {/* ---------------------------------------------------------------- Avatar */}
       <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center gap-4">
-          {me.profilePictureUrl ? (
-            <img
-              src={me.profilePictureUrl}
-              alt={UI.avatarAlt}
-              className="h-20 w-20 shrink-0 rounded-full object-cover"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xl font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-200"
-            >
-              {initials(me)}
-            </span>
-          )}
+          {/* Named here (unlike the header/staff rows): this is the user's OWN
+              picture and nothing adjacent identifies it. */}
+          <Avatar
+            src={me.profilePictureUrl}
+            name={`${me.firstName} ${me.lastName}`}
+            colorKey={me.id}
+            size="lg"
+            alt={UI.avatarAlt}
+          />
 
           <div className="min-w-0">
             <label
@@ -233,7 +246,7 @@ export function ProfilePage() {
               disabled={avatarBusy}
               onChange={(e) => {
                 const file = e.target.files?.[0]
-                if (file) void handleAvatar(file)
+                if (file) handlePicked(file)
               }}
               className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-emerald-700 disabled:opacity-60 dark:text-slate-300"
             />
@@ -254,6 +267,19 @@ export function ProfilePage() {
           >
             {avatarError}
           </p>
+        )}
+
+        {cropping && (
+          <AvatarCropModal
+            file={cropping}
+            onConfirm={handleCropped}
+            onCancel={() => {
+              setCropping(null)
+              // Re-arm the input: without this, re-picking the SAME file fires no
+              // change event and the dialog would never reopen.
+              if (fileRef.current) fileRef.current.value = ''
+            }}
+          />
         )}
       </div>
 

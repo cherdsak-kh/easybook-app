@@ -24,6 +24,13 @@ export interface AdminUser {
    * this flag as the control.
    */
   mustChangePassword: boolean
+  /**
+   * The header's avatar. Like `mustChangePassword`, only `GET /auth/system/me`
+   * carries it — `LoginResponseDto` has no such field — so it is `null` until
+   * the probe resolves. `Avatar` renders the initials fallback meanwhile, which
+   * is the same thing it renders for a user who has set no picture.
+   */
+  profilePictureUrl: string | null
 }
 
 export interface AuthContextValue {

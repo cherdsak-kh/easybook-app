@@ -9,6 +9,7 @@ import {
   type SystemUserWithTemporaryPassword,
 } from '@/lib/api-client'
 import { Spinner } from '@/components/Spinner'
+import { Avatar } from '@/components/admin/Avatar'
 import { StaffFormModal } from '@/components/admin/StaffFormModal'
 import { TempPasswordDialog } from '@/components/admin/TempPasswordDialog'
 import { useAuth } from '@/auth/useAuth'
@@ -207,6 +208,16 @@ export function StaffPage() {
                   key={user.id}
                   className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
                 >
+                  {/* No `alt`: decorative — the row names this person on the
+                      very next line. `profilePictureUrl` already rides along on
+                      the list DTO, so this costs no extra request. */}
+                  <Avatar
+                    src={user.profilePictureUrl}
+                    name={`${user.firstName} ${user.lastName}`}
+                    colorKey={user.id}
+                    size="md"
+                  />
+
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
                       <span className="truncate">
@@ -393,6 +404,9 @@ function ListSkeleton() {
           key={i}
           className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
         >
+          {/* Same h-10 w-10 as the real row's Avatar, so the list does not jump
+              sideways when the data lands. */}
+          <span className="h-10 w-10 shrink-0 rounded-full bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
           <div className="flex-1 space-y-2">
             <span className="block h-4 w-40 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
             <span className="block h-3 w-56 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Spinner } from '@/components/Spinner'
+import { Avatar } from '@/components/admin/Avatar'
 import { useAuth } from '@/auth/useAuth'
 import { ROUTES } from '@/constants/routes'
 import type { AdminUser } from '@/auth/auth-context'
@@ -11,6 +12,13 @@ const ROLE_LABEL: Record<AdminUser['role'], string> = {
   ADMIN: 'Admin',
   STAFF: 'Staff',
 }
+
+/**
+ * Square brand mark. DECORATIVE (`alt=""`): the "EasyBook Management System"
+ * text sits immediately beside it, so alt text here would make a screen reader
+ * announce the product twice in a row.
+ */
+const LOGO_MARK = '/logo/easybook-logo-512px-no-bg.svg'
 
 /**
  * Dashboard top bar: a mobile menu toggle, the logged-in admin's name + role,
@@ -46,14 +54,32 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
         </svg>
       </button>
 
-      <span className="font-semibold text-slate-900 dark:text-slate-100">EasyBook Management System</span>
+      <span className="flex min-w-0 items-center gap-2">
+        <img src={LOGO_MARK} alt="" aria-hidden className="h-8 w-8 shrink-0 select-none" />
+        <span className="truncate font-semibold text-slate-900 dark:text-slate-100">
+          EasyBook Management System
+        </span>
+      </span>
 
       <div className="ml-auto flex items-center gap-3">
         {user && (
-          <div className="text-right leading-tight">
-            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{fullName}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{ROLE_LABEL[user.role]}</p>
-          </div>
+          <>
+            {/* `min-w-0` + `truncate`: the LINE webview is narrow and the bar now
+                carries a logo and an avatar too — a long name must ellipsize
+                rather than shove the Logout button off-screen. */}
+            <div className="min-w-0 text-right leading-tight">
+              <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+                {fullName}
+              </p>
+              <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                {ROLE_LABEL[user.role]}
+              </p>
+            </div>
+            {/* No `alt`: decorative, because the name block beside it already
+                names this person. `colorKey` is the id so the fallback colour
+                survives a rename. */}
+            <Avatar src={user.profilePictureUrl} name={fullName} colorKey={user.id} size="sm" />
+          </>
         )}
         <button
           type="button"

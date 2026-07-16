@@ -98,6 +98,57 @@ describe('StaffPage', () => {
     expect(row.queryByText('STAFF')).not.toBeInTheDocument()
   })
 
+  it("shows each row's avatar, falling back to initials without a picture (Task 2)", async () => {
+    mockGetMe.mockResolvedValue(systemUser({ id: 'me', role: 'SUPER_ADMIN' }))
+    mockList.mockResolvedValue(
+      page([
+        systemUser({
+          id: 'withPic',
+          firstName: 'Bob',
+          lastName: 'Smith',
+          // Already on the list DTO — the row needs no extra request for it.
+          profilePictureUrl: 'https://cdn.example.com/bob.jpg',
+        }),
+        systemUser({ id: 'noPic', firstName: 'Grace', lastName: 'Hopper', profilePictureUrl: null }),
+      ]),
+    )
+    renderPage()
+
+    const bobRow = within((await screen.findByText('Bob Smith')).closest('li')!)
+    expect(bobRow.getByTestId<HTMLImageElement>('avatar-image').src).toBe(
+      'https://cdn.example.com/bob.jpg',
+    )
+
+    // Each row falls back independently — one missing picture must not blank the
+    // others.
+    const graceRow = within(screen.getByText('Grace Hopper').closest('li')!)
+    expect(graceRow.getByTestId('avatar-fallback')).toHaveTextContent('GH')
+    expect(graceRow.queryByTestId('avatar-image')).not.toBeInTheDocument()
+  })
+
+  it('falls back to initials when a row avatar 404s (Task 2)', async () => {
+    mockGetMe.mockResolvedValue(systemUser({ id: 'me', role: 'SUPER_ADMIN' }))
+    mockList.mockResolvedValue(
+      page([
+        systemUser({
+          id: 'other',
+          firstName: 'Bob',
+          lastName: 'Smith',
+          profilePictureUrl: 'https://cdn.example.com/gone.jpg',
+        }),
+      ]),
+    )
+    renderPage()
+
+    const row = within((await screen.findByText('Bob Smith')).closest('li')!)
+    // The bucket is public-read but an object can go missing; a broken <img> in
+    // a table row looks terrible.
+    fireEvent.error(row.getByTestId('avatar-image'))
+
+    expect(row.getByTestId('avatar-fallback')).toHaveTextContent('BS')
+    expect(row.queryByTestId('avatar-image')).not.toBeInTheDocument()
+  })
+
   it('still displays a soft-deleted option name on a list row (AC-F2)', async () => {
     mockGetMe.mockResolvedValue(systemUser({ id: 'me', role: 'SUPER_ADMIN' }))
     mockList.mockResolvedValue(

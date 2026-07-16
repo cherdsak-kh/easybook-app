@@ -236,6 +236,31 @@ export const UI_STRINGS = {
     avatarStorageDown: 'Image storage is unavailable right now. Please try again in a moment.',
     avatarUploadFailed: 'Could not upload your picture. Please try again.',
 
+    /**
+     * The 1:1 cropping dialog (`AvatarCropModal`), opened by picking a file and
+     * the only path to an upload — every avatar is square by construction.
+     * Asserted through `ProfilePage.test.tsx` rather than a suite of its own,
+     * which is exactly the component/test copy pair this dictionary exists for.
+     */
+    avatarCrop: {
+      title: 'Crop your picture',
+      intro: 'Drag to reposition and zoom until the square holds what you want.',
+      zoom: 'Zoom',
+      /** The confirm action. Deliberately names the outcome, not the mechanic. */
+      confirm: 'Use this picture',
+      /** Canvas encode is fast, but a large source on a slow phone is not free. */
+      cropping: 'Preparing…',
+      croppingSr: 'Preparing your cropped picture…',
+
+      failed: 'Could not process that image. Please try another.',
+      /**
+       * The quality ladder in `crop-image.ts` bottomed out and the result is
+       * STILL over 2 MiB. Tells them the one thing that actually helps.
+       */
+      stillTooLarge:
+        'The cropped image is still larger than 2 MB. Try zooming in on a smaller area, or choose a different picture.',
+    },
+
     firstName: 'First name',
     lastName: 'Last name',
     phoneNumber: 'Phone number (optional)',

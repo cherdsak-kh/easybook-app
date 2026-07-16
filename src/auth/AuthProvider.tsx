@@ -22,6 +22,9 @@ function toAdminUser(u: SystemUser | LoginResponse): AdminUser {
     // normal user on the reset screen. The server gate is the real control: a
     // genuinely gated user is 403'd everywhere and the next /me probe routes them.
     mustChangePassword: 'mustChangePassword' in u ? u.mustChangePassword : false,
+    // Same asymmetry: absent from the login body, present on /me. Absent → null,
+    // which the header renders as the initials fallback rather than a broken img.
+    profilePictureUrl: 'profilePictureUrl' in u ? u.profilePictureUrl : null,
   }
 }
 
