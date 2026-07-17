@@ -23,6 +23,10 @@ import {
 } from '@/lib/api-client'
 import { RegistrationForm, type RegistrationFormValues } from '@/components/RegistrationForm'
 import { FullPageSpinner } from '@/components/Spinner'
+import { UI_STRINGS_CLIENT } from '@/constants/ui-strings-client'
+
+/** Client-portal copy. This page renders several screens, so it aliases the whole dictionary. */
+const UI = UI_STRINGS_CLIENT
 
 /** Square brand mark — used inside the LINE client where space is tight. */
 const LOGO_MARK = '/logo/easybook-logo-512px-no-bg.svg'
@@ -292,7 +296,7 @@ export function HomePage() {
       if (friendFlag) {
         await runStatusGate()
       } else {
-        setRecheckHint("ระบบยังไม่พบสถานะการเป็นเพื่อน โปรดเพิ่มบัญชีทางการเป็นเพื่อนแล้วลองใหม่อีกครั้ง")
+        setRecheckHint(UI.addFriend.recheckHint)
       }
     } finally {
       if (active.current) setRechecking(false)
@@ -383,7 +387,7 @@ export function HomePage() {
     case 'login':
       return <LineLoginScreen onLogin={handleLogin} />
     case 'resolving':
-      return <FullPageSpinner label="Loading your account…" />
+      return <FullPageSpinner label={UI.resolving.loading} />
     case 'add-friend':
       return (
         <AddFriendScreen
@@ -436,20 +440,20 @@ function messageForRegister(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 409) {
       // Either already registered, or the staff ID is taken.
-      return err.message || 'This ID is already registered. Please check your details.'
+      return err.message || UI.registration.registerError.conflict
     }
     if (err.status === 400) {
-      return err.message || 'Please check the form and try again.'
+      return err.message || UI.registration.registerError.invalid
     }
     if (err.status === 401) {
-      return 'Your LINE session has expired. Please reopen the app and try again.'
+      return UI.registration.registerError.sessionExpired
     }
     if (err.status === 502) {
-      return 'We could not reach LINE to verify you. Please try again in a moment.'
+      return UI.registration.registerError.lineUnreachable
     }
-    return err.message || 'Something went wrong. Please try again.'
+    return err.message || UI.registration.registerError.failed
   }
-  return 'Something went wrong. Please try again.'
+  return UI.registration.registerError.failed
 }
 
 /** Map a PENDING self-edit failure to a user-facing, non-crashing message. */
@@ -457,24 +461,24 @@ function messageForEdit(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 403) {
       // No longer PENDING (an admin approved/blocked in the meantime).
-      return 'Your registration can no longer be edited — please reopen the app to refresh your status.'
+      return UI.registration.editError.notEditable
     }
     if (err.status === 409) {
-      return err.message || 'That staff ID is already in use. Please check your details.'
+      return err.message || UI.registration.editError.conflict
     }
     if (err.status === 400) {
       // A selected option was removed, or a field is invalid.
-      return err.message || 'Please review your selections and try again.'
+      return err.message || UI.registration.editError.invalid
     }
     if (err.status === 401) {
-      return 'Your LINE session has expired. Please reopen the app and try again.'
+      return UI.registration.editError.sessionExpired
     }
     if (err.status === 502) {
-      return 'We could not reach LINE to verify you. Please try again in a moment.'
+      return UI.registration.editError.lineUnreachable
     }
-    return err.message || 'Something went wrong. Please try again.'
+    return err.message || UI.registration.editError.failed
   }
-  return 'Something went wrong. Please try again.'
+  return UI.registration.editError.failed
 }
 
 /** Full-screen animated splash shown while LIFF initialises / redirects. */
@@ -482,12 +486,12 @@ function SplashScreen({ entered, inClient }: { entered: boolean; inClient: boole
   return (
     <div
       role="status"
-      aria-label="Loading EasyBook"
+      aria-label={UI.splash.loading}
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-50 dark:bg-slate-900"
     >
       <img
         src={inClient ? LOGO_MARK : LOGO_WORDMARK}
-        alt="EasyBook"
+        alt={UI.splash.logoAlt}
         className={[
           inClient ? 'h-28 w-28' : 'w-56 max-w-[70%]',
           'select-none motion-safe:transition-all motion-safe:duration-1000 motion-safe:ease-out',
@@ -510,9 +514,9 @@ function HelloScreen({ profile }: { profile: LiffProfile | null }) {
         />
       )}
       <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-        Hello, {profile?.displayName ?? 'there'} 👋
+        {UI.hello.greeting(profile?.displayName ?? UI.hello.fallbackName)}
       </h1>
-      <p className="mt-3 text-slate-500 dark:text-slate-400">Welcome to EasyBook.</p>
+      <p className="mt-3 text-slate-500 dark:text-slate-400">{UI.hello.welcome}</p>
     </main>
   )
 }
@@ -535,24 +539,23 @@ function PendingScreen({
     <StatusCard
       tone="amber"
       icon="clock"
-      title="รอการอนุมัติลงทะเบียน"
-      body={
-        <>
-          {profile?.displayName ? `ขอบคุณ ${profile.displayName} ` : ''}ระบบได้รับข้อมูลการลงทะเบียนของคุณแล้ว โปรดรอผู้ดูแลระบบพิจารณาอนุมัติสิทธิ์การเข้าใช้งาน
-        </>
-      }
+      title={UI.pending.title}
+      body={UI.pending.body(profile?.displayName)}
       action={
         <>
           {registration && (
             <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-left text-sm dark:border-slate-800">
               <SummaryItem
-                label="ชื่อ-นามสกุล"
+                label={UI.pending.summary.fullName}
                 value={`${registration.firstName} ${registration.lastName}`.trim()}
               />
-              <SummaryItem label="รหัสบุคลากร" value={registration.staffId} />
-              <SummaryItem label="เบอร์โทรศัพท์" value={registration.phone} />
-              <SummaryItem label="ฝ่าย/แผนก" value={registration.department} />
-              <SummaryItem label="ตำแหน่ง/บทบาท" value={registration.personnelRole} />
+              <SummaryItem label={UI.pending.summary.staffId} value={registration.staffId} />
+              <SummaryItem label={UI.pending.summary.phone} value={registration.phone} />
+              <SummaryItem label={UI.pending.summary.department} value={registration.department} />
+              <SummaryItem
+                label={UI.pending.summary.personnelRole}
+                value={registration.personnelRole}
+              />
             </dl>
           )}
           <button
@@ -560,7 +563,7 @@ function PendingScreen({
             onClick={onEdit}
             className="mt-6 inline-flex w-full items-center justify-center rounded-xl border border-amber-300 px-5 py-2.5 font-semibold text-amber-800 transition-colors hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10 dark:focus-visible:ring-offset-slate-900"
           >
-            แก้ไขข้อมูลลงทะเบียน
+            {UI.pending.edit}
           </button>
         </>
       }
@@ -576,7 +579,7 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
         {label}
       </dt>
       <dd className="truncate text-slate-700 dark:text-slate-200" title={value}>
-        {value || '—'}
+        {value || UI.pending.summary.emptyValue}
       </dd>
     </div>
   )
@@ -585,12 +588,7 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
 /** BLOCKED: account suspended, no actions. */
 function BlockedScreen() {
   return (
-    <StatusCard
-      tone="red"
-      icon="ban"
-      title="Account suspended"
-      body="Your account has been suspended. Please contact the administration."
-    />
+    <StatusCard tone="red" icon="ban" title={UI.blocked.title} body={UI.blocked.body} />
   )
 }
 
@@ -600,15 +598,15 @@ function GateErrorScreen({ onRetry }: { onRetry: () => void }) {
     <StatusCard
       tone="red"
       icon="ban"
-      title="Something went wrong"
-      body="We couldn't load your account status. Please check your connection and try again."
+      title={UI.gateError.title}
+      body={UI.gateError.body}
       action={
         <button
           type="button"
           onClick={onRetry}
           className="mt-6 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
         >
-          Try again
+          {UI.common.tryAgain}
         </button>
       }
     />
@@ -630,16 +628,14 @@ function AddFriendScreen({
       <div className="w-full max-w-sm">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-            เพิ่มเพื่อน EasyBook บน LINE
+            {UI.addFriend.heading}
           </h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            เพื่อดำเนินการต่อ โปรดเพิ่มบัญชีทางการของเราเป็นเพื่อน โดยสแกนคิวอาร์โค้ดด้านล่างผ่านแอปพลิเคชัน LINE หรือเปิดผ่านอุปกรณ์อื่น
-          </p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{UI.addFriend.intro}</p>
 
           <div className="mt-6 flex justify-center">
             <img
               src={OA_QR_IMAGE}
-              alt="QR code to add the EasyBook LINE Official Account"
+              alt={UI.addFriend.qrAlt}
               width={192}
               height={192}
               className="h-48 w-48 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-700"
@@ -647,9 +643,9 @@ function AddFriendScreen({
           </div>
 
           <ol className="mt-6 space-y-1 text-left text-sm text-slate-600 dark:text-slate-300">
-            <li>1. เปิดแอปพลิเคชัน LINE และเลือกตัวสแกนคิวอาร์โค้ด</li>
-            <li>2. สแกนคิวอาร์โค้ดด้านบน และกดเพิ่มเพื่อน EasyBook</li>
-            <li>3. กลับมาที่หน้านี้ และกดปุ่มด้านล่าง</li>
+            {UI.addFriend.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
           </ol>
 
           {hint && (
@@ -664,7 +660,7 @@ function AddFriendScreen({
             disabled={rechecking}
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60 dark:focus-visible:ring-offset-slate-900"
           >
-            {rechecking ? 'กำลังตรวจสอบ...' : 'ตรวจสอบสถานะการเพิ่มเพื่อน'}
+            {rechecking ? UI.addFriend.rechecking : UI.addFriend.recheck}
           </button>
         </div>
       </div>
@@ -684,8 +680,8 @@ function AuthErrorScreen() {
       tone="red"
       icon="ban"
       alert
-      title="Authentication failed"
-      body="LINE Authentication failed: Missing ID Token. Please contact support or verify that the LINE login channel has the 'openid' scope configured."
+      title={UI.authError.title}
+      body={UI.authError.body}
     />
   )
 }
@@ -741,14 +737,14 @@ function LineLoginScreen({ onLogin }: { onLogin: () => void }) {
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <img
             src={LOGO_MARK}
-            alt="EasyBook"
+            alt={UI.lineLogin.logoAlt}
             className="mx-auto h-14 w-auto max-w-[70%]"
           />
           <h1 className="mt-6 text-xl font-bold text-slate-900 dark:text-slate-100">
-            ยินดีต้อนรับสู่ EasyBook
+            {UI.lineLogin.heading}
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            เข้าสู่ระบบด้วยบัญชี LINE ของคุณเพื่อใช้งานระบบ
+            {UI.lineLogin.subheading}
           </p>
 
           <button
@@ -757,7 +753,7 @@ function LineLoginScreen({ onLogin }: { onLogin: () => void }) {
             className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#06C755] px-4 py-3 font-semibold text-white transition-colors hover:bg-[#05b34c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#06C755] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
           >
             <LineGlyph className="h-5 w-5" />
-            เข้าสู่ระบบด้วย LINE
+            {UI.lineLogin.submit}
           </button>
         </div>
       </div>

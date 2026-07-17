@@ -1,6 +1,9 @@
 import { useEffect, useId, useState } from 'react'
 import type { CreateLineUserRegistration, RegistrationOptions } from '@/lib/api-client'
 import { Spinner } from '@/components/Spinner'
+import { UI_STRINGS_CLIENT } from '@/constants/ui-strings-client'
+
+const UI = UI_STRINGS_CLIENT.registration
 
 /**
  * Required length of a staff/personnel ID. Exported so tests derive their
@@ -33,18 +36,18 @@ type Errors = Partial<Record<keyof RegistrationFormValues, string>>
 
 function validate(f: RegistrationFormValues): Errors {
   const e: Errors = {}
-  if (!f.firstName.trim()) e.firstName = 'โปรดระบุชื่อจริง'
-  else if (/\d/.test(f.firstName)) e.firstName = 'ชื่อจริงจะต้องไม่มีตัวเลข'
-  if (!f.lastName.trim()) e.lastName = 'โปรดระบุนามสกุล'
-  else if (/\d/.test(f.lastName)) e.lastName = 'นามสกุลจะต้องไม่มีตัวเลข'
-  if (!f.staffId.trim()) e.staffId = 'โปรดระบุรหัสบุคลากร'
-  else if (!/^[0-9]+$/.test(f.staffId.trim())) e.staffId = 'รหัสบุคลากรต้องเป็นตัวเลขเท่านั้น'
-  else if (f.staffId.trim().length !== ID_COUNT) e.staffId = `รหัสบุคลากรจะต้องมี ${ID_COUNT} ตัว`
-  if (!f.phone.trim()) e.phone = 'โปรดระบุเบอร์โทรศัพท์'
-  else if (!/^[0-9]+$/.test(f.phone.trim())) e.phone = 'เบอร์โทรศัพท์ต้องเป็นตัวเลขเท่านั้น'
-  else if (f.phone.trim().length !== 10) e.phone = 'เบอร์โทรศัพท์ต้องมี 10 หลัก'
-  if (!f.departmentId) e.departmentId = 'โปรดเลือกฝ่าย/แผนก'
-  if (!f.personnelRoleId) e.personnelRoleId = 'โปรดเลือกตำแหน่ง/บทบาท'
+  if (!f.firstName.trim()) e.firstName = UI.firstNameRequired
+  else if (/\d/.test(f.firstName)) e.firstName = UI.firstNameNoDigits
+  if (!f.lastName.trim()) e.lastName = UI.lastNameRequired
+  else if (/\d/.test(f.lastName)) e.lastName = UI.lastNameNoDigits
+  if (!f.staffId.trim()) e.staffId = UI.staffIdRequired
+  else if (!/^[0-9]+$/.test(f.staffId.trim())) e.staffId = UI.staffIdDigitsOnly
+  else if (f.staffId.trim().length !== ID_COUNT) e.staffId = UI.staffIdLength(ID_COUNT)
+  if (!f.phone.trim()) e.phone = UI.phoneRequired
+  else if (!/^[0-9]+$/.test(f.phone.trim())) e.phone = UI.phoneDigitsOnly
+  else if (f.phone.trim().length !== 10) e.phone = UI.phoneLength
+  if (!f.departmentId) e.departmentId = UI.departmentRequired
+  if (!f.personnelRoleId) e.personnelRoleId = UI.personnelRoleRequired
   return e
 }
 
@@ -111,7 +114,7 @@ export function RegistrationForm({
       })
       .catch(() => {
         if (!alive) return
-        setOptionsError('We could not load the registration options. Please try again.')
+        setOptionsError(UI.optionsError)
         setOptionsLoading(false)
       })
     return () => {
@@ -151,9 +154,9 @@ export function RegistrationForm({
     })
   }
 
-  const heading = mode === 'edit' ? 'แก้ไขข้อมูลลงทะเบียน' : 'กรอกข้อมูลลงทะเบียน'
-  const submitLabel = mode === 'edit' ? 'บันทึกข้อมูล' : 'ยืนยันการลงทะเบียน'
-  const submittingLabel = mode === 'edit' ? 'กำลังบันทึกข้อมูล…' : 'กำลังยืนยันการลงทะเบียน…'
+  const heading = mode === 'edit' ? UI.editHeading : UI.createHeading
+  const submitLabel = mode === 'edit' ? UI.editSubmit : UI.createSubmit
+  const submittingLabel = mode === 'edit' ? UI.editSubmitting : UI.createSubmitting
 
   return (
     <main className="flex min-h-screen justify-center bg-slate-50 px-4 py-8 dark:bg-slate-950">
@@ -161,9 +164,7 @@ export function RegistrationForm({
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{heading}</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {mode === 'edit'
-              ? 'อัปเดตข้อมูลของคุณด้านล่าง และส่งเพื่อขออนุมัติอีกครั้ง'
-              : `${displayName ? `สวัสดี ${displayName}! ` : ''}โปรดระบุข้อมูลของคุณ เพื่อให้ผู้ดูแลระบบพิจารณาอนุมัติสิทธิ์การเข้าใช้งาน`}
+            {mode === 'edit' ? UI.editIntro : UI.createIntro(displayName)}
           </p>
 
           {serverError && (
@@ -181,7 +182,7 @@ export function RegistrationForm({
               className="mt-6 flex min-h-[18rem] items-center justify-center text-slate-500 dark:text-slate-400"
               data-testid="options-loading"
             >
-              <Spinner label="Loading registration options…" />
+              <Spinner label={UI.optionsLoading} />
             </div>
           )}
 
@@ -198,7 +199,7 @@ export function RegistrationForm({
                 onClick={() => setReloadKey((k) => k + 1)}
                 className="mt-4 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
               >
-                Try again
+                {UI_STRINGS_CLIENT.common.tryAgain}
               </button>
             </div>
           )}
@@ -210,8 +211,7 @@ export function RegistrationForm({
                   role="alert"
                   className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
                 >
-                  Registration is temporarily unavailable — no options have been configured yet.
-                  Please contact the administration.
+                  {UI.noOptions}
                 </p>
               )}
 
@@ -219,7 +219,7 @@ export function RegistrationForm({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field
                     id={`${uid}-first`}
-                    label="ชื่อจริง"
+                    label={UI.firstName}
                     value={fields.firstName}
                     onChange={(v) => set('firstName', v)}
                     error={errors.firstName}
@@ -228,7 +228,7 @@ export function RegistrationForm({
                   />
                   <Field
                     id={`${uid}-last`}
-                    label="นามสกุล"
+                    label={UI.lastName}
                     value={fields.lastName}
                     onChange={(v) => set('lastName', v)}
                     error={errors.lastName}
@@ -239,7 +239,7 @@ export function RegistrationForm({
 
                 <Field
                   id={`${uid}-id`}
-                  label="รหัสบุคลากร"
+                  label={UI.staffId}
                   value={fields.staffId}
                   onChange={(v) => set('staffId', v)}
                   error={errors.staffId}
@@ -249,7 +249,7 @@ export function RegistrationForm({
 
                 <Field
                   id={`${uid}-phone`}
-                  label="เบอร์โทรศัพท์"
+                  label={UI.phone}
                   value={fields.phone}
                   onChange={(v) => set('phone', v)}
                   error={errors.phone}
@@ -260,23 +260,23 @@ export function RegistrationForm({
 
                 <SelectField
                   id={`${uid}-dept`}
-                  label="ฝ่าย / แผนก"
+                  label={UI.department}
                   value={fields.departmentId}
                   onChange={(v) => set('departmentId', v)}
                   error={errors.departmentId}
                   options={options.departments}
-                  placeholder="เลือกฝ่าย/แผนก"
+                  placeholder={UI.departmentPlaceholder}
                   disabled={submitting}
                 />
 
                 <SelectField
                   id={`${uid}-role`}
-                  label="ตำแหน่ง / บทบาท"
+                  label={UI.personnelRole}
                   value={fields.personnelRoleId}
                   onChange={(v) => set('personnelRoleId', v)}
                   error={errors.personnelRoleId}
                   options={options.personnelRoles}
-                  placeholder="เลือกตำแหน่ง/บทบาท"
+                  placeholder={UI.personnelRolePlaceholder}
                   disabled={submitting}
                 />
 
@@ -288,7 +288,7 @@ export function RegistrationForm({
                       disabled={submitting}
                       className="flex-1 rounded-xl border border-slate-300 px-4 py-3 font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
-                      ยกเลิก
+                      {UI.cancel}
                     </button>
                   )}
                   <button

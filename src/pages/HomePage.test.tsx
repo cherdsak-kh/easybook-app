@@ -2,6 +2,7 @@ import { act } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { HomePage } from '@/pages/HomePage'
 import { ID_COUNT } from '@/components/RegistrationForm'
+import { UI_STRINGS_CLIENT as UI } from '@/constants/ui-strings-client'
 import * as liffLib from '@/lib/liff'
 import * as apiClient from '@/lib/api-client'
 import type { LineUserRegistration, RegistrationOptions } from '@/lib/api-client'
@@ -60,7 +61,16 @@ const mockUpdate = vi.mocked(apiClient.updateLineUserRegistration)
 const MARK_LOGO = '/logo/easybook-logo-512px-no-bg.svg'
 const WORDMARK_LOGO = '/logo/easybook-logo-text-1024px-no-bg.svg'
 const TOKEN = 'id-token-xyz'
-/** OBS-2 auth-error copy — must match HomePage's AuthErrorScreen verbatim. */
+/**
+ * OBS-2 auth-error copy — must match HomePage's AuthErrorScreen verbatim.
+ *
+ * A DELIBERATE ANCHOR: this literal is NOT imported from `ui-strings-client.ts`,
+ * unlike every label below. Asserting `UI.authError.body` against a component
+ * rendering `UI.authError.body` would prove nothing, and this string is not
+ * decoration — it is the security-adjacent diagnostic that tells an operator a
+ * configured LIFF channel is missing the `openid` scope. Pinning it here means a
+ * silent re-word reddens CI instead of shipping. Precedent: `routes.test.ts`.
+ */
 const AUTH_ERROR_MESSAGE =
   "LINE Authentication failed: Missing ID Token. Please contact support or verify that the LINE login channel has the 'openid' scope configured."
 
@@ -112,13 +122,13 @@ async function flush() {
 
 /** Fill the registration form with valid values, selecting the dynamic options. */
 function fillRegistration() {
-  fireEvent.change(screen.getByLabelText('ชื่อจริง'), { target: { value: 'Somchai' } })
-  fireEvent.change(screen.getByLabelText('นามสกุล'), { target: { value: 'Jaidee' } })
-  fireEvent.change(screen.getByLabelText('รหัสบุคลากร'), { target: { value: VALID_STAFF_ID } })
-  fireEvent.change(screen.getByLabelText('เบอร์โทรศัพท์'), { target: { value: '0812345678' } })
+  fireEvent.change(screen.getByLabelText(UI.registration.firstName), { target: { value: 'Somchai' } })
+  fireEvent.change(screen.getByLabelText(UI.registration.lastName), { target: { value: 'Jaidee' } })
+  fireEvent.change(screen.getByLabelText(UI.registration.staffId), { target: { value: VALID_STAFF_ID } })
+  fireEvent.change(screen.getByLabelText(UI.registration.phone), { target: { value: '0812345678' } })
   // <select> values are DOM strings — the stringified integer option ids.
-  fireEvent.change(screen.getByLabelText('ฝ่าย / แผนก'), { target: { value: '1' } })
-  fireEvent.change(screen.getByLabelText('ตำแหน่ง / บทบาท'), { target: { value: '10' } })
+  fireEvent.change(screen.getByLabelText(UI.registration.department), { target: { value: '1' } })
+  fireEvent.change(screen.getByLabelText(UI.registration.personnelRole), { target: { value: '10' } })
 }
 
 beforeEach(() => {
@@ -144,21 +154,21 @@ afterEach(() => {
 describe('HomePage — splash', () => {
   it('shows the splash on mount (before the flow resolves)', () => {
     render(<HomePage />)
-    expect(screen.getByRole('status', { name: 'Loading EasyBook' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: UI.splash.loading })).toBeInTheDocument()
     expect(screen.queryByText(/Hello,/)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /เข้าสู่ระบบด้วย LINE/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: UI.lineLogin.submit })).not.toBeInTheDocument()
   })
 
   it('uses the wordmark logo on the splash in a web browser', () => {
     mockIsInLineClient.mockReturnValue(false)
     render(<HomePage />)
-    expect(screen.getByAltText('EasyBook')).toHaveAttribute('src', WORDMARK_LOGO)
+    expect(screen.getByAltText(UI.splash.logoAlt)).toHaveAttribute('src', WORDMARK_LOGO)
   })
 
   it('uses the square mark logo on the splash inside the LINE client', () => {
     mockIsInLineClient.mockReturnValue(true)
     render(<HomePage />)
-    expect(screen.getByAltText('EasyBook')).toHaveAttribute('src', MARK_LOGO)
+    expect(screen.getByAltText(UI.splash.logoAlt)).toHaveAttribute('src', MARK_LOGO)
   })
 })
 
@@ -167,7 +177,7 @@ describe('HomePage — web login card', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    expect(screen.getByRole('button', { name: /เข้าสู่ระบบด้วย LINE/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: UI.lineLogin.submit })).toBeInTheDocument()
     expect(mockLogin).not.toHaveBeenCalled()
   })
 
@@ -175,7 +185,7 @@ describe('HomePage — web login card', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: /เข้าสู่ระบบด้วย LINE/ }))
+    fireEvent.click(screen.getByRole('button', { name: UI.lineLogin.submit }))
 
     expect(mockLogin).toHaveBeenCalledTimes(1)
   })
@@ -189,10 +199,8 @@ describe('HomePage — friendship gate (AC-F)', () => {
 
     await resolveSplash()
 
-    expect(
-      screen.getByAltText('QR code to add the EasyBook LINE Official Account'),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /ตรวจสอบสถานะการเพิ่มเพื่อน/ })).toBeInTheDocument()
+    expect(screen.getByAltText(UI.addFriend.qrAlt)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: UI.addFriend.recheck })).toBeInTheDocument()
     // The status gate never ran while the friendship gate is open.
     expect(mockGetStatus).not.toHaveBeenCalled()
   })
@@ -206,11 +214,11 @@ describe('HomePage — friendship gate (AC-F)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบสถานะการเพิ่มเพื่อน/ }))
+    fireEvent.click(screen.getByRole('button', { name: UI.addFriend.recheck }))
     await flush()
 
     expect(mockGetStatus).toHaveBeenCalledTimes(1)
-    expect(screen.getByText(/Hello, Alice/)).toBeInTheDocument()
+    expect(screen.getByText(UI.hello.greeting('Alice'))).toBeInTheDocument()
   })
 })
 
@@ -224,14 +232,14 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    expect(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: UI.registration.createSubmit })).toBeInTheDocument()
     expect(mockGetStatus).toHaveBeenCalledWith(TOKEN)
     // Options were fetched with the bearer token and rendered as <option>s.
     expect(mockGetOptions).toHaveBeenCalledWith(TOKEN)
-    const dept = screen.getByLabelText('ฝ่าย / แผนก') as HTMLSelectElement
+    const dept = screen.getByLabelText(UI.registration.department) as HTMLSelectElement
     expect(within(dept).getByRole('option', { name: 'Computer Science' })).toBeInTheDocument()
     expect(within(dept).getByRole('option', { name: 'Mathematics' })).toBeInTheDocument()
-    const role = screen.getByLabelText('ตำแหน่ง / บทบาท') as HTMLSelectElement
+    const role = screen.getByLabelText(UI.registration.personnelRole) as HTMLSelectElement
     expect(within(role).getByRole('option', { name: 'Teacher' })).toBeInTheDocument()
   })
 
@@ -240,11 +248,10 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    expect(screen.getByText(/รอการอนุมัติลงทะเบียน/)).toBeInTheDocument()
-    expect(
-      screen.getByText(/โปรดรอผู้ดูแลระบบพิจารณาอนุมัติสิทธิ์การเข้าใช้งาน/),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' })).toBeInTheDocument()
+    expect(screen.getByText(UI.pending.title)).toBeInTheDocument()
+    // The body interpolates the LINE display name ahead of the fixed message.
+    expect(screen.getByText(UI.pending.body('Alice'))).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: UI.pending.edit })).toBeInTheDocument()
   })
 
   it('ALLOWED → shows the greeting', async () => {
@@ -252,7 +259,7 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    expect(screen.getByText(/Hello, Alice/)).toBeInTheDocument()
+    expect(screen.getByText(UI.hello.greeting('Alice'))).toBeInTheDocument()
   })
 
   it('BLOCKED → shows the suspended screen', async () => {
@@ -260,8 +267,8 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    expect(screen.getByText(/Account suspended/i)).toBeInTheDocument()
-    expect(screen.getByText(/contact the administration/i)).toBeInTheDocument()
+    expect(screen.getByText(UI.blocked.title)).toBeInTheDocument()
+    expect(screen.getByText(UI.blocked.body)).toBeInTheDocument()
   })
 
   it('a failing status call → shows the error screen with a retry', async () => {
@@ -269,8 +276,8 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
+    expect(screen.getByText(UI.gateError.title)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: UI.common.tryAgain })).toBeInTheDocument()
   })
 })
 
@@ -286,7 +293,7 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
     await resolveSplash()
 
     fillRegistration()
-    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.createSubmit }))
     await flush()
 
     // Regression guard: the option ids must be submitted as NUMBERS (the backend
@@ -302,19 +309,19 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
       },
       TOKEN,
     )
-    expect(screen.getByText(/รอการอนุมัติลงทะเบียน/)).toBeInTheDocument()
+    expect(screen.getByText(UI.pending.title)).toBeInTheDocument()
   })
 
   it('blocks submit and shows field errors when required fields are empty', async () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.createSubmit }))
     await flush()
 
     expect(mockRegister).not.toHaveBeenCalled()
-    expect(screen.getByText('โปรดระบุชื่อจริง')).toBeInTheDocument()
-    expect(screen.getByText('โปรดเลือกฝ่าย/แผนก')).toBeInTheDocument()
+    expect(screen.getByText(UI.registration.firstNameRequired)).toBeInTheDocument()
+    expect(screen.getByText(UI.registration.departmentRequired)).toBeInTheDocument()
   })
 
   it('surfaces a 409 (staff ID taken) as a non-crashing error, staying on the form', async () => {
@@ -323,10 +330,10 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
     await resolveSplash()
 
     fillRegistration()
-    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.createSubmit }))
     await flush()
 
-    expect(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: UI.registration.createSubmit })).toBeInTheDocument()
     expect(screen.getByText('STAFF_ID_TAKEN')).toBeInTheDocument()
   })
 })
@@ -343,17 +350,17 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.pending.edit }))
     await flush()
 
     // Pre-filled from the existing registration — the numeric option id is
     // stringified so the <select> keeps the current option selected.
-    expect(screen.getByLabelText('ชื่อจริง')).toHaveValue('Somchai')
-    expect(screen.getByLabelText('รหัสบุคลากร')).toHaveValue(VALID_STAFF_ID)
-    expect(screen.getByLabelText('ฝ่าย / แผนก')).toHaveValue('1')
+    expect(screen.getByLabelText(UI.registration.firstName)).toHaveValue('Somchai')
+    expect(screen.getByLabelText(UI.registration.staffId)).toHaveValue(VALID_STAFF_ID)
+    expect(screen.getByLabelText(UI.registration.department)).toHaveValue('1')
 
-    fireEvent.change(screen.getByLabelText('ชื่อจริง'), { target: { value: 'Somsak' } })
-    fireEvent.click(screen.getByRole('button', { name: 'บันทึกข้อมูล' }))
+    fireEvent.change(screen.getByLabelText(UI.registration.firstName), { target: { value: 'Somsak' } })
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.editSubmit }))
     await flush()
 
     // Regression guard: the edit PATCH also carries NUMERIC option ids.
@@ -369,7 +376,7 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
       TOKEN,
     )
     // Back on the Pending screen with the refreshed name.
-    expect(screen.getByText(/รอการอนุมัติลงทะเบียน/)).toBeInTheDocument()
+    expect(screen.getByText(UI.pending.title)).toBeInTheDocument()
     expect(screen.getByText('Somsak Jaidee')).toBeInTheDocument()
   })
 
@@ -378,13 +385,13 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.pending.edit }))
     await flush()
-    fireEvent.click(screen.getByRole('button', { name: 'บันทึกข้อมูล' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.editSubmit }))
     await flush()
 
-    expect(screen.getByText(/can no longer be edited/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'บันทึกข้อมูล' })).toBeInTheDocument()
+    expect(screen.getByText(UI.registration.editError.notEditable)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: UI.registration.editSubmit })).toBeInTheDocument()
   })
 
   it('renders a 409 (staff ID taken) inline on edit', async () => {
@@ -392,9 +399,9 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.pending.edit }))
     await flush()
-    fireEvent.click(screen.getByRole('button', { name: 'บันทึกข้อมูล' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.editSubmit }))
     await flush()
 
     expect(screen.getByText('STAFF_ID_TAKEN')).toBeInTheDocument()
@@ -405,9 +412,9 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.pending.edit }))
     await flush()
-    fireEvent.click(screen.getByRole('button', { name: 'บันทึกข้อมูล' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.editSubmit }))
     await flush()
 
     expect(screen.getByText('INVALID_DEPARTMENT')).toBeInTheDocument()
@@ -417,13 +424,13 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     render(<HomePage />)
     await resolveSplash()
 
-    fireEvent.click(screen.getByRole('button', { name: 'แก้ไขข้อมูลลงทะเบียน' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.pending.edit }))
     await flush()
-    fireEvent.click(screen.getByRole('button', { name: 'ยกเลิก' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.cancel }))
     await flush()
 
     expect(mockUpdate).not.toHaveBeenCalled()
-    expect(screen.getByText(/รอการอนุมัติลงทะเบียน/)).toBeInTheDocument()
+    expect(screen.getByText(UI.pending.title)).toBeInTheDocument()
   })
 })
 
@@ -437,7 +444,7 @@ describe('HomePage — in-client behaviour', () => {
     await resolveSplash()
 
     expect(mockLogin).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('status', { name: 'Loading EasyBook' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: UI.splash.loading })).toBeInTheDocument()
     expect(mockGetStatus).not.toHaveBeenCalled()
   })
 
@@ -450,7 +457,7 @@ describe('HomePage — in-client behaviour', () => {
 
     await resolveSplash()
 
-    expect(screen.getByText(/Hello, Bob/)).toBeInTheDocument()
+    expect(screen.getByText(UI.hello.greeting('Bob'))).toBeInTheDocument()
     expect(mockLogin).not.toHaveBeenCalled()
   })
 })
@@ -465,23 +472,23 @@ describe('HomePage — local-dev mock path (no LIFF id)', () => {
     await resolveSplash()
 
     // Web signed-out → login card; the dev mock login enters the gate flow.
-    fireEvent.click(screen.getByRole('button', { name: /เข้าสู่ระบบด้วย LINE/ }))
+    fireEvent.click(screen.getByRole('button', { name: UI.lineLogin.submit }))
     await flush()
 
     // Status short-circuits to a mock UNREGISTERED → the registration form, whose
     // dropdowns are populated by the mock options (no backend call).
-    expect(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: UI.registration.createSubmit })).toBeInTheDocument()
     expect(mockGetStatus).not.toHaveBeenCalled()
     expect(mockGetOptions).not.toHaveBeenCalled()
-    expect(screen.getByLabelText('ฝ่าย / แผนก')).toBeInTheDocument()
+    expect(screen.getByLabelText(UI.registration.department)).toBeInTheDocument()
 
     // A mock submit transitions to Pending WITHOUT hitting the backend.
     fillRegistration()
-    fireEvent.click(screen.getByRole('button', { name: 'ยืนยันการลงทะเบียน' }))
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.createSubmit }))
     await flush()
 
     expect(mockRegister).not.toHaveBeenCalled()
-    expect(screen.getByText(/รอการอนุมัติลงทะเบียน/)).toBeInTheDocument()
+    expect(screen.getByText(UI.pending.title)).toBeInTheDocument()
   })
 })
 
@@ -507,6 +514,6 @@ describe('HomePage — OBS-2: configured LIFF but no ID token', () => {
     expect(mockGetOptions).not.toHaveBeenCalled()
     expect(mockRegister).not.toHaveBeenCalled()
     // … and the mock flow did NOT run (no registration form appeared).
-    expect(screen.queryByRole('button', { name: 'ยืนยันการลงทะเบียน' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: UI.registration.createSubmit })).not.toBeInTheDocument()
   })
 })
