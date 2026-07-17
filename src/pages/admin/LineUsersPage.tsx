@@ -11,6 +11,7 @@ import {
 import { AccessBadge } from '@/components/admin/AccessBadge'
 import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
 const PAGE_SIZE = 20
@@ -19,13 +20,13 @@ const ACCESS_OPTIONS: readonly AppAccess[] = ['UNREGISTERED', 'PENDING', 'ALLOWE
 function formatFollowedAt(iso: string): string {
   const d = new Date(iso)
   return Number.isNaN(d.getTime())
-    ? '—'
+    ? UI_STRINGS.lineUsers.emptyValue
     : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 function initialsOf(name: string | null): string {
-  if (!name) return '?'
-  return name.trim().slice(0, 2).toUpperCase() || '?'
+  if (!name) return UI_STRINGS.avatar.unknownInitials
+  return name.trim().slice(0, 2).toUpperCase() || UI_STRINGS.avatar.unknownInitials
 }
 
 /**
@@ -73,8 +74,8 @@ export function LineUsersPage() {
         }
         setError(
           err instanceof ApiError && err.status === 403
-            ? 'You do not have permission to view LINE users.'
-            : 'Could not load LINE users. Please try again.',
+            ? UI_STRINGS.lineUsers.loadForbidden
+            : UI_STRINGS.lineUsers.loadFailed,
         )
         setLoading(false)
       })
@@ -96,11 +97,11 @@ export function LineUsersPage() {
         return
       }
       if (err instanceof ApiError && err.status === 404) {
-        setRowError('That user no longer exists — refresh the list.')
+        setRowError(UI_STRINGS.lineUsers.rowGone)
       } else if (err instanceof ApiError && err.status === 403) {
-        setRowError('You do not have permission to change access.')
+        setRowError(UI_STRINGS.lineUsers.rowForbidden)
       } else {
-        setRowError('Could not update access. Please try again.')
+        setRowError(UI_STRINGS.lineUsers.rowFailed)
       }
     } finally {
       setPendingId(null)
@@ -125,10 +126,10 @@ export function LineUsersPage() {
     <section aria-labelledby="line-users-heading" className="mx-auto w-full max-w-4xl">
       <div className="mb-4">
         <h1 id="line-users-heading" className="text-xl font-bold text-slate-900 dark:text-slate-100">
-          LINE Users
+          {UI_STRINGS.lineUsers.heading}
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Approve or block people who have added the LINE account.
+          {UI_STRINGS.lineUsers.subheading}
         </p>
       </div>
 
@@ -139,14 +140,14 @@ export function LineUsersPage() {
             htmlFor="line-user-search"
             className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
           >
-            Search by name
+            {UI_STRINGS.lineUsers.searchLabel}
           </label>
           <input
             id="line-user-search"
             type="search"
             value={searchInput}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Display name…"
+            placeholder={UI_STRINGS.lineUsers.searchPlaceholder}
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           />
         </div>
@@ -155,19 +156,19 @@ export function LineUsersPage() {
             htmlFor="line-user-access-filter"
             className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
           >
-            Access
+            {UI_STRINGS.lineUsers.accessLabel}
           </label>
           <select
             id="line-user-access-filter"
-            aria-label="Filter by access status"
+            aria-label={UI_STRINGS.lineUsers.accessFilterLabel}
             value={accessFilter}
             onChange={(e) => onFilterChange(e.target.value)}
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:w-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           >
-            <option value="">All</option>
+            <option value="">{UI_STRINGS.lineUsers.accessFilterAll}</option>
             {ACCESS_OPTIONS.map((a) => (
               <option key={a} value={a}>
-                {a.charAt(0) + a.slice(1).toLowerCase()}
+                {UI_STRINGS.access[a]}
               </option>
             ))}
           </select>
@@ -198,7 +199,7 @@ export function LineUsersPage() {
 
         {!loading && !error && users.length === 0 && (
           <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
-            No LINE users match your filters.
+            {UI_STRINGS.lineUsers.empty}
           </div>
         )}
 
@@ -212,10 +213,10 @@ export function LineUsersPage() {
                 <Avatar user={user} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-slate-900 dark:text-slate-100">
-                    {user.displayName ?? 'Unknown user'}
+                    {user.displayName ?? UI_STRINGS.lineUsers.unknownUser}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Followed {formatFollowedAt(user.followedAt)}
+                    {UI_STRINGS.lineUsers.followedAt(formatFollowedAt(user.followedAt))}
                   </p>
                 </div>
                 <AccessBadge access={user.access} />
@@ -234,12 +235,10 @@ export function LineUsersPage() {
       {/* Pagination */}
       {meta && totalPages > 0 && (
         <nav
-          aria-label="Pagination"
+          aria-label={UI_STRINGS.lineUsers.pagination.label}
           className="mt-4 flex items-center justify-between text-sm text-slate-600 dark:text-slate-300"
         >
-          <span>
-            Page {meta.page} of {totalPages} · {meta.total} total
-          </span>
+          <span>{UI_STRINGS.lineUsers.pagination.summary(meta.page, totalPages, meta.total)}</span>
           <div className="flex gap-2">
             <button
               type="button"
@@ -247,7 +246,7 @@ export function LineUsersPage() {
               disabled={page <= 1 || loading}
               className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
             >
-              Previous
+              {UI_STRINGS.lineUsers.pagination.previous}
             </button>
             <button
               type="button"
@@ -255,7 +254,7 @@ export function LineUsersPage() {
               disabled={page >= totalPages || loading}
               className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
             >
-              Next
+              {UI_STRINGS.lineUsers.pagination.next}
             </button>
           </div>
         </nav>
@@ -277,18 +276,22 @@ function RegistrationDetails({ registration }: { registration: LineUser['registr
   if (!registration) {
     return (
       <p className="w-full border-t border-slate-100 pt-2 text-xs italic text-slate-400 dark:border-slate-800 dark:text-slate-500">
-        Not registered
+        {UI_STRINGS.lineUsers.registration.none}
       </p>
     )
   }
   const { firstName, lastName, staffId, phone, personnelRole, department } = registration
+  const reg = UI_STRINGS.lineUsers.registration
   return (
     <dl className="grid w-full grid-cols-2 gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2 text-xs sm:grid-cols-3 dark:border-slate-800">
-      <Detail label="Real name" value={`${firstName} ${lastName}`.trim() || '—'} />
-      <Detail label="Staff ID" value={staffId} />
-      <Detail label="Phone" value={phone} />
-      <Detail label="Role" value={personnelRole} />
-      <Detail label="Department" value={department} />
+      <Detail
+        label={reg.realName}
+        value={`${firstName} ${lastName}`.trim() || UI_STRINGS.lineUsers.emptyValue}
+      />
+      <Detail label={reg.staffId} value={staffId} />
+      <Detail label={reg.phone} value={phone} />
+      <Detail label={reg.role} value={personnelRole} />
+      <Detail label={reg.department} value={department} />
     </dl>
   )
 }
@@ -300,7 +303,7 @@ function Detail({ label, value }: { label: string; value: string }) {
         {label}
       </dt>
       <dd className="truncate text-slate-700 dark:text-slate-200" title={value}>
-        {value || '—'}
+        {value || UI_STRINGS.lineUsers.emptyValue}
       </dd>
     </div>
   )
@@ -336,19 +339,19 @@ function RowActions({
   pending: boolean
   onChange: (user: LineUser, access: AccessAction) => void
 }) {
-  const name = user.displayName ?? 'this user'
+  const name = user.displayName ?? UI_STRINGS.lineUsers.thisUser
   return (
     <div className="flex items-center gap-2">
-      {pending && <Spinner label="Updating…" className="text-slate-400" />}
+      {pending && <Spinner label={UI_STRINGS.lineUsers.updating} className="text-slate-400" />}
       {user.access !== 'ALLOWED' && (
         <button
           type="button"
           onClick={() => onChange(user, 'ALLOWED')}
           disabled={pending}
-          aria-label={`Allow ${name}`}
+          aria-label={UI_STRINGS.lineUsers.allowUser(name)}
           className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
         >
-          Allow
+          {UI_STRINGS.lineUsers.allow}
         </button>
       )}
       {user.access !== 'BLOCKED' && (
@@ -356,10 +359,10 @@ function RowActions({
           type="button"
           onClick={() => onChange(user, 'BLOCKED')}
           disabled={pending}
-          aria-label={`Block ${name}`}
+          aria-label={UI_STRINGS.lineUsers.blockUser(name)}
           className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
         >
-          Block
+          {UI_STRINGS.lineUsers.block}
         </button>
       )}
     </div>

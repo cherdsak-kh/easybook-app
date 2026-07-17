@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { FullPageSpinner } from '@/components/Spinner'
 import { ROUTES } from '@/constants/routes'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import { useAuth } from './useAuth'
 
 /**
@@ -26,7 +27,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   const location = useLocation()
 
   if (status === 'loading') {
-    return <FullPageSpinner label="Checking your session…" />
+    return <FullPageSpinner label={UI_STRINGS.auth.checkingSession} />
   }
 
   if (status === 'unauthenticated') {

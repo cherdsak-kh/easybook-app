@@ -4,14 +4,7 @@ import { Spinner } from '@/components/Spinner'
 import { Avatar } from '@/components/admin/Avatar'
 import { useAuth } from '@/auth/useAuth'
 import { ROUTES } from '@/constants/routes'
-import type { AdminUser } from '@/auth/auth-context'
-
-/** Human-friendly role label. */
-const ROLE_LABEL: Record<AdminUser['role'], string> = {
-  SUPER_ADMIN: 'Super Admin',
-  ADMIN: 'Admin',
-  STAFF: 'Staff',
-}
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 
 /**
  * Square brand mark. DECORATIVE (`alt=""`): the "EasyBook Management System"
@@ -47,7 +40,7 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
         type="button"
         onClick={onMenuToggle}
         className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 md:hidden dark:text-slate-300 dark:hover:bg-slate-800"
-        aria-label="Toggle navigation menu"
+        aria-label={UI_STRINGS.header.toggleMenu}
       >
         <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -57,7 +50,7 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
       <span className="flex min-w-0 items-center gap-2">
         <img src={LOGO_MARK} alt="" aria-hidden className="h-8 w-8 shrink-0 select-none" />
         <span className="truncate font-semibold text-slate-900 dark:text-slate-100">
-          EasyBook Management System
+          {UI_STRINGS.header.brand}
         </span>
       </span>
 
@@ -72,7 +65,7 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
                 {fullName}
               </p>
               <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                {ROLE_LABEL[user.role]}
+                {UI_STRINGS.roles[user.role]}
               </p>
             </div>
             {/* No `alt`: decorative, because the name block beside it already
@@ -87,7 +80,7 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
           disabled={loggingOut}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
         >
-          {loggingOut ? <Spinner label="Logging out…" /> : 'Logout'}
+          {loggingOut ? <Spinner label={UI_STRINGS.header.loggingOut} /> : UI_STRINGS.header.logout}
         </button>
       </div>
     </header>

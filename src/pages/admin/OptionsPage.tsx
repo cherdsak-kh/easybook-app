@@ -15,7 +15,7 @@ import {
 } from '@/lib/api-client'
 import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
-import { UI_STRINGS, type OptionCopy } from '@/constants/ui-strings'
+import { UI_STRINGS, type OptionCopy } from '@/constants/ui-strings-backend'
 
 const UI = UI_STRINGS.options
 

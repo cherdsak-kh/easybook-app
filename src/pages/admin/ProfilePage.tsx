@@ -12,7 +12,7 @@ import { Spinner } from '@/components/Spinner'
 import { Avatar } from '@/components/admin/Avatar'
 import { AvatarCropModal } from '@/components/admin/AvatarCropModal'
 import { useAuth } from '@/auth/useAuth'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 
 const UI = UI_STRINGS.profile
 

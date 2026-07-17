@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { StaffFormModal } from '@/components/admin/StaffFormModal'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import * as apiClient from '@/lib/api-client'
 import type { Department, PersonnelRole, SystemUser } from '@/lib/api-client'
 

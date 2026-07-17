@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 
@@ -28,7 +29,7 @@ export function DashboardLayout() {
           <div className="fixed inset-0 z-30 md:hidden">
             <button
               type="button"
-              aria-label="Close navigation menu"
+              aria-label={UI_STRINGS.nav.closeMenu}
               className="absolute inset-0 bg-slate-900/40"
               onClick={() => setMobileNavOpen(false)}
             />

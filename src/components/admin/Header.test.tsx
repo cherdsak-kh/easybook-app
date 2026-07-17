@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { Header } from '@/components/admin/Header'
 import { ROUTES } from '@/constants/routes'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import * as apiClient from '@/lib/api-client'
 import type { SystemUser } from '@/lib/api-client'
 
@@ -54,11 +55,13 @@ beforeEach(() => {
 
 describe('Header', () => {
   it('shows the admin name and role from the session', async () => {
-    mockGetMe.mockResolvedValue(makeUser())
+    mockGetMe.mockResolvedValue(makeUser({ role: 'SUPER_ADMIN' }))
     renderHeader()
 
     expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument()
-    expect(screen.getByText('Super Admin')).toBeInTheDocument()
+    // The session's role picks its own label — not ADMIN's, not STAFF's.
+    expect(screen.getByText(UI_STRINGS.roles.SUPER_ADMIN)).toBeInTheDocument()
+    expect(screen.queryByText(UI_STRINGS.roles.STAFF)).not.toBeInTheDocument()
   })
 
   it('renders the brand mark beside the product name, decoratively', async () => {
@@ -99,7 +102,7 @@ describe('Header', () => {
     renderHeader()
 
     await screen.findByText('Ada Lovelace')
-    fireEvent.click(screen.getByRole('button', { name: 'Logout' }))
+    fireEvent.click(screen.getByRole('button', { name: UI_STRINGS.header.logout }))
 
     expect(await screen.findByText('Login Page')).toBeInTheDocument()
     expect(mockLogout).toHaveBeenCalled()

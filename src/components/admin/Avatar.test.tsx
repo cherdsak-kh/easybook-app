@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { Avatar } from '@/components/admin/Avatar'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 
 /**
  * `Avatar` is the single fallback implementation for every portal surface, so
@@ -87,6 +88,9 @@ describe('Avatar', () => {
     // Nothing adjacent is being duplicated, so it stays out of the a11y tree.
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
 
+    // Hard-coded on purpose: `alt` is a PROP this test supplies, not copy the
+    // component owns. Reaching for `UI_STRINGS.profile.avatarAlt` here would
+    // couple Avatar's generic alt→role wiring to the profile page's wording.
     rerender(<Avatar src={null} name="Ada Lovelace" alt="Your profile picture" />)
     expect(screen.getByRole('img', { name: 'Your profile picture' })).toBeInTheDocument()
   })
@@ -104,6 +108,8 @@ describe('Avatar', () => {
     expect(screen.getByTestId('avatar-fallback')).toHaveTextContent('C')
 
     rerender(<Avatar src={null} name="   " />)
-    expect(screen.getByTestId('avatar-fallback')).toHaveTextContent('?')
+    expect(screen.getByTestId('avatar-fallback')).toHaveTextContent(
+      UI_STRINGS.avatar.unknownInitials,
+    )
   })
 })

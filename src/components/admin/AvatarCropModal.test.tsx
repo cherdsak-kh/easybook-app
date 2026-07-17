@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useRef } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AvatarCropModal } from '@/components/admin/AvatarCropModal'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import * as cropImage from '@/lib/crop-image'
 
 const CROP = UI_STRINGS.profile.avatarCrop

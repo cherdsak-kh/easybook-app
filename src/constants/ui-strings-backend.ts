@@ -1,8 +1,8 @@
-import type { SystemRole } from '@/lib/api-client'
+import type { AppAccess, SystemRole } from '@/lib/api-client'
 
 /**
- * User-facing copy for the Staff Management + Options surfaces, in one place so
- * a component and its tests read the SAME string.
+ * User-facing copy for the **Backend Portal** (`/backend/*`), in one place so a
+ * component and its tests read the SAME string.
  *
  * ## Why this exists
  * Copy was changed out-of-band three times while the tests still queried the old
@@ -24,10 +24,20 @@ import type { SystemRole } from '@/lib/api-client'
  * role gating). Do not let a refactor here hollow those out.
  *
  * ## Scope
- * Staff Management + Options only. Other components keep their inline literals
- * for now — this is deliberately partial, not a project-wide guarantee. It is a
- * UI-label store: never import it into `api-client.ts` or any non-presentational
- * module.
+ * The **Backend Portal** surfaces: the dashboard shell (header, nav), LINE
+ * Users, Staff Management, Registration Options, Profile, and the auth screens
+ * (login, forced password change, the session gate).
+ *
+ * The **client portal** (`HomePage.tsx`, `RegistrationForm.tsx` — the LIFF
+ * surface end users see) is NOT covered here. Its copy belongs in the sibling
+ * `ui-strings-client.ts`, which is intentionally still empty: extracting it is a
+ * deliberately deferred task, not an oversight. Do not add client copy to this
+ * file, and do not import this file from a client-portal component — the two
+ * dictionaries are separate so a Backend Portal re-word can never reach an end
+ * user's screen.
+ *
+ * It is a UI-label store: never import it into `api-client.ts` or any
+ * non-presentational module.
  */
 
 /** The `{ title, noun }` copy pair each Options resource section renders. */
@@ -50,6 +60,22 @@ const ROLE_LABELS = {
   STAFF: 'Staff',
 } as const satisfies Record<SystemRole, string>
 
+/**
+ * A LINE user's access state. Shared vocabulary, not a surface: `AccessBadge`
+ * renders it as a pill while `LineUsersPage` renders the same four words as the
+ * access-filter's `<option>` labels. The filter used to derive them from the
+ * enum (`a.charAt(0) + a.slice(1).toLowerCase()`), which produced the identical
+ * text by coincidence — re-word the badge and the filter would have silently
+ * disagreed. `satisfies` keeps it exhaustive against the wire union, so a new
+ * `AppAccess` fails the build here rather than rendering blank.
+ */
+const ACCESS_LABELS = {
+  ALLOWED: 'Allowed',
+  BLOCKED: 'Blocked',
+  PENDING: 'Pending',
+  UNREGISTERED: 'Unregistered',
+} as const satisfies Record<AppAccess, string>
+
 export const UI_STRINGS = {
   /**
    * Generic actions with no surface semantics. Kept deliberately small — field
@@ -66,6 +92,116 @@ export const UI_STRINGS = {
   },
 
   roles: ROLE_LABELS,
+
+  access: ACCESS_LABELS,
+
+  /**
+   * The shared `Avatar` fallback. One string: the glyph standing in for initials
+   * when a name yields nothing renderable (whitespace-only, or a LINE follower
+   * with no display name at all).
+   */
+  avatar: {
+    unknownInitials: '?',
+  },
+
+  // ------------------------------------------------------- Dashboard chrome
+  /** The dashboard top bar (`Header`). */
+  header: {
+    /**
+     * The product name beside the brand mark. Deliberately NOT shared with
+     * `auth.login.heading`, which happens to render the same words: they are two
+     * surfaces, and re-wording the login screen must not silently re-brand the
+     * dashboard. The brand mark's own `src` stays in the component — this is a
+     * copy store, not an asset registry.
+     */
+    brand: 'EasyBook Management System',
+    toggleMenu: 'Toggle navigation menu',
+    logout: 'Logout',
+    loggingOut: 'Logging out…',
+  },
+
+  /** Dashboard navigation (`Sidebar`) and its mobile drawer (`DashboardLayout`). */
+  nav: {
+    /** The `<nav>` landmark's accessible name. */
+    label: 'Dashboard',
+    management: 'Management',
+    account: 'Account',
+    /** The drawer's click-away scrim — a real button, so it needs a real name. */
+    closeMenu: 'Close navigation menu',
+
+    /**
+     * Link labels. Kept separate from each page's own `heading` even where the
+     * words match today: renaming a page's H1 must not silently rename its nav
+     * entry.
+     */
+    lineUsers: 'LINE Users',
+    options: 'Registration Options',
+    staff: 'Staff',
+    profile: 'My Profile',
+  },
+
+  // --------------------------------------------------------------- LINE Users
+  lineUsers: {
+    heading: 'LINE Users',
+    subheading: 'Approve or block people who have added the LINE account.',
+
+    searchLabel: 'Search by name',
+    searchPlaceholder: 'Display name…',
+    accessLabel: 'Access',
+    /** The `<select>`'s accessible name; its visible label reads only "Access". */
+    accessFilterLabel: 'Filter by access status',
+    /**
+     * The unfiltered choice. Sits beside the `access` labels rather than inside
+     * them: it is the ABSENCE of a filter, not an access state a user can hold.
+     */
+    accessFilterAll: 'All',
+
+    loadForbidden: 'You do not have permission to view LINE users.',
+    loadFailed: 'Could not load LINE users. Please try again.',
+    empty: 'No LINE users match your filters.',
+
+    /** A follower who has never set a LINE display name. */
+    unknownUser: 'Unknown user',
+    /** `date` is already localised by the call site's `toLocaleDateString`. */
+    followedAt: (date: string) => `Followed ${date}`,
+    /** Stands in for any value the API left empty, and for an unparseable date. */
+    emptyValue: '—',
+
+    updating: 'Updating…',
+    allow: 'Allow',
+    block: 'Block',
+    /** Row actions are named per-user: a list of bare "Allow"s is unusable by ear. */
+    allowUser: (name: string) => `Allow ${name}`,
+    blockUser: (name: string) => `Block ${name}`,
+    /** Subject fallback for those labels when the display name is null. */
+    thisUser: 'this user',
+
+    rowGone: 'That user no longer exists — refresh the list.',
+    rowForbidden: 'You do not have permission to change access.',
+    rowFailed: 'Could not update access. Please try again.',
+
+    pagination: {
+      label: 'Pagination',
+      previous: 'Previous',
+      next: 'Next',
+      summary: (page: number, totalPages: number, total: number) =>
+        `Page ${page} of ${totalPages} · ${total} total`,
+    },
+
+    /**
+     * The credentials submitted with a registration (`RegistrationDetails`), so
+     * an admin approves a PERSON rather than a bare LINE handle.
+     */
+    registration: {
+      /** `registration` is null — a follower who never completed the form. */
+      none: 'Not registered',
+      realName: 'Real name',
+      staffId: 'Staff ID',
+      phone: 'Phone',
+      role: 'Role',
+      department: 'Department',
+    },
+  },
 
   // ------------------------------------------------------------------ Options
   options: {
@@ -282,6 +418,9 @@ export const UI_STRINGS = {
 
   // --------------------------------------------------------------------- Auth
   auth: {
+    /** The session-probe spinner shown by `ProtectedRoute` before it decides. */
+    checkingSession: 'Checking your session…',
+
     login: {
       heading: 'EasyBook Management System',
       subheading: 'เข้าสู่ระบบบริหารจัดการส่วนหลังบ้าน',

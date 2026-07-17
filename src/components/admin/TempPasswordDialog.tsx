@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 
 const UI = UI_STRINGS.staff.tempPassword
 

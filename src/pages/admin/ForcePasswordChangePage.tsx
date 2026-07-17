@@ -9,7 +9,7 @@ import {
 import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
 import { ROUTES } from '@/constants/routes'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 
 const UI = UI_STRINGS.auth.forcePasswordChange
 

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 
 /**
  * The ONE avatar renderer for the back-office portal (header, staff rows,
@@ -69,7 +70,7 @@ function hashKey(key: string): number {
  */
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
+  if (parts.length === 0) return UI_STRINGS.avatar.unknownInitials
   const first = Array.from(parts[0])[0] ?? ''
   if (parts.length === 1) return first.toUpperCase()
   const last = Array.from(parts[parts.length - 1])[0] ?? ''

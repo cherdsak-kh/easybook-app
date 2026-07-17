@@ -4,7 +4,7 @@ import { AuthProvider } from '@/auth/AuthProvider'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { AdminLoginPage } from '@/pages/admin/AdminLoginPage'
 import { ROUTES } from '@/constants/routes'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import * as apiClient from '@/lib/api-client'
 import type { LoginResponse, SystemUser } from '@/lib/api-client'
 

@@ -3,7 +3,7 @@ import Cropper, { type Area } from 'react-easy-crop'
 import { AVATAR_MAX_BYTES } from '@/lib/api-client'
 import { CropError, cropImageToFile } from '@/lib/crop-image'
 import { Spinner } from '@/components/Spinner'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 
 const UI = UI_STRINGS.profile.avatarCrop
 

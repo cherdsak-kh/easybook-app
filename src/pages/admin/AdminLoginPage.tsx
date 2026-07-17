@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
 import { ROUTES } from '@/constants/routes'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import type { LoginResult } from '@/lib/api-client'
 
 const UI = UI_STRINGS.auth.login

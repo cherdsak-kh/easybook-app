@@ -1,3 +1,4 @@
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import type { AppAccess } from '@/lib/api-client'
 
 const STYLES: Record<AppAccess, string> = {
@@ -7,20 +8,17 @@ const STYLES: Record<AppAccess, string> = {
   UNREGISTERED: 'bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300',
 }
 
-const LABELS: Record<AppAccess, string> = {
-  ALLOWED: 'Allowed',
-  BLOCKED: 'Blocked',
-  PENDING: 'Pending',
-  UNREGISTERED: 'Unregistered',
-}
-
-/** A coloured pill for a LINE user's access state. */
+/**
+ * A coloured pill for a LINE user's access state. The colour lives here (it is
+ * presentation); the words come from `UI_STRINGS.access`, shared with the
+ * access filter on `LineUsersPage` so the two can never disagree.
+ */
 export function AccessBadge({ access }: { access: AppAccess }) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STYLES[access]}`}
     >
-      {LABELS[access]}
+      {UI_STRINGS.access[access]}
     </span>
   )
 }

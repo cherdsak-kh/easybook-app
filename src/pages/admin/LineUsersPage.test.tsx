@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import { LineUsersPage } from '@/pages/admin/LineUsersPage'
 import * as apiClient from '@/lib/api-client'
 import type { LineUser, PaginatedLineUsers } from '@/lib/api-client'
@@ -91,7 +92,9 @@ describe('LineUsersPage', () => {
     renderPage()
     await screen.findByText('Alice')
 
-    fireEvent.change(screen.getByLabelText('Search by name'), { target: { value: 'ali' } })
+    fireEvent.change(screen.getByLabelText(UI_STRINGS.lineUsers.searchLabel), {
+      target: { value: 'ali' },
+    })
 
     await waitFor(() =>
       expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'ali' })),
@@ -103,7 +106,7 @@ describe('LineUsersPage', () => {
     renderPage()
     await screen.findByText('Alice')
 
-    fireEvent.change(screen.getByLabelText('Filter by access status'), {
+    fireEvent.change(screen.getByLabelText(UI_STRINGS.lineUsers.accessFilterLabel), {
       target: { value: 'BLOCKED' },
     })
 
@@ -117,7 +120,7 @@ describe('LineUsersPage', () => {
     renderPage()
     await screen.findByText('Alice')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: UI_STRINGS.lineUsers.pagination.next }))
 
     await waitFor(() =>
       expect(mockList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 })),
@@ -131,14 +134,17 @@ describe('LineUsersPage', () => {
     renderPage()
     await screen.findByText('Alice')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Block Alice' }))
+    fireEvent.click(screen.getByRole('button', { name: UI_STRINGS.lineUsers.blockUser('Alice') }))
 
     await waitFor(() => expect(mockPatch).toHaveBeenCalledWith('a', 'BLOCKED'))
-    // Scope to the row so the "Blocked" access-filter <option> isn't matched too.
+    // Scope to the row so the "Blocked" access-filter <option> isn't matched too
+    // — the filter and the badge now render the SAME `access` constant.
     const row = screen.getByText('Alice').closest('li') as HTMLElement
-    expect(await within(row).findByText('Blocked')).toBeInTheDocument()
+    expect(await within(row).findByText(UI_STRINGS.access.BLOCKED)).toBeInTheDocument()
     // The Block button is gone once the row is BLOCKED.
-    expect(within(row).queryByRole('button', { name: 'Block Alice' })).not.toBeInTheDocument()
+    expect(
+      within(row).queryByRole('button', { name: UI_STRINGS.lineUsers.blockUser('Alice') }),
+    ).not.toBeInTheDocument()
     // The list was not re-fetched: only the initial mount call happened.
     expect(mockList).toHaveBeenCalledTimes(1)
   })
@@ -147,9 +153,10 @@ describe('LineUsersPage', () => {
     mockList.mockRejectedValue(new apiClient.ApiError(403, 'Forbidden'))
     renderPage()
 
-    expect(
-      await screen.findByText('You do not have permission to view LINE users.'),
-    ).toBeInTheDocument()
+    // The FORBIDDEN copy specifically, not the generic failure: a 403 that
+    // rendered `loadFailed` would tell the admin to "try again" forever.
+    expect(await screen.findByText(UI_STRINGS.lineUsers.loadForbidden)).toBeInTheDocument()
+    expect(screen.queryByText(UI_STRINGS.lineUsers.loadFailed)).not.toBeInTheDocument()
   })
 
   it("shows a registered row's registration details (AC-F7)", async () => {
@@ -176,7 +183,7 @@ describe('LineUsersPage', () => {
     expect(within(row).getByText('Somchai Jaidee')).toBeInTheDocument()
     expect(within(row).getByText('6412345678')).toBeInTheDocument()
     // The applicant's phone is surfaced alongside the rest (PII decision reversed).
-    expect(within(row).getByText('Phone')).toBeInTheDocument()
+    expect(within(row).getByText(UI_STRINGS.lineUsers.registration.phone)).toBeInTheDocument()
     expect(within(row).getByText('081-234-5678')).toBeInTheDocument()
     // The resolved personnel-role + department names render (dynamic options).
     expect(within(row).getByText('Teacher')).toBeInTheDocument()
@@ -190,9 +197,9 @@ describe('LineUsersPage', () => {
     renderPage()
 
     const row = (await screen.findByText('Bob')).closest('li') as HTMLElement
-    expect(within(row).getByText('Not registered')).toBeInTheDocument()
+    expect(within(row).getByText(UI_STRINGS.lineUsers.registration.none)).toBeInTheDocument()
     // No registration → no phone label/value leaks into the row.
-    expect(within(row).queryByText('Phone')).not.toBeInTheDocument()
+    expect(within(row).queryByText(UI_STRINGS.lineUsers.registration.phone)).not.toBeInTheDocument()
     expect(within(row).queryByText('081-234-5678')).not.toBeInTheDocument()
   })
 })

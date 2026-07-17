@@ -4,7 +4,7 @@ import { AuthProvider } from '@/auth/AuthProvider'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { ForcePasswordChangePage } from '@/pages/admin/ForcePasswordChangePage'
 import { ROUTES } from '@/constants/routes'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import * as apiClient from '@/lib/api-client'
 import type { SystemUser } from '@/lib/api-client'
 

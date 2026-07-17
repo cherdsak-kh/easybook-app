@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { StaffPage } from '@/pages/admin/StaffPage'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import * as apiClient from '@/lib/api-client'
 import type { PaginatedSystemUsers, SystemUser } from '@/lib/api-client'
 

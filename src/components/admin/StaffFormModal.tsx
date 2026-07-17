@@ -12,7 +12,7 @@ import {
   type SystemUserWithTemporaryPassword,
 } from '@/lib/api-client'
 import { Spinner } from '@/components/Spinner'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 
 const UI = UI_STRINGS.staff.form
 const ROLES: readonly SystemRole[] = ['STAFF', 'ADMIN', 'SUPER_ADMIN']

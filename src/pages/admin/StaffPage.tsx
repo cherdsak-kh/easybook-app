@@ -13,7 +13,7 @@ import { Avatar } from '@/components/admin/Avatar'
 import { StaffFormModal } from '@/components/admin/StaffFormModal'
 import { TempPasswordDialog } from '@/components/admin/TempPasswordDialog'
 import { useAuth } from '@/auth/useAuth'
-import { UI_STRINGS } from '@/constants/ui-strings'
+import { UI_STRINGS } from '@/constants/ui-strings-backend'
 
 const UI = UI_STRINGS.staff
 const PAGE_SIZE = 20
