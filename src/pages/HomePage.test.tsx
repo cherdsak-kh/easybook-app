@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { HomePage } from '@/pages/HomePage'
-import { ID_COUNT } from '@/components/RegistrationForm'
+import { ID_COUNT, PHONE_COUNT } from '@/components/RegistrationForm'
 import { UI_STRINGS_CLIENT as UI } from '@/constants/ui-strings-client'
 import * as liffLib from '@/lib/liff'
 import * as apiClient from '@/lib/api-client'
@@ -14,6 +14,15 @@ import type { LineUserRegistration, RegistrationOptions } from '@/lib/api-client
  * reasons.
  */
 const VALID_STAFF_ID = '6'.repeat(ID_COUNT)
+
+/**
+ * Same reason as {@link VALID_STAFF_ID}, for the phone rule: digits-only and
+ * exactly `PHONE_COUNT` long, derived rather than hardcoded so a change to the
+ * required length cannot leave this fixture silently invalid. Used on BOTH sides
+ * of the submit assertions — typed into the form and expected in the DTO — so
+ * they still pin the form's pass-through of the value.
+ */
+const VALID_PHONE = '0'.repeat(PHONE_COUNT)
 
 // Mock the LIFF wrapper AND the api-client at their import boundaries (repo
 // convention). These are the only two places @line/liff and network calls live,
@@ -91,7 +100,7 @@ function registration(overrides: Partial<LineUserRegistration> = {}): LineUserRe
     firstName: 'Somchai',
     lastName: 'Jaidee',
     staffId: VALID_STAFF_ID,
-    phone: '0812345678',
+    phone: VALID_PHONE,
     departmentId: 1,
     department: 'Computer Science',
     personnelRoleId: 10,
@@ -125,7 +134,7 @@ function fillRegistration() {
   fireEvent.change(screen.getByLabelText(UI.registration.firstName), { target: { value: 'Somchai' } })
   fireEvent.change(screen.getByLabelText(UI.registration.lastName), { target: { value: 'Jaidee' } })
   fireEvent.change(screen.getByLabelText(UI.registration.staffId), { target: { value: VALID_STAFF_ID } })
-  fireEvent.change(screen.getByLabelText(UI.registration.phone), { target: { value: '0812345678' } })
+  fireEvent.change(screen.getByLabelText(UI.registration.phone), { target: { value: VALID_PHONE } })
   // <select> values are DOM strings — the stringified integer option ids.
   fireEvent.change(screen.getByLabelText(UI.registration.department), { target: { value: '1' } })
   fireEvent.change(screen.getByLabelText(UI.registration.personnelRole), { target: { value: '10' } })
@@ -303,7 +312,7 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
         firstName: 'Somchai',
         lastName: 'Jaidee',
         staffId: VALID_STAFF_ID,
-        phone: '0812345678',
+        phone: VALID_PHONE,
         departmentId: 1,
         personnelRoleId: 10,
       },
@@ -369,7 +378,7 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
         firstName: 'Somsak',
         lastName: 'Jaidee',
         staffId: VALID_STAFF_ID,
-        phone: '0812345678',
+        phone: VALID_PHONE,
         departmentId: 1,
         personnelRoleId: 10,
       },

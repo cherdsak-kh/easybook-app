@@ -14,6 +14,14 @@ const UI = UI_STRINGS_CLIENT.registration
  */
 export const ID_COUNT = 13
 
+/**
+ * Required length of a phone number. Exported for the same reason as
+ * {@link ID_COUNT}: tests derive their fixtures from it (`'0'.repeat(PHONE_COUNT)`)
+ * and the copy interpolates it (`UI.phoneLength(PHONE_COUNT)`), so the rule, the
+ * message and the fixtures cannot drift apart when this number changes.
+ */
+export const PHONE_COUNT = 10
+
 export interface RegistrationFormValues {
   firstName: string
   lastName: string
@@ -45,7 +53,7 @@ function validate(f: RegistrationFormValues): Errors {
   else if (f.staffId.trim().length !== ID_COUNT) e.staffId = UI.staffIdLength(ID_COUNT)
   if (!f.phone.trim()) e.phone = UI.phoneRequired
   else if (!/^[0-9]+$/.test(f.phone.trim())) e.phone = UI.phoneDigitsOnly
-  else if (f.phone.trim().length !== 10) e.phone = UI.phoneLength
+  else if (f.phone.trim().length !== PHONE_COUNT) e.phone = UI.phoneLength(PHONE_COUNT)
   if (!f.departmentId) e.departmentId = UI.departmentRequired
   if (!f.personnelRoleId) e.personnelRoleId = UI.personnelRoleRequired
   return e

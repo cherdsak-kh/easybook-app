@@ -17,9 +17,11 @@
  * access. Do not grow it into a locale system without a plan that asks for one.
  *
  * The copy below is **deliberately mixed Thai and English** — that is the
- * product's current state, not drift this file was extracted to "fix". Every
- * string was moved verbatim (same language, wording, punctuation and ellipsis
- * characters). Re-wording is a copy change, not a refactor; make it explicitly.
+ * product's current state, not drift this file was extracted to "fix". The
+ * extraction itself moved every string verbatim; the punctuation nits it
+ * surfaced (an ASCII `...`, two spaced slashes) were normalised afterwards as an
+ * explicit, separate copy change. Re-wording is a copy change, not a refactor;
+ * make it explicitly.
  *
  * ## Known trade-off (accepted, deliberate)
  * A test asserting `getByLabelText(UI_STRINGS_CLIENT.registration.firstName)`
@@ -108,8 +110,7 @@ export const UI_STRINGS_CLIENT = {
     ],
 
     recheck: 'ตรวจสอบสถานะการเพิ่มเพื่อน',
-    /** NOTE: ASCII dots, unlike the '…' used everywhere else. Preserved verbatim. */
-    rechecking: 'กำลังตรวจสอบ...',
+    rechecking: 'กำลังตรวจสอบ…',
     /** Set into state when a re-check still reports "not a friend". */
     recheckHint: 'ระบบยังไม่พบสถานะการเป็นเพื่อน โปรดเพิ่มบัญชีทางการเป็นเพื่อนแล้วลองใหม่อีกครั้ง',
   },
@@ -143,14 +144,9 @@ export const UI_STRINGS_CLIENT = {
     lastName: 'นามสกุล',
     staffId: 'รหัสบุคลากร',
     phone: 'เบอร์โทรศัพท์',
-    /**
-     * NOTE: the select labels space the slash ('ฝ่าย / แผนก') while their
-     * placeholders and validation messages do not ('เลือกฝ่าย/แผนก'). That
-     * inconsistency is pre-existing and preserved verbatim.
-     */
-    department: 'ฝ่าย / แผนก',
+    department: 'ฝ่าย/แผนก',
     departmentPlaceholder: 'เลือกฝ่าย/แผนก',
-    personnelRole: 'ตำแหน่ง / บทบาท',
+    personnelRole: 'ตำแหน่ง/บทบาท',
     personnelRolePlaceholder: 'เลือกตำแหน่ง/บทบาท',
 
     /** The dynamic option lists (`loadOptions`): loading / failed / empty. */
@@ -174,12 +170,11 @@ export const UI_STRINGS_CLIENT = {
     phoneRequired: 'โปรดระบุเบอร์โทรศัพท์',
     phoneDigitsOnly: 'เบอร์โทรศัพท์ต้องเป็นตัวเลขเท่านั้น',
     /**
-     * NOT a formatter: the "10" is baked into the literal today and nothing
-     * interpolates it — the rule's own `10` is a separate literal in `validate`.
-     * Extracting it verbatim keeps this a copy change; linking the two (as
-     * `staffIdLength`/`ID_COUNT` are linked) would be a behaviour change.
+     * `count` comes from `RegistrationForm`'s exported `PHONE_COUNT` at the call
+     * site — passing it keeps the message and the rule from drifting apart, the
+     * same way `staffIdLength`/`ID_COUNT` are linked.
      */
-    phoneLength: 'เบอร์โทรศัพท์ต้องมี 10 หลัก',
+    phoneLength: (count: number) => `เบอร์โทรศัพท์ต้องมี ${count} หลัก`,
     departmentRequired: 'โปรดเลือกฝ่าย/แผนก',
     personnelRoleRequired: 'โปรดเลือกตำแหน่ง/บทบาท',
 
