@@ -73,7 +73,7 @@ export interface paths {
         };
         /**
          * List the selectable department + personnel-role options.
-         * @description Combined payload so the registration/edit form makes ONE call. Returns only NON-deleted options, each list ordered `name ASC`. Ids feed `departmentId`/`personnelRoleId` on register/edit.
+         * @description Combined payload so the registration/edit form makes ONE call. Returns only NON-deleted options, each list ordered `name ASC`. Ids feed `departmentId`/`personnelRoleId` on register/edit. System-reserved options are never returned.
          */
         get: operations["LineRegistrationController_getOptions"];
         put?: never;
@@ -159,7 +159,7 @@ export interface paths {
         head?: never;
         /**
          * Approve or block a LINE user (update `access`).
-         * @description Sets `access` (Approve → ALLOWED, Block → BLOCKED). Returns the updated row. An unknown or soft-deleted id is a 404 that reveals nothing about deletion; an empty body, a bad enum value, or any extra key is a 400.
+         * @description Sets `access` (Approve → ALLOWED, Block → BLOCKED). Returns the updated row. ADMIN is bound by the transition matrix (may only reach ALLOWED/BLOCKED, and not from UNREGISTERED); SUPER_ADMIN may set any state and may target soft-deleted rows. An empty body, a bad enum value, or any extra key is a 400.
          */
         patch: operations["LineUsersController_updateAccess"];
         trace?: never;
@@ -389,7 +389,7 @@ export interface paths {
         };
         /**
          * List department options.
-         * @description Non-deleted options only, ordered `name ASC`.
+         * @description Non-deleted options only, ordered `name ASC`. System-reserved options are visible to SUPER_ADMIN only.
          */
         get: operations["DepartmentsController_list"];
         put?: never;
@@ -416,14 +416,14 @@ export interface paths {
         post?: never;
         /**
          * Soft-delete a department option.
-         * @description Sets `deletedAt`; never a hard delete, so registrations referencing it keep resolving its name. A second DELETE on the same id is a 404. The name becomes reusable.
+         * @description Sets `deletedAt`; never a hard delete, so registrations referencing it keep resolving its name. A second DELETE on the same id is a 404. The name becomes reusable. System-reserved options are not deletable and answer 404.
          */
         delete: operations["DepartmentsController_remove"];
         options?: never;
         head?: never;
         /**
          * Rename a department option.
-         * @description An unknown or soft-deleted id is a 404; an active-name collision is a 409.
+         * @description An unknown or soft-deleted id is a 404; an active-name collision is a 409. System-reserved options are not editable and answer 404.
          */
         patch: operations["DepartmentsController_update"];
         trace?: never;
@@ -437,7 +437,7 @@ export interface paths {
         };
         /**
          * List personnel-role options.
-         * @description Non-deleted options only, ordered `name ASC`.
+         * @description Non-deleted options only, ordered `name ASC`. System-reserved options are visible to SUPER_ADMIN only.
          */
         get: operations["PersonnelRolesController_list"];
         put?: never;
@@ -464,14 +464,14 @@ export interface paths {
         post?: never;
         /**
          * Soft-delete a personnel-role option.
-         * @description Sets `deletedAt`; never a hard delete, so registrations referencing it keep resolving its name. A second DELETE on the same id is a 404. The name becomes reusable.
+         * @description Sets `deletedAt`; never a hard delete, so registrations referencing it keep resolving its name. A second DELETE on the same id is a 404. The name becomes reusable. System-reserved options are not deletable and answer 404.
          */
         delete: operations["PersonnelRolesController_remove"];
         options?: never;
         head?: never;
         /**
          * Rename a personnel-role option.
-         * @description An unknown or soft-deleted id is a 404; an active-name collision is a 409.
+         * @description An unknown or soft-deleted id is a 404; an active-name collision is a 409. System-reserved options are not editable and answer 404.
          */
         patch: operations["PersonnelRolesController_update"];
         trace?: never;
@@ -911,6 +911,11 @@ export interface components {
             id: number;
             /** @example Computer Science */
             name: string;
+            /**
+             * @description READ-ONLY. True only for the System-Developer-owned reserved row (visible to SUPER_ADMIN only; always false for everyone else). Settable by no endpoint.
+             * @example false
+             */
+            isSystemReserved: boolean;
             /** @example 2026-07-14T10:00:00.000Z */
             createdAt: string;
             /** @example 2026-07-14T10:00:00.000Z */
@@ -932,6 +937,11 @@ export interface components {
             id: number;
             /** @example Teacher */
             name: string;
+            /**
+             * @description READ-ONLY. True only for the System-Developer-owned reserved row (visible to SUPER_ADMIN only; always false for everyone else). Settable by no endpoint.
+             * @example false
+             */
+            isSystemReserved: boolean;
             /** @example 2026-07-14T10:00:00.000Z */
             createdAt: string;
             /** @example 2026-07-14T10:00:00.000Z */
@@ -1298,7 +1308,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description STAFF; CSRF failure; or an access transition not permitted for ADMIN. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1307,7 +1317,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description Unknown or soft-deleted id. */
+            /** @description Unknown id (both roles); a soft-deleted id is 404 for ADMIN but targetable by SUPER_ADMIN. Reveals nothing about deletion. */
             404: {
                 headers: {
                     [name: string]: unknown;

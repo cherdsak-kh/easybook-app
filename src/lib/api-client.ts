@@ -157,7 +157,12 @@ export type PersonnelRole = components['schemas']['PersonnelRoleResponseDto']
 /** Both option create/rename bodies are structurally `{ name }`. */
 export type OptionInput = components['schemas']['CreateDepartmentDto']
 
-/** The Allow/Block actions the LINE Users UI may send — never PENDING. */
+/**
+ * The two "quick" transitions an ADMIN's row buttons emit (Approve/Reinstate →
+ * ALLOWED, Block → BLOCKED). SUPER_ADMIN's override picker is not limited to
+ * these — it sends the full `AppAccess` — so `patchLineUserAccess` takes the
+ * wider union, not this.
+ */
 export type AccessAction = Extract<AppAccess, 'ALLOWED' | 'BLOCKED'>
 
 // ---------------------------------------------------------------------------
@@ -338,12 +343,19 @@ export async function listLineUsers(
 }
 
 /**
- * Approve/Block a LINE user. The frontend only ever sends ALLOWED or BLOCKED —
- * PENDING is a system state, never a user action.
+ * Set a LINE user's access state (`PATCH /line-users/:id`).
+ *
+ * ADMIN drives the four safe transitions via the row's quick actions (Approve /
+ * Reinstate → ALLOWED, Block → BLOCKED), so those only ever send `AccessAction`.
+ * SUPER_ADMIN's override picker can force ANY `AppAccess` — including
+ * UNREGISTERED / PENDING — which is why this accepts the full union rather than
+ * just `AccessAction`. The backend is the authority: a transition an ADMIN is
+ * not permitted to make comes back as a **403** (handled by the caller); it is
+ * never a client-side silent no-op.
  */
 export async function patchLineUserAccess(
   id: string,
-  access: AccessAction,
+  access: AppAccess,
 ): Promise<LineUser> {
   const { data, error, response } = await withCsrfRetry(() =>
     api.PATCH('/api/v1/line-users/{id}', {

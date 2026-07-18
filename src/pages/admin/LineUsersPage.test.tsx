@@ -4,7 +4,9 @@ import { AuthProvider } from '@/auth/AuthProvider'
 import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import { LineUsersPage } from '@/pages/admin/LineUsersPage'
 import * as apiClient from '@/lib/api-client'
-import type { LineUser, PaginatedLineUsers } from '@/lib/api-client'
+import type { LineUser, PaginatedLineUsers, SystemUser } from '@/lib/api-client'
+
+const LU = UI_STRINGS.lineUsers
 
 vi.mock('@/lib/api-client', () => {
   class ApiError extends Error {
@@ -63,6 +65,30 @@ function page(data: LineUser[], meta: Partial<PaginatedLineUsers['meta']> = {}):
   }
 }
 
+/**
+ * The signed-in back-office actor `getMe` hydrates. The Actions column is
+ * role-gated, so the session's `role` decides which affordances render — ADMIN
+ * gets the matrix quick actions, SUPER_ADMIN gets the override picker.
+ */
+function sessionUser(role: SystemUser['role']): SystemUser {
+  return {
+    id: 'me',
+    email: 'admin@easybook.local',
+    firstName: 'Ada',
+    lastName: 'Lovelace',
+    role,
+    personnelRole: { id: 1, name: 'Teacher' },
+    department: { id: 2, name: 'CS' },
+    mustChangePassword: false,
+    phoneNumber: null,
+    profilePictureUrl: null,
+    isActive: true,
+    lineUserId: null,
+    lastLoginAt: null,
+    createdAt: '2026-07-01T00:00:00.000Z',
+  }
+}
+
 function renderPage() {
   return render(
     <MemoryRouter>
@@ -75,7 +101,9 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockGetMe.mockResolvedValue(null) // AuthProvider is stable; the page doesn't need a user
+  // Default to an ADMIN session so the quick-action tests below drive the matrix
+  // affordances; the SUPER_ADMIN override tests opt in per-case.
+  mockGetMe.mockResolvedValue(sessionUser('ADMIN'))
 })
 
 describe('LineUsersPage', () => {
@@ -132,9 +160,11 @@ describe('LineUsersPage', () => {
     mockList.mockResolvedValue(page([alice]))
     mockPatch.mockResolvedValue({ ...alice, access: 'BLOCKED' })
     renderPage()
-    await screen.findByText('Alice')
+    // findByRole (not getByRole) so we wait for the ADMIN session to hydrate the
+    // Actions cell before clicking — the button is role-gated now.
+    const block = await screen.findByRole('button', { name: UI_STRINGS.lineUsers.blockUser('Alice') })
 
-    fireEvent.click(screen.getByRole('button', { name: UI_STRINGS.lineUsers.blockUser('Alice') }))
+    fireEvent.click(block)
 
     await waitFor(() => expect(mockPatch).toHaveBeenCalledWith('a', 'BLOCKED'))
     // Scope to the row so the "Blocked" access-filter <option> isn't matched too
@@ -201,5 +231,109 @@ describe('LineUsersPage', () => {
     // No registration → no phone label/value leaks into the row.
     expect(within(row).queryByText(UI_STRINGS.lineUsers.registration.phone)).not.toBeInTheDocument()
     expect(within(row).queryByText('081-234-5678')).not.toBeInTheDocument()
+  })
+
+  it('shows an ADMIN the matrix quick actions and NOT the SUPER_ADMIN override (role gate, Item 3/4)', async () => {
+    mockGetMe.mockResolvedValue(sessionUser('ADMIN'))
+    mockList.mockResolvedValue(page([lineUser({ id: 'a', displayName: 'Alice', access: 'PENDING' })]))
+    renderPage()
+
+    const row = within((await screen.findByText('Alice')).closest('li') as HTMLElement)
+    // PENDING → both Approve (→ALLOWED) and Block (→BLOCKED) per the matrix.
+    expect(await row.findByRole('button', { name: LU.approveUser('Alice') })).toBeInTheDocument()
+    expect(row.getByRole('button', { name: LU.blockUser('Alice') })).toBeInTheDocument()
+    // The full-state override is SUPER_ADMIN-only — an ADMIN must never see it. This
+    // ABSENT assertion is what still proves the two roles differ now that the quick
+    // actions are shared: ADMIN = quick actions only, no override.
+    expect(row.queryByRole('button', { name: LU.editAccessFor('Alice') })).not.toBeInTheDocument()
+  })
+
+  it('shows a SUPER_ADMIN the SAME quick actions PLUS the override picker (role gate, additive)', async () => {
+    mockGetMe.mockResolvedValue(sessionUser('SUPER_ADMIN'))
+    mockList.mockResolvedValue(page([lineUser({ id: 'a', displayName: 'Alice', access: 'PENDING' })]))
+    renderPage()
+
+    const row = within((await screen.findByText('Alice')).closest('li') as HTMLElement)
+    // The same PENDING quick actions an ADMIN gets, rendered by the shared control…
+    expect(await row.findByRole('button', { name: LU.approveUser('Alice') })).toBeInTheDocument()
+    expect(row.getByRole('button', { name: LU.blockUser('Alice') })).toBeInTheDocument()
+    // …PLUS the full-state override on top (the additive SUPER_ADMIN affordance).
+    expect(row.getByRole('button', { name: LU.editAccessFor('Alice') })).toBeInTheDocument()
+  })
+
+  it('offers an ADMIN no action on an UNREGISTERED row (matrix: from ≠ UNREGISTERED)', async () => {
+    mockGetMe.mockResolvedValue(sessionUser('ADMIN'))
+    mockList.mockResolvedValue(
+      page([
+        lineUser({ id: 'p', displayName: 'Pat', access: 'PENDING' }),
+        lineUser({ id: 'u', displayName: 'Uma', access: 'UNREGISTERED' }),
+      ]),
+    )
+    renderPage()
+
+    // Pat's Approve button proves the ADMIN session has hydrated the Actions cell,
+    // so Uma's empty cell is the matrix at work, not an un-loaded role.
+    await screen.findByRole('button', { name: LU.approveUser('Pat') })
+    const umaRow = within(screen.getByText('Uma').closest('li') as HTMLElement)
+    expect(umaRow.queryByRole('button', { name: LU.approveUser('Uma') })).not.toBeInTheDocument()
+    expect(umaRow.queryByRole('button', { name: LU.reinstateUser('Uma') })).not.toBeInTheDocument()
+    expect(umaRow.queryByRole('button', { name: LU.blockUser('Uma') })).not.toBeInTheDocument()
+  })
+
+  it('labels an ADMIN →ALLOWED as Reinstate on a BLOCKED row and hides the idempotent Block (matrix)', async () => {
+    mockGetMe.mockResolvedValue(sessionUser('ADMIN'))
+    const alice = lineUser({ id: 'a', displayName: 'Alice', access: 'BLOCKED' })
+    mockList.mockResolvedValue(page([alice]))
+    mockPatch.mockResolvedValue({ ...alice, access: 'ALLOWED' })
+    renderPage()
+
+    const row = within((await screen.findByText('Alice')).closest('li') as HTMLElement)
+    const reinstate = await row.findByRole('button', { name: LU.reinstateUser('Alice') })
+    // The →ALLOWED verb for a blocked user is "Reinstate", never "Approve"…
+    expect(row.queryByRole('button', { name: LU.approveUser('Alice') })).not.toBeInTheDocument()
+    // …and Block is hidden because its target equals the current state.
+    expect(row.queryByRole('button', { name: LU.blockUser('Alice') })).not.toBeInTheDocument()
+
+    fireEvent.click(reinstate)
+    // Reinstate is still the ALLOWED PATCH, sent against the row's id.
+    await waitFor(() => expect(mockPatch).toHaveBeenCalledWith('a', 'ALLOWED'))
+  })
+
+  it('lets a SUPER_ADMIN force a state an ADMIN cannot, sending the exact PATCH (id, state) (Item 3)', async () => {
+    mockGetMe.mockResolvedValue(sessionUser('SUPER_ADMIN'))
+    const alice = lineUser({ id: 'a', displayName: 'Alice', access: 'ALLOWED' })
+    mockList.mockResolvedValue(page([alice]))
+    mockPatch.mockResolvedValue({ ...alice, access: 'UNREGISTERED' })
+    renderPage()
+
+    const row = within((await screen.findByText('Alice')).closest('li') as HTMLElement)
+    fireEvent.click(await row.findByRole('button', { name: LU.editAccessFor('Alice') }))
+    // UNREGISTERED is a state the ADMIN matrix forbids — the override offers it.
+    fireEvent.change(row.getByRole('combobox', { name: LU.overridePickerLabel('Alice') }), {
+      target: { value: 'UNREGISTERED' },
+    })
+    fireEvent.click(row.getByRole('button', { name: LU.applyOverrideFor('Alice') }))
+
+    await waitFor(() => expect(mockPatch).toHaveBeenCalledWith('a', 'UNREGISTERED'))
+    // The row reflects the forced state in place; the list is not re-fetched.
+    expect(await row.findByText(UI_STRINGS.access.UNREGISTERED)).toBeInTheDocument()
+    expect(mockList).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces a 403 on an access change as a row notice, without a logout (403 backstop, AC-F12)', async () => {
+    mockGetMe.mockResolvedValue(sessionUser('ADMIN'))
+    mockList.mockResolvedValue(page([lineUser({ id: 'a', displayName: 'Alice', access: 'PENDING' })]))
+    // Server state drifted since load: the transition the client offered now 403s.
+    mockPatch.mockRejectedValue(new apiClient.ApiError(403, 'Forbidden'))
+    renderPage()
+
+    const block = await screen.findByRole('button', { name: LU.blockUser('Alice') })
+    fireEvent.click(block)
+
+    // The row-level forbidden notice appears (a 403 is NOT the 401 logout signal),
+    // the row stays put, and nothing was re-fetched.
+    expect(await screen.findByText(LU.rowForbidden)).toBeInTheDocument()
+    expect(screen.getByText('Alice')).toBeInTheDocument()
+    expect(mockList).toHaveBeenCalledTimes(1)
   })
 })

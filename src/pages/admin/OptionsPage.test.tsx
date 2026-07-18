@@ -45,6 +45,7 @@ function dept(overrides: Partial<Department> = {}): Department {
   return {
     id: 1,
     name: 'Computer Science',
+    isSystemReserved: false,
     createdAt: '2026-07-14T10:00:00.000Z',
     updatedAt: '2026-07-14T10:00:00.000Z',
     ...overrides,
@@ -55,6 +56,7 @@ function role(overrides: Partial<PersonnelRole> = {}): PersonnelRole {
   return {
     id: 1,
     name: 'Teacher',
+    isSystemReserved: false,
     createdAt: '2026-07-14T10:00:00.000Z',
     updatedAt: '2026-07-14T10:00:00.000Z',
     ...overrides,
@@ -213,5 +215,49 @@ describe('OptionsPage', () => {
     const alert = await departmentsRegion().findByRole('alert')
     expect(alert).toHaveTextContent(UI.loadFailed(UI.departments.title))
     expect(alert).not.toHaveTextContent(UI.loadForbidden(UI.departments.title))
+  })
+
+  it('shows a read-only Reserved badge on a system-reserved row and hides its Rename/Delete (AC-2)', async () => {
+    // Only a SUPER_ADMIN ever receives `isSystemReserved: true` from the API; the
+    // badge is keyed purely on the flag, and the backend 404s any PATCH/DELETE of
+    // such a row — so the controls must not render.
+    mockListDepts.mockResolvedValue([
+      dept({ id: 1, name: 'System Developer', isSystemReserved: true }),
+      dept({ id: 2, name: 'Computer Science', isSystemReserved: false }),
+    ])
+    renderPage()
+
+    const reservedRow = within(
+      (await departmentsRegion().findByText('System Developer')).closest('li')!,
+    )
+    expect(reservedRow.getByText(UI.reservedBadge)).toBeInTheDocument()
+    // The dead controls are gone, not merely disabled.
+    expect(reservedRow.queryByRole('button', { name: UI.rename })).not.toBeInTheDocument()
+    expect(
+      reservedRow.queryByRole('button', { name: UI.deleteRow('System Developer') }),
+    ).not.toBeInTheDocument()
+
+    // A normal row in the SAME list keeps its controls and shows no badge — the
+    // suppression is per-row, keyed on the flag, not a whole-section toggle.
+    const normalRow = within(departmentsRegion().getByText('Computer Science').closest('li')!)
+    expect(normalRow.getByRole('button', { name: UI.rename })).toBeInTheDocument()
+    expect(
+      normalRow.getByRole('button', { name: UI.deleteRow('Computer Science') }),
+    ).toBeInTheDocument()
+    expect(normalRow.queryByText(UI.reservedBadge)).not.toBeInTheDocument()
+  })
+
+  it('suppresses Rename/Delete on a reserved personnel-role row too (AC-2)', async () => {
+    mockListRoles.mockResolvedValue([role({ id: 1, name: 'System Developer', isSystemReserved: true })])
+    renderPage()
+
+    const reservedRow = within(
+      (await personnelRolesRegion().findByText('System Developer')).closest('li')!,
+    )
+    expect(reservedRow.getByText(UI.reservedBadge)).toBeInTheDocument()
+    expect(reservedRow.queryByRole('button', { name: UI.rename })).not.toBeInTheDocument()
+    expect(
+      reservedRow.queryByRole('button', { name: UI.deleteRow('System Developer') }),
+    ).not.toBeInTheDocument()
   })
 })

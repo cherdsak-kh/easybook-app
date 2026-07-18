@@ -167,17 +167,46 @@ export const UI_STRINGS = {
     /** Stands in for any value the API left empty, and for an unparseable date. */
     emptyValue: '—',
 
+    /**
+     * The status/actions split (design Item 4). The list is a card layout, not a
+     * `<table>`, so these name the two right-hand cells for assistive tech rather
+     * than rendering as visible `<th>`s. `Status` is the badge cell (no controls);
+     * `Actions` is the right-pinned transition cell.
+     */
+    statusHeader: 'Status',
+    actionsHeader: 'Actions',
+
     updating: 'Updating…',
-    allow: 'Allow',
+    /**
+     * ADMIN quick actions, gated by the transition matrix (design Item 3). →ALLOWED
+     * reads "Approve" from PENDING and "Reinstate" from BLOCKED — the same PATCH,
+     * two verbs, because reinstating a blocked user is not the same story as
+     * approving a pending one. →BLOCKED is always "Block".
+     */
+    approve: 'Approve',
+    reinstate: 'Reinstate',
     block: 'Block',
-    /** Row actions are named per-user: a list of bare "Allow"s is unusable by ear. */
-    allowUser: (name: string) => `Allow ${name}`,
+    /** Row actions are named per-user: a list of bare "Approve"s is unusable by ear. */
+    approveUser: (name: string) => `Approve ${name}`,
+    reinstateUser: (name: string) => `Reinstate ${name}`,
     blockUser: (name: string) => `Block ${name}`,
     /** Subject fallback for those labels when the display name is null. */
     thisUser: 'this user',
 
+    /**
+     * SUPER_ADMIN's full-state override (design Item 3). ADMIN never sees this: the
+     * picker can force ANY `AppAccess` — including UNREGISTERED / PENDING — which
+     * the ADMIN matrix forbids. This is the explicit "Edit" affordance the split
+     * calls for; the backend still authorises every write.
+     */
+    editAccess: 'Edit',
+    editAccessFor: (name: string) => `Edit access for ${name}`,
+    overridePickerLabel: (name: string) => `Set access for ${name}`,
+    applyOverride: 'Apply',
+    applyOverrideFor: (name: string) => `Apply access change for ${name}`,
+
     rowGone: 'That user no longer exists — refresh the list.',
-    rowForbidden: 'You do not have permission to change access.',
+    rowForbidden: 'You do not have permission to make that access change.',
     rowFailed: 'Could not update access. Please try again.',
 
     pagination: {
@@ -226,6 +255,16 @@ export const UI_STRINGS = {
     delete: 'Delete',
     removing: 'Removing…',
     nameLabel: 'Name',
+
+    /**
+     * The read-only marker on a system-reserved option row (design Item 2). Only
+     * SUPER_ADMIN ever receives such a row (`isSystemReserved === true`), and the
+     * backend answers 404 on any PATCH/DELETE of it — so the row hides its
+     * Rename/Delete controls and shows this badge instead. There is no control to
+     * set or clear the flag; it is display-only.
+     */
+    reservedBadge: 'Reserved',
+    reservedHint: 'System-reserved — managed by the system and cannot be edited or removed here.',
 
     /** Section title interpolated, lower-cased, exactly as the page renders it. */
     loadForbidden: (title: string) =>

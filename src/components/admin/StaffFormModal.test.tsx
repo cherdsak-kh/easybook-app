@@ -33,6 +33,7 @@ function dept(id: number, name: string): Department {
   return {
     id,
     name,
+    isSystemReserved: false,
     createdAt: '2026-07-14T10:00:00.000Z',
     updatedAt: '2026-07-14T10:00:00.000Z',
   }
@@ -42,6 +43,7 @@ function role(id: number, name: string): PersonnelRole {
   return {
     id,
     name,
+    isSystemReserved: false,
     createdAt: '2026-07-14T10:00:00.000Z',
     updatedAt: '2026-07-14T10:00:00.000Z',
   }

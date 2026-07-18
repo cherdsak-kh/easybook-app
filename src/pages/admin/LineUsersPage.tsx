@@ -3,7 +3,6 @@ import {
   ApiError,
   listLineUsers,
   patchLineUserAccess,
-  type AccessAction,
   type AppAccess,
   type LineUser,
   type PaginatedLineUsers,
@@ -11,8 +10,11 @@ import {
 import { AccessBadge } from '@/components/admin/AccessBadge'
 import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
+import { canAdminSetAccess } from '@/lib/access-policy'
 import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+
+const LU = UI_STRINGS.lineUsers
 
 const PAGE_SIZE = 20
 const ACCESS_OPTIONS: readonly AppAccess[] = ['UNREGISTERED', 'PENDING', 'ALLOWED', 'BLOCKED']
@@ -31,12 +33,17 @@ function initialsOf(name: string | null): string {
 
 /**
  * LINE Users management (design §5.3): a paginated list with a debounced
- * display-name search, an access filter, and per-row Allow/Block actions that
- * update the row in place (no full-page reload). 401 bounces to login; 403/404
- * surface as non-crashing notices.
+ * display-name search, an access filter, and a per-row Status/Actions split
+ * (design Item 4). The Status cell is a badge only; the right-pinned Actions cell
+ * holds role-gated access transitions that update the row in place (no full-page
+ * reload). Both roles get the matrix-permitted quick actions; SUPER_ADMIN also
+ * gets a full-state override picker on top. 401 bounces to login; a 403 (the client
+ * gate drifting out of sync with the server, e.g. between load and click) and 404
+ * surface as non-crashing notices — never a silent no-op, never a logout.
  */
 export function LineUsersPage() {
-  const { expireSession } = useAuth()
+  const { user: currentUser, expireSession } = useAuth()
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN'
 
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')
@@ -81,7 +88,7 @@ export function LineUsersPage() {
       })
   }, [page, debouncedSearch, accessFilter, expireSession])
 
-  async function changeAccess(user: LineUser, access: AccessAction) {
+  async function changeAccess(user: LineUser, access: AppAccess) {
     setPendingId(user.id)
     setRowError(null)
     try {
@@ -213,18 +220,29 @@ export function LineUsersPage() {
                 <Avatar user={user} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-slate-900 dark:text-slate-100">
-                    {user.displayName ?? UI_STRINGS.lineUsers.unknownUser}
+                    {user.displayName ?? LU.unknownUser}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {UI_STRINGS.lineUsers.followedAt(formatFollowedAt(user.followedAt))}
+                    {LU.followedAt(formatFollowedAt(user.followedAt))}
                   </p>
                 </div>
-                <AccessBadge access={user.access} />
-                <RowActions
-                  user={user}
-                  pending={pendingId === user.id}
-                  onChange={changeAccess}
-                />
+                {/* Status column: the badge only — no controls live here. */}
+                <div role="group" aria-label={LU.statusHeader}>
+                  <AccessBadge access={user.access} />
+                </div>
+                {/* Actions column: right-pinned, role-gated transitions. */}
+                <div
+                  role="group"
+                  aria-label={LU.actionsHeader}
+                  className="ml-auto flex items-center gap-2"
+                >
+                  <RowActions
+                    user={user}
+                    pending={pendingId === user.id}
+                    isSuperAdmin={isSuperAdmin}
+                    onChange={changeAccess}
+                  />
+                </div>
                 <RegistrationDetails registration={user.registration} />
               </li>
             ))}
@@ -330,41 +348,156 @@ function Avatar({ user }: { user: LineUser }) {
   )
 }
 
+/**
+ * The role-gated Actions cell. BOTH roles get the same matrix-permitted quick
+ * actions (one shared `QuickActions`, so the two paths can never drift);
+ * SUPER_ADMIN gets the full-state override picker **in addition**. The difference
+ * between the roles is therefore purely additive — SUPER_ADMIN = ADMIN's quick
+ * actions + the override on top. The pending spinner sits alongside. Rendered as a
+ * fragment: the row already wraps this in the right-pinned group.
+ */
 function RowActions({
+  user,
+  pending,
+  isSuperAdmin,
+  onChange,
+}: {
+  user: LineUser
+  pending: boolean
+  isSuperAdmin: boolean
+  onChange: (user: LineUser, access: AppAccess) => void
+}) {
+  return (
+    <>
+      {pending && <Spinner label={LU.updating} className="text-slate-400" />}
+      <QuickActions user={user} pending={pending} onChange={onChange} />
+      {isSuperAdmin && <OverrideControl user={user} pending={pending} onChange={onChange} />}
+    </>
+  )
+}
+
+/**
+ * ADMIN's matrix-gated transitions. A button appears only when
+ * `canAdminSetAccess(from, to)` permits it AND the target differs from the
+ * current state, so an ADMIN never sees an action the backend would 403 (nor a
+ * redundant "Approve" on an already-approved user). An UNREGISTERED row shows no
+ * actions at all. →ALLOWED reads "Reinstate" for a blocked user, "Approve"
+ * otherwise; both send the same `ALLOWED` PATCH.
+ */
+function QuickActions({
   user,
   pending,
   onChange,
 }: {
   user: LineUser
   pending: boolean
-  onChange: (user: LineUser, access: AccessAction) => void
+  onChange: (user: LineUser, access: AppAccess) => void
 }) {
-  const name = user.displayName ?? UI_STRINGS.lineUsers.thisUser
+  const name = user.displayName ?? LU.thisUser
+  const from = user.access
+  const showApprove = canAdminSetAccess(from, 'ALLOWED') && from !== 'ALLOWED'
+  const showBlock = canAdminSetAccess(from, 'BLOCKED') && from !== 'BLOCKED'
+  const reinstating = from === 'BLOCKED'
   return (
-    <div className="flex items-center gap-2">
-      {pending && <Spinner label={UI_STRINGS.lineUsers.updating} className="text-slate-400" />}
-      {user.access !== 'ALLOWED' && (
+    <>
+      {showApprove && (
         <button
           type="button"
           onClick={() => onChange(user, 'ALLOWED')}
           disabled={pending}
-          aria-label={UI_STRINGS.lineUsers.allowUser(name)}
+          aria-label={reinstating ? LU.reinstateUser(name) : LU.approveUser(name)}
           className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
         >
-          {UI_STRINGS.lineUsers.allow}
+          {reinstating ? LU.reinstate : LU.approve}
         </button>
       )}
-      {user.access !== 'BLOCKED' && (
+      {showBlock && (
         <button
           type="button"
           onClick={() => onChange(user, 'BLOCKED')}
           disabled={pending}
-          aria-label={UI_STRINGS.lineUsers.blockUser(name)}
+          aria-label={LU.blockUser(name)}
           className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
         >
-          {UI_STRINGS.lineUsers.block}
+          {LU.block}
         </button>
       )}
+    </>
+  )
+}
+
+/**
+ * SUPER_ADMIN's full-state override. Collapsed to a single "Edit" button until
+ * opened; expanding reveals a picker over ALL four `AppAccess` states plus Apply.
+ * SUPER_ADMIN bypasses the ADMIN matrix, so every state is offered — including
+ * UNREGISTERED / PENDING, which an ADMIN can never set. The picker closes
+ * optimistically on Apply; a rejected write surfaces in the row-level notice.
+ */
+function OverrideControl({
+  user,
+  pending,
+  onChange,
+}: {
+  user: LineUser
+  pending: boolean
+  onChange: (user: LineUser, access: AppAccess) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState<AppAccess>(user.access)
+  const name = user.displayName ?? LU.thisUser
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setValue(user.access)
+          setOpen(true)
+        }}
+        disabled={pending}
+        aria-label={LU.editAccessFor(name)}
+        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+      >
+        {LU.editAccess}
+      </button>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        aria-label={LU.overridePickerLabel(name)}
+        value={value}
+        onChange={(e) => setValue(e.target.value as AppAccess)}
+        disabled={pending}
+        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+      >
+        {ACCESS_OPTIONS.map((a) => (
+          <option key={a} value={a}>
+            {UI_STRINGS.access[a]}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={() => {
+          onChange(user, value)
+          setOpen(false)
+        }}
+        disabled={pending}
+        aria-label={LU.applyOverrideFor(name)}
+        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
+      >
+        {LU.applyOverride}
+      </button>
+      <button
+        type="button"
+        onClick={() => setOpen(false)}
+        disabled={pending}
+        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+      >
+        {UI_STRINGS.common.cancel}
+      </button>
     </div>
   )
 }

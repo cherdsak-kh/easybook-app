@@ -212,53 +212,69 @@ function OptionManager({ resource }: { resource: OptionResource }) {
                 <span className="min-w-0 flex-1 truncate font-medium text-slate-800 dark:text-slate-100">
                   {row.name}
                 </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActionError(null)
-                      setModal({ kind: 'rename', row })
-                    }}
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                {row.isSystemReserved ? (
+                  /*
+                   * A system-reserved row (only ever reaches a SUPER_ADMIN). The
+                   * backend answers 404 on PATCH/DELETE of it, so we render the
+                   * read-only badge INSTEAD of the Rename/Delete controls — a
+                   * visible-but-dead button would be a bug. The flag is display
+                   * only; there is no affordance to set or clear it.
+                   */
+                  <span
+                    title={UI.reservedHint}
+                    className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-500/15 dark:text-slate-300"
                   >
-                    {UI.rename}
-                  </button>
-                  {confirmingId === row.id ? (
-                    <span className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => remove(row)}
-                        disabled={busyId === row.id}
-                        className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-60"
-                      >
-                        {busyId === row.id ? (
-                          <Spinner label={UI.removing} />
-                        ) : (
-                          UI_STRINGS.common.confirm
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmingId(null)}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                      >
-                        {UI_STRINGS.common.cancel}
-                      </button>
-                    </span>
-                  ) : (
+                    {UI.reservedBadge}
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => {
                         setActionError(null)
-                        setConfirmingId(row.id)
+                        setModal({ kind: 'rename', row })
                       }}
-                      aria-label={UI.deleteRow(row.name)}
-                      className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
-                      {UI.delete}
+                      {UI.rename}
                     </button>
-                  )}
-                </div>
+                    {confirmingId === row.id ? (
+                      <span className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => remove(row)}
+                          disabled={busyId === row.id}
+                          className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-60"
+                        >
+                          {busyId === row.id ? (
+                            <Spinner label={UI.removing} />
+                          ) : (
+                            UI_STRINGS.common.confirm
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingId(null)}
+                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                          {UI_STRINGS.common.cancel}
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActionError(null)
+                          setConfirmingId(row.id)
+                        }}
+                        aria-label={UI.deleteRow(row.name)}
+                        className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
+                      >
+                        {UI.delete}
+                      </button>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
