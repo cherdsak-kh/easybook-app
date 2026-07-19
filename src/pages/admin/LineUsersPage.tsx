@@ -8,6 +8,7 @@ import {
   type PaginatedLineUsers,
 } from '@/lib/api-client'
 import { AccessBadge } from '@/components/admin/AccessBadge'
+import { LineUserRegistrationModal } from '@/components/admin/LineUserRegistrationModal'
 import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
 import { canAdminSetAccess } from '@/lib/access-policy'
@@ -32,14 +33,18 @@ function initialsOf(name: string | null): string {
 }
 
 /**
- * LINE Users management (design §5.3): a paginated list with a debounced
- * display-name search, an access filter, and a per-row Status/Actions split
- * (design Item 4). The Status cell is a badge only; the right-pinned Actions cell
- * holds role-gated access transitions that update the row in place (no full-page
- * reload). Both roles get the matrix-permitted quick actions; SUPER_ADMIN also
- * gets a full-state override picker on top. 401 bounces to login; a 403 (the client
- * gate drifting out of sync with the server, e.g. between load and click) and 404
- * surface as non-crashing notices — never a silent no-op, never a logout.
+ * LINE Users management: a paginated list with a debounced display-name search,
+ * an access filter, and a per-row **header / body / footer** card. The header
+ * carries identity + state as one unit (Avatar, display name, and the status badge
+ * inline top-left); the body is the registration details; the footer pins ALL the
+ * interactive controls bottom-right — role-gated access transitions plus, on a
+ * registered row, the registration Edit button — so status and actions never
+ * cluster. Both roles get the matrix-permitted quick actions and the Edit button;
+ * SUPER_ADMIN also gets a full-state access override picker on top. Row mutations
+ * (access change AND registration edit) patch the row in place, no full-page
+ * reload. 401 bounces to login; a 403 (the client gate drifting out of sync with
+ * the server, e.g. between load and click) and 404 surface as non-crashing notices
+ * — never a silent no-op, never a logout.
  */
 export function LineUsersPage() {
   const { user: currentUser, expireSession } = useAuth()
@@ -55,6 +60,8 @@ export function LineUsersPage() {
   const [error, setError] = useState<string | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [rowError, setRowError] = useState<string | null>(null)
+  /** The row whose registration is being edited (null = modal closed). */
+  const [editing, setEditing] = useState<LineUser | null>(null)
 
   const reqId = useRef(0)
 
@@ -113,6 +120,26 @@ export function LineUsersPage() {
     } finally {
       setPendingId(null)
     }
+  }
+
+  /** Patch an updated user into the loaded page in place — same optimistic
+   *  row-update the access change uses; no full-list re-fetch. */
+  function replaceRow(updated: LineUser) {
+    setResult((prev) =>
+      prev
+        ? { ...prev, data: prev.data.map((u) => (u.id === updated.id ? updated : u)) }
+        : prev,
+    )
+  }
+
+  function onRegistrationSaved(updated: LineUser) {
+    replaceRow(updated)
+    setEditing(null)
+  }
+
+  function onRegistrationRowGone() {
+    setRowError(UI_STRINGS.lineUsers.rowGone)
+    setEditing(null)
   }
 
   function onSearchChange(value: string) {
@@ -215,35 +242,45 @@ export function LineUsersPage() {
             {users.map((user) => (
               <li
                 key={user.id}
-                className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
+                className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
               >
-                <Avatar user={user} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-slate-900 dark:text-slate-100">
-                    {user.displayName ?? LU.unknownUser}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {LU.followedAt(formatFollowedAt(user.followedAt))}
-                  </p>
+                {/* Header: identity + state as ONE unit — Avatar, display name and
+                    the status badge inline top-left. The controls live in the
+                    footer, diagonally opposite, so status and actions never cluster. */}
+                <div className="flex items-start gap-3">
+                  <Avatar user={user} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-medium text-slate-900 dark:text-slate-100">
+                        {user.displayName ?? LU.unknownUser}
+                      </p>
+                      <span role="group" aria-label={LU.statusHeader} className="shrink-0">
+                        <AccessBadge access={user.access} />
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {LU.followedAt(formatFollowedAt(user.followedAt))}
+                    </p>
+                  </div>
                 </div>
-                {/* Status column: the badge only — no controls live here. */}
-                <div role="group" aria-label={LU.statusHeader}>
-                  <AccessBadge access={user.access} />
-                </div>
-                {/* Actions column: right-pinned, role-gated transitions. */}
+
+                {/* Body: the registration details. */}
+                <RegistrationDetails registration={user.registration} />
+
+                {/* Footer: ALL interactive controls, bottom-right. */}
                 <div
                   role="group"
                   aria-label={LU.actionsHeader}
-                  className="ml-auto flex items-center gap-2"
+                  className="mt-3 flex flex-wrap items-center justify-end gap-2"
                 >
                   <RowActions
                     user={user}
                     pending={pendingId === user.id}
                     isSuperAdmin={isSuperAdmin}
                     onChange={changeAccess}
+                    onEdit={setEditing}
                   />
                 </div>
-                <RegistrationDetails registration={user.registration} />
               </li>
             ))}
           </ul>
@@ -277,6 +314,19 @@ export function LineUsersPage() {
           </div>
         </nav>
       )}
+
+      {/* Registration edit modal. Rendered only for a row that has a registration;
+          the Edit affordance that opens it is likewise hidden without one. 409/400
+          surface inline in the modal, 404 becomes a row notice, 401 logs out. */}
+      {editing && editing.registration && (
+        <LineUserRegistrationModal
+          user={editing}
+          onClose={() => setEditing(null)}
+          onSaved={onRegistrationSaved}
+          onSessionExpired={expireSession}
+          onRowGone={onRegistrationRowGone}
+        />
+      )}
     </section>
   )
 }
@@ -293,7 +343,7 @@ export function LineUsersPage() {
 function RegistrationDetails({ registration }: { registration: LineUser['registration'] }) {
   if (!registration) {
     return (
-      <p className="w-full border-t border-slate-100 pt-2 text-xs italic text-slate-400 dark:border-slate-800 dark:text-slate-500">
+      <p className="mt-3 w-full border-t border-slate-100 pt-2 text-xs italic text-slate-400 dark:border-slate-800 dark:text-slate-500">
         {UI_STRINGS.lineUsers.registration.none}
       </p>
     )
@@ -301,7 +351,7 @@ function RegistrationDetails({ registration }: { registration: LineUser['registr
   const { firstName, lastName, staffId, phone, personnelRole, department } = registration
   const reg = UI_STRINGS.lineUsers.registration
   return (
-    <dl className="grid w-full grid-cols-2 gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2 text-xs sm:grid-cols-3 dark:border-slate-800">
+    <dl className="mt-3 grid w-full grid-cols-2 gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2 text-xs sm:grid-cols-3 dark:border-slate-800">
       <Detail
         label={reg.realName}
         value={`${firstName} ${lastName}`.trim() || UI_STRINGS.lineUsers.emptyValue}
@@ -349,30 +399,66 @@ function Avatar({ user }: { user: LineUser }) {
 }
 
 /**
- * The role-gated Actions cell. BOTH roles get the same matrix-permitted quick
- * actions (one shared `QuickActions`, so the two paths can never drift);
- * SUPER_ADMIN gets the full-state override picker **in addition**. The difference
- * between the roles is therefore purely additive — SUPER_ADMIN = ADMIN's quick
- * actions + the override on top. The pending spinner sits alongside. Rendered as a
- * fragment: the row already wraps this in the right-pinned group.
+ * The role-gated footer controls. BOTH roles get the same matrix-permitted quick
+ * actions (one shared `QuickActions`, so the two paths can never drift) and — on a
+ * row that HAS a registration — the same registration Edit button; SUPER_ADMIN
+ * gets the full-state access override picker **in addition**. The difference
+ * between the roles is therefore purely additive — SUPER_ADMIN = ADMIN's controls
+ * + the override on top. Order matches the design's footer enumeration
+ * (Approve/Block → Edit → override). The pending spinner sits alongside. Rendered
+ * as a fragment: the row wraps this in the bottom-right footer group.
  */
 function RowActions({
   user,
   pending,
   isSuperAdmin,
   onChange,
+  onEdit,
 }: {
   user: LineUser
   pending: boolean
   isSuperAdmin: boolean
   onChange: (user: LineUser, access: AppAccess) => void
+  onEdit: (user: LineUser) => void
 }) {
   return (
     <>
       {pending && <Spinner label={LU.updating} className="text-slate-400" />}
       <QuickActions user={user} pending={pending} onChange={onChange} />
+      {/* Edit is hidden when there is no registration to edit (UNREGISTERED /
+          followers who never submitted the form) — the backend would 404. */}
+      {user.registration && <EditRegistrationButton user={user} pending={pending} onEdit={onEdit} />}
       {isSuperAdmin && <OverrideControl user={user} pending={pending} onChange={onChange} />}
     </>
+  )
+}
+
+/**
+ * Opens the registration-edit modal for a row that has a registration. Its
+ * accessible name is "Edit registration for {name}", distinct from the SUPER_ADMIN
+ * access override's "Edit access for {name}" so assistive tech never confuses the
+ * two even though both read "Edit" on screen.
+ */
+function EditRegistrationButton({
+  user,
+  pending,
+  onEdit,
+}: {
+  user: LineUser
+  pending: boolean
+  onEdit: (user: LineUser) => void
+}) {
+  const name = user.displayName ?? LU.thisUser
+  return (
+    <button
+      type="button"
+      onClick={() => onEdit(user)}
+      disabled={pending}
+      aria-label={LU.edit.actionFor(name)}
+      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+    >
+      {LU.edit.action}
+    </button>
   )
 }
 

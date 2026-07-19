@@ -164,6 +164,26 @@ export interface paths {
         patch: operations["LineUsersController_updateAccess"];
         trace?: never;
     };
+    "/api/v1/line-users/{id}/registration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit a LINE user's registration fields (admin).
+         * @description Full re-submit of firstName, lastName, staffId, phone, departmentId, personnelRoleId. Does NOT change `access` or the rich menu — it is orthogonal to the approve/block transition matrix. Both ADMIN and SUPER_ADMIN may edit. A system-reserved or soft-deleted option id is rejected for every actor (400). For ADMIN a soft-deleted user is 404; SUPER_ADMIN may edit one, with no LINE side-effect.
+         */
+        patch: operations["LineUsersController_updateRegistrationByAdmin"];
+        trace?: never;
+    };
     "/api/v1/auth/system/csrf": {
         parameters: {
             query?: never;
@@ -648,10 +668,20 @@ export interface components {
             /** @example 081-234-5678 */
             phone: string;
             /**
+             * @description Department option FK id.
+             * @example 1
+             */
+            departmentId: number;
+            /**
              * @description Resolved department name.
              * @example Computer Science
              */
             department: string;
+            /**
+             * @description Personnel-role option FK id.
+             * @example 1
+             */
+            personnelRoleId: number;
             /**
              * @description Resolved personnel-role name.
              * @example Teacher
@@ -713,6 +743,29 @@ export interface components {
              * @enum {string}
              */
             access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
+        };
+        AdminUpdateLineUserRegistrationDto: {
+            /** @example Somchai */
+            firstName: string;
+            /** @example Jaidee */
+            lastName: string;
+            /**
+             * @description University staff/personnel ID. Globally unique.
+             * @example 6412345678
+             */
+            staffId: string;
+            /** @example 081-234-5678 */
+            phone: string;
+            /**
+             * @description Integer id of a non-deleted Department option (from GET /line-users/registration/options).
+             * @example 1
+             */
+            departmentId: number;
+            /**
+             * @description Integer id of a non-deleted PersonnelRole option (from GET /line-users/registration/options).
+             * @example 1
+             */
+            personnelRoleId: number;
         };
         CsrfTokenResponseDto: {
             /**
@@ -1319,6 +1372,88 @@ export interface operations {
             };
             /** @description Unknown id (both roles); a soft-deleted id is 404 for ADMIN but targetable by SUPER_ADMIN. Reveals nothing about deletion. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineUsersController_updateRegistrationByAdmin: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUpdateLineUserRegistrationDto"];
+            };
+        };
+        responses: {
+            /** @description Updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserResponseDto"];
+                };
+            };
+            /** @description Malformed/blank field, bad phone, an extra key (including `lineUserId`), or a deleted/unknown/system-reserved option id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description STAFF, or a CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown id (both roles); a soft-deleted id for ADMIN; or the user exists but has no registration to edit. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The `staffId` is taken by another registration (P2002). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

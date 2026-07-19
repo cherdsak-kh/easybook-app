@@ -146,6 +146,13 @@ export type CreateLineUserRegistration =
   components['schemas']['CreateLineUserRegistrationDto']
 export type UpdateLineUserRegistration =
   components['schemas']['UpdateLineUserRegistrationDto']
+/**
+ * The admin registration-edit body: the six editable fields with `departmentId` /
+ * `personnelRoleId` as integer ids. `lineUserId` is absent by construction (the
+ * backend 400s any attempt to send it), so it can never be edited from here.
+ */
+export type AdminUpdateLineUserRegistration =
+  components['schemas']['AdminUpdateLineUserRegistrationDto']
 
 /** Dynamic registration option lists (admin-curated Departments / PersonnelRoles). */
 export type RegistrationOptions = components['schemas']['RegistrationOptionsResponseDto']
@@ -361,6 +368,33 @@ export async function patchLineUserAccess(
     api.PATCH('/api/v1/line-users/{id}', {
       params: { path: { id }, header: { 'x-csrf-token': '' } },
       body: { access },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * Admin edit of a LINE user's registration (`PATCH /line-users/:id/registration`).
+ *
+ * A DIFFERENT route from `patchLineUserAccess` (`PATCH /line-users/:id`): this
+ * writes the six self-submitted registration fields and has NO access/rich-menu
+ * side effect (so there is no 502 path here). Cookie session + CSRF like the other
+ * admin mutations. The backend stays the authority: a staffId taken by another
+ * registration → **409** (`STAFF_ID_TAKEN`); a blank/invalid field or a
+ * deleted/unknown/**system-reserved** option id → **400**; a user with no
+ * registration row, or an unknown/soft-deleted id → **404**; only **401** means
+ * the session died. On success it returns the updated `LineUserResponseDto` so the
+ * caller can patch the row in place, exactly like `patchLineUserAccess`.
+ */
+export async function patchLineUserRegistration(
+  id: string,
+  body: AdminUpdateLineUserRegistration,
+): Promise<LineUser> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.PATCH('/api/v1/line-users/{id}/registration', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+      body,
     }),
   )
   if (!data) throw new ApiError(response.status, messageFrom(error, response))

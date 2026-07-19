@@ -230,6 +230,71 @@ export const UI_STRINGS = {
       role: 'Role',
       department: 'Department',
     },
+
+    /**
+     * The admin registration-edit modal (`LineUserRegistrationModal`), opened by
+     * the footer's Edit button — but ONLY on a row that HAS a registration (it is
+     * hidden when `registration == null`: an UNREGISTERED follower has nothing to
+     * edit and the backend would 404). The four field labels it shares with the
+     * read-only `registration` block above (staffId / phone / department / role)
+     * are reused from there so a re-word stays consistent within this surface;
+     * only the first/last-name labels, placeholders, modal chrome, validation and
+     * error copy are new here.
+     */
+    edit: {
+      /**
+       * Visible label + per-user accessible name for the footer's Edit affordance.
+       * Distinct from the SUPER_ADMIN access override's `editAccessFor` above (that
+       * edits ACCESS; this edits the registration DETAILS), so assistive tech tells
+       * the two apart even though both read "Edit" on screen.
+       */
+      action: 'Edit',
+      actionFor: (name: string) => `Edit registration for ${name}`,
+
+      title: 'Edit registration',
+      intro: "Correct this person's submitted registration details.",
+
+      firstName: 'First name',
+      lastName: 'Last name',
+      departmentPlaceholder: 'Select a department',
+      rolePlaceholder: 'Select a role',
+
+      /** The dynamic option lists (`listDepartments` / `listPersonnelRoles`). */
+      optionsLoading: 'Loading departments and roles…',
+      optionsFailed: 'Could not load departments and roles. Please try again.',
+      /** A soft-deleted option the registration still points at: shown disabled. */
+      removedOption: (name: string) => `${name} (removed)`,
+
+      /**
+       * Client validation, mirroring the backend (and the client RegistrationForm).
+       * `count` comes from `RegistrationForm`'s exported `ID_COUNT` / `PHONE_COUNT`
+       * at the call site, so the rule and the message cannot drift apart.
+       */
+      firstNameRequired: 'Please enter a first name.',
+      firstNameNoDigits: 'A first name cannot contain digits.',
+      lastNameRequired: 'Please enter a last name.',
+      lastNameNoDigits: 'A last name cannot contain digits.',
+      staffIdRequired: 'Please enter a staff ID.',
+      staffIdDigitsOnly: 'The staff ID must contain digits only.',
+      staffIdLength: (count: number) => `The staff ID must be exactly ${count} digits.`,
+      phoneRequired: 'Please enter a phone number.',
+      phoneDigitsOnly: 'The phone number must contain digits only.',
+      phoneLength: (count: number) => `The phone number must be exactly ${count} digits.`,
+      departmentRequired: 'Please choose a department.',
+      departmentRemoved: 'That department was removed. Please choose an active one.',
+      roleRequired: 'Please choose a role.',
+      roleRemoved: 'That role was removed. Please choose an active one.',
+
+      /**
+       * Backend errors surfaced INLINE in the modal (never a logout): 409 for a
+       * taken staffId, 400 for validation / a reserved-or-invalid option. A 404
+       * (row gone / no registration) closes the modal into the page's row notice;
+       * only 401 ends the session.
+       */
+      staffIdTaken: 'That staff ID is already in use.',
+      invalid: 'Please check the highlighted fields and try again.',
+      saveFailed: 'Could not save the registration. Please try again.',
+    },
   },
 
   // ------------------------------------------------------------------ Options
