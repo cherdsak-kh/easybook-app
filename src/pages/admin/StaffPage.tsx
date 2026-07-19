@@ -151,16 +151,16 @@ export function StaffPage() {
     <section aria-labelledby="staff-heading" className="mx-auto w-full max-w-4xl">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h1 id="staff-heading" className="text-xl font-bold text-slate-900 dark:text-slate-100">
+          <h1 id="staff-heading" className="text-xl font-bold text-base-content">
             {UI.heading}
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{UI.subheading}</p>
+          <p className="text-sm text-base-content/60">{UI.subheading}</p>
         </div>
         {isSuperAdmin && (
           <button
             type="button"
             onClick={() => setModal({ kind: 'create' })}
-            className="shrink-0 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            className="btn btn-primary btn-sm shrink-0 focus-visible:ring-2 focus-visible:ring-primary"
           >
             {UI.addStaff}
           </button>
@@ -168,28 +168,22 @@ export function StaffPage() {
       </div>
 
       {actionError && (
-        <p
-          role="alert"
-          className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-        >
+        <div role="alert" className="alert alert-error alert-soft mb-3 text-sm">
           {actionError}
-        </p>
+        </div>
       )}
 
       <div className="min-h-[16rem]">
         {loading && <ListSkeleton />}
 
         {!loading && error && (
-          <div
-            role="alert"
-            className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400"
-          >
+          <div role="alert" className="alert alert-error alert-soft justify-center p-6 text-center">
             {error}
           </div>
         )}
 
         {!loading && !error && users.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
+          <div className="rounded-xl border border-dashed border-base-300 p-10 text-center text-base-content/60">
             {UI.empty}
           </div>
         )}
@@ -206,7 +200,7 @@ export function StaffPage() {
               return (
                 <li
                   key={user.id}
-                  className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
+                  className="flex flex-wrap items-center gap-3 rounded-xl border border-base-300 bg-base-100 p-3"
                 >
                   {/* No `alt`: decorative — the row names this person on the
                       very next line. `profilePictureUrl` already rides along on
@@ -219,29 +213,29 @@ export function StaffPage() {
                   />
 
                   <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
+                    <p className="flex items-center gap-2 font-medium text-base-content">
                       <span className="truncate">
                         {user.firstName} {user.lastName}
                       </span>
                       {!user.isActive && (
-                        <span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                        <span className="badge badge-ghost badge-sm font-normal">
                           {UI.inactiveBadge}
                         </span>
                       )}
                       {user.mustChangePassword && (
-                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+                        <span className="badge badge-sm border-none font-normal bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
                           {UI.passwordNotSetBadge}
                         </span>
                       )}
                     </p>
                     {/* The resolved `{id,name}` embeds — a soft-deleted option
                         still resolves its name here, forever (AC-F2). */}
-                    <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                    <p className="truncate text-xs text-base-content/60">
                       {user.email} · {user.personnelRole.name}, {user.department.name}
                     </p>
                   </div>
 
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  <span className="badge badge-ghost badge-sm font-medium">
                     {UI_STRINGS.roles[user.role]}
                   </span>
 
@@ -249,7 +243,7 @@ export function StaffPage() {
                     <button
                       type="button"
                       onClick={() => setModal({ kind: 'edit', user })}
-                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                      className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
                     >
                       {UI.edit}
                     </button>
@@ -261,7 +255,7 @@ export function StaffPage() {
                             type="button"
                             onClick={() => resetPassword(user)}
                             disabled={busyId === user.id}
-                            className="inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 disabled:opacity-60"
+                            className="btn btn-warning btn-sm focus-visible:ring-2 focus-visible:ring-warning"
                           >
                             {busyId === user.id ? (
                               <Spinner label={UI.resetting} />
@@ -272,7 +266,7 @@ export function StaffPage() {
                           <button
                             type="button"
                             onClick={() => setResettingId(null)}
-                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                            className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
                           >
                             {UI_STRINGS.common.cancel}
                           </button>
@@ -286,7 +280,7 @@ export function StaffPage() {
                             setResettingId(user.id)
                           }}
                           aria-label={UI.resetPasswordFor(`${user.firstName} ${user.lastName}`)}
-                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                          className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
                         >
                           {UI.resetPassword}
                         </button>
@@ -299,7 +293,7 @@ export function StaffPage() {
                             type="button"
                             onClick={() => deactivate(user)}
                             disabled={busyId === user.id}
-                            className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-60"
+                            className="btn btn-error btn-sm focus-visible:ring-2 focus-visible:ring-error"
                           >
                             {busyId === user.id ? (
                               <Spinner label={UI.deactivating} />
@@ -310,7 +304,7 @@ export function StaffPage() {
                           <button
                             type="button"
                             onClick={() => setConfirmingId(null)}
-                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                            className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
                           >
                             {UI_STRINGS.common.cancel}
                           </button>
@@ -323,7 +317,7 @@ export function StaffPage() {
                             setConfirmingId(user.id)
                           }}
                           aria-label={UI.deactivateUser(`${user.firstName} ${user.lastName}`)}
-                          className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
+                          className="btn btn-outline btn-error btn-sm focus-visible:ring-2 focus-visible:ring-error"
                         >
                           {UI.deactivate}
                         </button>
@@ -350,15 +344,15 @@ export function StaffPage() {
       {meta && totalPages > 0 && (
         <nav
           aria-label={UI.pagination.label}
-          className="mt-4 flex items-center justify-between text-sm text-slate-600 dark:text-slate-300"
+          className="mt-4 flex items-center justify-between text-sm text-base-content/70"
         >
           <span>{UI.pagination.summary(meta.page, totalPages, meta.total)}</span>
-          <div className="flex gap-2">
+          <div className="join">
             <button
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1 || loading}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+              className="btn btn-outline btn-sm join-item focus-visible:ring-2 focus-visible:ring-primary"
             >
               {UI.pagination.previous}
             </button>
@@ -366,7 +360,7 @@ export function StaffPage() {
               type="button"
               onClick={() => setPage((p) => p + 1)}
               disabled={page >= totalPages || loading}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+              className="btn btn-outline btn-sm join-item focus-visible:ring-2 focus-visible:ring-primary"
             >
               {UI.pagination.next}
             </button>
@@ -402,16 +396,16 @@ function ListSkeleton() {
       {Array.from({ length: 6 }).map((_, i) => (
         <li
           key={i}
-          className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
+          className="flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 p-3"
         >
           {/* Same h-10 w-10 as the real row's Avatar, so the list does not jump
               sideways when the data lands. */}
-          <span className="h-10 w-10 shrink-0 rounded-full bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
+          <span className="h-10 w-10 shrink-0 rounded-full bg-base-300 motion-safe:animate-pulse" />
           <div className="flex-1 space-y-2">
-            <span className="block h-4 w-40 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
-            <span className="block h-3 w-56 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
+            <span className="block h-4 w-40 rounded bg-base-300 motion-safe:animate-pulse" />
+            <span className="block h-3 w-56 rounded bg-base-300 motion-safe:animate-pulse" />
           </div>
-          <span className="h-6 w-20 rounded-full bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
+          <span className="h-6 w-20 rounded-full bg-base-300 motion-safe:animate-pulse" />
         </li>
       ))}
     </ul>

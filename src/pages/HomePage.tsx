@@ -487,7 +487,7 @@ function SplashScreen({ entered, inClient }: { entered: boolean; inClient: boole
     <div
       role="status"
       aria-label={UI.splash.loading}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-50 dark:bg-slate-900"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-base-100"
     >
       <img
         src={inClient ? LOGO_MARK : LOGO_WORDMARK}
@@ -505,18 +505,18 @@ function SplashScreen({ entered, inClient }: { entered: boolean; inClient: boole
 /** ALLOWED landing: the greeting (unchanged behaviour). */
 function HelloScreen({ profile }: { profile: LiffProfile | null }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 text-center dark:bg-slate-900">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-base-200 px-4 text-center">
       {profile?.pictureUrl && (
         <img
           src={profile.pictureUrl}
           alt=""
-          className="mb-4 h-20 w-20 rounded-full object-cover shadow-sm ring-2 ring-white dark:ring-slate-800"
+          className="mb-4 h-20 w-20 rounded-full object-cover shadow-sm ring-2 ring-base-100"
         />
       )}
-      <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+      <h1 className="text-3xl font-bold text-base-content">
         {UI.hello.greeting(profile?.displayName ?? UI.hello.fallbackName)}
       </h1>
-      <p className="mt-3 text-slate-500 dark:text-slate-400">{UI.hello.welcome}</p>
+      <p className="mt-3 text-base-content/60">{UI.hello.welcome}</p>
     </main>
   )
 }
@@ -544,7 +544,7 @@ function PendingScreen({
       action={
         <>
           {registration && (
-            <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-left text-sm dark:border-slate-800">
+            <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-base-300 pt-4 text-left text-sm">
               <SummaryItem
                 label={UI.pending.summary.fullName}
                 value={`${registration.firstName} ${registration.lastName}`.trim()}
@@ -561,7 +561,7 @@ function PendingScreen({
           <button
             type="button"
             onClick={onEdit}
-            className="mt-6 inline-flex w-full items-center justify-center rounded-xl border border-amber-300 px-5 py-2.5 font-semibold text-amber-800 transition-colors hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10 dark:focus-visible:ring-offset-slate-900"
+            className="mt-6 inline-flex w-full items-center justify-center rounded-xl border border-amber-300 px-5 py-2.5 font-semibold text-amber-800 transition-colors hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-base-100 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
           >
             {UI.pending.edit}
           </button>
@@ -575,10 +575,10 @@ function PendingScreen({
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[0.7rem] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+      <dt className="text-[0.7rem] font-medium uppercase tracking-wide text-base-content/50">
         {label}
       </dt>
-      <dd className="truncate text-slate-700 dark:text-slate-200" title={value}>
+      <dd className="truncate text-base-content/80" title={value}>
         {value || UI.pending.summary.emptyValue}
       </dd>
     </div>
@@ -604,7 +604,7 @@ function GateErrorScreen({ onRetry }: { onRetry: () => void }) {
         <button
           type="button"
           onClick={onRetry}
-          className="mt-6 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+          className="btn btn-primary mt-6 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
         >
           {UI.common.tryAgain}
         </button>
@@ -624,25 +624,25 @@ function AddFriendScreen({
   hint: string | null
 }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8 dark:bg-slate-950">
+    <main className="flex min-h-screen items-center justify-center bg-base-200 px-4 py-8">
       <div className="w-full max-w-sm">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-            {UI.addFriend.heading}
-          </h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{UI.addFriend.intro}</p>
+        <div className="rounded-2xl border border-base-300 bg-base-100 p-6 text-center shadow-sm sm:p-8">
+          <h1 className="text-xl font-bold text-base-content">{UI.addFriend.heading}</h1>
+          <p className="mt-2 text-sm text-base-content/60">{UI.addFriend.intro}</p>
 
           <div className="mt-6 flex justify-center">
+            {/* The QR keeps a literal white background in BOTH modes: a code on a
+                dark surface will not scan. */}
             <img
               src={OA_QR_IMAGE}
               alt={UI.addFriend.qrAlt}
               width={192}
               height={192}
-              className="h-48 w-48 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-700"
+              className="h-48 w-48 rounded-xl border border-base-300 bg-white p-2"
             />
           </div>
 
-          <ol className="mt-6 space-y-1 text-left text-sm text-slate-600 dark:text-slate-300">
+          <ol className="mt-6 space-y-1 text-left text-sm text-base-content/70">
             {UI.addFriend.steps.map((step) => (
               <li key={step}>{step}</li>
             ))}
@@ -658,7 +658,7 @@ function AddFriendScreen({
             type="button"
             onClick={onRecheck}
             disabled={rechecking}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60 dark:focus-visible:ring-offset-slate-900"
+            className="btn btn-primary mt-6 w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
           >
             {rechecking ? UI.addFriend.rechecking : UI.addFriend.recheck}
           </button>
@@ -708,11 +708,11 @@ function StatusCard({
       ? 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400'
       : 'bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400'
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+    <main className="flex min-h-screen items-center justify-center bg-base-200 px-4">
       <div className="w-full max-w-sm text-center">
         <div
           {...(alert ? { role: 'alert', 'aria-label': title } : {})}
-          className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          className="rounded-2xl border border-base-300 bg-base-100 p-8 shadow-sm"
         >
           <span
             aria-hidden
@@ -720,8 +720,8 @@ function StatusCard({
           >
             {icon === 'clock' ? <ClockIcon /> : <BanIcon />}
           </span>
-          <h1 className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-100">{title}</h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{body}</p>
+          <h1 className="mt-4 text-xl font-bold text-base-content">{title}</h1>
+          <p className="mt-2 text-sm text-base-content/60">{body}</p>
           {action}
         </div>
       </div>
@@ -732,25 +732,25 @@ function StatusCard({
 /** Styled "Log in with LINE" card shown to signed-out web visitors. */
 function LineLoginScreen({ onLogin }: { onLogin: () => void }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+    <main className="flex min-h-screen items-center justify-center bg-base-200 px-4">
       <div className="w-full max-w-sm">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-2xl border border-base-300 bg-base-100 p-8 text-center shadow-sm">
           <img
             src={LOGO_MARK}
             alt={UI.lineLogin.logoAlt}
             className="mx-auto h-14 w-auto max-w-[70%]"
           />
-          <h1 className="mt-6 text-xl font-bold text-slate-900 dark:text-slate-100">
-            {UI.lineLogin.heading}
-          </h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            {UI.lineLogin.subheading}
-          </p>
+          <h1 className="mt-6 text-xl font-bold text-base-content">{UI.lineLogin.heading}</h1>
+          <p className="mt-2 text-sm text-base-content/60">{UI.lineLogin.subheading}</p>
 
+          {/* The client theme's `primary` IS LINE-green (#06C755), so `btn-primary`
+              reproduces LINE's sanctioned white-on-green login button — the raw
+              hex literal is retired. This is the documented brand exception
+              (white-on-green ~2.26:1); confined to this primary LIFF CTA. */}
           <button
             type="button"
             onClick={onLogin}
-            className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#06C755] px-4 py-3 font-semibold text-white transition-colors hover:bg-[#05b34c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#06C755] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+            className="btn btn-primary mt-6 w-full gap-2.5 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
           >
             <LineGlyph className="h-5 w-5" />
             {UI.lineLogin.submit}

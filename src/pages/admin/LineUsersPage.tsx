@@ -159,21 +159,16 @@ export function LineUsersPage() {
   return (
     <section aria-labelledby="line-users-heading" className="mx-auto w-full max-w-4xl">
       <div className="mb-4">
-        <h1 id="line-users-heading" className="text-xl font-bold text-slate-900 dark:text-slate-100">
+        <h1 id="line-users-heading" className="text-xl font-bold text-base-content">
           {UI_STRINGS.lineUsers.heading}
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          {UI_STRINGS.lineUsers.subheading}
-        </p>
+        <p className="text-sm text-base-content/60">{UI_STRINGS.lineUsers.subheading}</p>
       </div>
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1">
-          <label
-            htmlFor="line-user-search"
-            className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-          >
+          <label htmlFor="line-user-search" className="mb-1 block text-sm font-medium">
             {UI_STRINGS.lineUsers.searchLabel}
           </label>
           <input
@@ -182,14 +177,11 @@ export function LineUsersPage() {
             value={searchInput}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={UI_STRINGS.lineUsers.searchPlaceholder}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary"
           />
         </div>
         <div>
-          <label
-            htmlFor="line-user-access-filter"
-            className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-          >
+          <label htmlFor="line-user-access-filter" className="mb-1 block text-sm font-medium">
             {UI_STRINGS.lineUsers.accessLabel}
           </label>
           <select
@@ -197,7 +189,7 @@ export function LineUsersPage() {
             aria-label={UI_STRINGS.lineUsers.accessFilterLabel}
             value={accessFilter}
             onChange={(e) => onFilterChange(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:w-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="select select-bordered w-full focus-visible:ring-2 focus-visible:ring-primary sm:w-40"
           >
             <option value="">{UI_STRINGS.lineUsers.accessFilterAll}</option>
             {ACCESS_OPTIONS.map((a) => (
@@ -210,12 +202,9 @@ export function LineUsersPage() {
       </div>
 
       {rowError && (
-        <p
-          role="alert"
-          className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-        >
+        <div role="alert" className="alert alert-error alert-soft mb-3 text-sm">
           {rowError}
-        </p>
+        </div>
       )}
 
       {/* Body: reserve height so state swaps don't shift layout. */}
@@ -223,16 +212,13 @@ export function LineUsersPage() {
         {loading && <ListSkeleton />}
 
         {!loading && error && (
-          <div
-            role="alert"
-            className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400"
-          >
+          <div role="alert" className="alert alert-error alert-soft justify-center p-6 text-center">
             {error}
           </div>
         )}
 
         {!loading && !error && users.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
+          <div className="rounded-xl border border-dashed border-base-300 p-10 text-center text-base-content/60">
             {UI_STRINGS.lineUsers.empty}
           </div>
         )}
@@ -240,10 +226,7 @@ export function LineUsersPage() {
         {!loading && !error && users.length > 0 && (
           <ul className="space-y-2">
             {users.map((user) => (
-              <li
-                key={user.id}
-                className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
-              >
+              <li key={user.id} className="rounded-xl border border-base-300 bg-base-100 p-3">
                 {/* Header: identity + state as ONE unit — Avatar, display name and
                     the status badge inline top-left. The controls live in the
                     footer, diagonally opposite, so status and actions never cluster. */}
@@ -251,14 +234,14 @@ export function LineUsersPage() {
                   <Avatar user={user} />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate font-medium text-slate-900 dark:text-slate-100">
+                      <p className="truncate font-medium text-base-content">
                         {user.displayName ?? LU.unknownUser}
                       </p>
                       <span role="group" aria-label={LU.statusHeader} className="shrink-0">
                         <AccessBadge access={user.access} />
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-xs text-base-content/60">
                       {LU.followedAt(formatFollowedAt(user.followedAt))}
                     </p>
                   </div>
@@ -291,15 +274,15 @@ export function LineUsersPage() {
       {meta && totalPages > 0 && (
         <nav
           aria-label={UI_STRINGS.lineUsers.pagination.label}
-          className="mt-4 flex items-center justify-between text-sm text-slate-600 dark:text-slate-300"
+          className="mt-4 flex items-center justify-between text-sm text-base-content/70"
         >
           <span>{UI_STRINGS.lineUsers.pagination.summary(meta.page, totalPages, meta.total)}</span>
-          <div className="flex gap-2">
+          <div className="join">
             <button
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1 || loading}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+              className="btn btn-outline btn-sm join-item focus-visible:ring-2 focus-visible:ring-primary"
             >
               {UI_STRINGS.lineUsers.pagination.previous}
             </button>
@@ -307,7 +290,7 @@ export function LineUsersPage() {
               type="button"
               onClick={() => setPage((p) => p + 1)}
               disabled={page >= totalPages || loading}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+              className="btn btn-outline btn-sm join-item focus-visible:ring-2 focus-visible:ring-primary"
             >
               {UI_STRINGS.lineUsers.pagination.next}
             </button>
@@ -343,7 +326,7 @@ export function LineUsersPage() {
 function RegistrationDetails({ registration }: { registration: LineUser['registration'] }) {
   if (!registration) {
     return (
-      <p className="mt-3 w-full border-t border-slate-100 pt-2 text-xs italic text-slate-400 dark:border-slate-800 dark:text-slate-500">
+      <p className="mt-3 w-full border-t border-base-300 pt-2 text-xs italic text-base-content/50">
         {UI_STRINGS.lineUsers.registration.none}
       </p>
     )
@@ -351,7 +334,7 @@ function RegistrationDetails({ registration }: { registration: LineUser['registr
   const { firstName, lastName, staffId, phone, personnelRole, department } = registration
   const reg = UI_STRINGS.lineUsers.registration
   return (
-    <dl className="mt-3 grid w-full grid-cols-2 gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2 text-xs sm:grid-cols-3 dark:border-slate-800">
+    <dl className="mt-3 grid w-full grid-cols-2 gap-x-4 gap-y-1.5 border-t border-base-300 pt-2 text-xs sm:grid-cols-3">
       <Detail
         label={reg.realName}
         value={`${firstName} ${lastName}`.trim() || UI_STRINGS.lineUsers.emptyValue}
@@ -367,10 +350,10 @@ function RegistrationDetails({ registration }: { registration: LineUser['registr
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[0.7rem] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+      <dt className="text-[0.7rem] font-medium uppercase tracking-wide text-base-content/50">
         {label}
       </dt>
-      <dd className="truncate text-slate-700 dark:text-slate-200" title={value}>
+      <dd className="truncate text-base-content/80" title={value}>
         {value || UI_STRINGS.lineUsers.emptyValue}
       </dd>
     </div>
@@ -391,7 +374,7 @@ function Avatar({ user }: { user: LineUser }) {
   return (
     <span
       aria-hidden
-      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-200"
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-base-300 text-sm font-semibold text-base-content/70"
     >
       {initialsOf(user.displayName)}
     </span>
@@ -423,7 +406,7 @@ function RowActions({
 }) {
   return (
     <>
-      {pending && <Spinner label={LU.updating} className="text-slate-400" />}
+      {pending && <Spinner label={LU.updating} className="text-base-content/50" />}
       <QuickActions user={user} pending={pending} onChange={onChange} />
       {/* Edit is hidden when there is no registration to edit (UNREGISTERED /
           followers who never submitted the form) — the backend would 404. */}
@@ -455,7 +438,7 @@ function EditRegistrationButton({
       onClick={() => onEdit(user)}
       disabled={pending}
       aria-label={LU.edit.actionFor(name)}
-      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+      className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
     >
       {LU.edit.action}
     </button>
@@ -492,7 +475,7 @@ function QuickActions({
           onClick={() => onChange(user, 'ALLOWED')}
           disabled={pending}
           aria-label={reinstating ? LU.reinstateUser(name) : LU.approveUser(name)}
-          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
+          className="btn btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-primary"
         >
           {reinstating ? LU.reinstate : LU.approve}
         </button>
@@ -503,7 +486,7 @@ function QuickActions({
           onClick={() => onChange(user, 'BLOCKED')}
           disabled={pending}
           aria-label={LU.blockUser(name)}
-          className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
+          className="btn btn-outline btn-error btn-sm focus-visible:ring-2 focus-visible:ring-error"
         >
           {LU.block}
         </button>
@@ -542,7 +525,7 @@ function OverrideControl({
         }}
         disabled={pending}
         aria-label={LU.editAccessFor(name)}
-        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
       >
         {LU.editAccess}
       </button>
@@ -556,7 +539,7 @@ function OverrideControl({
         value={value}
         onChange={(e) => setValue(e.target.value as AppAccess)}
         disabled={pending}
-        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+        className="select select-bordered select-sm focus-visible:ring-2 focus-visible:ring-primary"
       >
         {ACCESS_OPTIONS.map((a) => (
           <option key={a} value={a}>
@@ -572,7 +555,7 @@ function OverrideControl({
         }}
         disabled={pending}
         aria-label={LU.applyOverrideFor(name)}
-        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50"
+        className="btn btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-primary"
       >
         {LU.applyOverride}
       </button>
@@ -580,7 +563,7 @@ function OverrideControl({
         type="button"
         onClick={() => setOpen(false)}
         disabled={pending}
-        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
       >
         {UI_STRINGS.common.cancel}
       </button>
@@ -594,14 +577,14 @@ function ListSkeleton() {
       {Array.from({ length: 6 }).map((_, i) => (
         <li
           key={i}
-          className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
+          className="flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 p-3"
         >
-          <span className="h-10 w-10 shrink-0 rounded-full bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
+          <span className="h-10 w-10 shrink-0 rounded-full bg-base-300 motion-safe:animate-pulse" />
           <div className="flex-1 space-y-2">
-            <span className="block h-4 w-40 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
-            <span className="block h-3 w-24 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
+            <span className="block h-4 w-40 rounded bg-base-300 motion-safe:animate-pulse" />
+            <span className="block h-3 w-24 rounded bg-base-300 motion-safe:animate-pulse" />
           </div>
-          <span className="h-6 w-16 rounded-full bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
+          <span className="h-6 w-16 rounded-full bg-base-300 motion-safe:animate-pulse" />
         </li>
       ))}
     </ul>

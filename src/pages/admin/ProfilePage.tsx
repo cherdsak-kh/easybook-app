@@ -194,13 +194,13 @@ export function ProfilePage() {
         </h1>
         <div
           role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 p-6 text-center text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400"
+          className="rounded-xl border border-error/30 bg-error/10 p-6 text-center text-error"
         >
           <p>{UI.loadFailed}</p>
           <button
             type="button"
             onClick={load}
-            className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            className="btn btn-primary btn-sm mt-4 focus-visible:ring-2 focus-visible:ring-primary"
           >
             {UI_STRINGS.common.tryAgain}
           </button>
@@ -212,14 +212,14 @@ export function ProfilePage() {
   return (
     <section aria-labelledby="profile-heading" className="mx-auto w-full max-w-2xl">
       <div className="mb-4">
-        <h1 id="profile-heading" className="text-xl font-bold text-slate-900 dark:text-slate-100">
+        <h1 id="profile-heading" className="text-xl font-bold text-base-content">
           {UI.heading}
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">{UI.subheading}</p>
+        <p className="text-sm text-base-content/60">{UI.subheading}</p>
       </div>
 
       {/* ---------------------------------------------------------------- Avatar */}
-      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-4 rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm sm:p-5">
         <div className="flex items-center gap-4">
           {/* Named here (unlike the header/staff rows): this is the user's OWN
               picture and nothing adjacent identifies it. */}
@@ -232,10 +232,7 @@ export function ProfilePage() {
           />
 
           <div className="min-w-0">
-            <label
-              htmlFor="profile-avatar"
-              className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-            >
+            <label htmlFor="profile-avatar" className="mb-1 block text-sm font-medium">
               {UI.avatarLabel}
             </label>
             <input
@@ -248,11 +245,11 @@ export function ProfilePage() {
                 const file = e.target.files?.[0]
                 if (file) handlePicked(file)
               }}
-              className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-emerald-700 disabled:opacity-60 dark:text-slate-300"
+              className="file-input file-input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
             />
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{UI.avatarHint}</p>
+            <p className="mt-1 text-xs text-base-content/60">{UI.avatarHint}</p>
             {avatarBusy && (
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              <p className="mt-2 text-sm text-base-content/70">
                 <Spinner label={UI.avatarUploadingSr} />
                 <span className="ml-2">{UI.avatarUploading}</span>
               </p>
@@ -261,12 +258,9 @@ export function ProfilePage() {
         </div>
 
         {avatarError && (
-          <p
-            role="alert"
-            className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-          >
+          <div role="alert" className="alert alert-error alert-soft mt-3 text-sm">
             {avatarError}
-          </p>
+          </div>
         )}
 
         {cropping && (
@@ -286,15 +280,12 @@ export function ProfilePage() {
       {/* ----------------------------------------------------------- Editable */}
       <form
         onSubmit={handleSubmit}
-        className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900"
+        className="space-y-3 rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm sm:p-5"
       >
         {saveError && (
-          <p
-            role="alert"
-            className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-          >
+          <div role="alert" className="alert alert-error alert-soft text-sm">
             {saveError}
-          </p>
+          </div>
         )}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -361,7 +352,7 @@ export function ProfilePage() {
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60"
+            className="btn btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-primary"
           >
             {saving ? <Spinner label={UI_STRINGS.common.saving} /> : UI.saveChanges}
           </button>
@@ -369,11 +360,9 @@ export function ProfilePage() {
       </form>
 
       {/* ---------------------------------------------------------- Read-only */}
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-          {UI.readOnlyHeading}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      <div className="mt-4 rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm sm:p-5">
+        <h2 className="text-base font-semibold text-base-content">{UI.readOnlyHeading}</h2>
+        <p className="mt-1 text-sm text-base-content/60">
           {UI.readOnlyIntro} {UI.managedNote}
         </p>
         <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -387,17 +376,15 @@ export function ProfilePage() {
   )
 }
 
-const labelClass = 'mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300'
+const labelClass = 'mb-1 block text-sm font-medium'
 const inputClass =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100'
+  'input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60'
 
 function ReadOnlyValue({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60">
-      <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</dt>
-      <dd className="mt-0.5 truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-        {value}
-      </dd>
+    <div className="rounded-lg bg-base-200 px-3 py-2">
+      <dt className="text-xs font-medium text-base-content/60">{label}</dt>
+      <dd className="mt-0.5 truncate text-sm font-medium text-base-content">{value}</dd>
     </div>
   )
 }
@@ -406,19 +393,16 @@ function ProfileSkeleton() {
   return (
     <div className="mx-auto w-full max-w-2xl" aria-hidden data-testid="profile-skeleton">
       <div className="mb-4 space-y-2">
-        <span className="block h-6 w-40 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
-        <span className="block h-4 w-56 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
+        <span className="block h-6 w-40 rounded bg-base-300 motion-safe:animate-pulse" />
+        <span className="block h-4 w-56 rounded bg-base-300 motion-safe:animate-pulse" />
       </div>
-      <div className="mb-4 flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-        <span className="h-20 w-20 shrink-0 rounded-full bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
-        <span className="h-9 flex-1 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
+      <div className="mb-4 flex items-center gap-4 rounded-2xl border border-base-300 bg-base-100 p-5">
+        <span className="h-20 w-20 shrink-0 rounded-full bg-base-300 motion-safe:animate-pulse" />
+        <span className="h-9 flex-1 rounded bg-base-300 motion-safe:animate-pulse" />
       </div>
-      <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+      <div className="space-y-3 rounded-2xl border border-base-300 bg-base-100 p-5">
         {Array.from({ length: 4 }).map((_, i) => (
-          <span
-            key={i}
-            className="block h-10 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700"
-          />
+          <span key={i} className="block h-10 rounded bg-base-300 motion-safe:animate-pulse" />
         ))}
       </div>
     </div>

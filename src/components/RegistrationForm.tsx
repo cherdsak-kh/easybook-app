@@ -60,8 +60,9 @@ function validate(f: RegistrationFormValues): Errors {
 }
 
 const INPUT_CLASS =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100'
-const INPUT_ERR_CLASS = 'border-red-400 focus:border-red-500 focus:ring-red-500 dark:border-red-500/60'
+  'input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60'
+const SELECT_CLASS =
+  'select select-bordered w-full focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60'
 
 export interface RegistrationFormProps {
   /** `create` = first-time registration; `edit` = PENDING self-edit (pre-filled). */
@@ -167,27 +168,24 @@ export function RegistrationForm({
   const submittingLabel = mode === 'edit' ? UI.editSubmitting : UI.createSubmitting
 
   return (
-    <main className="flex min-h-screen justify-center bg-slate-50 px-4 py-8 dark:bg-slate-950">
+    <main className="flex min-h-screen justify-center bg-base-200 px-4 py-8">
       <div className="w-full max-w-md">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{heading}</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <div className="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm sm:p-8">
+          <h1 className="text-xl font-bold text-base-content">{heading}</h1>
+          <p className="mt-1 text-sm text-base-content/60">
             {mode === 'edit' ? UI.editIntro : UI.createIntro(displayName)}
           </p>
 
           {serverError && (
-            <p
-              role="alert"
-              className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-            >
+            <div role="alert" className="alert alert-error alert-soft mt-4 text-sm">
               {serverError}
-            </p>
+            </div>
           )}
 
           {/* Options loading / error state — reserve height so the form doesn't jump. */}
           {optionsLoading && (
             <div
-              className="mt-6 flex min-h-[18rem] items-center justify-center text-slate-500 dark:text-slate-400"
+              className="mt-6 flex min-h-[18rem] items-center justify-center text-base-content/60"
               data-testid="options-loading"
             >
               <Spinner label={UI.optionsLoading} />
@@ -196,16 +194,13 @@ export function RegistrationForm({
 
           {!optionsLoading && optionsError && (
             <div className="mt-6 min-h-[18rem]">
-              <p
-                role="alert"
-                className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-              >
+              <div role="alert" className="alert alert-error alert-soft text-sm">
                 {optionsError}
-              </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setReloadKey((k) => k + 1)}
-                className="mt-4 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+                className="btn btn-primary mt-4 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
               >
                 {UI_STRINGS_CLIENT.common.tryAgain}
               </button>
@@ -294,7 +289,7 @@ export function RegistrationForm({
                       type="button"
                       onClick={onCancel}
                       disabled={submitting}
-                      className="flex-1 rounded-xl border border-slate-300 px-4 py-3 font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                      className="btn btn-outline flex-1 focus-visible:ring-2 focus-visible:ring-primary"
                     >
                       {UI.cancel}
                     </button>
@@ -302,9 +297,9 @@ export function RegistrationForm({
                   <button
                     type="submit"
                     disabled={submitting || noOptions}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60 dark:focus-visible:ring-offset-slate-900"
+                    className="btn btn-primary flex-1 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
                   >
-                    {submitting && <Spinner label={submittingLabel} className="text-white" />}
+                    {submitting && <Spinner label={submittingLabel} className="text-primary-content" />}
                     {submitting ? submittingLabel : submitLabel}
                   </button>
                 </div>
@@ -341,10 +336,7 @@ function Field({
   const errorId = `${id}-error`
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-      >
+      <label htmlFor={id} className="mb-1 block text-sm font-medium">
         {label}
       </label>
       <input
@@ -357,10 +349,10 @@ function Field({
         disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className={`${INPUT_CLASS} ${error ? INPUT_ERR_CLASS : ''}`}
+        className={`${INPUT_CLASS} ${error ? 'input-error' : ''}`}
       />
       {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
+        <p id={errorId} role="alert" className="mt-1 text-xs text-error">
           {error}
         </p>
       )}
@@ -390,10 +382,7 @@ function SelectField({
   const errorId = `${id}-error`
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-      >
+      <label htmlFor={id} className="mb-1 block text-sm font-medium">
         {label}
       </label>
       <select
@@ -403,7 +392,7 @@ function SelectField({
         disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className={`${INPUT_CLASS} ${error ? INPUT_ERR_CLASS : ''}`}
+        className={`${SELECT_CLASS} ${error ? 'select-error' : ''}`}
       >
         <option value="" disabled>
           {placeholder}
@@ -415,7 +404,7 @@ function SelectField({
         ))}
       </select>
       {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
+        <p id={errorId} role="alert" className="mt-1 text-xs text-error">
           {error}
         </p>
       )}

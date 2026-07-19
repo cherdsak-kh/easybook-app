@@ -9,15 +9,15 @@ const STYLES: Record<AppAccess, string> = {
 }
 
 /**
- * A coloured pill for a LINE user's access state. The colour lives here (it is
- * presentation); the words come from `UI_STRINGS.access`, shared with the
- * access filter on `LineUsersPage` so the two can never disagree.
+ * A coloured pill for a LINE user's access state. Uses daisyUI's `badge` for the
+ * shape/typography, with hand-tuned pastel colours (the `*-100`/`*-800` intent —
+ * daisyUI's solid `badge-success`/`badge-warning` fail AA for small text: see the
+ * governing color rule in 03_implement_log.md). The words come from
+ * `UI_STRINGS.access`, shared with the access filter on `LineUsersPage`.
  */
 export function AccessBadge({ access }: { access: AppAccess }) {
   return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STYLES[access]}`}
-    >
+    <span className={`badge badge-sm border-none font-medium ${STYLES[access]}`}>
       {UI_STRINGS.access[access]}
     </span>
   )

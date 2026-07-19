@@ -24,7 +24,7 @@ export function Spinner({
 export function FullPageSpinner({ label = 'Loading…' }: { label?: string }) {
   return (
     <div
-      className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
+      className="flex min-h-screen items-center justify-center bg-base-200 text-base-content/60"
       data-testid="full-page-spinner"
     >
       <Spinner label={label} />

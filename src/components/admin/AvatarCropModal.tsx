@@ -102,7 +102,7 @@ export function AvatarCropModal({ file, onConfirm, onCancel }: AvatarCropModalPr
       <button
         type="button"
         aria-label={UI_STRINGS.common.closeDialog}
-        className="absolute inset-0 bg-slate-900/60"
+        className="absolute inset-0 bg-neutral/60"
         onClick={onCancel}
         disabled={busy}
       />
@@ -111,18 +111,19 @@ export function AvatarCropModal({ file, onConfirm, onCancel }: AvatarCropModalPr
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descId}
-        className="relative z-10 w-full max-w-md rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl dark:bg-slate-900"
+        className="relative z-10 w-full max-w-md rounded-t-2xl bg-base-100 p-5 shadow-xl sm:rounded-2xl"
       >
-        <h2 id={titleId} className="text-lg font-bold text-slate-900 dark:text-slate-100">
+        <h2 id={titleId} className="text-lg font-bold text-base-content">
           {UI.title}
         </h2>
-        <p id={descId} className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+        <p id={descId} className="mt-1 text-sm text-base-content/70">
           {UI.intro}
         </p>
 
         {/* Square stage: the preview matches the 1:1 output, so what they frame
-            is exactly what gets stored. */}
-        <div className="relative mt-3 aspect-square w-full overflow-hidden rounded-xl bg-slate-900">
+            is exactly what gets stored. A deliberately dark media backdrop (not a
+            theme surface) so the image reads in both light and dark. */}
+        <div className="relative mt-3 aspect-square w-full overflow-hidden rounded-xl bg-neutral">
           {/* Held back until the URL exists, rather than handing the cropper a
               null/dead src and flashing a broken image. `aspect-square` sits on
               the container, so the stage reserves its space either way and this
@@ -143,10 +144,7 @@ export function AvatarCropModal({ file, onConfirm, onCancel }: AvatarCropModalPr
         </div>
 
         <div className="mt-4">
-          <label
-            htmlFor="avatar-crop-zoom"
-            className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-          >
+          <label htmlFor="avatar-crop-zoom" className="mb-1 block text-sm font-medium">
             {UI.zoom}
           </label>
           <input
@@ -158,17 +156,14 @@ export function AvatarCropModal({ file, onConfirm, onCancel }: AvatarCropModalPr
             value={zoom}
             disabled={busy}
             onChange={(e) => setZoom(Number(e.target.value))}
-            className="w-full accent-emerald-600 disabled:opacity-60"
+            className="range range-primary w-full disabled:opacity-60"
           />
         </div>
 
         {error && (
-          <p
-            role="alert"
-            className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-          >
+          <div role="alert" className="alert alert-error alert-soft mt-3 text-sm">
             {error}
-          </p>
+          </div>
         )}
 
         <div className="mt-4 flex justify-end gap-2">
@@ -176,7 +171,7 @@ export function AvatarCropModal({ file, onConfirm, onCancel }: AvatarCropModalPr
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
           >
             {UI_STRINGS.common.cancel}
           </button>
@@ -187,7 +182,7 @@ export function AvatarCropModal({ file, onConfirm, onCancel }: AvatarCropModalPr
             // selection — confirming then would crop nothing; `!imageSrc` the
             // frame before its URL exists.
             disabled={busy || !area || !imageSrc}
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60"
+            className="btn btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-primary"
           >
             {busy ? (
               <>

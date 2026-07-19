@@ -82,82 +82,75 @@ export function AdminLoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+    <main className="flex min-h-screen items-center justify-center bg-base-200 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{UI.heading}</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{UI.subheading}</p>
+          <h1 className="text-2xl font-bold text-base-content">{UI.heading}</h1>
+          <p className="mt-1 text-sm text-base-content/60">{UI.subheading}</p>
         </div>
 
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          className="card border border-base-300 bg-base-100 shadow-sm"
         >
-          {formError && (
-            <p
-              role="alert"
-              className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-            >
-              {formError}
-            </p>
-          )}
+          <div className="card-body gap-4 p-6">
+            {formError && (
+              <div role="alert" className="alert alert-error alert-soft text-sm">
+                {formError}
+              </div>
+            )}
 
-          <div>
-            <label
-              htmlFor="admin-email"
-              className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
+            <div>
+              <label htmlFor="admin-email" className="mb-1 block text-sm font-medium">
+                {UI.email}
+              </label>
+              <input
+                id="admin-email"
+                name="email"
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                aria-invalid={fieldError != null}
+                aria-describedby={fieldError ? 'admin-field-error' : undefined}
+                className="input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
+                placeholder={UI.emailPlaceholder}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="admin-password" className="mb-1 block text-sm font-medium">
+                {UI.password}
+              </label>
+              <input
+                id="admin-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                aria-invalid={fieldError != null}
+                aria-describedby={fieldError ? 'admin-field-error' : undefined}
+                className="input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
+                placeholder={UI.passwordPlaceholder}
+              />
+            </div>
+
+            {fieldError && (
+              <p id="admin-field-error" role="alert" className="text-sm text-error">
+                {fieldError}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn btn-primary w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
             >
-              {UI.email}
-            </label>
-            <input
-              id="admin-email"
-              name="email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              aria-invalid={fieldError != null}
-              aria-describedby={fieldError ? 'admin-field-error' : undefined}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              placeholder={UI.emailPlaceholder}
-            />
+              {submitting ? <Spinner label={UI.submitting} /> : UI.submit}
+            </button>
           </div>
-
-          <div>
-            <label
-              htmlFor="admin-password"
-              className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-            >
-              {UI.password}
-            </label>
-            <input
-              id="admin-password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              aria-invalid={fieldError != null}
-              aria-describedby={fieldError ? 'admin-field-error' : undefined}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              placeholder={UI.passwordPlaceholder}
-            />
-          </div>
-
-          {fieldError && (
-            <p id="admin-field-error" role="alert" className="text-sm text-red-600 dark:text-red-400">
-              {fieldError}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60 dark:focus-visible:ring-offset-slate-900"
-          >
-            {submitting ? <Spinner label={UI.submitting} /> : UI.submit}
-          </button>
         </form>
       </div>
     </main>

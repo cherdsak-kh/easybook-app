@@ -62,10 +62,10 @@ export function OptionsPage() {
   return (
     <section aria-labelledby="options-heading" className="mx-auto w-full max-w-4xl">
       <div className="mb-6">
-        <h1 id="options-heading" className="text-xl font-bold text-slate-900 dark:text-slate-100">
+        <h1 id="options-heading" className="text-xl font-bold text-base-content">
           {UI.heading}
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">{UI.subheading}</p>
+        <p className="text-sm text-base-content/60">{UI.subheading}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -157,10 +157,10 @@ function OptionManager({ resource }: { resource: OptionResource }) {
   return (
     <section
       aria-labelledby={headingId}
-      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 dark:border-slate-800 dark:bg-slate-900"
+      className="rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm sm:p-5"
     >
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 id={headingId} className="text-base font-semibold text-slate-900 dark:text-slate-100">
+        <h2 id={headingId} className="text-base font-semibold text-base-content">
           {resource.copy.title}
         </h2>
         <button
@@ -169,35 +169,29 @@ function OptionManager({ resource }: { resource: OptionResource }) {
             setActionError(null)
             setModal({ kind: 'create' })
           }}
-          className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          className="btn btn-primary btn-sm shrink-0 focus-visible:ring-2 focus-visible:ring-primary"
         >
           {UI.add}
         </button>
       </div>
 
       {actionError && (
-        <p
-          role="alert"
-          className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-        >
+        <div role="alert" className="alert alert-error alert-soft mb-3 text-sm">
           {actionError}
-        </p>
+        </div>
       )}
 
       <div className="min-h-[12rem]">
         {loading && <OptionSkeleton />}
 
         {!loading && error && (
-          <div
-            role="alert"
-            className="rounded-xl border border-red-200 bg-red-50 p-5 text-center text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400"
-          >
+          <div role="alert" className="alert alert-error alert-soft justify-center p-5 text-center text-sm">
             {error}
           </div>
         )}
 
         {!loading && !error && rows.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+          <div className="rounded-xl border border-dashed border-base-300 p-8 text-center text-sm text-base-content/60">
             {UI.empty(resource.copy.title)}
           </div>
         )}
@@ -207,9 +201,9 @@ function OptionManager({ resource }: { resource: OptionResource }) {
             {rows.map((row) => (
               <li
                 key={row.id}
-                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
+                className="flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 p-3"
               >
-                <span className="min-w-0 flex-1 truncate font-medium text-slate-800 dark:text-slate-100">
+                <span className="min-w-0 flex-1 truncate font-medium text-base-content">
                   {row.name}
                 </span>
                 {row.isSystemReserved ? (
@@ -222,7 +216,7 @@ function OptionManager({ resource }: { resource: OptionResource }) {
                    */
                   <span
                     title={UI.reservedHint}
-                    className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-500/15 dark:text-slate-300"
+                    className="badge badge-ghost shrink-0 font-medium"
                   >
                     {UI.reservedBadge}
                   </span>
@@ -234,7 +228,7 @@ function OptionManager({ resource }: { resource: OptionResource }) {
                         setActionError(null)
                         setModal({ kind: 'rename', row })
                       }}
-                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                      className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
                     >
                       {UI.rename}
                     </button>
@@ -244,7 +238,7 @@ function OptionManager({ resource }: { resource: OptionResource }) {
                           type="button"
                           onClick={() => remove(row)}
                           disabled={busyId === row.id}
-                          className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-60"
+                          className="btn btn-error btn-sm focus-visible:ring-2 focus-visible:ring-error"
                         >
                           {busyId === row.id ? (
                             <Spinner label={UI.removing} />
@@ -255,7 +249,7 @@ function OptionManager({ resource }: { resource: OptionResource }) {
                         <button
                           type="button"
                           onClick={() => setConfirmingId(null)}
-                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                          className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
                         >
                           {UI_STRINGS.common.cancel}
                         </button>
@@ -268,7 +262,7 @@ function OptionManager({ resource }: { resource: OptionResource }) {
                           setConfirmingId(row.id)
                         }}
                         aria-label={UI.deleteRow(row.name)}
-                        className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
+                        className="btn btn-outline btn-error btn-sm focus-visible:ring-2 focus-visible:ring-error"
                       >
                         {UI.delete}
                       </button>
@@ -373,34 +367,28 @@ function OptionFormModal({
       <button
         type="button"
         aria-label={UI_STRINGS.common.closeDialog}
-        className="absolute inset-0 bg-slate-900/50"
+        className="absolute inset-0 bg-neutral/50"
         onClick={onClose}
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-10 w-full max-w-sm rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl dark:bg-slate-900"
+        className="relative z-10 w-full max-w-sm rounded-t-2xl bg-base-100 p-5 shadow-xl sm:rounded-2xl"
       >
-        <h2 id={titleId} className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-100">
+        <h2 id={titleId} className="mb-4 text-lg font-bold text-base-content">
           {mode === 'create' ? UI.form.addTitle(noun) : UI.form.renameTitle(noun)}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           {error && (
-            <p
-              role="alert"
-              className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-            >
+            <div role="alert" className="alert alert-error alert-soft text-sm">
               {error}
-            </p>
+            </div>
           )}
 
           <div>
-            <label
-              htmlFor="option-name"
-              className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-            >
+            <label htmlFor="option-name" className="mb-1 block text-sm font-medium">
               {UI.nameLabel}
             </label>
             <input
@@ -409,7 +397,7 @@ function OptionFormModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={submitting}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary"
             />
           </div>
 
@@ -417,20 +405,16 @@ function OptionFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
             >
               {UI_STRINGS.common.cancel}
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60"
+              className="btn btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-primary"
             >
-              {submitting ? (
-                <Spinner label={UI_STRINGS.common.saving} />
-              ) : (
-                UI_STRINGS.common.save
-              )}
+              {submitting ? <Spinner label={UI_STRINGS.common.saving} /> : UI_STRINGS.common.save}
             </button>
           </div>
         </form>
@@ -445,10 +429,10 @@ function OptionSkeleton() {
       {Array.from({ length: 4 }).map((_, i) => (
         <li
           key={i}
-          className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
+          className="flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 p-3"
         >
-          <span className="block h-4 flex-1 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
-          <span className="h-7 w-28 rounded bg-slate-200 motion-safe:animate-pulse dark:bg-slate-700" />
+          <span className="block h-4 flex-1 rounded bg-base-300 motion-safe:animate-pulse" />
+          <span className="h-7 w-28 rounded bg-base-300 motion-safe:animate-pulse" />
         </li>
       ))}
     </ul>

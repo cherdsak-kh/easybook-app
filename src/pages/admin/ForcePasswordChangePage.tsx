@@ -118,11 +118,11 @@ export function ForcePasswordChangePage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8 dark:bg-slate-950">
+    <main className="flex min-h-screen items-center justify-center bg-base-200 px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{UI.heading}</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <h1 className="text-2xl font-bold text-base-content">{UI.heading}</h1>
+          <p className="mt-1 text-sm text-base-content/60">
             {UI.intro(user ? `${user.firstName} ${user.lastName}` : undefined)}
           </p>
         </div>
@@ -130,55 +130,54 @@ export function ForcePasswordChangePage() {
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          className="card border border-base-300 bg-base-100 shadow-sm"
         >
-          {formError && (
-            <p
-              role="alert"
-              className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
+          <div className="card-body gap-4 p-6">
+            {formError && (
+              <div role="alert" className="alert alert-error alert-soft text-sm">
+                {formError}
+              </div>
+            )}
+
+            <PasswordField
+              id="fpc-current"
+              label={UI.currentPassword}
+              autoComplete="current-password"
+              value={fields.currentPassword}
+              onChange={(v) => set('currentPassword', v)}
+              error={errors.currentPassword}
+              disabled={submitting}
+            />
+
+            <PasswordField
+              id="fpc-new"
+              label={UI.newPassword}
+              autoComplete="new-password"
+              value={fields.newPassword}
+              onChange={(v) => set('newPassword', v)}
+              error={errors.newPassword}
+              hint={UI.newPasswordHint(PASSWORD_MIN_LENGTH)}
+              disabled={submitting}
+            />
+
+            <PasswordField
+              id="fpc-confirm"
+              label={UI.confirmPassword}
+              autoComplete="new-password"
+              value={fields.confirmPassword}
+              onChange={(v) => set('confirmPassword', v)}
+              error={errors.confirmPassword}
+              disabled={submitting}
+            />
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn btn-primary w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
             >
-              {formError}
-            </p>
-          )}
-
-          <PasswordField
-            id="fpc-current"
-            label={UI.currentPassword}
-            autoComplete="current-password"
-            value={fields.currentPassword}
-            onChange={(v) => set('currentPassword', v)}
-            error={errors.currentPassword}
-            disabled={submitting}
-          />
-
-          <PasswordField
-            id="fpc-new"
-            label={UI.newPassword}
-            autoComplete="new-password"
-            value={fields.newPassword}
-            onChange={(v) => set('newPassword', v)}
-            error={errors.newPassword}
-            hint={UI.newPasswordHint(PASSWORD_MIN_LENGTH)}
-            disabled={submitting}
-          />
-
-          <PasswordField
-            id="fpc-confirm"
-            label={UI.confirmPassword}
-            autoComplete="new-password"
-            value={fields.confirmPassword}
-            onChange={(v) => set('confirmPassword', v)}
-            error={errors.confirmPassword}
-            disabled={submitting}
-          />
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60 dark:focus-visible:ring-offset-slate-900"
-          >
-            {submitting ? <Spinner label={UI.submitting} /> : UI.submit}
-          </button>
+              {submitting ? <Spinner label={UI.submitting} /> : UI.submit}
+            </button>
+          </div>
         </form>
 
         <div className="mt-4 text-center">
@@ -186,7 +185,7 @@ export function ForcePasswordChangePage() {
             type="button"
             onClick={handleLogout}
             disabled={loggingOut}
-            className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="btn btn-ghost btn-sm gap-2 focus-visible:ring-2 focus-visible:ring-primary"
           >
             {loggingOut ? <Spinner label={UI.loggingOut} /> : UI.logout}
           </button>
@@ -219,10 +218,7 @@ function PasswordField({
   const hintId = `${id}-hint`
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-      >
+      <label htmlFor={id} className="mb-1 block text-sm font-medium">
         {label}
       </label>
       <input
@@ -234,19 +230,17 @@ function PasswordField({
         disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : hint ? hintId : undefined}
-        className={`w-full rounded-lg border bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 disabled:opacity-60 dark:bg-slate-950 dark:text-slate-100 ${
-          error
-            ? 'border-red-400 focus:border-red-500 focus:ring-red-500 dark:border-red-500/60'
-            : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700'
+        className={`input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100 ${
+          error ? 'input-error' : ''
         }`}
       />
       {hint && !error && (
-        <p id={hintId} className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        <p id={hintId} className="mt-1 text-xs text-base-content/60">
           {hint}
         </p>
       )}
       {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
+        <p id={errorId} role="alert" className="mt-1 text-xs text-error">
           {error}
         </p>
       )}

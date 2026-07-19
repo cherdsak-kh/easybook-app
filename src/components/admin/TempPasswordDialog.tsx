@@ -59,38 +59,36 @@ export function TempPasswordDialog({
     // Deliberately NOT dismissible by backdrop click or Escape: this is the only
     // time this value is ever visible, so closing it must be a conscious act.
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <div className="absolute inset-0 bg-slate-900/60" aria-hidden />
+      <div className="absolute inset-0 bg-neutral/60" aria-hidden />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descId}
-        className="relative z-10 w-full max-w-md rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl dark:bg-slate-900"
+        className="relative z-10 w-full max-w-md rounded-t-2xl bg-base-100 p-5 shadow-xl sm:rounded-2xl"
       >
-        <h2 id={titleId} className="text-lg font-bold text-slate-900 dark:text-slate-100">
+        <h2 id={titleId} className="text-lg font-bold text-base-content">
           {reason === 'created' ? UI.createdTitle : UI.resetTitle}
         </h2>
 
-        <p id={descId} className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+        <p id={descId} className="mt-1 text-sm text-base-content/70">
           {UI.introBefore} <span className="font-medium">{userLabel}</span>
           {UI.introAfter}
         </p>
 
-        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-          {UI.warning}
-        </p>
+        <div className="alert alert-warning mt-3 py-2 text-sm font-medium">{UI.warning}</div>
 
         <div className="mt-3 flex items-center gap-2">
           <code
             data-testid="temp-password-value"
-            className="min-w-0 flex-1 select-all break-all rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 font-mono text-base text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            className="min-w-0 flex-1 select-all break-all rounded-lg border border-base-300 bg-base-200 px-3 py-2 font-mono text-base text-base-content"
           >
             {password}
           </code>
           <button
             type="button"
             onClick={copy}
-            className="shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="btn btn-outline btn-sm shrink-0 focus-visible:ring-2 focus-visible:ring-primary"
           >
             {copied ? UI.copied : UI.copy}
           </button>
@@ -107,7 +105,7 @@ export function TempPasswordDialog({
             ref={closeRef}
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            className="btn btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-primary"
           >
             {UI.acknowledge}
           </button>

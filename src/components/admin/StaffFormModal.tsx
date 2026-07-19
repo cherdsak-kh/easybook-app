@@ -216,23 +216,23 @@ export function StaffFormModal({ mode, user, canEditRole, onClose, onSaved }: St
       <button
         type="button"
         aria-label={UI_STRINGS.common.closeDialog}
-        className="absolute inset-0 bg-slate-900/50"
+        className="absolute inset-0 bg-neutral/50"
         onClick={onClose}
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl dark:bg-slate-900"
+        className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-base-100 p-5 shadow-xl sm:rounded-2xl"
       >
-        <h2 id={titleId} className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-100">
+        <h2 id={titleId} className="mb-4 text-lg font-bold text-base-content">
           {mode === 'create' ? UI.addTitle : UI.editTitle}
         </h2>
 
         {/* Reserve height so the dialog doesn't jump when the options land. */}
         {optionsLoading && (
           <div
-            className="flex min-h-[20rem] items-center justify-center text-slate-500 dark:text-slate-400"
+            className="flex min-h-[20rem] items-center justify-center text-base-content/60"
             data-testid="staff-options-loading"
           >
             <Spinner label={UI.optionsLoading} />
@@ -241,16 +241,13 @@ export function StaffFormModal({ mode, user, canEditRole, onClose, onSaved }: St
 
         {!optionsLoading && optionsError && (
           <div className="min-h-[20rem]">
-            <p
-              role="alert"
-              className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-            >
+            <div role="alert" className="alert alert-error alert-soft text-sm">
               {optionsError}
-            </p>
+            </div>
             <button
               type="button"
               onClick={() => setReloadKey((k) => k + 1)}
-              className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              className="btn btn-primary btn-sm mt-4 focus-visible:ring-2 focus-visible:ring-primary"
             >
               {UI_STRINGS.common.tryAgain}
             </button>
@@ -260,12 +257,9 @@ export function StaffFormModal({ mode, user, canEditRole, onClose, onSaved }: St
         {!optionsLoading && !optionsError && (
           <form onSubmit={handleSubmit} className="space-y-3">
             {error && (
-              <p
-                role="alert"
-                className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-              >
+              <div role="alert" className="alert alert-error alert-soft text-sm">
                 {error}
-              </p>
+              </div>
             )}
 
             {mode === 'create' && (
@@ -282,7 +276,7 @@ export function StaffFormModal({ mode, user, canEditRole, onClose, onSaved }: St
                     className={inputClass}
                   />
                 </Field>
-                <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+                <p className="rounded-lg bg-base-200 px-3 py-2 text-xs text-base-content/70">
                   {UI.tempPasswordNote}
                 </p>
               </>
@@ -349,7 +343,7 @@ export function StaffFormModal({ mode, user, canEditRole, onClose, onSaved }: St
                   id="sf-role"
                   value={fields.role}
                   onChange={(e) => set('role', e.target.value as SystemRole)}
-                  className={inputClass}
+                  className={selectClass}
                 >
                   {ROLES.map((r) => (
                     <option key={r} value={r}>
@@ -364,20 +358,16 @@ export function StaffFormModal({ mode, user, canEditRole, onClose, onSaved }: St
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="btn btn-outline btn-sm focus-visible:ring-2 focus-visible:ring-primary"
               >
                 {UI_STRINGS.common.cancel}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60"
+                className="btn btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-primary"
               >
-                {submitting ? (
-                  <Spinner label={UI_STRINGS.common.saving} />
-                ) : (
-                  UI_STRINGS.common.save
-                )}
+                {submitting ? <Spinner label={UI_STRINGS.common.saving} /> : UI_STRINGS.common.save}
               </button>
             </div>
           </form>
@@ -387,9 +377,8 @@ export function StaffFormModal({ mode, user, canEditRole, onClose, onSaved }: St
   )
 }
 
-const inputClass =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100'
-const inputErrClass = 'border-red-400 focus:border-red-500 focus:ring-red-500 dark:border-red-500/60'
+const inputClass = 'input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary'
+const selectClass = 'select select-bordered w-full focus-visible:ring-2 focus-visible:ring-primary'
 
 function OptionSelect({
   id,
@@ -415,10 +404,7 @@ function OptionSelect({
   const errorId = `${id}-error`
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-      >
+      <label htmlFor={id} className="mb-1 block text-sm font-medium">
         {label}
       </label>
       <select
@@ -427,7 +413,7 @@ function OptionSelect({
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className={`${inputClass} ${error ? inputErrClass : ''}`}
+        className={`${selectClass} ${error ? 'select-error' : ''}`}
       >
         <option value="" disabled>
           {placeholder}
@@ -444,7 +430,7 @@ function OptionSelect({
         })}
       </select>
       {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
+        <p id={errorId} role="alert" className="mt-1 text-xs text-error">
           {error}
         </p>
       )}
@@ -463,10 +449,7 @@ function Field({
 }) {
   return (
     <div>
-      <label
-        htmlFor={htmlFor}
-        className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-      >
+      <label htmlFor={htmlFor} className="mb-1 block text-sm font-medium">
         {label}
       </label>
       {children}

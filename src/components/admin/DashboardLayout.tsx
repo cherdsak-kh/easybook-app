@@ -13,12 +13,12 @@ export function DashboardLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="flex flex-col min-h-screen bg-base-200">
       <Header onMenuToggle={() => setMobileNavOpen((o) => !o)} />
 
       <div className="mx-auto flex w-full max-w-7xl flex-1">
         {/* Desktop sidebar */}
-        <aside className="hidden w-60 shrink-0 border-r border-slate-200 md:block dark:border-slate-800">
+        <aside className="hidden w-60 shrink-0 border-r border-base-300 md:block">
           <div className="sticky top-14">
             <Sidebar />
           </div>
@@ -30,10 +30,10 @@ export function DashboardLayout() {
             <button
               type="button"
               aria-label={UI_STRINGS.nav.closeMenu}
-              className="absolute inset-0 bg-slate-900/40"
+              className="absolute inset-0 bg-neutral/50"
               onClick={() => setMobileNavOpen(false)}
             />
-            <div className="absolute left-0 top-0 h-full w-64 bg-white shadow-xl dark:bg-slate-900">
+            <div className="absolute left-0 top-0 h-full w-64 bg-base-100 shadow-xl">
               <Sidebar onNavigate={() => setMobileNavOpen(false)} />
             </div>
           </div>

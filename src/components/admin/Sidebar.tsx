@@ -55,39 +55,46 @@ const ACCOUNT_ITEMS: NavItem[] = [
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   [
     'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
     isActive
-      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
-      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+      ? 'bg-primary/10 text-primary'
+      : 'text-base-content/70 hover:bg-base-200',
   ].join(' ')
 
+const titleClass =
+  'menu-title px-3 text-xs font-semibold uppercase tracking-wide text-base-content/50'
+
 /**
- * Dashboard navigation. Rendered inside a landmark `<nav>`; the active route is
- * highlighted via `NavLink`'s `isActive`. On mobile the parent slides this in a
- * drawer and passes `onNavigate` so tapping a link closes it.
+ * Dashboard navigation. Rendered inside a landmark `<nav>` as a daisyUI `menu`;
+ * the active route is highlighted via `NavLink`'s `isActive` (explicit token
+ * classes keep the emerald→primary active look and win over menu's zero-
+ * specificity defaults). On mobile the parent slides this in a drawer and passes
+ * `onNavigate` so tapping a link closes it.
  */
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <nav aria-label={UI_STRINGS.nav.label} className="flex h-full flex-col gap-1 p-3">
-      <p className="px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-        {UI_STRINGS.nav.management}
-      </p>
-      {NAV_ITEMS.map((item) => (
-        <NavLink key={item.to} to={item.to} onClick={onNavigate} className={linkClass}>
-          {item.icon}
-          <span>{item.label}</span>
-        </NavLink>
-      ))}
+    <nav aria-label={UI_STRINGS.nav.label} className="h-full p-3">
+      <ul className="menu w-full gap-1 p-0">
+        <li className={titleClass}>{UI_STRINGS.nav.management}</li>
+        {NAV_ITEMS.map((item) => (
+          <li key={item.to}>
+            <NavLink to={item.to} onClick={onNavigate} className={linkClass}>
+              {item.icon}
+              <span>{item.label}</span>
+            </NavLink>
+          </li>
+        ))}
 
-      <p className="px-3 pb-2 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-        {UI_STRINGS.nav.account}
-      </p>
-      {ACCOUNT_ITEMS.map((item) => (
-        <NavLink key={item.to} to={item.to} onClick={onNavigate} className={linkClass}>
-          {item.icon}
-          <span>{item.label}</span>
-        </NavLink>
-      ))}
+        <li className={`${titleClass} pt-3`}>{UI_STRINGS.nav.account}</li>
+        {ACCOUNT_ITEMS.map((item) => (
+          <li key={item.to}>
+            <NavLink to={item.to} onClick={onNavigate} className={linkClass}>
+              {item.icon}
+              <span>{item.label}</span>
+            </NavLink>
+          </li>
+        ))}
+      </ul>
     </nav>
   )
 }

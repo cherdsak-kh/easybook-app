@@ -7,6 +7,7 @@ import { OptionsPage } from '@/pages/admin/OptionsPage'
 import { ProfilePage } from '@/pages/admin/ProfilePage'
 import { StaffPage } from '@/pages/admin/StaffPage'
 import { DashboardLayout } from '@/components/admin/DashboardLayout'
+import { ThemeLayout } from '@/components/ThemeLayout'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { DASHBOARD_CHILDREN, ROUTES } from '@/constants/routes'
 
@@ -30,34 +31,43 @@ import { DASHBOARD_CHILDREN, ROUTES } from '@/constants/routes'
  *
  * Note the file tree still says `pages/admin` / `components/admin`. That is
  * deliberate: URL paths are not file paths, and only the URL was rebased.
+ *
+ * Each branch is wrapped in a pathless `ThemeLayout` layout route that stamps
+ * the portal's daisyUI `data-theme` (admin emerald vs. client LINE-green) onto
+ * the subtree. These wrappers are presentational only — they add no path
+ * segment, so route specificity is unchanged and `/*` still ranks last.
  */
 function App() {
   return (
     <Routes>
-      <Route path={ROUTES.login} element={<AdminLoginPage />} />
-      <Route
-        path={ROUTES.forcePasswordChange}
-        element={
-          <ProtectedRoute>
-            <ForcePasswordChangePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path={ROUTES.dashboard}
-        element={
-          <ProtectedRoute>
-            <DashboardLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Navigate to={DASHBOARD_CHILDREN.lineUsers} replace />} />
-        <Route path={DASHBOARD_CHILDREN.lineUsers} element={<LineUsersPage />} />
-        <Route path={DASHBOARD_CHILDREN.options} element={<OptionsPage />} />
-        <Route path={DASHBOARD_CHILDREN.staff} element={<StaffPage />} />
-        <Route path={DASHBOARD_CHILDREN.profile} element={<ProfilePage />} />
+      <Route element={<ThemeLayout portal="admin" />}>
+        <Route path={ROUTES.login} element={<AdminLoginPage />} />
+        <Route
+          path={ROUTES.forcePasswordChange}
+          element={
+            <ProtectedRoute>
+              <ForcePasswordChangePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.dashboard}
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to={DASHBOARD_CHILDREN.lineUsers} replace />} />
+          <Route path={DASHBOARD_CHILDREN.lineUsers} element={<LineUsersPage />} />
+          <Route path={DASHBOARD_CHILDREN.options} element={<OptionsPage />} />
+          <Route path={DASHBOARD_CHILDREN.staff} element={<StaffPage />} />
+          <Route path={DASHBOARD_CHILDREN.profile} element={<ProfilePage />} />
+        </Route>
       </Route>
-      <Route path="/*" element={<HomePage />} />
+      <Route element={<ThemeLayout portal="client" />}>
+        <Route path="/*" element={<HomePage />} />
+      </Route>
     </Routes>
   )
 }
