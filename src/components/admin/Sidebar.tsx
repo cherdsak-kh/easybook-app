@@ -1,100 +1,98 @@
-import type { ReactNode } from 'react'
+// Layout/structure adapted from DashWind (daisyui-admin-dashboard-template),
+// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
+// See THIRD_PARTY_NOTICES.md. Adapts DashWind's LeftSidebar.js (drawer-side + menu).
+import { Fragment } from 'react'
 import { NavLink } from 'react-router-dom'
-import { ROUTES } from '@/constants/routes'
 import { UI_STRINGS } from '@/constants/ui-strings-backend'
+import { NAV_GROUPS, SIDEBAR_DRAWER_ID } from './nav-config'
 
-interface NavItem {
-  to: string
-  label: string
-  icon: ReactNode
-}
-
-const NAV_ITEMS: NavItem[] = [
-  {
-    to: ROUTES.lineUsers,
-    label: UI_STRINGS.nav.lineUsers,
-    icon: (
-      <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-        <path d="M12 2C6.48 2 2 5.94 2 10.8c0 2.77 1.5 5.24 3.86 6.86-.13.5-.7 2.5-.73 2.66 0 0-.02.14.07.2.09.05.2.01.2.01.26-.04 2.98-1.96 3.45-2.29.72.1 1.46.16 2.15.16 5.52 0 10-3.94 10-8.8C22 5.94 17.52 2 12 2Z" />
-      </svg>
-    ),
-  },
-  {
-    to: ROUTES.options,
-    label: UI_STRINGS.nav.options,
-    icon: (
-      <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-        <path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6l-8-4Zm-1.2 13.4-3.2-3.2 1.4-1.4 1.8 1.8 4.2-4.2 1.4 1.4-5.6 5.6Z" />
-      </svg>
-    ),
-  },
-  {
-    to: ROUTES.staff,
-    label: UI_STRINGS.nav.staff,
-    icon: (
-      <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3Zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z" />
-      </svg>
-    ),
-  },
-]
-
-/** Self-service, available to every role — not a management surface. */
-const ACCOUNT_ITEMS: NavItem[] = [
-  {
-    to: ROUTES.profile,
-    label: UI_STRINGS.nav.profile,
-    icon: (
-      <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z" />
-      </svg>
-    ),
-  },
-]
+const LOGO_MARK = '/logo/easybook-logo-512px-no-bg.svg'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   [
-    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+    'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-    isActive
-      ? 'bg-primary/10 text-primary'
-      : 'text-base-content/70 hover:bg-base-200',
+    isActive ? 'bg-primary/10 text-primary' : 'text-base-content/70 hover:bg-base-200',
   ].join(' ')
 
 const titleClass =
   'menu-title px-3 text-xs font-semibold uppercase tracking-wide text-base-content/50'
 
 /**
- * Dashboard navigation. Rendered inside a landmark `<nav>` as a daisyUI `menu`;
- * the active route is highlighted via `NavLink`'s `isActive` (explicit token
- * classes keep the emerald→primary active look and win over menu's zero-
- * specificity defaults). On mobile the parent slides this in a drawer and passes
- * `onNavigate` so tapping a link closes it.
+ * The dashboard sidebar, rendered as daisyUI's `drawer-side`. On `lg+` it is
+ * persistent; on mobile it slides in over a `drawer-overlay` scrim. Both the
+ * scrim `<label>` and the ✕ button point at the drawer checkbox so tapping either
+ * closes it, and each `NavLink`'s `onClick` closes it too (a link-tap dismisses
+ * the drawer on mobile; on `lg+` the checkbox is inert under `lg:drawer-open`).
+ *
+ * The list is a landmark `<nav>` wrapping a daisyUI `menu`. The active route is
+ * driven by `NavLink`'s `isActive` render-prop — explicit token classes
+ * (`bg-primary/10 text-primary`) plus a left accent bar — rather than daisyUI's
+ * zero-specificity `.menu-active`, which our tokens would have to fight.
  */
-export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
-  return (
-    <nav aria-label={UI_STRINGS.nav.label} className="h-full p-3">
-      <ul className="menu w-full gap-1 p-0">
-        <li className={titleClass}>{UI_STRINGS.nav.management}</li>
-        {NAV_ITEMS.map((item) => (
-          <li key={item.to}>
-            <NavLink to={item.to} onClick={onNavigate} className={linkClass}>
-              {item.icon}
-              <span>{item.label}</span>
-            </NavLink>
-          </li>
-        ))}
+export function Sidebar() {
+  const closeDrawer = () => {
+    ;(document.getElementById(SIDEBAR_DRAWER_ID) as HTMLInputElement | null)?.click()
+  }
 
-        <li className={`${titleClass} pt-3`}>{UI_STRINGS.nav.account}</li>
-        {ACCOUNT_ITEMS.map((item) => (
-          <li key={item.to}>
-            <NavLink to={item.to} onClick={onNavigate} className={linkClass}>
-              {item.icon}
-              <span>{item.label}</span>
-            </NavLink>
-          </li>
-        ))}
-      </ul>
-    </nav>
+  return (
+    <div className="drawer-side z-30">
+      {/* Click-away scrim. DashWind ships this label with no accessible name;
+          we add one so a screen reader announces a real close control. */}
+      <label
+        htmlFor={SIDEBAR_DRAWER_ID}
+        aria-label={UI_STRINGS.nav.closeMenu}
+        className="drawer-overlay"
+      />
+
+      <nav
+        aria-label={UI_STRINGS.nav.label}
+        className="relative flex min-h-full w-72 flex-col bg-base-100 p-3 text-base-content"
+      >
+        {/* Mobile-only close affordance (keyboard-reachable, unlike the scrim). */}
+        <button
+          type="button"
+          onClick={closeDrawer}
+          aria-label={UI_STRINGS.nav.closeMenu}
+          className="btn btn-ghost btn-circle btn-sm absolute right-2 top-2 lg:hidden focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+
+        {/* Brand row. Decorative logo (`alt=""`): the product name sits beside it. */}
+        <div className="mb-2 flex items-center gap-2 px-2 py-1">
+          <img src={LOGO_MARK} alt="" aria-hidden className="h-8 w-8 shrink-0 select-none" />
+          <span className="truncate font-semibold text-base-content">{UI_STRINGS.header.brand}</span>
+        </div>
+
+        <ul className="menu w-full gap-1 p-0">
+          {NAV_GROUPS.map((group) => (
+            <Fragment key={group.title}>
+              <li className={titleClass}>{group.title}</li>
+              {group.items.map((item) => (
+                <li key={item.to}>
+                  <NavLink to={item.to} end onClick={closeDrawer} className={linkClass}>
+                    {({ isActive }) => (
+                      <>
+                        {item.icon}
+                        <span>{item.label}</span>
+                        {isActive && (
+                          <span
+                            aria-hidden
+                            className="absolute inset-y-1 left-0 w-1 rounded-r bg-primary"
+                          />
+                        )}
+                      </>
+                    )}
+                  </NavLink>
+                </li>
+              ))}
+            </Fragment>
+          ))}
+        </ul>
+      </nav>
+    </div>
   )
 }

@@ -1,7 +1,8 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { HomePage } from '@/pages/HomePage'
 import { AdminLoginPage } from '@/pages/admin/AdminLoginPage'
 import { ForcePasswordChangePage } from '@/pages/admin/ForcePasswordChangePage'
+import { DashboardOverviewPage } from '@/pages/admin/DashboardOverviewPage'
 import { LineUsersPage } from '@/pages/admin/LineUsersPage'
 import { OptionsPage } from '@/pages/admin/OptionsPage'
 import { ProfilePage } from '@/pages/admin/ProfilePage'
@@ -58,7 +59,7 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to={DASHBOARD_CHILDREN.lineUsers} replace />} />
+          <Route index element={<DashboardOverviewPage />} />
           <Route path={DASHBOARD_CHILDREN.lineUsers} element={<LineUsersPage />} />
           <Route path={DASHBOARD_CHILDREN.options} element={<OptionsPage />} />
           <Route path={DASHBOARD_CHILDREN.staff} element={<StaffPage />} />

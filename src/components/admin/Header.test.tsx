@@ -41,7 +41,7 @@ function renderHeader() {
     <MemoryRouter initialEntries={[ROUTES.lineUsers]}>
       <AuthProvider>
         <Routes>
-          <Route path={ROUTES.lineUsers} element={<Header onMenuToggle={() => {}} />} />
+          <Route path={ROUTES.lineUsers} element={<Header />} />
           <Route path={ROUTES.login} element={<div>Login Page</div>} />
         </Routes>
       </AuthProvider>
@@ -73,7 +73,7 @@ describe('Header', () => {
     // property under test.
     const logo = container.querySelector('img[src="/logo/easybook-logo-512px-no-bg.svg"]')
     expect(logo).toBeInTheDocument()
-    // The adjacent "EasyBook Management System" text already names the product;
+    // The adjacent "EasyBook" text already names the product;
     // alt text here would announce it twice.
     expect(logo).toHaveAttribute('alt', '')
   })

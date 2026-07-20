@@ -114,7 +114,7 @@ export const UI_STRINGS = {
      * dashboard. The brand mark's own `src` stays in the component — this is a
      * copy store, not an asset registry.
      */
-    brand: 'EasyBook Management System',
+    brand: 'EasyBook',
     toggleMenu: 'Toggle navigation menu',
     logout: 'Logout',
     loggingOut: 'Logging out…',
@@ -134,6 +134,13 @@ export const UI_STRINGS = {
      * words match today: renaming a page's H1 must not silently rename its nav
      * entry.
      */
+    /**
+     * The Overview link + its page title. Distinct from `nav.label` (the `<nav>`
+     * landmark's accessible name, which also reads "Dashboard"): they are two
+     * surfaces that happen to coincide today. `usePageTitle` derives the header
+     * title from this via `NAV_GROUPS`, so the link and title cannot drift.
+     */
+    dashboard: 'Dashboard',
     lineUsers: 'LINE Users',
     options: 'Registration Options',
     staff: 'Staff',
@@ -526,7 +533,7 @@ export const UI_STRINGS = {
     checkingSession: 'Checking your session…',
 
     login: {
-      heading: 'EasyBook Management System',
+      heading: 'EasyBook',
       subheading: 'เข้าสู่ระบบบริหารจัดการส่วนหลังบ้าน',
       email: 'อีเมล',
       emailPlaceholder: 'example@mail.com',
@@ -550,8 +557,7 @@ export const UI_STRINGS = {
       heading: 'Change your password',
       /** `who` is the signed-in user's display name, when known. */
       intro: (who?: string) =>
-        `You are signing in with a temporary password. Choose a new one to continue${
-          who ? ` as ${who}` : ''
+        `You are signing in with a temporary password. Choose a new one to continue${who ? ` as ${who}` : ''
         }.`,
 
       currentPassword: 'Current (temporary) password',
