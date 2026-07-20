@@ -173,3 +173,93 @@
   --depth: 1;
   --noise: 0;
 }
+
+/* 5. ADDITIVE (Phase 3): DashWind replica themes for the isolated /admin-portal
+      branch ONLY. Appended after the four easybook-* themes — nothing above this
+      point is edited or reordered. Values are pinned from daisyUI-4.4.19's compiled
+      `dist/themes.css` (the template's own daisyUI), transcribed into daisyUI-5's
+      `--color-*: oklch(...)` form, so they reproduce DashWind exactly (NOT
+      daisyUI-5's retuned built-ins). Neither block sets `default:` (easybook-client
+      stays the daisyUI default); the `-dark` suffix keeps the `@custom-variant dark`
+      selector above valid with zero change. See 02_design_log.md §2. */
+
+/* --- DashWind replica (isolated /admin-portal branch) — light ------------
+   Pinned to daisyUI-4.4.19 stock `light` (dist/themes.css). NOT daisyUI-5's
+   retuned built-in. `default:` intentionally unset — easybook-client stays the
+   daisyUI default. See claude_planning/20260720_1415_.../02_design_log.md §2. */
+@plugin "daisyui/theme" {
+  name: "dashwind-light";
+  color-scheme: light;
+
+  --color-base-100: oklch(1 0 0);                       /* --b1 */
+  --color-base-200: oklch(0.961151 0 0);                /* --b2 */
+  --color-base-300: oklch(0.924169 0.00108 197.137559); /* --b3 */
+  --color-base-content: oklch(0.278078 0.029596 256.847952); /* --bc */
+
+  --color-primary: oklch(0.4912 0.3096 275.75);         /* --p  */
+  --color-primary-content: oklch(0.89824 0.06192 275.75); /* --pc */
+  --color-secondary: oklch(0.6971 0.329 342.55);        /* --s  */
+  --color-secondary-content: oklch(0.9871 0.0106 342.55); /* --sc */
+  --color-accent: oklch(0.7676 0.184 183.61);           /* --a  */
+  --color-accent-content: oklch(0.15352 0.0368 183.61); /* --ac */
+  --color-neutral: oklch(0.321785 0.02476 255.701624);  /* --n  */
+  --color-neutral-content: oklch(0.894994 0.011585 252.096176); /* --nc */
+
+  --color-info: oklch(0.7206 0.191 231.6);              /* --in */
+  --color-info-content: oklch(0 0 0);                   /* --inc */
+  --color-success: oklch(64.8% 0.150 160);              /* --su  */
+  --color-success-content: oklch(0 0 0);                /* --suc */
+  --color-warning: oklch(0.8471 0.199 83.87);           /* --wa  */
+  --color-warning-content: oklch(0 0 0);                /* --wac */
+  --color-error: oklch(0.7176 0.221 22.18);             /* --er  */
+  --color-error-content: oklch(0 0 0);                  /* --erc */
+
+  --radius-selector: 1.9rem;   /* daisyUI-4 --rounded-badge */
+  --radius-field: 0.5rem;      /* daisyUI-4 --rounded-btn   */
+  --radius-box: 1rem;          /* daisyUI-4 --rounded-box   */
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;                  /* DashWind is flat */
+  --noise: 0;
+}
+
+/* --- DashWind replica — dark --------------------------------------------
+   Pinned to daisyUI-4.4.19 stock `dark`. `-dark` suffix so the existing
+   @custom-variant dark selector matches with no change. */
+@plugin "daisyui/theme" {
+  name: "dashwind-dark";
+  color-scheme: dark;
+
+  --color-base-100: oklch(0.253267 0.015896 252.417568); /* --b1 */
+  --color-base-200: oklch(0.232607 0.013807 253.100675); /* --b2 */
+  --color-base-300: oklch(0.211484 0.01165 254.087939);  /* --b3 */
+  --color-base-content: oklch(0.746477 0.0216 264.435964); /* --bc */
+
+  --color-primary: oklch(0.6569 0.196 275.75);           /* --p  */
+  --color-primary-content: oklch(0.13138 0.0392 275.75); /* --pc */
+  --color-secondary: oklch(0.748 0.26 342.55);           /* --s  */
+  --color-secondary-content: oklch(0.1496 0.052 342.55); /* --sc */
+  --color-accent: oklch(0.7451 0.167 183.61);            /* --a  */
+  --color-accent-content: oklch(0.14902 0.0334 183.61);  /* --ac */
+  --color-neutral: oklch(0.313815 0.021108 254.139175);  /* --n  */
+  --color-neutral-content: oklch(0.746477 0.0216 264.435964); /* --nc */
+
+  --color-info: oklch(0.7206 0.191 231.6);               /* --in */
+  --color-info-content: oklch(0 0 0);                    /* --inc */
+  --color-success: oklch(64.8% 0.150 160);               /* --su  */
+  --color-success-content: oklch(0 0 0);                 /* --suc */
+  --color-warning: oklch(0.8471 0.199 83.87);            /* --wa  */
+  --color-warning-content: oklch(0 0 0);                 /* --wac */
+  --color-error: oklch(0.7176 0.221 22.18);              /* --er  */
+  --color-error-content: oklch(0 0 0);                   /* --erc */
+
+  --radius-selector: 1.9rem;
+  --radius-field: 0.5rem;
+  --radius-box: 1rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}

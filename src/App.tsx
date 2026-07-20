@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { HomePage } from '@/pages/HomePage'
 import { AdminLoginPage } from '@/pages/admin/AdminLoginPage'
 import { ForcePasswordChangePage } from '@/pages/admin/ForcePasswordChangePage'
@@ -11,6 +11,17 @@ import { DashboardLayout } from '@/components/admin/DashboardLayout'
 import { ThemeLayout } from '@/components/ThemeLayout'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { DASHBOARD_CHILDREN, ROUTES } from '@/constants/routes'
+import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
+import { AdminPortalLayout } from '@/components/admin-portal/AdminPortalLayout'
+import { AdminPortalLoginPage } from '@/pages/admin-portal/AdminPortalLoginPage'
+import { AdminPortalDashboardPage } from '@/pages/admin-portal/AdminPortalDashboardPage'
+import { AdminPortalTeamPage } from '@/pages/admin-portal/AdminPortalTeamPage'
+import { AdminPortalStubPage } from '@/pages/admin-portal/AdminPortalStubPage'
+import {
+  ADMIN_PORTAL_ROUTES,
+  ADMIN_PORTAL_SEGMENTS,
+  ADMIN_PORTAL_STUB_ROUTES,
+} from '@/components/admin-portal/routes'
 
 /**
  * Route tree (design §5.1). Paths come from `@/constants/routes` — the portal is
@@ -64,6 +75,31 @@ function App() {
           <Route path={DASHBOARD_CHILDREN.options} element={<OptionsPage />} />
           <Route path={DASHBOARD_CHILDREN.staff} element={<StaffPage />} />
           <Route path={DASHBOARD_CHILDREN.profile} element={<ProfilePage />} />
+        </Route>
+      </Route>
+      {/* ADD-ONLY (Phase 3): the isolated DashWind replica. Open — no ProtectedRoute,
+          no AuthProvider, no api-client. Mock/presentational only. Its own
+          `AdminPortalThemeLayout` stamps the `dashwind-*` theme and a distinct
+          `admin-portal-drawer` id keeps its drawer independent of the live shell.
+          React Router ranks the concrete `/admin-portal/*` paths above the client
+          `/*` catch-all, and the inner `*`→Navigate keeps the branch from ever
+          falling through to the client portal. */}
+      <Route element={<AdminPortalThemeLayout />}>
+        <Route path={ADMIN_PORTAL_ROUTES.login} element={<AdminPortalLoginPage />} />
+        <Route path={ADMIN_PORTAL_ROUTES.base} element={<AdminPortalLayout />}>
+          <Route index element={<Navigate to={ADMIN_PORTAL_ROUTES.dashboard} replace />} />
+          <Route path={ADMIN_PORTAL_SEGMENTS.dashboard} element={<AdminPortalDashboardPage />} />
+          <Route path={ADMIN_PORTAL_SEGMENTS.team} element={<AdminPortalTeamPage />} />
+          {/* Phase 3.5: every other DashWind menu target is a real route rendering the
+              shared "coming soon" placeholder, so the whole sidebar is clickable. */}
+          {ADMIN_PORTAL_STUB_ROUTES.map((stub) => (
+            <Route
+              key={stub.segment}
+              path={stub.segment}
+              element={<AdminPortalStubPage title={stub.title} />}
+            />
+          ))}
+          <Route path="*" element={<Navigate to={ADMIN_PORTAL_ROUTES.dashboard} replace />} />
         </Route>
       </Route>
       <Route element={<ThemeLayout portal="client" />}>

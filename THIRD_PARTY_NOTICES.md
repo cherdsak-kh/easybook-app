@@ -26,6 +26,23 @@ original licenses and copyright notices are reproduced below, as required.
     frozen to fixed literals). Redux and the `react-tailwindcss-datepicker` demo
     control were stripped; `dark:` utilities were replaced with our daisyUI
     semantic tokens; chart theming, routing and copy handling are our own.
+  - The isolated DashWind **replica** at `/admin-portal` — `src/pages/admin-portal/*`
+    and `src/components/admin-portal/*` (shell `AdminPortalLayout` / `AdminPortalSidebar`
+    / `AdminPortalHeader`, `SidebarSubmenu`, `AdminPortalThemeLayout`, `LandingIntro`,
+    local `nav-config`/`routes`, the visual-only `AdminPortalLoginPage`, the
+    `AdminPortalDashboardPage` which reuses `src/components/dashboard/*`, the
+    `AdminPortalTeamPage`/`TeamMembers` members table, and — from the Phase-3.5
+    interactivity pass — the parameterised `AdminPortalStubPage` placeholder and the
+    header's mock notification panel). Adapted from the template's `src/containers/*`,
+    `src/features/user/*`, `src/routes/sidebar.js`, `src/pages/protected/Team.js`,
+    `src/pages/protected/{Blank,404}.js`,
+    `src/features/common/components/NotificationBodyRightDrawer.js` and
+    `src/features/settings/team`. Redux, `theme-change`, `react-notifications`, auth and
+    the template's routing were stripped; the whole sidebar is a real React Router menu
+    (every target navigates); the light/dark toggle is driven by local React state
+    (no `theme-change`); the members table's `moment()` join dates were frozen to fixed
+    literals; the `dashwind-light` / `dashwind-dark` daisyUI themes in `src/index.css`
+    mirror daisyUI-4's stock `light` / `dark`.
   - Chart.js (`chart.js`), `react-chartjs-2` and `@heroicons/react` are separate
     npm dependencies under their own MIT licenses (covered by their package
     metadata), not copied source, and so are not transcribed here.
