@@ -65,9 +65,9 @@ export function isSubmenu(entry: NavEntry): entry is NavSubmenu {
 
 /**
  * The DashWind sidebar, verbatim in labels + icon choices (`routes/sidebar.js`).
- * Every leaf carries a real `to`: Dashboard + Team Members reach bespoke pages, Login
- * opens the replica login screen, and every other target reaches the shared
- * `AdminPortalStubPage` — so the whole menu navigates (Phase 3.5).
+ * Every leaf carries a real `to`: Dashboard, Leads + Team Members reach bespoke pages,
+ * Login opens the replica login screen, and every other target reaches the shared
+ * `AdminPortalStubPage` — so the whole menu navigates (Phase 3.5 / 3.6).
  */
 export const NAV_ITEMS: readonly NavEntry[] = [
   { label: 'Dashboard', icon: <Squares2X2Icon className={ICON} />, to: ADMIN_PORTAL_ROUTES.dashboard },

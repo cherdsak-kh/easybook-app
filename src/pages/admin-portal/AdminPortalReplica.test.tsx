@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { AdminPortalLoginPage } from '@/pages/admin-portal/AdminPortalLoginPage'
+import { AdminPortalLeadsPage } from '@/pages/admin-portal/AdminPortalLeadsPage'
 import { AdminPortalStubPage } from '@/pages/admin-portal/AdminPortalStubPage'
 import { AdminPortalSidebar } from '@/components/admin-portal/AdminPortalSidebar'
 import { AdminPortalHeader } from '@/components/admin-portal/AdminPortalHeader'
@@ -9,10 +9,13 @@ import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThe
 import { TeamMembers } from '@/components/admin-portal/TeamMembers'
 
 /**
- * Smoke coverage for the isolated `/admin-portal` replica: it must render with NO
- * backend, NO auth, NO Redux. These prove the visual-only login navigation, the frozen
- * (deterministic) Team table, the fully-clickable sidebar, and the Phase-3.5
- * interactivity (working theme toggle, notification panel, navigable stub pages).
+ * Smoke coverage for the isolated `/admin-portal` replica: the mock surfaces (Team,
+ * Leads, sidebar, header, stub pages) render with NO backend and NO Redux. These prove
+ * the frozen (deterministic) Team table, the fully-clickable sidebar, and the Phase-3.5
+ * interactivity (working theme toggle, notification panel, navigable stub pages). The
+ * login is now REAL cookie-session auth (Phase 4) — its behavior is covered separately
+ * in `AdminPortalLoginPage.test.tsx` (with `AuthProvider` + a mocked api-client), and
+ * the 404 in `AdminPortalNotFoundPage.test.tsx`.
  */
 
 // jsdom doesn't implement Element.prototype.scrollTo; the shell's scroll-reset effect
@@ -22,40 +25,6 @@ beforeAll(() => {
   if (typeof Element.prototype.scrollTo !== 'function') {
     Element.prototype.scrollTo = () => {}
   }
-})
-describe('AdminPortal replica — login (visual-only)', () => {
-  it('blocks an empty submit with a presence error and does not navigate', () => {
-    render(
-      <MemoryRouter initialEntries={['/admin-portal/login']}>
-        <Routes>
-          <Route path="/admin-portal/login" element={<AdminPortalLoginPage />} />
-          <Route path="/admin-portal/dashboard" element={<div>DASHBOARD REACHED</div>} />
-        </Routes>
-      </MemoryRouter>,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Login' }))
-
-    expect(screen.getByRole('alert')).toHaveTextContent(/Email Id is required/)
-    expect(screen.queryByText('DASHBOARD REACHED')).not.toBeInTheDocument()
-  })
-
-  it('navigates to the replica dashboard when both fields are present (no auth)', () => {
-    render(
-      <MemoryRouter initialEntries={['/admin-portal/login']}>
-        <Routes>
-          <Route path="/admin-portal/login" element={<AdminPortalLoginPage />} />
-          <Route path="/admin-portal/dashboard" element={<div>DASHBOARD REACHED</div>} />
-        </Routes>
-      </MemoryRouter>,
-    )
-
-    fireEvent.change(screen.getByLabelText('Email Id'), { target: { value: 'anything' } })
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'anything' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Login' }))
-
-    expect(screen.getByText('DASHBOARD REACHED')).toBeInTheDocument()
-  })
 })
 
 describe('AdminPortal replica — Team members table (frozen mock)', () => {
@@ -73,6 +42,65 @@ describe('AdminPortal replica — Team members table (frozen mock)', () => {
     // Role badge parity.
     expect(within(table).getByText('Owner')).toBeInTheDocument()
     expect(within(table).getAllByText('Support')).toHaveLength(2)
+  })
+
+  it('renders each row avatar from a LOCAL asset (dead reqres image host removed)', () => {
+    render(<TeamMembers />)
+    const table = screen.getByRole('table')
+
+    // Avatar carries the member name as its alt (a11y) and a real, non-empty src that
+    // is NOT the dead `reqres.in` image host — it now points at a bundled local SVG.
+    const avatar = within(table).getByAltText('Alex')
+    expect(avatar.tagName).toBe('IMG')
+    expect(avatar.getAttribute('src')).toBeTruthy()
+    expect(avatar.getAttribute('src')).not.toMatch(/reqres/)
+    expect(avatar).toHaveAttribute('loading', 'lazy')
+  })
+})
+
+describe('AdminPortal replica — Leads table (frozen mock, Phase 3.6)', () => {
+  it('renders the "Current Leads" table with mock rows and an inert Add New button', () => {
+    render(<AdminPortalLeadsPage />)
+
+    expect(screen.getByText('Current Leads')).toBeInTheDocument()
+    const table = screen.getByRole('table')
+
+    // Static mock rows (from reqres page-2's real payload) — no network fetch.
+    expect(within(table).getByText('michael.lawson@reqres.in')).toBeInTheDocument()
+    expect(within(table).getByText('rachel.howell@reqres.in')).toBeInTheDocument()
+    // Frozen (deterministic) created-at — was a live `moment()` in the template.
+    expect(within(table).getByText('10 Jul 26')).toBeInTheDocument()
+
+    // The "Add New" control is present and presentational (no modal, no auth).
+    expect(screen.getByRole('button', { name: 'Add New' })).toBeInTheDocument()
+    // Icon-only delete buttons carry an accessible label (one per row).
+    expect(screen.getByRole('button', { name: 'Delete Michael Lawson' })).toBeInTheDocument()
+  })
+
+  it('shows every status badge variant (index % 5 = 0..4)', () => {
+    render(<AdminPortalLeadsPage />)
+    const table = screen.getByRole('table')
+
+    expect(within(table).getAllByText('Not Interested').length).toBeGreaterThan(0)
+    expect(within(table).getByText('In Progress')).toBeInTheDocument()
+    expect(within(table).getByText('Sold')).toBeInTheDocument()
+    expect(within(table).getByText('Need Followup')).toBeInTheDocument()
+    expect(within(table).getByText('Open')).toBeInTheDocument()
+  })
+
+  it('renders each lead avatar from a LOCAL asset (dead reqres image host removed)', () => {
+    render(<AdminPortalLeadsPage />)
+    const table = screen.getByRole('table')
+
+    // Avatar carries the full name as its alt (a11y) and a real, non-empty src that is
+    // NOT the dead `reqres.in` image host — it now points at a bundled local SVG.
+    // (The `@reqres.in` EMAIL text stays: it is the mock's verbatim display data, never
+    // network-loaded.)
+    const avatar = within(table).getByAltText('Michael Lawson')
+    expect(avatar.tagName).toBe('IMG')
+    expect(avatar.getAttribute('src')).toBeTruthy()
+    expect(avatar.getAttribute('src')).not.toMatch(/reqres/)
+    expect(avatar).toHaveAttribute('loading', 'lazy')
   })
 })
 

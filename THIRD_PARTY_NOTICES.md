@@ -31,11 +31,12 @@ original licenses and copyright notices are reproduced below, as required.
     / `AdminPortalHeader`, `SidebarSubmenu`, `AdminPortalThemeLayout`, `LandingIntro`,
     local `nav-config`/`routes`, the visual-only `AdminPortalLoginPage`, the
     `AdminPortalDashboardPage` which reuses `src/components/dashboard/*`, the
-    `AdminPortalTeamPage`/`TeamMembers` members table, and — from the Phase-3.5
-    interactivity pass — the parameterised `AdminPortalStubPage` placeholder and the
-    header's mock notification panel). Adapted from the template's `src/containers/*`,
-    `src/features/user/*`, `src/routes/sidebar.js`, `src/pages/protected/Team.js`,
-    `src/pages/protected/{Blank,404}.js`,
+    `AdminPortalTeamPage`/`TeamMembers` members table, the `AdminPortalLeadsPage`
+    "Current Leads" table (Phase 3.6), and — from the Phase-3.5 interactivity pass —
+    the parameterised `AdminPortalStubPage` placeholder and the header's mock
+    notification panel). Adapted from the template's `src/containers/*`,
+    `src/features/user/*`, `src/features/leads/index.js`, `src/routes/sidebar.js`,
+    `src/pages/protected/Team.js`, `src/pages/protected/{Blank,404}.js`,
     `src/features/common/components/NotificationBodyRightDrawer.js` and
     `src/features/settings/team`. Redux, `theme-change`, `react-notifications`, auth and
     the template's routing were stripped; the whole sidebar is a real React Router menu

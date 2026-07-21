@@ -11,9 +11,9 @@ const BASE = '/admin-portal'
 /**
  * Absolute react-router paths for the replica (used by NavLink / Navigate). Every
  * DashWind menu target has a real route now (Phase 3.5 made the whole sidebar
- * clickable): `dashboard` + `team` have bespoke pages; the rest render the shared
- * `AdminPortalStubPage` (see `ADMIN_PORTAL_STUB_ROUTES`). The segment tail of each
- * path matches the corresponding `ADMIN_PORTAL_STUB_ROUTES.segment`.
+ * clickable): `dashboard`, `team` + `leads` have bespoke pages; the rest render the
+ * shared `AdminPortalStubPage` (see `ADMIN_PORTAL_STUB_ROUTES`). The segment tail of
+ * each path matches the corresponding `ADMIN_PORTAL_STUB_ROUTES.segment`.
  */
 export const ADMIN_PORTAL_ROUTES = {
   base: BASE,
@@ -44,6 +44,7 @@ export const ADMIN_PORTAL_ROUTES = {
 export const ADMIN_PORTAL_SEGMENTS = {
   dashboard: 'dashboard',
   team: 'team',
+  leads: 'leads',
 } as const
 
 /** A DashWind menu target that renders the shared placeholder `AdminPortalStubPage`. */
@@ -58,12 +59,12 @@ export interface AdminPortalStubRoute {
  * The DashWind menu targets that have no bespoke replica page — each renders the
  * shared `AdminPortalStubPage` ("coming soon" placeholder), parameterised by `title`,
  * so clicking any sidebar item produces a real route transition without hand-writing
- * ~14 near-identical files. `dashboard` + `team` have real pages and are NOT here;
- * `login` is a full-screen sibling route (outside the shell) and is NOT here either.
- * Titles mirror the sidebar labels in `nav-config.tsx` so the header title never drifts.
+ * ~13 near-identical files. `dashboard`, `team` + `leads` have real pages and are NOT
+ * here; `login` is a full-screen sibling route (outside the shell) and is NOT here
+ * either. Titles mirror the sidebar labels in `nav-config.tsx` so the header title
+ * never drifts.
  */
 export const ADMIN_PORTAL_STUB_ROUTES: readonly AdminPortalStubRoute[] = [
-  { segment: 'leads', title: 'Leads' },
   { segment: 'transactions', title: 'Transactions' },
   { segment: 'charts', title: 'Analytics' },
   { segment: 'integration', title: 'Integration' },
@@ -71,7 +72,9 @@ export const ADMIN_PORTAL_STUB_ROUTES: readonly AdminPortalStubRoute[] = [
   { segment: 'register', title: 'Register' },
   { segment: 'forgot-password', title: 'Forgot Password' },
   { segment: 'blank', title: 'Blank Page' },
-  { segment: '404', title: '404' },
+  // NOTE (Phase 4): '404' is intentionally NOT a stub route. With no explicit
+  // `/admin-portal/404` route, the demo sidebar "404" link falls through to the inner
+  // `*` catch-all in `App.tsx`, rendering the real `AdminPortalNotFoundPage`.
   { segment: 'settings-profile', title: 'Profile' },
   { segment: 'settings-billing', title: 'Billing' },
   { segment: 'getting-started', title: 'Getting Started' },

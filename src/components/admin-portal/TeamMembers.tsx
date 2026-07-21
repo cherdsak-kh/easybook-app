@@ -8,6 +8,7 @@
 // deterministic. Reuses the presentational `TitleCard` from `@/components/dashboard/*`.
 import { useState } from 'react'
 import { TitleCard } from '@/components/dashboard/TitleCard'
+import { ADMIN_PORTAL_AVATARS } from '@/components/admin-portal/avatars'
 
 interface TeamMember {
   readonly name: string
@@ -20,18 +21,23 @@ interface TeamMember {
 }
 
 /**
- * The DashWind demo members, VERBATIM in name/email/role/lastActive/avatar. Only the
- * `joinedOn` dates — which the template derived from the current clock — are frozen
- * to fixed literals (preserving the template's ~5-day spacing) so the mock never
- * shifts between renders.
+ * The DashWind demo members, VERBATIM in name/email/role/lastActive. Two things differ
+ * from the raw template and are deliberate:
+ *  - `avatar`: the template's `reqres.in/img/faces/N-image.jpg` hotlinks are DEAD (that
+ *    host now errors), so avatars are the LOCAL, offline-safe `ADMIN_PORTAL_AVATARS`
+ *    SVGs (person N -> avatar N by index). Renders 100% of the time, even with no
+ *    internet — no external host.
+ *  - `joinedOn`: the dates the template derived from the current clock are frozen to
+ *    fixed literals (preserving the template's ~5-day spacing) so the mock never shifts
+ *    between renders.
  */
 const TEAM_MEMBERS: readonly TeamMember[] = [
-  { name: 'Alex', avatar: 'https://reqres.in/img/faces/1-image.jpg', email: 'alex@dashwind.com', role: 'Owner', joinedOn: '26 Jun 2024', lastActive: '5 hr ago' },
-  { name: 'Ereena', avatar: 'https://reqres.in/img/faces/2-image.jpg', email: 'ereena@dashwind.com', role: 'Admin', joinedOn: '21 Jun 2024', lastActive: '15 min ago' },
-  { name: 'John', avatar: 'https://reqres.in/img/faces/3-image.jpg', email: 'jhon@dashwind.com', role: 'Admin', joinedOn: '16 Jun 2024', lastActive: '20 hr ago' },
-  { name: 'Matrix', avatar: 'https://reqres.in/img/faces/4-image.jpg', email: 'matrix@dashwind.com', role: 'Manager', joinedOn: '11 Jun 2024', lastActive: '1 hr ago' },
-  { name: 'Virat', avatar: 'https://reqres.in/img/faces/5-image.jpg', email: 'virat@dashwind.com', role: 'Support', joinedOn: '06 Jun 2024', lastActive: '40 min ago' },
-  { name: 'Miya', avatar: 'https://reqres.in/img/faces/6-image.jpg', email: 'miya@dashwind.com', role: 'Support', joinedOn: '27 May 2024', lastActive: '5 hr ago' },
+  { name: 'Alex', avatar: ADMIN_PORTAL_AVATARS[0], email: 'alex@dashwind.com', role: 'Owner', joinedOn: '26 Jun 2024', lastActive: '5 hr ago' },
+  { name: 'Ereena', avatar: ADMIN_PORTAL_AVATARS[1], email: 'ereena@dashwind.com', role: 'Admin', joinedOn: '21 Jun 2024', lastActive: '15 min ago' },
+  { name: 'John', avatar: ADMIN_PORTAL_AVATARS[2], email: 'jhon@dashwind.com', role: 'Admin', joinedOn: '16 Jun 2024', lastActive: '20 hr ago' },
+  { name: 'Matrix', avatar: ADMIN_PORTAL_AVATARS[3], email: 'matrix@dashwind.com', role: 'Manager', joinedOn: '11 Jun 2024', lastActive: '1 hr ago' },
+  { name: 'Virat', avatar: ADMIN_PORTAL_AVATARS[4], email: 'virat@dashwind.com', role: 'Support', joinedOn: '06 Jun 2024', lastActive: '40 min ago' },
+  { name: 'Miya', avatar: ADMIN_PORTAL_AVATARS[5], email: 'miya@dashwind.com', role: 'Support', joinedOn: '27 May 2024', lastActive: '5 hr ago' },
 ]
 
 /** Role → daisyUI badge, verbatim from the template's `getRoleComponent`. */
