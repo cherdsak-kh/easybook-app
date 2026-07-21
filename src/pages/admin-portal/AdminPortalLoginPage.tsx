@@ -12,10 +12,10 @@
 // (`/admin-portal/dashboard`), never the real `/backend`. There is no `ProtectedRoute`
 // in this branch, so there is no `location.state.from` return path to honor. The CSRF
 // 403 retry is handled transparently inside `api-client` — not re-implemented here. The
-// "Forgot Password?" / "Register" links stay inert spans (their pages are out of scope).
+// carried-over DashWind "Forgot Password?" / "Register" template links have been removed
+// (Phase 5.1.1 UI polish): the V2 has no such routes.
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Spinner } from '@/components/Spinner'
 import { useAuth } from '@/auth/useAuth'
 import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import { LandingIntro } from '@/components/admin-portal/LandingIntro'
@@ -115,7 +115,7 @@ export function AdminPortalLoginPage() {
 
               <div className="mb-4">
                 <div className="mt-4">
-                  <label htmlFor="admin-portal-email" className="label">
+                  <label htmlFor="admin-portal-email" className="label mb-1">
                     <span className="label-text">{UI.email}</span>
                   </label>
                   <input
@@ -133,7 +133,7 @@ export function AdminPortalLoginPage() {
                 </div>
 
                 <div className="mt-4">
-                  <label htmlFor="admin-portal-password" className="label">
+                  <label htmlFor="admin-portal-password" className="label mb-1">
                     <span className="label-text">{UI.password}</span>
                   </label>
                   <input
@@ -151,11 +151,6 @@ export function AdminPortalLoginPage() {
                 </div>
               </div>
 
-              <div className="text-right text-primary">
-                {/* Inert — its page is out of scope (design §5). */}
-                <span className="inline-block cursor-default text-sm">Forgot Password?</span>
-              </div>
-
               {fieldError && (
                 <p id="admin-portal-field-error" role="alert" className="mt-8 text-sm text-error">
                   {fieldError}
@@ -165,16 +160,18 @@ export function AdminPortalLoginPage() {
               <button
                 type="submit"
                 disabled={submitting}
+                aria-busy={submitting}
                 className="btn btn-primary mt-2 w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
               >
-                {submitting ? <Spinner label={UI.submitting} /> : UI.submit}
+                {submitting ? (
+                  <>
+                    <span className="loading loading-spinner loading-sm" aria-hidden="true" />
+                    <span className="sr-only">{UI.submitting}</span>
+                  </>
+                ) : (
+                  UI.submit
+                )}
               </button>
-
-              <div className="mt-4 text-center">
-                Don't have an account yet?{' '}
-                {/* Inert — its page is out of scope (design §5). */}
-                <span className="inline-block cursor-default">Register</span>
-              </div>
             </form>
           </div>
         </div>
