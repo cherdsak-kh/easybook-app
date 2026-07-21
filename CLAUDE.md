@@ -128,11 +128,28 @@ rather than mocking `fetch`/network calls directly — see `HealthStatus.test.ts
 `HomePage.test.tsx` for the pattern (mock the `lib` module, assert on rendered states: loading /
 ok / error).
 
-### Styling
+### Styling — daisyUI is the UI source of truth
 
-Tailwind v4 via the `@tailwindcss/vite` plugin (no separate `tailwind.config.js` — config is
-CSS-driven from `src/index.css`). Support both light and dark mode with `dark:` variants, matching
-existing components.
+Tailwind **v4** via the `@tailwindcss/vite` plugin (no `tailwind.config.js` — config is CSS-driven
+from `src/index.css`: `@import "tailwindcss"; @plugin "daisyui";`). UI is built with **daisyUI 5**
+(installed 5.6.x).
+
+**Before generating or editing ANY component markup — buttons, tables, modals, inputs, badges, cards,
+drawers, etc. — consult the `daisyui` skill** (`.claude/skills/daisyui`, the official daisyUI 5.6.x
+reference; read the relevant `components/*.md`). This is a hard rule for humans and agents alike:
+**never hand-roll component markup or invent generic class patterns from memory** — that improvisation
+is the drift this rule exists to stop. The skill is the canonical *structure*; the conventions below
+bind on top of it.
+
+- **Semantic tokens only.** Style with daisyUI semantic classes/tokens (`bg-base-100`,
+  `text-base-content`, `border-base-300`, `btn-primary`, `badge-success`, …), never hard-coded colors.
+- **Theming is `data-theme`, NOT `dark:`.** Light/dark and per-portal identity come from the daisyUI
+  themes declared in `index.css` (`easybook-client(-dark)`, `easybook-admin(-dark)`, `dashwind(-light|
+  -dark)`), applied via a `data-theme` wrapper and the `@custom-variant dark` rule. **Ship zero `dark:`
+  utilities in new code.** New/adjusted themes are additive `@plugin "daisyui/theme"` blocks appended
+  to `index.css` — never edit the existing blocks or add a `tailwind.config.js`.
+- **Accessibility still applies:** semantic HTML, sufficient contrast in every theme, visible focus,
+  `aria-*` where daisyUI markup alone is insufficient.
 
 ## Environment variables
 
