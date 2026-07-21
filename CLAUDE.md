@@ -37,8 +37,10 @@ compiler-option warning against `node_modules/typescript` before "fixing" a tsco
 To run a single test file: `npx vitest run src/pages/admin/LineUsersPage.test.tsx`.
 To run tests matching a name: `npx vitest run -t "renders the ok status"`.
 
-A husky pre-commit hook runs oxlint + the **full** Vitest suite on every commit — a red test blocks
-the commit by design.
+A husky pre-commit hook runs `lint-staged`: for staged `*.{ts,tsx}` it runs oxlint, then
+`vitest related --run` — i.e. only the tests **related to the staged files**, not the full suite, so
+commits stay fast. A red related-test blocks the commit by design. Run the full suite yourself with
+`npm test` (or in CI) before merging.
 
 ## Architecture
 
