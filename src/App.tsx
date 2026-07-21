@@ -158,9 +158,14 @@ function App() {
             <Route path={DASHBOARD_CHILDREN.profile} element={<ProfilePage />} />
           </Route>
         </Route>
-        {/* ADD-ONLY (Phase 3): the isolated DashWind replica. Phase 4 makes ONLY its
-            login functional (real cookie-session auth via `useAuth`); the rest stays
-            mock/open — no ProtectedRoute, no AuthProvider gating on this branch. Its own
+        {/* ADD-ONLY (Phase 3): the isolated DashWind replica. Phase 5.1 gates the shell:
+            every `/admin-portal/*` route EXCEPT `/admin-portal/login` now requires a live
+            admin session via the shared `ProtectedRoute`. The guard bounces an
+            unauthenticated visitor to `/admin-portal/login` (loginPath) — NOT `/backend/login`
+            — and is passed `forcePasswordChangePath={null}` so a `mustChangePassword` admin is
+            admitted without a cross-portal force-reset bounce (this branch has no reset screen;
+            the server still gates every mutation). `/admin-portal/login` stays OUTSIDE the guard
+            so it remains reachable while unauthenticated (else redirect loop). Its own
             `AdminPortalThemeLayout` stamps the `dashwind-*` theme and a distinct
             `admin-portal-drawer` id keeps its drawer independent of the live shell.
             React Router ranks the concrete `/admin-portal/*` paths above the client
@@ -168,7 +173,14 @@ function App() {
             instead of redirecting to the dashboard. */}
         <Route element={<AdminPortalThemeLayout />}>
           <Route path={ADMIN_PORTAL_ROUTES.login} element={<AdminPortalLoginPage />} />
-          <Route path={ADMIN_PORTAL_ROUTES.base} element={<AdminPortalLayout />}>
+          <Route
+            path={ADMIN_PORTAL_ROUTES.base}
+            element={
+              <ProtectedRoute loginPath={ADMIN_PORTAL_ROUTES.login} forcePasswordChangePath={null}>
+                <AdminPortalLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<Navigate to={ADMIN_PORTAL_ROUTES.dashboard} replace />} />
             <Route path={ADMIN_PORTAL_SEGMENTS.dashboard} element={<AdminPortalDashboardPage />} />
             <Route path={ADMIN_PORTAL_SEGMENTS.team} element={<AdminPortalTeamPage />} />
