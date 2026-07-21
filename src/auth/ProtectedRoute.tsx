@@ -1,12 +1,11 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { FullPageSpinner } from '@/components/Spinner'
-import { ROUTES } from '@/constants/routes'
 import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import { useAuth } from './useAuth'
 
 /**
- * Gate for `{ROUTES.dashboard}/*` (design §5.2):
+ * Gate for the protected `/admin-portal/*` subtree:
  *  - `loading`        → render a spinner; do NOT render the dashboard and do NOT
  *                       redirect yet (no dashboard flash before the probe resolves).
  *  - `authenticated`  → render the protected children.
@@ -22,24 +21,23 @@ import { useAuth } from './useAuth'
  * security — it exists so a gated user sees a usable screen instead of a wall of
  * 403s.
  *
- * ## Parameterized for two portals (design §2)
- * `loginPath` and `forcePasswordChangePath` default to the `/backend` portal's
- * routes, so the existing `/backend` call sites (no props) behave **exactly** as
- * before. The `/admin-portal` branch passes its own `loginPath` and — because it
- * has no force-reset screen yet — an explicit `forcePasswordChangePath={null}` to
- * SKIP the force-reset redirect. `null` (not omission) is required: a defaulted
- * param cannot distinguish "omitted" from `undefined`, so omitting it would fall
- * back to the `/backend` default and cross-portal-bounce a `mustChangePassword`
- * admin into the wrong portal. The server still gates every mutation, so skipping
- * the client redirect is a UX gap, not a security hole.
+ * ## Explicit login path per branch (R6 — Phase 5 cutover)
+ * `loginPath` is **required** — with the legacy `/backend` portal deleted, there is
+ * no single portal to default to, and an implicit default would be a footgun.
+ * TypeScript now enforces that every consumer states its login path. The sole
+ * caller (the `/admin-portal` branch) passes `loginPath={ADMIN_PORTAL_ROUTES.login}`
+ * plus an explicit `forcePasswordChangePath={null}` to SKIP the force-reset redirect:
+ * there is no in-app reset screen this phase (accepted lockout R2), and the server
+ * still gates every mutation, so skipping the client redirect is a UX gap, not a
+ * security hole. `null` (the default) means "no reset screen to point at".
  */
 export function ProtectedRoute({
   children,
-  loginPath = ROUTES.login,
-  forcePasswordChangePath = ROUTES.forcePasswordChange,
+  loginPath,
+  forcePasswordChangePath = null,
 }: {
   children: ReactNode
-  loginPath?: string
+  loginPath: string
   /** `null` (or empty) → skip the force-reset redirect for this branch. */
   forcePasswordChangePath?: string | null
 }) {
