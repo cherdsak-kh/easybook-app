@@ -1,9 +1,23 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AuthProvider } from '@/auth/AuthProvider'
 import { AdminPortalNotFoundPage } from '@/pages/admin-portal/AdminPortalNotFoundPage'
 import { AdminPortalLayout } from '@/components/admin-portal/AdminPortalLayout'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
 import { ADMIN_PORTAL_ROUTES, ADMIN_PORTAL_SEGMENTS } from '@/components/admin-portal/routes'
+import * as apiClient from '@/lib/api-client'
+
+// The shell's header now reads `useAuth().logout`, so the full-shell renders below must
+// sit inside a real `AuthProvider`. Mock the api-client boundary (never the network) —
+// the same convention as `AdminPortalLoginPage.test.tsx`; only `getMe` matters here (the
+// mount probe), resolved unauthenticated so no session is required to render the shell.
+vi.mock('@/lib/api-client', () => ({
+  getMe: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
+}))
+
+const mockGetMe = vi.mocked(apiClient.getMe)
 
 // jsdom lacks Element.prototype.scrollTo, which the shell's scroll-reset effect calls on
 // navigation (same as the real DashboardLayout). Shim it so the full-shell render below
@@ -14,19 +28,26 @@ beforeAll(() => {
   }
 })
 
+beforeEach(() => {
+  vi.clearAllMocks()
+  mockGetMe.mockResolvedValue(null) // unauthenticated mount probe — the shell renders regardless
+})
+
 /** Mirrors the inner `/admin-portal/*` route tree from `App.tsx` (Phase 4 wiring). */
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route element={<AdminPortalThemeLayout />}>
-          <Route path={ADMIN_PORTAL_ROUTES.base} element={<AdminPortalLayout />}>
-            <Route index element={<Navigate to={ADMIN_PORTAL_ROUTES.dashboard} replace />} />
-            <Route path={ADMIN_PORTAL_SEGMENTS.dashboard} element={<div>DASHBOARD REACHED</div>} />
-            <Route path="*" element={<AdminPortalNotFoundPage />} />
+      <AuthProvider>
+        <Routes>
+          <Route element={<AdminPortalThemeLayout />}>
+            <Route path={ADMIN_PORTAL_ROUTES.base} element={<AdminPortalLayout />}>
+              <Route index element={<Navigate to={ADMIN_PORTAL_ROUTES.dashboard} replace />} />
+              <Route path={ADMIN_PORTAL_SEGMENTS.dashboard} element={<div>DASHBOARD REACHED</div>} />
+              <Route path="*" element={<AdminPortalNotFoundPage />} />
+            </Route>
           </Route>
-        </Route>
-      </Routes>
+        </Routes>
+      </AuthProvider>
     </MemoryRouter>,
   )
 }

@@ -1,11 +1,25 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { AuthProvider } from '@/auth/AuthProvider'
 import { AdminPortalStubPage } from '@/pages/admin-portal/AdminPortalStubPage'
 import { AdminPortalSidebar } from '@/components/admin-portal/AdminPortalSidebar'
 import { AdminPortalHeader } from '@/components/admin-portal/AdminPortalHeader'
 import { AdminPortalLayout } from '@/components/admin-portal/AdminPortalLayout'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
 import { TeamMembers } from '@/components/admin-portal/TeamMembers'
+import * as apiClient from '@/lib/api-client'
+
+// The header now reads `useAuth().logout`, so any render that mounts it must sit inside a
+// real `AuthProvider`. Mock the api-client boundary (never the network) — the same
+// convention as `AdminPortalLoginPage.test.tsx`; only `getMe` matters here (the mount
+// probe), resolved unauthenticated so no session is required to render the chrome.
+vi.mock('@/lib/api-client', () => ({
+  getMe: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
+}))
+
+const mockGetMe = vi.mocked(apiClient.getMe)
 
 /**
  * Smoke coverage for the isolated `/admin-portal` replica: the mock surfaces (Team,
@@ -26,6 +40,11 @@ beforeAll(() => {
   if (typeof Element.prototype.scrollTo !== 'function') {
     Element.prototype.scrollTo = () => {}
   }
+})
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  mockGetMe.mockResolvedValue(null) // unauthenticated mount probe — chrome renders regardless
 })
 
 describe('AdminPortal replica — Team members table (frozen mock)', () => {
@@ -82,11 +101,13 @@ describe('AdminPortal replica — sidebar is fully navigable (Phase 3.5)', () =>
 function renderHeaderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route element={<AdminPortalThemeLayout />}>
-          <Route path="/admin-portal/dashboard" element={<AdminPortalHeader />} />
-        </Route>
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route element={<AdminPortalThemeLayout />}>
+            <Route path="/admin-portal/dashboard" element={<AdminPortalHeader />} />
+          </Route>
+        </Routes>
+      </AuthProvider>
     </MemoryRouter>,
   )
 }
@@ -122,13 +143,15 @@ describe('AdminPortal replica — stub pages (Phase 3.5)', () => {
   it('renders a navigable placeholder inside the shell for a stubbed menu target', () => {
     render(
       <MemoryRouter initialEntries={['/admin-portal/leads']}>
-        <Routes>
-          <Route element={<AdminPortalThemeLayout />}>
-            <Route path="/admin-portal" element={<AdminPortalLayout />}>
-              <Route path="leads" element={<AdminPortalStubPage title="Leads" />} />
+        <AuthProvider>
+          <Routes>
+            <Route element={<AdminPortalThemeLayout />}>
+              <Route path="/admin-portal" element={<AdminPortalLayout />}>
+                <Route path="leads" element={<AdminPortalStubPage title="Leads" />} />
+              </Route>
             </Route>
-          </Route>
-        </Routes>
+          </Routes>
+        </AuthProvider>
       </MemoryRouter>,
     )
 

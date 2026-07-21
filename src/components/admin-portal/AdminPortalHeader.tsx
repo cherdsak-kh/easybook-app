@@ -19,6 +19,7 @@ import UserIcon from '@heroicons/react/24/outline/UserIcon'
 import { ADMIN_PORTAL_ROUTES } from './routes'
 import { ADMIN_PORTAL_DRAWER_ID, usePageTitle } from './nav-config'
 import { useAdminPortalTheme } from './admin-portal-theme'
+import { useAuth } from '@/auth/useAuth'
 
 interface HeaderNotification {
   readonly id: number
@@ -46,15 +47,16 @@ function closeMenus() {
 /**
  * Replica top bar (daisyUI `navbar`): a mobile drawer toggle, the current page title,
  * a working light/dark Sun/Moon toggle, a notification dropdown and a profile dropdown.
- * The hamburger is a `<label htmlFor>` bound to the drawer checkbox. Nothing here
- * authenticates or mutates real state; "Logout" simply navigates back to the replica
- * login (visual-only).
+ * The hamburger is a `<label htmlFor>` bound to the drawer checkbox. "Logout" tears down
+ * the real cookie session via `useAuth().logout` before navigating back to the replica
+ * login.
  */
 export function AdminPortalHeader() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const pageTitle = usePageTitle(pathname)
   const { theme, toggleTheme } = useAdminPortalTheme()
+  const { logout } = useAuth()
   const isDark = theme === 'dashwind-dark'
 
   return (
@@ -156,8 +158,9 @@ export function AdminPortalHeader() {
               <button
                 type="button"
                 className="cursor-pointer"
-                onClick={() => {
+                onClick={async () => {
                   closeMenus()
+                  await logout()
                   navigate(ADMIN_PORTAL_ROUTES.login)
                 }}
               >
