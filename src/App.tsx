@@ -111,7 +111,18 @@ function App() {
             redirect loop). Its own `AdminPortalThemeLayout` stamps the `dashwind-*` theme
             and a distinct `admin-portal-drawer` id keeps its drawer independent. React
             Router ranks the concrete `/admin-portal/*` paths above the client `/*`
-            catch-all; the inner `*` renders the replica's own 404 page (Phase 4). */}
+            catch-all.
+
+            404 placement: an unknown `/admin-portal/*` sub-path now renders the 404
+            FULL-SCREEN — via the `${base}/*` SIBLING route below, OUTSIDE both the shell
+            (no sidebar/header) and the guard — and that page auto-redirects to login after
+            a countdown. The bare base still resolves to the dashboard through the layout's
+            `index` (React Router ranks the index/static branch above the sibling splat),
+            and every KNOWN sub-path still renders in-shell. Intended behavior change: since
+            the 404 sibling sits OUTSIDE `<ProtectedRoute>`, an UNAUTHENTICATED visitor to a
+            bogus sub-path now SEES the full-screen 404 (then auto-redirects to login),
+            instead of being bounced straight to login by the guard. Deliberate, not a
+            silent regression. */}
         <Route element={<AdminPortalThemeLayout />}>
           <Route path={ADMIN_PORTAL_ROUTES.login} element={<AdminPortalLoginPage />} />
           <Route
@@ -137,10 +148,12 @@ function App() {
                 element={<AdminPortalStubPage title={stub.title} />}
               />
             ))}
-            {/* Phase 4: an unknown sub-path renders the ported 404 INSIDE the shell (the
-                index route above still wins for the bare base → dashboard). */}
-            <Route path="*" element={<AdminPortalNotFoundPage />} />
           </Route>
+          {/* Full-screen 404: a SIBLING of the guarded layout (still inside the theme
+              wrapper, but OUTSIDE `<ProtectedRoute>`/`<AdminPortalLayout>`), so an unknown
+              `/admin-portal/*` sub-path renders the 404 with no shell chrome and outside
+              the guard. It auto-redirects to login after a countdown. */}
+          <Route path={`${ADMIN_PORTAL_ROUTES.base}/*`} element={<AdminPortalNotFoundPage />} />
         </Route>
         <Route element={<ThemeLayout portal="client" />}>
           <Route path="/*" element={<HomePage />} />

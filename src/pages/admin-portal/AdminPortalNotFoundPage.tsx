@@ -8,14 +8,16 @@
 import FaceFrownIcon from '@heroicons/react/24/solid/FaceFrownIcon'
 
 /**
- * The replica's 404 page. Rendered by the inner `/admin-portal/*` catch-all (see
- * `App.tsx`) INSIDE the replica shell (sidebar + header intact), so an unknown sub-path
- * shows "404 - Not Found" instead of silently redirecting to the dashboard.
+ * The replica's 404 page. Rendered by the sibling `/admin-portal/*` catch-all (see
+ * `App.tsx`) FULL-SCREEN — OUTSIDE the replica shell (no sidebar/header) and OUTSIDE the
+ * auth guard, wrapped only by `AdminPortalThemeLayout`. It is a purely static presentational
+ * page: it shows the frown glyph and the `404 - Not Found` heading and stays there
+ * indefinitely (no countdown, no auto-redirect, no login link).
  */
 export function AdminPortalNotFoundPage() {
   return (
-    <div className="hero min-h-[70vh] bg-base-200">
-      <div className="hero-content text-center text-accent">
+    <div className="hero min-h-screen bg-base-200">
+      <div className="hero-content text-center text-red-500">
         <div className="max-w-md">
           <FaceFrownIcon className="inline-block h-48 w-48" aria-hidden />
           <h1 className="text-5xl font-bold">404 - Not Found</h1>
