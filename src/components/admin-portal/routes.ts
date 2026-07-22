@@ -28,7 +28,6 @@ export const ADMIN_PORTAL_ROUTES = {
   register: `${BASE}/register`,
   forgotPassword: `${BASE}/forgot-password`,
   blank: `${BASE}/blank`,
-  notFound: `${BASE}/404`,
   settingsProfile: `${BASE}/settings-profile`,
   settingsBilling: `${BASE}/settings-billing`,
   gettingStarted: `${BASE}/getting-started`,
@@ -72,9 +71,10 @@ export const ADMIN_PORTAL_STUB_ROUTES: readonly AdminPortalStubRoute[] = [
   { segment: 'register', title: 'Register' },
   { segment: 'forgot-password', title: 'Forgot Password' },
   { segment: 'blank', title: 'Blank Page' },
-  // NOTE (Phase 4): '404' is intentionally NOT a stub route. With no explicit
-  // `/admin-portal/404` route, the demo sidebar "404" link falls through to the inner
-  // `*` catch-all in `App.tsx`, rendering the real `AdminPortalNotFoundPage`.
+  // NOTE: there is no `/admin-portal/404` route (the demo "404" sidebar leaf was
+  // removed). Any unknown `/admin-portal/*` path — including the old demo `/404` —
+  // is not routed here and falls through to the GLOBAL `*` → `NotFoundPage` in
+  // `App.tsx`, which is the single 404 surface for the whole app.
   { segment: 'settings-profile', title: 'Profile' },
   { segment: 'settings-billing', title: 'Billing' },
   { segment: 'getting-started', title: 'Getting Started' },

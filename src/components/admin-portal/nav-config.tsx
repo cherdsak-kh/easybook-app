@@ -18,7 +18,6 @@ import CurrencyDollarIcon from '@heroicons/react/24/outline/CurrencyDollarIcon'
 import DocumentDuplicateIcon from '@heroicons/react/24/outline/DocumentDuplicateIcon'
 import DocumentIcon from '@heroicons/react/24/outline/DocumentIcon'
 import DocumentTextIcon from '@heroicons/react/24/outline/DocumentTextIcon'
-import ExclamationTriangleIcon from '@heroicons/react/24/outline/ExclamationTriangleIcon'
 import InboxArrowDownIcon from '@heroicons/react/24/outline/InboxArrowDownIcon'
 import KeyIcon from '@heroicons/react/24/outline/KeyIcon'
 import Squares2X2Icon from '@heroicons/react/24/outline/Squares2X2Icon'
@@ -85,7 +84,6 @@ export const NAV_ITEMS: readonly NavEntry[] = [
       { label: 'Register', icon: <UserIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.register },
       { label: 'Forgot Password', icon: <KeyIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.forgotPassword },
       { label: 'Blank Page', icon: <DocumentIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.blank },
-      { label: '404', icon: <ExclamationTriangleIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.notFound },
     ],
   },
   {

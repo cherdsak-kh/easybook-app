@@ -16,6 +16,8 @@
 // (Phase 5.1.1 UI polish): the V2 has no such routes.
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import EyeIcon from '@heroicons/react/24/outline/EyeIcon'
+import EyeSlashIcon from '@heroicons/react/24/outline/EyeSlashIcon'
 import { useAuth } from '@/auth/useAuth'
 import { UI_STRINGS } from '@/constants/ui-strings-backend'
 import { LandingIntro } from '@/components/admin-portal/LandingIntro'
@@ -59,6 +61,7 @@ export function AdminPortalLoginPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [emailError, setEmailError] = useState<string | null>(null)
@@ -205,18 +208,35 @@ export function AdminPortalLoginPage() {
                   <label htmlFor="admin-portal-password" className="label mb-1">
                     <span className="label-text">{UI.password}</span>
                   </label>
-                  <input
-                    id="admin-portal-password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    aria-invalid={passwordError != null}
-                    aria-describedby={passwordError ? 'admin-portal-password-error' : undefined}
-                    className={`input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100${passwordError ? ' input-error' : ''}`}
-                    placeholder={UI.passwordPlaceholder}
-                  />
+                  {/* Relative wrapper so the ghost toggle can overlay the input's right
+                      edge; `pr-10` keeps typed text clear of the icon. The input keeps
+                      ALL its own classes/attrs (label association, input-error, aria-*). */}
+                  <div className="relative">
+                    <input
+                      id="admin-portal-password"
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      aria-invalid={passwordError != null}
+                      aria-describedby={passwordError ? 'admin-portal-password-error' : undefined}
+                      className={`input input-bordered w-full pr-10 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100${passwordError ? ' input-error' : ''}`}
+                      placeholder={UI.passwordPlaceholder}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? UI.hidePassword : UI.showPassword}
+                      className="btn btn-ghost btn-sm btn-square absolute right-1 top-1/2 -translate-y-1/2 text-base-content/60 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
+                    >
+                      {showPassword ? (
+                        <EyeSlashIcon className="h-5 w-5" aria-hidden="true" />
+                      ) : (
+                        <EyeIcon className="h-5 w-5" aria-hidden="true" />
+                      )}
+                    </button>
+                  </div>
                   {passwordError && (
                     <div
                       id="admin-portal-password-error"

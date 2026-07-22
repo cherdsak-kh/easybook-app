@@ -540,6 +540,10 @@ export const UI_STRINGS = {
       emailPlaceholder: 'example@mail.com',
       password: 'รหัสผ่าน',
       passwordPlaceholder: '********',
+      /** Toggle `aria-label` when the password is HIDDEN — the button's action is "show". */
+      showPassword: 'แสดงรหัสผ่าน',
+      /** Toggle `aria-label` when the password is VISIBLE — the button's action is "hide". */
+      hidePassword: 'ซ่อนรหัสผ่าน',
       submit: 'เข้าสู่ระบบ',
       submitting: 'กำลังเข้าสู่ระบบ…',
 

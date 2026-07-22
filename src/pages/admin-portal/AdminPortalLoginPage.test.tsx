@@ -74,7 +74,7 @@ async function fillAndSubmit(password = 'secret') {
     target: { value: 'admin@easybook.local' },
   })
   fireEvent.change(screen.getByLabelText(UI.password), { target: { value: password } })
-  fireEvent.click(screen.getByRole('button'))
+  fireEvent.click(screen.getByRole('button', { name: UI.submit }))
 }
 
 beforeEach(() => {
@@ -158,7 +158,7 @@ describe('AdminPortalLoginPage — functional auth', () => {
 
     fireEvent.change(await screen.findByLabelText(UI.email), { target: { value: 'not-an-email' } })
     fireEvent.change(screen.getByLabelText(UI.password), { target: { value: 'secret' } })
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: UI.submit }))
 
     expect(await screen.findByText(UI.emailInvalid)).toBeInTheDocument()
     expect(mockLogin).not.toHaveBeenCalled()
@@ -171,7 +171,7 @@ describe('AdminPortalLoginPage — functional auth', () => {
     // regex branch, so the message is `emailRequired`, never `emailInvalid`.
     await screen.findByLabelText(UI.email)
     fireEvent.change(screen.getByLabelText(UI.password), { target: { value: 'secret' } })
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: UI.submit }))
 
     expect(await screen.findByText(UI.emailRequired)).toBeInTheDocument()
     expect(screen.queryByText(UI.emailInvalid)).not.toBeInTheDocument()
@@ -194,7 +194,7 @@ describe('AdminPortalLoginPage — functional auth', () => {
     fireEvent.change(await screen.findByLabelText(UI.email), {
       target: { value: 'admin@easybook.local' },
     })
-    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: UI.submit }))
 
     expect(await screen.findByText(UI.passwordRequired)).toBeInTheDocument()
     expect(mockLogin).not.toHaveBeenCalled()
@@ -209,9 +209,17 @@ describe('AdminPortalLoginPage — functional auth', () => {
     )
     renderLogin()
 
-    await fillAndSubmit()
+    // Fill the fields, then capture the submit button by its idle name BEFORE clicking:
+    // after the click the name flips to `UI.submitting`, so re-querying by `UI.submit`
+    // would fail — and the password-toggle button is now a second button, making an
+    // unscoped `getByRole('button')` ambiguous. Capturing first sidesteps both.
+    fireEvent.change(await screen.findByLabelText(UI.email), {
+      target: { value: 'admin@easybook.local' },
+    })
+    fireEvent.change(screen.getByLabelText(UI.password), { target: { value: 'secret' } })
+    const button = screen.getByRole('button', { name: UI.submit })
+    fireEvent.click(button)
 
-    const button = screen.getByRole('button')
     expect(button).toBeDisabled()
     expect(screen.getByText(UI.submitting)).toBeInTheDocument()
 
@@ -238,5 +246,57 @@ describe('AdminPortalLoginPage — functional auth', () => {
 
     // The unprotected replica has no force-reset screen — it lands on its own dashboard.
     expect(await screen.findByText('DASHBOARD REACHED')).toBeInTheDocument()
+  })
+})
+
+describe('AdminPortalLoginPage — password-visibility toggle', () => {
+  it('renders the password input as type="password" by default (AC-2.1)', async () => {
+    renderLogin()
+
+    const input = await screen.findByLabelText(UI.password)
+    expect(input).toHaveAttribute('type', 'password')
+    // The toggle starts in its "reveal" state (password hidden).
+    expect(screen.getByRole('button', { name: UI.showPassword })).toBeInTheDocument()
+  })
+
+  it('reveals the password (type="text") and swaps the toggle name to hide on click (AC-2.2)', async () => {
+    renderLogin()
+
+    const input = await screen.findByLabelText(UI.password)
+    fireEvent.click(screen.getByRole('button', { name: UI.showPassword }))
+
+    expect(input).toHaveAttribute('type', 'text')
+    // The toggle now exposes the "hide" action; the "show" name is gone.
+    expect(screen.getByRole('button', { name: UI.hidePassword })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: UI.showPassword })).not.toBeInTheDocument()
+  })
+
+  it('re-hides the password (type="password") when clicked a second time (AC-2.3)', async () => {
+    renderLogin()
+
+    const input = await screen.findByLabelText(UI.password)
+    fireEvent.click(screen.getByRole('button', { name: UI.showPassword }))
+    fireEvent.click(screen.getByRole('button', { name: UI.hidePassword }))
+
+    expect(input).toHaveAttribute('type', 'password')
+    expect(screen.getByRole('button', { name: UI.showPassword })).toBeInTheDocument()
+  })
+
+  it('is a non-submitting button: toggling never calls login (AC-2.4)', async () => {
+    renderLogin()
+
+    // Fill valid credentials so a stray submit WOULD reach `login` if the toggle
+    // misbehaved as a submit button — then assert it never does.
+    fireEvent.change(await screen.findByLabelText(UI.email), {
+      target: { value: 'admin@easybook.local' },
+    })
+    fireEvent.change(screen.getByLabelText(UI.password), { target: { value: 'secret' } })
+
+    const toggle = screen.getByRole('button', { name: UI.showPassword })
+    expect(toggle).toHaveAttribute('type', 'button')
+    fireEvent.click(toggle)
+
+    expect(mockLogin).not.toHaveBeenCalled()
+    expect(screen.queryByText('DASHBOARD REACHED')).not.toBeInTheDocument()
   })
 })
