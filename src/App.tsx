@@ -45,9 +45,9 @@ const AdminPortalStubPage = lazy(() =>
     default: m.AdminPortalStubPage,
   })),
 )
-const AdminPortalNotFoundPage = lazy(() =>
-  import('@/pages/admin-portal/AdminPortalNotFoundPage').then((m) => ({
-    default: m.AdminPortalNotFoundPage,
+const NotFoundPage = lazy(() =>
+  import('@/pages/NotFoundPage').then((m) => ({
+    default: m.NotFoundPage,
   })),
 )
 
@@ -71,30 +71,44 @@ function RouteFallback() {
 }
 
 /**
- * Route tree (Phase 5 cutover). Two branches remain: the `/admin-portal` back-office
- * (its own theme + guard) and the client `/*` LIFF catch-all. The legacy `/backend`
+ * Route tree with a single, unified GLOBAL 404. Two branches remain: the `/admin-portal`
+ * back-office (its own theme + guard) and the client LIFF surface. The legacy `/backend`
  * portal and its `admin/**` pages were deleted in the Big Bang cutover; the V2
  * `AdminPortalLoginPage` (`/admin-portal/login`) is now the app's only admin login.
  *
  *  - `/admin-portal/login`  → the admin login form (eager, outside the guard).
- *  - `/admin-portal/*`      → protected shell (sidebar + header) with the dashboard,
- *                             team, wired Leads, and stub pages.
- *  - `/*`                   → the existing client LIFF surface, unchanged. Kept LAST:
- *                             React Router ranks specific paths above this catch-all,
- *                             so the portal branch wins and `/*` only catches
- *                             non-portal paths. A deep-link to a removed `/backend/*`
- *                             URL now falls through here to `HomePage` (accepted; no
- *                             server rewrite in this repo).
+ *  - `/admin-portal`        → protected shell (sidebar + header) with the dashboard,
+ *    (+ known sub-paths)      team, wired Leads, and stub pages. Valid routes stay behind
+ *                             `ProtectedRoute`, so an unauthenticated visit redirects to
+ *                             the admin login — NOT the 404.
+ *  - `/`                     → the client LIFF surface (`HomePage`). Matched at the INDEX
+ *                             only — `HomePage` is route-less (it swaps screens via internal
+ *                             state, not the URL), so the client portal has exactly one real
+ *                             route.
+ *  - `path="*"`              → the ONE global 404, kept LAST inside the client theme layout.
+ *                             Any URL that matches no valid route — an unknown `/admin-portal/*`
+ *                             sub-path OR an unknown client path — falls through here,
+ *                             REGARDLESS of authentication (this fallback sits OUTSIDE
+ *                             `ProtectedRoute`, so a bogus path shows the 404, not a login
+ *                             bounce). React Router ranks the concrete/index routes above this
+ *                             splat, so valid routes keep their auth behavior and only genuinely
+ *                             unmatched URLs reach it.
  *
- * Each branch is wrapped in a pathless theme layout route that stamps the portal's
- * daisyUI `data-theme` onto the subtree. These wrappers are presentational only — they
- * add no path segment, so route specificity is unchanged and `/*` still ranks last.
+ * Theme consequence (deliberate — accepted in the plan): the global `path="*"` lives inside
+ * `ThemeLayout portal="client"`, so an unknown ADMIN path renders the 404 in the CLIENT theme
+ * rather than the `dashwind-*` admin theme. Unifying the 404 across both portals means one
+ * theme wrapper; `NotFoundPage` uses only theme-agnostic semantic tokens, so it renders
+ * correctly under either theme. No per-portal 404 theming (a second `path="*"` wrapper) — that
+ * would be a different design.
  *
- * Phase 4: the chart-bearing `/admin-portal` pages are code-split (`React.lazy`) behind
- * a single top-level `<Suspense>`, so the anonymous LIFF client never eagerly downloads
- * `chart.js`/`react-chartjs-2`. The trade-off (accepted, PO sign-off): the dashboard
- * shows a brief `RouteFallback` spinner on its first paint after login while its chunk
- * loads.
+ * Each branch is wrapped in a pathless theme layout route that stamps the portal's daisyUI
+ * `data-theme` onto the subtree. These wrappers are presentational only — they add no path
+ * segment, so route specificity is unchanged.
+ *
+ * Phase 4: the chart-bearing `/admin-portal` pages are code-split (`React.lazy`) behind a
+ * single top-level `<Suspense>`, so the anonymous LIFF client never eagerly downloads
+ * `chart.js`/`react-chartjs-2`. The trade-off (accepted, PO sign-off): the dashboard shows a
+ * brief `RouteFallback` spinner on its first paint after login while its chunk loads.
  */
 function App() {
   return (
@@ -110,19 +124,15 @@ function App() {
             stays OUTSIDE the guard so it remains reachable while unauthenticated (else a
             redirect loop). Its own `AdminPortalThemeLayout` stamps the `dashwind-*` theme
             and a distinct `admin-portal-drawer` id keeps its drawer independent. React
-            Router ranks the concrete `/admin-portal/*` paths above the client `/*`
-            catch-all.
+            Router ranks the concrete `/admin-portal/*` paths above the client index and the
+            global `path="*"` fallback.
 
-            404 placement: an unknown `/admin-portal/*` sub-path now renders the 404
-            FULL-SCREEN — via the `${base}/*` SIBLING route below, OUTSIDE both the shell
-            (no sidebar/header) and the guard — and that page auto-redirects to login after
-            a countdown. The bare base still resolves to the dashboard through the layout's
-            `index` (React Router ranks the index/static branch above the sibling splat),
-            and every KNOWN sub-path still renders in-shell. Intended behavior change: since
-            the 404 sibling sits OUTSIDE `<ProtectedRoute>`, an UNAUTHENTICATED visitor to a
-            bogus sub-path now SEES the full-screen 404 (then auto-redirects to login),
-            instead of being bounced straight to login by the guard. Deliberate, not a
-            silent regression. */}
+            404 handling is now GLOBAL, not admin-local: this branch has NO 404 route. An
+            unknown `/admin-portal/*` sub-path matches no leaf here (there is no splat inside
+            the guard), so it falls through to the single global `path="*"` in the client
+            branch below. The bare base still resolves to the dashboard through the layout's
+            `index`, and every KNOWN sub-path still renders in-shell behind `ProtectedRoute`
+            (so an unauthenticated visit to a VALID admin route still redirects to login). */}
         <Route element={<AdminPortalThemeLayout />}>
           <Route path={ADMIN_PORTAL_ROUTES.login} element={<AdminPortalLoginPage />} />
           <Route
@@ -149,14 +159,17 @@ function App() {
               />
             ))}
           </Route>
-          {/* Full-screen 404: a SIBLING of the guarded layout (still inside the theme
-              wrapper, but OUTSIDE `<ProtectedRoute>`/`<AdminPortalLayout>`), so an unknown
-              `/admin-portal/*` sub-path renders the 404 with no shell chrome and outside
-              the guard. It auto-redirects to login after a countdown. */}
-          <Route path={`${ADMIN_PORTAL_ROUTES.base}/*`} element={<AdminPortalNotFoundPage />} />
         </Route>
         <Route element={<ThemeLayout portal="client" />}>
-          <Route path="/*" element={<HomePage />} />
+          {/* The client LIFF surface. `HomePage` is route-less (it swaps screens via
+              internal state, not the URL), so it matches only the INDEX (`/`); there is no
+              client sub-route to catch. */}
+          <Route index element={<HomePage />} />
+          {/* The single global 404, kept LAST. Any URL matching no valid route — an unknown
+              `/admin-portal/*` sub-path OR an unknown client path — lands here, regardless of
+              auth (this sits OUTSIDE `ProtectedRoute`). See the tree docstring for the
+              deliberate client-theme tradeoff on admin 404s. */}
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </Suspense>
