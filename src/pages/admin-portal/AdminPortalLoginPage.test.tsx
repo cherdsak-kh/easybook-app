@@ -3,11 +3,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { AdminPortalLoginPage } from '@/pages/admin-portal/AdminPortalLoginPage'
 import { ADMIN_PORTAL_ROUTES } from '@/components/admin-portal/routes'
-import { UI_STRINGS } from '@/constants/ui-strings-backend'
+import { AUTH_STRINGS } from '@/constants/ui-strings-auth'
 import * as apiClient from '@/lib/api-client'
 import type { LoginResponse, LoginResult, SystemUser } from '@/lib/api-client'
 
-const UI = UI_STRINGS.auth.login
+const UI = AUTH_STRINGS.login
 
 // Mock the api-client boundary (never the network) — the same convention the real
 // `admin/AdminLoginPage.test.tsx` uses. `AuthProvider` calls `getMe` (mount probe +

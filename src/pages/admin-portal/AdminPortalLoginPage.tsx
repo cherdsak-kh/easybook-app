@@ -6,7 +6,7 @@
 // re-implemented INLINE from the protected `src/pages/admin/AdminLoginPage.tsx` (which
 // is isolation-frozen and cannot be imported or refactored into a shared helper — see
 // Phase 4 design §1): same `EMAIL_RE` + presence validation, same `loginErrorMessage`
-// 401/429/503/generic mapping over the shared `UI_STRINGS.auth.login`, same
+// 401/429/503/generic mapping over the shared `AUTH_STRINGS.login`, same
 // already-authenticated redirect. The ONLY adaptation is the redirect target: this
 // replica stays in its own namespace and lands on `ADMIN_PORTAL_ROUTES.dashboard`
 // (`/admin-portal/dashboard`), never the real `/backend`. There is no `ProtectedRoute`
@@ -19,11 +19,11 @@ import { useNavigate } from 'react-router-dom'
 import EyeIcon from '@heroicons/react/24/outline/EyeIcon'
 import EyeSlashIcon from '@heroicons/react/24/outline/EyeSlashIcon'
 import { useAuth } from '@/auth/useAuth'
-import { UI_STRINGS } from '@/constants/ui-strings-backend'
+import { AUTH_STRINGS } from '@/constants/ui-strings-auth'
 import { LandingIntro } from '@/components/admin-portal/LandingIntro'
 import { ADMIN_PORTAL_ROUTES } from '@/components/admin-portal/routes'
 
-const UI = UI_STRINGS.auth.login
+const UI = AUTH_STRINGS.login
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 

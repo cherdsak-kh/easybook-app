@@ -31,8 +31,9 @@ original licenses and copyright notices are reproduced below, as required.
     / `AdminPortalHeader`, `SidebarSubmenu`, `AdminPortalThemeLayout`, `LandingIntro`,
     local `nav-config`/`routes`, the visual-only `AdminPortalLoginPage`, the
     `AdminPortalDashboardPage` which reuses `src/components/dashboard/*`, the
-    `AdminPortalTeamPage`/`TeamMembers` members table, the `AdminPortalLeadsPage`
-    "Current Leads" table (Phase 3.6), and — from the Phase-3.5 interactivity pass —
+    `AdminPortalTeamPage`/`TeamMembers` members table, the `AdminPortalLineUsersPage`
+    LINE-user registration-data table (the re-contextualised former "Leads" surface),
+    and — from the Phase-3.5 interactivity pass —
     the parameterised `AdminPortalStubPage` placeholder and the header's mock
     notification panel). Adapted from the template's `src/containers/*`,
     `src/features/user/*`, `src/features/leads/index.js`, `src/routes/sidebar.js`,

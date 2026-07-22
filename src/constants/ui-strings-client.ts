@@ -3,18 +3,20 @@
  * inside the LINE app (`HomePage.tsx`, `RegistrationForm.tsx`) — in one place so
  * a component and its tests read the SAME string.
  *
- * ## Why two dictionaries rather than one
- * The two portals share no copy and no audience: the backend portal is internal
- * staff tooling, the client portal is what a member of the public reads in the
- * LINE webview. Keeping them apart means a Backend Portal re-word can never
- * reach an end user's screen, and this extraction picks its own grouping without
- * renegotiating the backend one. Do not import `ui-strings-backend.ts` from a
- * client component, or vice versa.
+ * ## Why a separate client dictionary
+ * The client portal and the internal back-office share no copy and no audience:
+ * the back-office is internal staff tooling, the client portal is what a member
+ * of the public reads in the LINE webview. Keeping this dictionary separate means
+ * a back-office re-word can never reach an end user's screen, and it picks its own
+ * grouping without renegotiating the back-office ones. Do not import a back-office
+ * `ui-strings-*.ts` module (e.g. `ui-strings-auth.ts`, `ui-strings-line-users.ts`)
+ * from a client component, or vice versa.
  *
  * ## What this is NOT
- * Not i18n — same as `ui-strings-backend.ts`. There is no locale, no framework
- * and no `t()` lookup; this is a plain `as const` object reached by property
- * access. Do not grow it into a locale system without a plan that asks for one.
+ * Not i18n — same as the back-office `ui-strings-*.ts` modules. There is no
+ * locale, no framework and no `t()` lookup; this is a plain `as const` object
+ * reached by property access. Do not grow it into a locale system without a plan
+ * that asks for one.
  *
  * The copy below is **deliberately mixed Thai and English** — that is the
  * product's current state, not drift this file was extracted to "fix". The
@@ -39,8 +41,9 @@
  * LINE login → resolving → friendship gate → registration/edit → pending →
  * allowed → blocked → the two error screens.
  *
- * Not covered: the **Backend Portal** (`/backend/*`), whose copy lives in
- * `ui-strings-backend.ts`. Also deliberately excluded:
+ * Not covered: the internal back-office (admin-portal) surfaces, whose copy lives
+ * in the per-feature `ui-strings-*.ts` modules (`ui-strings-auth.ts`,
+ * `ui-strings-line-users.ts`). Also deliberately excluded:
  *  - `StatusCard`'s `tone`/`icon` props — semantic identifiers, not copy.
  *  - Logo/QR asset paths — this is a copy store, not an asset registry.
  *  - `HomePage`'s `new ApiError(401, 'Missing LINE session.')` — a thrown

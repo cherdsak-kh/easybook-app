@@ -28,9 +28,9 @@ const mockGetMe = vi.mocked(apiClient.getMe)
  * interactivity (working theme toggle, notification panel, navigable stub pages). The
  * login is now REAL cookie-session auth (Phase 4) — its behavior is covered separately
  * in `AdminPortalLoginPage.test.tsx` (with `AuthProvider` + a mocked api-client), and
- * the 404 in `AdminPortalNotFoundPage.test.tsx`. The Leads table is now wired to REAL
- * LINE-user data (Phase 5) — its coverage lives in `AdminPortalLeadsPage.test.tsx`, so
- * the old frozen-mock Leads assertions were removed from this file.
+ * the 404 in `AdminPortalNotFoundPage.test.tsx`. The former "Leads" table is now the
+ * re-contextualised LINE-user registration page wired to REAL data — its coverage lives in
+ * `AdminPortalLineUsersPage.test.tsx`, so the old frozen-mock assertions were removed here.
  */
 
 // jsdom doesn't implement Element.prototype.scrollTo; the shell's scroll-reset effect
@@ -86,9 +86,11 @@ describe('AdminPortal replica — sidebar is fully navigable (Phase 3.5)', () =>
       </MemoryRouter>,
     )
 
-    // Previously-inert entries are now live links (no visual-only buttons remain).
+    // Previously-inert entries are now live links (no visual-only buttons remain). The
+    // former "Leads" leaf was re-contextualised to the LINE-user registration data page
+    // (label → 'ข้อมูลการลงทะเบียน'); the route target is unchanged.
     expect(screen.getByRole('link', { name: /Dashboard/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Leads/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /ข้อมูลการลงทะเบียน/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Transactions/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Calendar/ })).toBeInTheDocument()
     // Submenu parents expand rather than navigate, so they stay buttons.

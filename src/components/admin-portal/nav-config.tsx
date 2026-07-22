@@ -18,7 +18,7 @@ import CurrencyDollarIcon from '@heroicons/react/24/outline/CurrencyDollarIcon'
 import DocumentDuplicateIcon from '@heroicons/react/24/outline/DocumentDuplicateIcon'
 import DocumentIcon from '@heroicons/react/24/outline/DocumentIcon'
 import DocumentTextIcon from '@heroicons/react/24/outline/DocumentTextIcon'
-import InboxArrowDownIcon from '@heroicons/react/24/outline/InboxArrowDownIcon'
+import IdentificationIcon from '@heroicons/react/24/outline/IdentificationIcon'
 import KeyIcon from '@heroicons/react/24/outline/KeyIcon'
 import Squares2X2Icon from '@heroicons/react/24/outline/Squares2X2Icon'
 import TableCellsIcon from '@heroicons/react/24/outline/TableCellsIcon'
@@ -70,7 +70,7 @@ export function isSubmenu(entry: NavEntry): entry is NavSubmenu {
  */
 export const NAV_ITEMS: readonly NavEntry[] = [
   { label: 'Dashboard', icon: <Squares2X2Icon className={ICON} />, to: ADMIN_PORTAL_ROUTES.dashboard },
-  { label: 'Leads', icon: <InboxArrowDownIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.leads },
+  { label: 'ข้อมูลการลงทะเบียน', icon: <IdentificationIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.leads },
   { label: 'Transactions', icon: <CurrencyDollarIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.transactions },
   { label: 'Analytics', icon: <ChartBarIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.charts },
   { label: 'Integration', icon: <BoltIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.integration },

@@ -104,20 +104,25 @@ LIFF id configured.
 `@/*` maps to `src/*` (defined in both `vite.config.ts` and `tsconfig.app.json` — keep them in sync
 if changed). Use `@/...` imports rather than relative `../../` paths.
 
-### User-facing strings are centralized, and split by portal
+### User-facing strings are centralized but modularized (per-feature)
 
-Two `as const` dictionaries under `src/constants/`, so a component and its tests read the **same**
-literal (copy was changed out-of-band while tests queried the old string, silently reddening the
-suite):
+`as const` string modules under `src/constants/`, one per feature/surface
+(`ui-strings-<feature>.ts`), so a component and its tests read the **same** literal (copy was changed
+out-of-band while tests queried the old string, silently reddening the suite). Each exports named
+objects; some values are template *formatters* (`(name) => string`) for interpolation.
 
-- `ui-strings-backend.ts` — Backend Portal copy (`/backend/*`). Some values are template *formatters*
-  (`(name) => string`) for interpolation.
-- `ui-strings-client.ts` — Client/LIFF copy (`HomePage`, `RegistrationForm`), deliberately mixed
-  Thai/English (product's current state, not drift).
+- `ui-strings-auth.ts` — `AUTH_STRINGS`: the admin-portal login screen and the session-probe gate.
+- `ui-strings-line-users.ts` — `T` / `STATUS_BADGE`: the admin-portal LINE-users page.
+- `ui-strings-client.ts` — `UI_STRINGS_CLIENT`: client/LIFF copy (`HomePage`, `RegistrationForm`),
+  deliberately mixed Thai/English (product's current state, not drift).
 
-**Do not import one dictionary from the other portal's components** — the separation is what keeps a
-back-office re-word from ever reaching an end user's screen. Neither is i18n: no locale, no `t()`
-lookup. Don't grow either into a locale system without a plan that asks for one.
+The legacy `/backend` portal (and its monolithic `ui-strings-backend.ts` dictionary) was removed in
+the Big-Bang cutover; the internal back-office now lives under `/admin-portal`. Add a new feature's
+copy as its own `ui-strings-<feature>.ts` module rather than growing a shared dictionary.
+
+**Do not import a back-office string module from a client component, or vice versa** — the separation
+is what keeps a back-office re-word from ever reaching an end user's screen. None of these is i18n: no
+locale, no `t()` lookup. Don't grow any into a locale system without a plan that asks for one.
 
 ### Testing
 

@@ -6,7 +6,7 @@
 // reshuffled on every render. Here those series are fixed literal arrays so the
 // charts render deterministically (and are testable). These are placeholder demo
 // metrics — they get replaced wholesale when real metrics are wired, which is why
-// they live as local data rather than in the `ui-strings-backend` chrome dictionary.
+// they live as local data rather than in a `src/constants/ui-strings-*.ts` module.
 import type { ChartData } from 'chart.js'
 import UserGroupIcon from '@heroicons/react/24/outline/UserGroupIcon'
 import CreditCardIcon from '@heroicons/react/24/outline/CreditCardIcon'

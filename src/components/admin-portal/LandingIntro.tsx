@@ -6,9 +6,9 @@
 // title/description. Pure presentational, semantic tokens only (adopts `dashwind-*`).
 
 // Inline brand chrome (design §2). These are app-brand literals, NOT portal UI copy, so
-// they deliberately do NOT live in the shared `ui-strings-backend.ts` (whose
-// `auth.login.heading` is not a shared brand source) and are too few to warrant a
-// constants file. The logo is referenced by its PUBLIC RUNTIME URL — Vite serves
+// they deliberately do NOT live in a `src/constants/ui-strings-*.ts` module (the auth
+// module's `AUTH_STRINGS.login.heading` is not a shared brand source) and are too few to
+// warrant a constants file. The logo is referenced by its PUBLIC RUNTIME URL — Vite serves
 // `public/` at the web root, so `public/logo/…svg` is fetched at `/logo/…svg` (NOT an
 // ES import, NOT `dist/`, NOT the non-existent `@easybook-app` alias).
 const BRAND_TITLE = 'EasyBook'

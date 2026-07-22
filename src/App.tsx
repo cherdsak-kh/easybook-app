@@ -35,9 +35,9 @@ const AdminPortalTeamPage = lazy(() =>
     default: m.AdminPortalTeamPage,
   })),
 )
-const AdminPortalLeadsPage = lazy(() =>
-  import('@/pages/admin-portal/AdminPortalLeadsPage').then((m) => ({
-    default: m.AdminPortalLeadsPage,
+const AdminPortalLineUsersPage = lazy(() =>
+  import('@/pages/admin-portal/AdminPortalLineUsersPage').then((m) => ({
+    default: m.AdminPortalLineUsersPage,
   })),
 )
 const AdminPortalStubPage = lazy(() =>
@@ -146,9 +146,10 @@ function App() {
             <Route index element={<Navigate to={ADMIN_PORTAL_ROUTES.dashboard} replace />} />
             <Route path={ADMIN_PORTAL_SEGMENTS.dashboard} element={<AdminPortalDashboardPage />} />
             <Route path={ADMIN_PORTAL_SEGMENTS.team} element={<AdminPortalTeamPage />} />
-            {/* Phase 5: the Leads menu target renders REAL LINE-user data (wired via
-                `useLineUsers` → `listLineUsers`/`patchLineUserAccess`), not a mock. */}
-            <Route path={ADMIN_PORTAL_SEGMENTS.leads} element={<AdminPortalLeadsPage />} />
+            {/* The (re-contextualised) LINE-user registration page renders REAL LINE-user
+                data (wired via `useLineUsers` → `listLineUsers`). The URL segment stays
+                `leads` (plan §1.2 — path unchanged); only the page/label were renamed. */}
+            <Route path={ADMIN_PORTAL_SEGMENTS.leads} element={<AdminPortalLineUsersPage />} />
             {/* Phase 3.5: every other DashWind menu target is a real route rendering the
                 shared "coming soon" placeholder, so the whole sidebar is clickable. */}
             {ADMIN_PORTAL_STUB_ROUTES.map((stub) => (

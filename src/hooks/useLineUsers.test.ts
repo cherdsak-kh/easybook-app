@@ -216,6 +216,23 @@ describe('useLineUsers — changeAccess', () => {
   })
 })
 
+describe('useLineUsers — updateUserInPlace', () => {
+  it('replaces a single row by id without a refetch, leaving others untouched', async () => {
+    mockList.mockResolvedValue(
+      makePage([makeUser({ id: 'lu1', access: 'PENDING' }), makeUser({ id: 'lu2', access: 'PENDING' })]),
+    )
+    const { result } = renderHook(() => useLineUsers())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    const listCallsBefore = mockList.mock.calls.length
+
+    act(() => result.current.updateUserInPlace(makeUser({ id: 'lu2', access: 'ALLOWED' })))
+
+    expect(result.current.users.find((u) => u.id === 'lu2')?.access).toBe('ALLOWED')
+    expect(result.current.users.find((u) => u.id === 'lu1')?.access).toBe('PENDING')
+    expect(mockList.mock.calls.length).toBe(listCallsBefore) // no refetch
+  })
+})
+
 describe('useLineUsers — race guard', () => {
   it('ignores a stale (superseded) list resolution', async () => {
     const first = deferred<PaginatedLineUsers>()

@@ -15,11 +15,10 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 const PAGE_SIZE = 20
 
 /**
- * User-facing copy for the Leads data layer. Deliberately LOCAL to the admin-portal
- * surface — it is NOT drawn from `@/constants/ui-strings-backend`, because the codebase
- * keeps the two portals' copy dictionaries separate (design §3.7). Exported so the page
- * and its tests read the SAME literal (a copy edited out-of-band while a test queried the
- * old string is a silent red — see the app CLAUDE.md note).
+ * User-facing copy for the LINE-users data layer. Kept LOCAL to this hook rather than in a
+ * `src/constants/ui-strings-*.ts` feature module — it is data-layer error copy, not page
+ * chrome. Exported so the page and its tests read the SAME literal (a copy edited out-of-band
+ * while a test queried the old string is a silent red — see the app CLAUDE.md note).
  */
 export const LEADS_MESSAGES = {
   /** 403 on the list read — distinct from a generic failure. */
@@ -60,6 +59,13 @@ export interface UseLineUsers {
   setAccessFilter: (a: AppAccess | '') => void
   /** Optimistically PATCH a row's access; rolls forward on the returned row, maps errors. */
   changeAccess: (user: LineUser, access: AppAccess) => Promise<void>
+  /**
+   * Replace a single row in-place by id (the list stays the single source of truth).
+   * Consumed by the Phase-B edit modal (`useLineUserEditor`) after each successful PATCH
+   * so the list reflects a save — including a partial two-endpoint save — without a full
+   * refetch. Mirrors the by-id replace `changeAccess` already performs internally.
+   */
+  updateUserInPlace: (updated: LineUser) => void
   /** Dismiss the row-level error alert. */
   clearRowError: () => void
   /** Re-run the current query (e.g. after a "row gone" to reconcile the list). */
@@ -146,18 +152,23 @@ export function useLineUsers(): UseLineUsers {
   const clearRowError = useCallback(() => setRowError(null), [])
   const refetch = useCallback(() => setRefreshTick((t) => t + 1), [])
 
+  // Optimistic in-place replace by id — no full-list refetch. Exposed for the Phase-B
+  // edit modal, and reused internally by `changeAccess` so both paths stay identical.
+  const updateUserInPlace = useCallback((updated: LineUser) => {
+    setResult((prev) =>
+      prev
+        ? { ...prev, data: prev.data.map((u) => (u.id === updated.id ? updated : u)) }
+        : prev,
+    )
+  }, [])
+
   const changeAccess = useCallback(
     async (user: LineUser, access: AppAccess) => {
       setPendingId(user.id)
       setRowError(null)
       try {
         const updated = await patchLineUserAccess(user.id, access)
-        // Optimistic in-place replace by id — no full-list refetch.
-        setResult((prev) =>
-          prev
-            ? { ...prev, data: prev.data.map((u) => (u.id === updated.id ? updated : u)) }
-            : prev,
-        )
+        updateUserInPlace(updated)
       } catch (err: unknown) {
         if (err instanceof ApiError && err.status === 401) {
           expireSession()
@@ -174,7 +185,7 @@ export function useLineUsers(): UseLineUsers {
         setPendingId(null)
       }
     },
-    [expireSession],
+    [expireSession, updateUserInPlace],
   )
 
   const meta = result?.meta
@@ -193,6 +204,7 @@ export function useLineUsers(): UseLineUsers {
     accessFilter,
     setAccessFilter,
     changeAccess,
+    updateUserInPlace,
     clearRowError,
     refetch,
   }
