@@ -12,7 +12,7 @@
 // `public/` at the web root, so `public/logo/…svg` is fetched at `/logo/…svg` (NOT an
 // ES import, NOT `dist/`, NOT the non-existent `@easybook-app` alias).
 const BRAND_TITLE = 'EasyBook'
-const BRAND_DESCRIPTION = 'Admin Dashboard'
+const BRAND_DESCRIPTION = 'ระบบบริหารจัดการส่วนหลังบ้าน'
 const BRAND_LOGO_SRC = '/logo/easybook-logo-512px-no-bg.svg'
 
 /**

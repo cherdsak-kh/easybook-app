@@ -102,10 +102,10 @@ export function AdminPortalLoginPage() {
         navigate(ADMIN_PORTAL_ROUTES.dashboard, { replace: true })
       } else {
         setFormError(loginErrorMessage(result.status, result.retryAfter))
+        setSubmitting(false)
       }
     } catch {
       setFormError(UI.networkFailed)
-    } finally {
       setSubmitting(false)
     }
   }
@@ -127,13 +127,13 @@ export function AdminPortalLoginPage() {
           </div>
 
           <div className="px-10 py-24">
-            <h2 className="mb-2 text-center text-2xl font-semibold">Login</h2>
+            <h2 className="mb-7 text-center text-2xl font-semibold">{UI.title}</h2>
             <form onSubmit={handleSubmit} noValidate>
               {formError && (
                 <div
                   id="admin-portal-form-error"
                   role="alert"
-                  className="badge badge-soft badge-error mt-3 h-auto w-full items-start gap-2 whitespace-normal rounded-md py-3 text-sm"
+                  className="badge badge-soft badge-error h-auto w-full items-start gap-2 whitespace-normal rounded-md py-3 text-sm"
                 >
                   <svg
                     className="mt-0.5 size-[1em] shrink-0"

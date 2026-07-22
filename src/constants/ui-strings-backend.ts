@@ -535,6 +535,7 @@ export const UI_STRINGS = {
     login: {
       heading: 'EasyBook',
       subheading: 'เข้าสู่ระบบบริหารจัดการส่วนหลังบ้าน',
+      title: 'เข้าสู่ระบบ',
       email: 'อีเมล',
       emailPlaceholder: 'example@mail.com',
       password: 'รหัสผ่าน',
