@@ -187,7 +187,7 @@ export function AdminPortalLineUsersPage() {
       </div>
 
       {/* Reserve height so state swaps (skeleton → error / empty / rows) don't shift layout. */}
-      <div className="min-h-[16rem] w-full overflow-x-auto">
+      <div className="min-h-64 w-full overflow-x-auto">
         <table className="table w-full">
           <thead>
             <tr>
@@ -686,7 +686,7 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-xs font-medium text-base-content/60">{label}</dt>
-      <dd className="mt-0.5 break-words text-sm">{value || T.emptyValue}</dd>
+      <dd className="mt-0.5 wrap-break-word text-sm">{value || T.emptyValue}</dd>
     </div>
   )
 }
