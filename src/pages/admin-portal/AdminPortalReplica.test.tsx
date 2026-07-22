@@ -144,12 +144,12 @@ describe('AdminPortal replica — notification panel (Phase 3.5)', () => {
 describe('AdminPortal replica — stub pages (Phase 3.5)', () => {
   it('renders a navigable placeholder inside the shell for a stubbed menu target', () => {
     render(
-      <MemoryRouter initialEntries={['/admin-portal/leads']}>
+      <MemoryRouter initialEntries={['/admin-portal/line-users']}>
         <AuthProvider>
           <Routes>
             <Route element={<AdminPortalThemeLayout />}>
               <Route path="/admin-portal" element={<AdminPortalLayout />}>
-                <Route path="leads" element={<AdminPortalStubPage title="Leads" />} />
+                <Route path="line-users" element={<AdminPortalStubPage title="Leads" />} />
               </Route>
             </Route>
           </Routes>

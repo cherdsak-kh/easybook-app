@@ -11,7 +11,7 @@ const BASE = '/admin-portal'
 /**
  * Absolute react-router paths for the replica (used by NavLink / Navigate). Every
  * DashWind menu target has a real route now (Phase 3.5 made the whole sidebar
- * clickable): `dashboard`, `team` + `leads` have bespoke pages; the rest render the
+ * clickable): `dashboard`, `team` + `line-users` have bespoke pages; the rest render the
  * shared `AdminPortalStubPage` (see `ADMIN_PORTAL_STUB_ROUTES`). The segment tail of
  * each path matches the corresponding `ADMIN_PORTAL_STUB_ROUTES.segment`.
  */
@@ -20,7 +20,7 @@ export const ADMIN_PORTAL_ROUTES = {
   login: `${BASE}/login`,
   dashboard: `${BASE}/dashboard`,
   team: `${BASE}/team`,
-  leads: `${BASE}/leads`,
+  lineUsers: `${BASE}/line-users`,
   transactions: `${BASE}/transactions`,
   charts: `${BASE}/charts`,
   integration: `${BASE}/integration`,
@@ -43,7 +43,7 @@ export const ADMIN_PORTAL_ROUTES = {
 export const ADMIN_PORTAL_SEGMENTS = {
   dashboard: 'dashboard',
   team: 'team',
-  leads: 'leads',
+  lineUsers: 'line-users',
 } as const
 
 /** A DashWind menu target that renders the shared placeholder `AdminPortalStubPage`. */
@@ -58,7 +58,7 @@ export interface AdminPortalStubRoute {
  * The DashWind menu targets that have no bespoke replica page — each renders the
  * shared `AdminPortalStubPage` ("coming soon" placeholder), parameterised by `title`,
  * so clicking any sidebar item produces a real route transition without hand-writing
- * ~13 near-identical files. `dashboard`, `team` + `leads` have real pages and are NOT
+ * ~13 near-identical files. `dashboard`, `team` + `line-users` have real pages and are NOT
  * here; `login` is a full-screen sibling route (outside the shell) and is NOT here
  * either. Titles mirror the sidebar labels in `nav-config.tsx` so the header title
  * never drifts.

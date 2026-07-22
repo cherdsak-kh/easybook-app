@@ -147,9 +147,9 @@ function App() {
             <Route path={ADMIN_PORTAL_SEGMENTS.dashboard} element={<AdminPortalDashboardPage />} />
             <Route path={ADMIN_PORTAL_SEGMENTS.team} element={<AdminPortalTeamPage />} />
             {/* The (re-contextualised) LINE-user registration page renders REAL LINE-user
-                data (wired via `useLineUsers` → `listLineUsers`). The URL segment stays
-                `leads` (plan §1.2 — path unchanged); only the page/label were renamed. */}
-            <Route path={ADMIN_PORTAL_SEGMENTS.leads} element={<AdminPortalLineUsersPage />} />
+                data (wired via `useLineUsers` → `listLineUsers`). The URL segment is now
+                `line-users` (renamed from `leads` to match the page/label). */}
+            <Route path={ADMIN_PORTAL_SEGMENTS.lineUsers} element={<AdminPortalLineUsersPage />} />
             {/* Phase 3.5: every other DashWind menu target is a real route rendering the
                 shared "coming soon" placeholder, so the whole sidebar is clickable. */}
             {ADMIN_PORTAL_STUB_ROUTES.map((stub) => (

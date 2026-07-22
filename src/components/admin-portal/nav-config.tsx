@@ -70,7 +70,7 @@ export function isSubmenu(entry: NavEntry): entry is NavSubmenu {
  */
 export const NAV_ITEMS: readonly NavEntry[] = [
   { label: 'Dashboard', icon: <Squares2X2Icon className={ICON} />, to: ADMIN_PORTAL_ROUTES.dashboard },
-  { label: 'ข้อมูลการลงทะเบียน', icon: <IdentificationIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.leads },
+  { label: 'ข้อมูลการลงทะเบียน', icon: <IdentificationIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.lineUsers },
   { label: 'Transactions', icon: <CurrencyDollarIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.transactions },
   { label: 'Analytics', icon: <ChartBarIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.charts },
   { label: 'Integration', icon: <BoltIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.integration },
