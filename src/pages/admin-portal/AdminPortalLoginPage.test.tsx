@@ -164,6 +164,30 @@ describe('AdminPortalLoginPage — functional auth', () => {
     expect(mockLogin).not.toHaveBeenCalled()
   })
 
+  it('rejects an empty email with the required (not invalid) message before any network call (AC-2)', async () => {
+    renderLogin()
+
+    // Email left blank, password filled → the empty-email branch fires BEFORE the
+    // regex branch, so the message is `emailRequired`, never `emailInvalid`.
+    await screen.findByLabelText(UI.email)
+    fireEvent.change(screen.getByLabelText(UI.password), { target: { value: 'secret' } })
+    fireEvent.click(screen.getByRole('button'))
+
+    expect(await screen.findByText(UI.emailRequired)).toBeInTheDocument()
+    expect(screen.queryByText(UI.emailInvalid)).not.toBeInTheDocument()
+    expect(mockLogin).not.toHaveBeenCalled()
+  })
+
+  it('maps a 403 to the session-expired (CSRF handshake) message and stays on the form (AC-4)', async () => {
+    mockLogin.mockResolvedValue({ ok: false, status: 403, message: 'Forbidden' })
+    renderLogin()
+
+    await fillAndSubmit()
+
+    expect(await screen.findByText(UI.sessionExpired)).toBeInTheDocument()
+    expect(screen.queryByText('DASHBOARD REACHED')).not.toBeInTheDocument()
+  })
+
   it('rejects an empty password before any network call (AC-3)', async () => {
     renderLogin()
 

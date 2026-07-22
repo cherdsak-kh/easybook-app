@@ -33,6 +33,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  */
 function loginErrorMessage(status: number, retryAfter?: string | null): string {
   if (status === 401) return UI.badCredentials
+  // 403 = a CSRF/session-handshake failure (retry already exhausted inside api-client),
+  // NOT a suspended account, per the login contract. Suspended/deleted accounts come back
+  // as 401 (→ badCredentials) by backend anti-enumeration design, so 403 asks the user to
+  // refresh and retry rather than mislabelling their account as suspended.
+  if (status === 403) return UI.sessionExpired
   if (status === 429) {
     const secs = retryAfter ? Number(retryAfter) : NaN
     return Number.isFinite(secs) && secs > 0 ? UI.rateLimitedIn(secs) : UI.rateLimited
@@ -56,7 +61,8 @@ export function AdminPortalLoginPage() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const [fieldError, setFieldError] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
 
   // Already signed in (or just authenticated after submit) → skip the form and land on
   // the replica dashboard. No force-reset gate and no `/backend` bounce (design §1/D4):
@@ -71,15 +77,23 @@ export function AdminPortalLoginPage() {
     e.preventDefault()
     setFormError(null)
 
+    if (email.length === 0) {
+      setEmailError(UI.emailRequired)
+      setPasswordError(null)
+      return
+    }
     if (!EMAIL_RE.test(email)) {
-      setFieldError(UI.emailInvalid)
+      setEmailError(UI.emailInvalid)
+      setPasswordError(null)
       return
     }
     if (password.length === 0) {
-      setFieldError(UI.passwordRequired)
+      setPasswordError(UI.passwordRequired)
+      setEmailError(null)
       return
     }
-    setFieldError(null)
+    setEmailError(null)
+    setPasswordError(null)
 
     setSubmitting(true)
     try {
@@ -96,9 +110,17 @@ export function AdminPortalLoginPage() {
     }
   }
 
+  // Independent error surfaces. `formError` (global submit/network failure) renders once at
+  // the top of the form. Client-side validation is now PER-FIELD: `emailError` renders
+  // directly under the email input and `passwordError` directly under the password input,
+  // each tied to its own field via `aria-describedby`/`aria-invalid` pointing at its own id
+  // (`admin-portal-email-error` / `admin-portal-password-error`). Each badge is gated off its
+  // own state — no combined derivation — and renders only when non-null (no empty badge, no
+  // layout jump), so a validation message always sits adjacent to the field it describes.
+
   return (
     <div className="flex min-h-screen items-center bg-base-200">
-      <div className="card mx-auto w-full max-w-5xl shadow-xl">
+      <div className="card mx-auto w-full max-w-5xl shadow-lg">
         <div className="grid grid-cols-1 rounded-xl bg-base-100 md:grid-cols-2">
           <div>
             <LandingIntro />
@@ -108,7 +130,45 @@ export function AdminPortalLoginPage() {
             <h2 className="mb-2 text-center text-2xl font-semibold">Login</h2>
             <form onSubmit={handleSubmit} noValidate>
               {formError && (
-                <div role="alert" className="alert alert-error alert-soft mb-4 text-sm">
+                <div
+                  id="admin-portal-form-error"
+                  role="alert"
+                  className="badge badge-soft badge-error mt-3 h-auto w-full items-start gap-2 whitespace-normal rounded-md py-3 text-sm"
+                >
+                  <svg
+                    className="mt-0.5 size-[1em] shrink-0"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 18 18"
+                    aria-hidden="true"
+                  >
+                    <g fill="currentColor">
+                      <path
+                        d="M7.638,3.495L2.213,12.891c-.605,1.048,.151,2.359,1.362,2.359H14.425c1.211,0,1.967-1.31,1.362-2.359L10.362,3.495c-.605-1.048-2.119-1.048-2.724,0Z"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="1.5"
+                      ></path>
+                      <line
+                        x1="9"
+                        y1="6.5"
+                        x2="9"
+                        y2="10"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="1.5"
+                      ></line>
+                      <path
+                        d="M9,13.569c-.552,0-1-.449-1-1s.448-1,1-1,1,.449,1,1-.448,1-1,1Z"
+                        fill="currentColor"
+                        data-stroke="none"
+                        stroke="none"
+                      ></path>
+                    </g>
+                  </svg>
                   {formError}
                 </div>
               )}
@@ -125,11 +185,20 @@ export function AdminPortalLoginPage() {
                     autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    aria-invalid={fieldError != null}
-                    aria-describedby={fieldError ? 'admin-portal-field-error' : undefined}
-                    className="input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
+                    aria-invalid={emailError != null}
+                    aria-describedby={emailError ? 'admin-portal-email-error' : undefined}
+                    className={`input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100${emailError ? ' input-error' : ''}`}
                     placeholder={UI.emailPlaceholder}
                   />
+                  {emailError && (
+                    <div
+                      id="admin-portal-email-error"
+                      role="alert"
+                      className="badge badge-soft badge-error badge-sm mt-1 h-auto max-w-full items-start whitespace-normal"
+                    >
+                      {emailError}
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4">
@@ -143,19 +212,22 @@ export function AdminPortalLoginPage() {
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    aria-invalid={fieldError != null}
-                    aria-describedby={fieldError ? 'admin-portal-field-error' : undefined}
-                    className="input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
+                    aria-invalid={passwordError != null}
+                    aria-describedby={passwordError ? 'admin-portal-password-error' : undefined}
+                    className={`input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100${passwordError ? ' input-error' : ''}`}
                     placeholder={UI.passwordPlaceholder}
                   />
+                  {passwordError && (
+                    <div
+                      id="admin-portal-password-error"
+                      role="alert"
+                      className="badge badge-soft badge-error badge-sm mt-1 h-auto max-w-full items-start whitespace-normal"
+                    >
+                      {passwordError}
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {fieldError && (
-                <p id="admin-portal-field-error" role="alert" className="mt-8 text-sm text-error">
-                  {fieldError}
-                </p>
-              )}
 
               <button
                 type="submit"
