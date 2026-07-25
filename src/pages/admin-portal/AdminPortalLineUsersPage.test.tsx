@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AdminPortalLineUsersPage } from '@/pages/admin-portal/AdminPortalLineUsersPage'
 import { STATUS_BADGE, T } from '@/constants/ui-strings-line-users'
 import { EDITOR_MESSAGES } from '@/hooks/useLineUserEditor'
@@ -253,7 +253,7 @@ describe('AdminPortalLineUsersPage — row mapping', () => {
 })
 
 describe('AdminPortalLineUsersPage — status badge map', () => {
-  it.each(['ALLOWED', 'PENDING', 'BLOCKED', 'UNREGISTERED'] as const)(
+  it.each(['ALLOWED', 'PENDING', 'BLOCKED', 'UNREGISTERED', 'REJECTED'] as const)(
     'renders the Thai label for access %s',
     (access) => {
       mockUseLineUsers.mockReturnValue(hookState({ users: [registered({ access })] }))
@@ -263,6 +263,18 @@ describe('AdminPortalLineUsersPage — status badge map', () => {
       expect(within(table).getByText(STATUS_BADGE[access].label)).toBeInTheDocument()
     },
   )
+
+  it('P4b: the REJECTED badge reads ส่งกลับให้แก้ไข and uses the recoverable warning tone', () => {
+    mockUseLineUsers.mockReturnValue(hookState({ users: [registered({ access: 'REJECTED' })] }))
+    render(<AdminPortalLineUsersPage />)
+
+    // The literal is pinned here on purpose (not read from STATUS_BADGE): the PO specified
+    // this exact wording, and it is what the operator scans the table for.
+    const badge = within(screen.getByRole('table')).getByText('ส่งกลับให้แก้ไข')
+    expect(badge).toHaveClass('badge', 'badge-soft', 'badge-warning')
+    // NOT badge-error — that hue is BLOCKED's terminal state.
+    expect(badge).not.toHaveClass('badge-error')
+  })
 })
 
 describe('AdminPortalLineUsersPage — toolbar', () => {
@@ -414,7 +426,7 @@ describe('AdminPortalLineUsersPage — edit form + option lists (Phase B)', () =
     expect(mockListPersonnelRoles).toHaveBeenCalledTimes(1)
   })
 
-  it('P16: ADMIN status options = current + ALLOWED + BLOCKED (no reachable PENDING)', async () => {
+  it('P16: ADMIN status options = ALLOWED + BLOCKED only', async () => {
     await openEditor(registered({ access: 'ALLOWED' }), 'ADMIN')
     await screen.findByRole('option', { name: 'Computer Science' }) // settle options
 
@@ -443,7 +455,14 @@ describe('AdminPortalLineUsersPage — edit form + option lists (Phase B)', () =
     expect(mockListDepartments).not.toHaveBeenCalled()
   })
 
-  it('P17: SUPER_ADMIN status options = all four states', async () => {
+  /**
+   * CHANGED by the REJECTED feature (was: "SUPER_ADMIN status options = all four states").
+   * The dropdown is now strictly `{ALLOWED, BLOCKED}` for BOTH roles — SUPER_ADMIN no longer
+   * gets a four-state override picker on this surface. `UNREGISTERED`/`PENDING` are not
+   * operator-settable, and `REJECTED` is reachable ONLY through the dedicated Reject action
+   * (which always carries a mandatory reason), so it must never appear as a bare option.
+   */
+  it('P17: SUPER_ADMIN status options = ALLOWED + BLOCKED only (no UNREGISTERED/PENDING/REJECTED)', async () => {
     await openEditor(registered({ access: 'ALLOWED' }), 'SUPER_ADMIN')
     await screen.findByRole('option', { name: 'Computer Science' }) // settle options
 
@@ -451,7 +470,38 @@ describe('AdminPortalLineUsersPage — edit form + option lists (Phase B)', () =
     const values = within(statusSelect)
       .getAllByRole('option')
       .map((o) => o.getAttribute('value'))
-    expect(values).toEqual(['UNREGISTERED', 'PENDING', 'ALLOWED', 'BLOCKED'])
+    expect(values).toEqual(['ALLOWED', 'BLOCKED'])
+  })
+
+  it.each(['ADMIN', 'SUPER_ADMIN'] as const)(
+    'P17b: %s editing a PENDING user gets ALLOWED/BLOCKED plus a DISABLED current-state placeholder',
+    async (role) => {
+      await openEditor(registered({ access: 'PENDING' }), role)
+      await screen.findByRole('option', { name: 'Computer Science' })
+
+      const statusSelect = screen.getByRole('combobox', { name: T.labelStatus })
+      const options = within(statusSelect).getAllByRole('option')
+      // The only SELECTABLE targets are ALLOWED/BLOCKED…
+      const selectable = options.filter((o) => !o.hasAttribute('disabled'))
+      expect(selectable.map((o) => o.getAttribute('value'))).toEqual(['ALLOWED', 'BLOCKED'])
+      // …and the leading option is a disabled placeholder showing the CURRENT state, so the
+      // select never displays a target the draft has not actually taken.
+      expect(options[0]).toBeDisabled()
+      expect(options[0]).toHaveTextContent(STATUS_BADGE.PENDING.label)
+      expect(statusSelect).toHaveValue('')
+    },
+  )
+
+  it('P17c: a REJECTED user is still approvable/blockable from the dropdown', async () => {
+    await openEditor(registered({ access: 'REJECTED' }), 'ADMIN')
+    await screen.findByRole('option', { name: 'Computer Science' })
+
+    const statusSelect = screen.getByRole('combobox', { name: T.labelStatus })
+    const selectable = within(statusSelect)
+      .getAllByRole('option')
+      .filter((o) => !o.hasAttribute('disabled'))
+      .map((o) => o.getAttribute('value'))
+    expect(selectable).toEqual(['ALLOWED', 'BLOCKED'])
   })
 })
 
@@ -526,5 +576,135 @@ describe('AdminPortalLineUsersPage — save wiring (Phase B)', () => {
     expect(mockPatchAccess).not.toHaveBeenCalled()
     // Back to view mode (form gone); reopening Edit shows the original value.
     expect(screen.queryByLabelText(T.labelFirstName)).not.toBeInTheDocument()
+  })
+})
+
+describe('AdminPortalLineUsersPage — Reject action (ตีกลับไปให้แก้ไข)', () => {
+  const REASON = 'เบอร์โทรศัพท์ไม่ถูกต้อง กรุณากรอกใหม่'
+
+  /** Open the inspect modal for `user` as `role` (no Edit click — Reject lives in view mode). */
+  function inspectAs(user: LineUser, role: SystemRole) {
+    authAs(role)
+    mockUseLineUsers.mockReturnValue(hookState({ users: [user] }))
+    render(<AdminPortalLineUsersPage />)
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(T.inspect) }))
+  }
+
+  /** Open the inspect modal AND the reject dialog, ready for a reason. */
+  function openRejectDialog(user: LineUser = registered({ access: 'PENDING' }), role: SystemRole = 'ADMIN') {
+    inspectAs(user, role)
+    fireEvent.click(screen.getByRole('button', { name: T.reject }))
+  }
+
+  it('R1: ADMIN and SUPER_ADMIN both see the Reject button on a reviewable user', () => {
+    for (const role of ['ADMIN', 'SUPER_ADMIN'] as const) {
+      inspectAs(registered({ access: 'PENDING' }), role)
+      expect(screen.getByRole('button', { name: T.reject })).toBeInTheDocument()
+      cleanup()
+    }
+  })
+
+  it('R2: STAFF sees NO Reject button (read-only surface)', () => {
+    inspectAs(registered({ access: 'PENDING' }), 'STAFF')
+    expect(screen.getByText('STAFF-123')).toBeInTheDocument() // the modal IS open, read-only
+    expect(screen.queryByRole('button', { name: T.reject })).not.toBeInTheDocument()
+  })
+
+  it('R3: an UNREGISTERED user is never rejectable (nothing was submitted to send back)', () => {
+    inspectAs(makeUser({ access: 'UNREGISTERED', registration: null }), 'SUPER_ADMIN')
+    expect(screen.queryByRole('button', { name: T.reject })).not.toBeInTheDocument()
+  })
+
+  it('R4: a re-reject is offered to SUPER_ADMIN but not to ADMIN', () => {
+    inspectAs(registered({ access: 'REJECTED' }), 'ADMIN')
+    expect(screen.queryByRole('button', { name: T.reject })).not.toBeInTheDocument()
+    cleanup()
+
+    inspectAs(registered({ access: 'REJECTED' }), 'SUPER_ADMIN')
+    expect(screen.getByRole('button', { name: T.reject })).toBeInTheDocument()
+  })
+
+  it('R5: a BLANK reason blocks the submit — the button is disabled and no PATCH fires', () => {
+    openRejectDialog()
+
+    const submit = screen.getByRole('button', { name: T.rejectSubmit })
+    expect(submit).toBeDisabled()
+    fireEvent.click(submit)
+    expect(mockPatchAccess).not.toHaveBeenCalled()
+
+    // Whitespace alone is still blank.
+    fireEvent.change(screen.getByLabelText(new RegExp(T.rejectReasonLabel)), {
+      target: { value: '   ' },
+    })
+    expect(screen.getByRole('button', { name: T.rejectSubmit })).toBeDisabled()
+    expect(mockPatchAccess).not.toHaveBeenCalled()
+  })
+
+  it('R6: the reason field is capped at the backend 500-char limit and shows a live counter', () => {
+    openRejectDialog()
+
+    const textarea = screen.getByLabelText(new RegExp(T.rejectReasonLabel))
+    expect(textarea).toHaveAttribute('maxlength', '500')
+    expect(screen.getByText(T.rejectReasonCounter(0, 500))).toBeInTheDocument()
+
+    fireEvent.change(textarea, { target: { value: REASON } })
+    expect(screen.getByText(T.rejectReasonCounter(REASON.length, 500))).toBeInTheDocument()
+  })
+
+  it('R7: submitting sends patchLineUserAccess(id, REJECTED, reason), updates the row in place, and closes', async () => {
+    const updateUserInPlace = vi.fn()
+    authAs('ADMIN')
+    mockUseLineUsers.mockReturnValue(
+      hookState({ users: [registered({ access: 'PENDING' })], updateUserInPlace }),
+    )
+    render(<AdminPortalLineUsersPage />)
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(T.inspect) }))
+    fireEvent.click(screen.getByRole('button', { name: T.reject }))
+
+    fireEvent.change(screen.getByLabelText(new RegExp(T.rejectReasonLabel)), {
+      target: { value: REASON },
+    })
+
+    const rejected = registered({ access: 'REJECTED' })
+    mockPatchAccess.mockResolvedValue(rejected)
+    fireEvent.click(screen.getByRole('button', { name: T.rejectSubmit }))
+
+    await waitFor(() => expect(mockPatchAccess).toHaveBeenCalledWith('lu1', 'REJECTED', REASON))
+    expect(mockPatchReg).not.toHaveBeenCalled()
+    expect(updateUserInPlace).toHaveBeenCalledWith(rejected)
+    // The reason dialog closed on success…
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: T.rejectSubmit })).not.toBeInTheDocument(),
+    )
+    // …and the still-open inspect modal now shows the REJECTED badge.
+    expect(screen.getAllByText(STATUS_BADGE.REJECTED.label).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('R8: a 400 (server-side blank/invalid reason) surfaces inline and KEEPS the dialog open', async () => {
+    openRejectDialog()
+
+    fireEvent.change(screen.getByLabelText(new RegExp(T.rejectReasonLabel)), {
+      target: { value: REASON },
+    })
+    mockPatchAccess.mockRejectedValue(new apiClient.ApiError(400, 'REJECTION_REASON_REQUIRED'))
+    fireEvent.click(screen.getByRole('button', { name: T.rejectSubmit }))
+
+    expect(await screen.findByText(EDITOR_MESSAGES.rejectInvalid)).toBeInTheDocument()
+    // Still open, still holding the typed reason, and flagged invalid for a11y.
+    const textarea = screen.getByLabelText(new RegExp(T.rejectReasonLabel))
+    expect(textarea).toHaveValue(REASON)
+    expect(textarea).toHaveAttribute('aria-invalid', 'true')
+    expect(textarea.getAttribute('aria-describedby')).toContain('reject-reason-error')
+  })
+
+  it('R9: Cancel closes the dialog without any PATCH', () => {
+    openRejectDialog()
+
+    fireEvent.change(screen.getByLabelText(new RegExp(T.rejectReasonLabel)), {
+      target: { value: REASON },
+    })
+    fireEvent.click(screen.getByRole('button', { name: T.cancel }))
+
+    expect(mockPatchAccess).not.toHaveBeenCalled()
   })
 })

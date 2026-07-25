@@ -5,7 +5,12 @@ import { ID_COUNT, PHONE_COUNT } from '@/components/RegistrationForm'
 import { UI_STRINGS_CLIENT as UI } from '@/constants/ui-strings-client'
 import * as liffLib from '@/lib/liff'
 import * as apiClient from '@/lib/api-client'
-import type { LineUserRegistration, RegistrationOptions } from '@/lib/api-client'
+import type {
+  AppAccess,
+  LineUserRegistration,
+  LineUserStatus,
+  RegistrationOptions,
+} from '@/lib/api-client'
 
 /**
  * Derived from `RegistrationForm`'s own rule rather than hardcoded: a 13-char
@@ -111,6 +116,23 @@ function registration(overrides: Partial<LineUserRegistration> = {}): LineUserRe
   }
 }
 
+/**
+ * A `LineUserStatus` fixture.
+ *
+ * `rejectionReason` became a REQUIRED field on the status DTO with the REJECTED
+ * feature, so every fixture must carry it; the backend invariant is that it is
+ * non-null IFF `access === 'REJECTED'`, hence the `null` default. Introduced as a
+ * factory (rather than adding `rejectionReason: null` to ~15 object literals) so
+ * the next contract addition is a one-line change here.
+ */
+function status(
+  access: AppAccess,
+  reg: LineUserRegistration | null = null,
+  rejectionReason: string | null = null,
+): LineUserStatus {
+  return { access, registration: reg, rejectionReason }
+}
+
 /** Advance past the minimum splash window and flush the async gate chain. */
 async function resolveSplash() {
   await act(async () => {
@@ -150,10 +172,10 @@ beforeEach(() => {
   mockIsLoggedIn.mockReturnValue(false)
   mockGetFriendship.mockResolvedValue({ friendFlag: true })
   mockGetIdToken.mockReturnValue(TOKEN)
-  mockGetStatus.mockResolvedValue({ access: 'UNREGISTERED', registration: null })
+  mockGetStatus.mockResolvedValue(status('UNREGISTERED'))
   mockGetOptions.mockResolvedValue(OPTIONS)
-  mockRegister.mockResolvedValue({ access: 'PENDING', registration: registration() })
-  mockUpdate.mockResolvedValue({ access: 'PENDING', registration: registration() })
+  mockRegister.mockResolvedValue(status('PENDING', registration()))
+  mockUpdate.mockResolvedValue(status('PENDING', registration()))
 })
 
 afterEach(() => {
@@ -219,7 +241,7 @@ describe('HomePage — friendship gate (AC-F)', () => {
     mockGetFriendship
       .mockResolvedValueOnce({ friendFlag: false }) // initial gate
       .mockResolvedValue({ friendFlag: true }) // the re-check
-    mockGetStatus.mockResolvedValue({ access: 'ALLOWED', registration: null })
+    mockGetStatus.mockResolvedValue(status('ALLOWED'))
     render(<HomePage />)
     await resolveSplash()
 
@@ -237,7 +259,7 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
   })
 
   it('UNREGISTERED → shows the registration form with option dropdowns (SC-F2)', async () => {
-    mockGetStatus.mockResolvedValue({ access: 'UNREGISTERED', registration: null })
+    mockGetStatus.mockResolvedValue(status('UNREGISTERED'))
     render(<HomePage />)
     await resolveSplash()
 
@@ -253,7 +275,7 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
   })
 
   it('PENDING → shows the pending screen with an Edit affordance', async () => {
-    mockGetStatus.mockResolvedValue({ access: 'PENDING', registration: registration() })
+    mockGetStatus.mockResolvedValue(status('PENDING', registration()))
     render(<HomePage />)
     await resolveSplash()
 
@@ -264,7 +286,7 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
   })
 
   it('ALLOWED → shows the greeting', async () => {
-    mockGetStatus.mockResolvedValue({ access: 'ALLOWED', registration: null })
+    mockGetStatus.mockResolvedValue(status('ALLOWED'))
     render(<HomePage />)
     await resolveSplash()
 
@@ -272,7 +294,7 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
   })
 
   it('BLOCKED → shows the suspended screen', async () => {
-    mockGetStatus.mockResolvedValue({ access: 'BLOCKED', registration: null })
+    mockGetStatus.mockResolvedValue(status('BLOCKED'))
     render(<HomePage />)
     await resolveSplash()
 
@@ -293,11 +315,11 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
 describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
   beforeEach(() => {
     mockInitLiff.mockResolvedValue({ displayName: 'Alice', userId: 'U1' })
-    mockGetStatus.mockResolvedValue({ access: 'UNREGISTERED', registration: null })
+    mockGetStatus.mockResolvedValue(status('UNREGISTERED'))
   })
 
   it('submits the id-based DTO with the bearer token and moves to Pending', async () => {
-    mockRegister.mockResolvedValue({ access: 'PENDING', registration: registration() })
+    mockRegister.mockResolvedValue(status('PENDING', registration()))
     render(<HomePage />)
     await resolveSplash()
 
@@ -350,12 +372,12 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
 describe('HomePage — PENDING self-edit (SC-F3)', () => {
   beforeEach(() => {
     mockInitLiff.mockResolvedValue({ displayName: 'Alice', userId: 'U1' })
-    mockGetStatus.mockResolvedValue({ access: 'PENDING', registration: registration() })
+    mockGetStatus.mockResolvedValue(status('PENDING', registration()))
   })
 
   it('Edit → pre-fills the form, PATCHes edited values, and returns to Pending', async () => {
     const edited = registration({ firstName: 'Somsak' })
-    mockUpdate.mockResolvedValue({ access: 'PENDING', registration: edited })
+    mockUpdate.mockResolvedValue(status('PENDING', edited))
     render(<HomePage />)
     await resolveSplash()
 
@@ -443,6 +465,109 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
   })
 })
 
+describe('HomePage — REJECTED (sent back for revision)', () => {
+  const REASON = 'เบอร์โทรศัพท์ไม่ถูกต้อง กรุณากรอกใหม่'
+
+  beforeEach(() => {
+    mockInitLiff.mockResolvedValue({ displayName: 'Alice', userId: 'U1' })
+    mockGetStatus.mockResolvedValue(status('REJECTED', registration(), REASON))
+  })
+
+  it('routes a REJECTED status to the Rejected screen and shows the reason prominently', async () => {
+    render(<HomePage />)
+    await resolveSplash()
+
+    expect(screen.getByText(UI.rejected.title)).toBeInTheDocument()
+    expect(screen.getByText(UI.rejected.body('Alice'))).toBeInTheDocument()
+    // The reason itself — the point of the screen — renders under its own heading.
+    expect(screen.getByText(UI.rejected.reasonLabel)).toBeInTheDocument()
+    expect(screen.getByText(REASON)).toBeInTheDocument()
+    // Not the Pending or Blocked screen.
+    expect(screen.queryByText(UI.pending.title)).not.toBeInTheDocument()
+    expect(screen.queryByText(UI.blocked.title)).not.toBeInTheDocument()
+  })
+
+  it('falls back to an explanation rather than a blank box when the reason is null', async () => {
+    mockGetStatus.mockResolvedValue(status('REJECTED', registration(), null))
+    render(<HomePage />)
+    await resolveSplash()
+
+    expect(screen.getByText(UI.rejected.reasonFallback)).toBeInTheDocument()
+  })
+
+  it('the edit button opens the EXISTING registration form, pre-filled', async () => {
+    render(<HomePage />)
+    await resolveSplash()
+
+    fireEvent.click(screen.getByRole('button', { name: UI.rejected.edit }))
+    await flush()
+
+    // The same `mode="edit"` RegistrationForm a PENDING user gets — not a new screen.
+    expect(screen.getByRole('button', { name: UI.registration.editSubmit })).toBeInTheDocument()
+    expect(screen.getByLabelText(UI.registration.firstName)).toHaveValue('Somchai')
+    expect(screen.getByLabelText(UI.registration.department)).toHaveValue('1')
+  })
+
+  it('re-submitting goes through the EXISTING update-registration path and lands on Pending', async () => {
+    const edited = registration({ firstName: 'Somsak' })
+    // The backend flips REJECTED → PENDING and clears the reason on a resubmit.
+    mockUpdate.mockResolvedValue(status('PENDING', edited, null))
+    render(<HomePage />)
+    await resolveSplash()
+
+    fireEvent.click(screen.getByRole('button', { name: UI.rejected.edit }))
+    await flush()
+    fireEvent.change(screen.getByLabelText(UI.registration.firstName), { target: { value: 'Somsak' } })
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.editSubmit }))
+    await flush()
+
+    // No new endpoint: the SAME self-edit call, with the bearer token and numeric ids.
+    expect(mockUpdate).toHaveBeenCalledWith(
+      {
+        firstName: 'Somsak',
+        lastName: 'Jaidee',
+        staffId: VALID_STAFF_ID,
+        phone: VALID_PHONE,
+        departmentId: 1,
+        personnelRoleId: 10,
+      },
+      TOKEN,
+    )
+    expect(mockRegister).not.toHaveBeenCalled()
+    // Routed from the RESPONSE's access → Pending, and the reason is gone.
+    expect(screen.getByText(UI.pending.title)).toBeInTheDocument()
+    expect(screen.queryByText(REASON)).not.toBeInTheDocument()
+  })
+
+  it('Cancel returns to the Rejected screen (not Pending) with the reason intact', async () => {
+    render(<HomePage />)
+    await resolveSplash()
+
+    fireEvent.click(screen.getByRole('button', { name: UI.rejected.edit }))
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.cancel }))
+    await flush()
+
+    expect(mockUpdate).not.toHaveBeenCalled()
+    expect(screen.getByText(UI.rejected.title)).toBeInTheDocument()
+    expect(screen.getByText(REASON)).toBeInTheDocument()
+  })
+
+  it('surfaces a failed re-submit inline, staying on the form', async () => {
+    mockUpdate.mockRejectedValue(new apiClient.ApiError(409, 'STAFF_ID_TAKEN'))
+    render(<HomePage />)
+    await resolveSplash()
+
+    fireEvent.click(screen.getByRole('button', { name: UI.rejected.edit }))
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.editSubmit }))
+    await flush()
+
+    expect(screen.getByText('STAFF_ID_TAKEN')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: UI.registration.editSubmit })).toBeInTheDocument()
+  })
+})
+
 describe('HomePage — in-client behaviour', () => {
   it('in-client + signed out → calls liff.login() and keeps the splash up', async () => {
     mockIsInLineClient.mockReturnValue(true)
@@ -461,7 +586,7 @@ describe('HomePage — in-client behaviour', () => {
     mockIsInLineClient.mockReturnValue(true)
     mockIsLoggedIn.mockReturnValue(true)
     mockInitLiff.mockResolvedValue({ displayName: 'Bob', userId: 'U456' })
-    mockGetStatus.mockResolvedValue({ access: 'ALLOWED', registration: null })
+    mockGetStatus.mockResolvedValue(status('ALLOWED'))
     render(<HomePage />)
 
     await resolveSplash()

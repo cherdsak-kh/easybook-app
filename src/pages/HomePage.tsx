@@ -52,10 +52,19 @@ type View =
   | { kind: 'registration' }
   | { kind: 'editing' }
   | { kind: 'pending' }
+  | { kind: 'rejected' }
   | { kind: 'allowed' }
   | { kind: 'blocked' }
   | { kind: 'error' }
   | { kind: 'auth-error' }
+
+/**
+ * The two screens the self-edit form can be entered from — and therefore the two
+ * it must return to on Cancel. A REJECTED user who backs out of the form must
+ * land on the Rejected screen (still holding their reason), not on Pending, which
+ * would silently misreport their status.
+ */
+type EditOrigin = 'pending' | 'rejected'
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -117,8 +126,8 @@ function initialFrom(reg: LineUserRegistration | null): RegistrationFormValues |
 /**
  * Client Portal onboarding flow.
  *
- * Splash → **friendship gate** → **access-status gate** → one of four screens
- * (Registration / Pending / Allowed / Blocked). All LINE access is isolated
+ * Splash → **friendship gate** → **access-status gate** → one of five screens
+ * (Registration / Pending / Rejected / Allowed / Blocked). All LINE access is isolated
  * behind `@/lib/liff` (fail-soft) and the backend LINE-consumer endpoints are
  * called through `@/lib/api-client` with the LIFF ID token as a bearer.
  *
@@ -149,14 +158,23 @@ export function HomePage() {
   const [recheckHint, setRecheckHint] = useState<string | null>(null)
 
   // The caller's current registration (populated on the status gate; used to
-  // pre-fill the PENDING edit form and echo submitted details on Pending).
+  // pre-fill the PENDING/REJECTED edit form and echo submitted details on Pending).
   const [registration, setRegistration] = useState<LineUserRegistration | null>(null)
+  // The operator-authored reason behind a REJECTED status. Non-null only while
+  // `access === 'REJECTED'` (backend invariant); it is what RejectedScreen shows.
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null)
+  // Which screen the self-edit form was opened from, so Cancel returns there.
+  const [editOrigin, setEditOrigin] = useState<EditOrigin>('pending')
 
   const active = useRef(true)
   // The verified LIFF ID token used as the bearer; null in local-dev/mock mode.
   const idTokenRef = useRef<string | null>(null)
   // DEV AFFORDANCE: the simulated status used when there is no real ID token.
-  const mockStatusRef = useRef<LineUserStatus>({ access: 'UNREGISTERED', registration: null })
+  const mockStatusRef = useRef<LineUserStatus>({
+    access: 'UNREGISTERED',
+    registration: null,
+    rejectionReason: null,
+  })
 
   /**
    * Loads the dynamic Department / PersonnelRole option lists for the form.
@@ -174,6 +192,9 @@ export function HomePage() {
     switch (access) {
       case 'PENDING':
         setView({ kind: 'pending' })
+        break
+      case 'REJECTED':
+        setView({ kind: 'rejected' })
         break
       case 'ALLOWED':
         setView({ kind: 'allowed' })
@@ -213,6 +234,7 @@ export function HomePage() {
       }
       if (!active.current) return
       setRegistration(status.registration)
+      setRejectionReason(status.rejectionReason)
       route(status.access)
     } catch {
       if (!active.current) return
@@ -313,9 +335,10 @@ export function HomePage() {
         // Gated on isLiffConfigured() (OBS-2): a real-but-tokenless channel must
         // never fake a submit — the status gate already routes it to auth-error.
         const reg = mockRegistrationFrom(dto)
-        mockStatusRef.current = { access: 'PENDING', registration: reg }
+        mockStatusRef.current = { access: 'PENDING', registration: reg, rejectionReason: null }
         if (active.current) {
           setRegistration(reg)
+          setRejectionReason(null)
           setView({ kind: 'pending' })
         }
         return
@@ -330,6 +353,7 @@ export function HomePage() {
       const status = await registerLineUser(dto, token)
       if (!active.current) return
       setRegistration(status.registration)
+      setRejectionReason(status.rejectionReason)
       route(status.access)
     } catch (err) {
       if (!active.current) return
@@ -339,16 +363,22 @@ export function HomePage() {
     }
   }
 
-  /** Open the PENDING edit form (pre-filled from the current registration). */
+  /**
+   * Open the self-edit form (pre-filled from the current registration). Shared by
+   * the PENDING and REJECTED screens — there is exactly ONE edit path, and the
+   * backend's `PATCH /line-users/registration` accepts both states; a REJECTED
+   * re-submit is what flips the caller back to PENDING server-side.
+   */
   function handleStartEdit() {
     setSubmitError(null)
+    setEditOrigin(view.kind === 'rejected' ? 'rejected' : 'pending')
     setView({ kind: 'editing' })
   }
 
-  /** Cancel the edit and return to the Pending screen. */
+  /** Cancel the edit and return to whichever screen opened the form. */
   function handleCancelEdit() {
     setSubmitError(null)
-    setView({ kind: 'pending' })
+    setView({ kind: editOrigin })
   }
 
   async function handleEditSubmit(dto: CreateLineUserRegistration) {
@@ -358,9 +388,10 @@ export function HomePage() {
       if (!isLiffConfigured()) {
         // DEV AFFORDANCE: mock a successful self-edit without a backend.
         const reg = mockRegistrationFrom(dto)
-        mockStatusRef.current = { access: 'PENDING', registration: reg }
+        mockStatusRef.current = { access: 'PENDING', registration: reg, rejectionReason: null }
         if (active.current) {
           setRegistration(reg)
+          setRejectionReason(null)
           setView({ kind: 'pending' })
         }
         return
@@ -373,7 +404,10 @@ export function HomePage() {
       const status = await updateLineUserRegistration(dto, token)
       if (!active.current) return
       setRegistration(status.registration)
-      // Success → back to the (refreshed) Pending screen. `access` stays PENDING.
+      setRejectionReason(status.rejectionReason)
+      // Success → the refreshed status screen. A PENDING caller stays PENDING; a
+      // REJECTED caller comes back as PENDING (the backend clears the reason), so
+      // both land on Pending — routed from the RESPONSE, never assumed.
       route(status.access)
     } catch (err) {
       if (!active.current) return
@@ -422,6 +456,8 @@ export function HomePage() {
       )
     case 'pending':
       return <PendingScreen profile={profile} registration={registration} onEdit={handleStartEdit} />
+    case 'rejected':
+      return <RejectedScreen profile={profile} reason={rejectionReason} onEdit={handleStartEdit} />
     case 'allowed':
       return <HelloScreen profile={profile} />
     case 'blocked':
@@ -585,6 +621,58 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
   )
 }
 
+/**
+ * REJECTED: an administrator sent the registration back for revision. The whole
+ * point of this screen is the **reason**, so it is rendered in its own bordered
+ * `warning`-toned block above the action rather than folded into the body text.
+ *
+ * The action re-enters the SAME self-edit form a PENDING user gets (`onEdit` is
+ * the shared `handleStartEdit`); re-submitting goes through the existing
+ * `updateLineUserRegistration` path, which the backend answers by flipping the
+ * caller to PENDING and clearing the reason. There is deliberately NO new
+ * submission endpoint here.
+ *
+ * Styling is daisyUI semantic tokens only (`warning` / `base-*`) — no `dark:`
+ * utilities; the client themes carry light/dark via `data-theme`.
+ */
+function RejectedScreen({
+  profile,
+  reason,
+  onEdit,
+}: {
+  profile: LiffProfile | null
+  reason: string | null
+  onEdit: () => void
+}) {
+  return (
+    <StatusCard
+      tone="amber"
+      icon="alert"
+      title={UI.rejected.title}
+      body={UI.rejected.body(profile?.displayName)}
+      action={
+        <>
+          <div className="mt-5 rounded-xl border border-warning/40 bg-warning/10 p-4 text-left">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+              {UI.rejected.reasonLabel}
+            </h2>
+            <p className="mt-1 whitespace-pre-line wrap-break-word text-sm font-medium text-base-content">
+              {reason ?? UI.rejected.reasonFallback}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="btn btn-warning mt-6 w-full focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
+          >
+            {UI.rejected.edit}
+          </button>
+        </>
+      }
+    />
+  )
+}
+
 /** BLOCKED: account suspended, no actions. */
 function BlockedScreen() {
   return (
@@ -686,7 +774,7 @@ function AuthErrorScreen() {
   )
 }
 
-/** Shared centred status card (Pending / Blocked / Error / Auth error). */
+/** Shared centred status card (Pending / Rejected / Blocked / Error / Auth error). */
 function StatusCard({
   tone,
   icon,
@@ -696,7 +784,8 @@ function StatusCard({
   alert = false,
 }: {
   tone: 'amber' | 'red'
-  icon: 'clock' | 'ban'
+  /** `alert` (exclamation) marks the recoverable "needs your attention" Rejected state. */
+  icon: 'clock' | 'ban' | 'alert'
   title: string
   body: React.ReactNode
   action?: React.ReactNode
@@ -718,7 +807,7 @@ function StatusCard({
             aria-hidden
             className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${toneRing}`}
           >
-            {icon === 'clock' ? <ClockIcon /> : <BanIcon />}
+            {icon === 'clock' ? <ClockIcon /> : icon === 'alert' ? <AlertIcon /> : <BanIcon />}
           </span>
           <h1 className="mt-4 text-xl font-bold text-base-content">{title}</h1>
           <p className="mt-2 text-sm text-base-content/60">{body}</p>
@@ -766,6 +855,17 @@ function ClockIcon() {
     <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" aria-hidden="true">
       <circle cx="12" cy="12" r="9" strokeWidth="2" />
       <path strokeWidth="2" strokeLinecap="round" d="M12 7v5l3 2" />
+    </svg>
+  )
+}
+
+/** Exclamation-in-a-circle — "sent back, needs your attention" (Rejected). Decorative. */
+function AlertIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" d="M12 7.5v5" />
+      <path strokeWidth="2" strokeLinecap="round" d="M12 16.25h.01" />
     </svg>
   )
 }

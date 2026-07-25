@@ -39,7 +39,7 @@
  * ## Scope
  * The **client portal** screens, grouped by surface, in flow order: splash →
  * LINE login → resolving → friendship gate → registration/edit → pending →
- * allowed → blocked → the two error screens.
+ * rejected → allowed → blocked → the two error screens.
  *
  * Not covered: the internal back-office (admin-portal) surfaces, whose copy lives
  * in the per-feature `ui-strings-*.ts` modules (`ui-strings-auth.ts`,
@@ -245,8 +245,38 @@ export const UI_STRINGS_CLIENT = {
       emptyValue: '—',
     },
 
-    /** Opens the self-edit form (the backend permits edits only while PENDING). */
+    /** Opens the self-edit form (the backend permits edits while PENDING or REJECTED). */
     edit: 'แก้ไขข้อมูลลงทะเบียน',
+  },
+
+  // -------------------------------------------------------------- Rejected
+  /**
+   * REJECTED: an administrator reviewed the registration and **sent it back for
+   * revision** with a mandatory reason. Distinct from `blocked` (terminal,
+   * punitive, no action available) and from `pending` (fresh, not yet reviewed):
+   * this screen's whole job is to show the operator's reason and hand the user
+   * straight back into the SAME registration edit form a PENDING user gets.
+   * Re-submitting flips them back to PENDING server-side.
+   */
+  rejected: {
+    title: 'ข้อมูลการลงทะเบียนถูกส่งกลับให้แก้ไข',
+    /** `displayName` is absent outside a LIFF session — same convention as `pending.body`. */
+    body: (displayName?: string) =>
+      `${displayName ? `${displayName} ` : ''}ผู้ดูแลระบบขอให้คุณแก้ไขข้อมูลการลงทะเบียน โปรดอ่านเหตุผลด้านล่าง แก้ไขข้อมูลของคุณ แล้วส่งอีกครั้งเพื่อขออนุมัติ`,
+    /** Heading of the prominent reason block — the point of this screen. */
+    reasonLabel: 'เหตุผลจากผู้ดูแลระบบ',
+    /**
+     * Defensive only. The backend invariant is `rejectionReason` non-null IFF
+     * `access === REJECTED`, so this should be unreachable — but a null reason
+     * must never render as a blank box with no explanation.
+     */
+    reasonFallback: 'ผู้ดูแลระบบไม่ได้ระบุเหตุผลไว้ โปรดตรวจสอบข้อมูลของคุณอีกครั้ง',
+    /**
+     * Opens the SAME self-edit form a PENDING user uses. Deliberately its own
+     * literal (not `pending.edit`, which reads slightly differently): two screens,
+     * two decisions — re-wording one must not silently re-word the other.
+     */
+    edit: 'แก้ไขข้อมูลการลงทะเบียน',
   },
 
   // --------------------------------------------------------------- Allowed

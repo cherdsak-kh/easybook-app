@@ -353,3 +353,136 @@ describe('useLineUserEditor — error mapping (§7)', () => {
     expect(result.current.formError).toBeNull()
   })
 })
+
+describe('useLineUserEditor — reject flow (mandatory reason)', () => {
+  const REASON = 'เบอร์โทรศัพท์ไม่ถูกต้อง กรุณากรอกใหม่'
+
+  it('startReject opens the dialog for a user with a blank, non-submittable reason', () => {
+    const { result } = setup()
+    act(() => result.current.startReject(makeUser()))
+
+    expect(result.current.rejectTarget?.id).toBe('lu1')
+    expect(result.current.rejectReason).toBe('')
+    expect(result.current.rejectSubmittable).toBe(false)
+    expect(result.current.rejectError).toBeNull()
+  })
+
+  it('a BLANK reason blocks the submit entirely — inline error, NO network call', async () => {
+    const { result, updateUserInPlace } = setup()
+    act(() => result.current.startReject(makeUser()))
+
+    let returned: LineUser | null = makeUser()
+    await act(async () => {
+      returned = await result.current.submitReject()
+    })
+
+    expect(mockPatchAccess).not.toHaveBeenCalled()
+    expect(updateUserInPlace).not.toHaveBeenCalled()
+    expect(returned).toBeNull()
+    expect(result.current.rejectError).toBe(EDITOR_MESSAGES.reasonRequired)
+    // Still open so the operator can type the reason.
+    expect(result.current.rejectTarget).not.toBeNull()
+  })
+
+  it('a WHITESPACE-only reason is treated as blank (same client-side guard)', async () => {
+    const { result } = setup()
+    act(() => result.current.startReject(makeUser()))
+    act(() => result.current.setRejectReason('   \n  '))
+
+    expect(result.current.rejectSubmittable).toBe(false)
+    await act(async () => {
+      await result.current.submitReject()
+    })
+    expect(mockPatchAccess).not.toHaveBeenCalled()
+    expect(result.current.rejectError).toBe(EDITOR_MESSAGES.reasonRequired)
+  })
+
+  it('submits REJECTED + the TRIMMED reason, syncs the list, and closes on success', async () => {
+    const { result, updateUserInPlace } = setup()
+    act(() => result.current.startReject(makeUser()))
+    act(() => result.current.setRejectReason(`  ${REASON}  `))
+    expect(result.current.rejectSubmittable).toBe(true)
+
+    const rejected = makeUser({ access: 'REJECTED' })
+    mockPatchAccess.mockResolvedValue(rejected)
+
+    let returned: LineUser | null = null
+    await act(async () => {
+      returned = await result.current.submitReject()
+    })
+
+    expect(mockPatchAccess).toHaveBeenCalledWith('lu1', 'REJECTED', REASON)
+    expect(mockPatchReg).not.toHaveBeenCalled()
+    expect(updateUserInPlace).toHaveBeenCalledWith(rejected)
+    expect(returned).toEqual(rejected)
+    // Dialog state cleared for the next use.
+    expect(result.current.rejectTarget).toBeNull()
+    expect(result.current.rejectReason).toBe('')
+    expect(result.current.rejecting).toBe(false)
+  })
+
+  it('cancelReject discards the reason and issues no PATCH', () => {
+    const { result } = setup()
+    act(() => result.current.startReject(makeUser()))
+    act(() => result.current.setRejectReason(REASON))
+    act(() => result.current.cancelReject())
+
+    expect(result.current.rejectTarget).toBeNull()
+    expect(result.current.rejectReason).toBe('')
+    expect(mockPatchAccess).not.toHaveBeenCalled()
+  })
+
+  it('typing clears a stale error so the field stops reading as invalid', async () => {
+    const { result } = setup()
+    act(() => result.current.startReject(makeUser()))
+    await act(async () => {
+      await result.current.submitReject()
+    })
+    expect(result.current.rejectError).toBe(EDITOR_MESSAGES.reasonRequired)
+
+    act(() => result.current.setRejectReason('x'))
+    expect(result.current.rejectError).toBeNull()
+  })
+
+  async function rejectWith(status: number) {
+    const { result, expireSession, updateUserInPlace } = setup()
+    act(() => result.current.startReject(makeUser()))
+    act(() => result.current.setRejectReason(REASON))
+    mockPatchAccess.mockRejectedValue(new ApiError(status, 'x'))
+    await act(async () => {
+      await result.current.submitReject()
+    })
+    return { result, expireSession, updateUserInPlace }
+  }
+
+  it('a 400 (server-side blank/invalid reason) maps to an inline message and KEEPS the dialog open', async () => {
+    const { result, updateUserInPlace } = await rejectWith(400)
+    expect(result.current.rejectError).toBe(EDITOR_MESSAGES.rejectInvalid)
+    expect(result.current.rejectTarget).not.toBeNull()
+    expect(result.current.rejectReason).toBe(REASON) // the typed reason survives the failure
+    expect(updateUserInPlace).not.toHaveBeenCalled()
+  })
+
+  it('403 → forbidden, 404 → row-gone, anything else → the generic reject failure', async () => {
+    expect((await rejectWith(403)).result.current.rejectError).toBe(EDITOR_MESSAGES.forbidden)
+    expect((await rejectWith(404)).result.current.rejectError).toBe(EDITOR_MESSAGES.rowGone)
+    expect((await rejectWith(500)).result.current.rejectError).toBe(EDITOR_MESSAGES.rejectFailed)
+  })
+
+  it('401 → expireSession and NO inline error (the route guard owns the redirect)', async () => {
+    const { result, expireSession } = await rejectWith(401)
+    expect(expireSession).toHaveBeenCalledTimes(1)
+    expect(result.current.rejectError).toBeNull()
+  })
+
+  it('reset() (modal close) clears the reject state too', () => {
+    const { result } = setup()
+    act(() => result.current.startReject(makeUser()))
+    act(() => result.current.setRejectReason(REASON))
+    act(() => result.current.reset())
+
+    expect(result.current.rejectTarget).toBeNull()
+    expect(result.current.rejectReason).toBe('')
+    expect(result.current.rejectError).toBeNull()
+  })
+})

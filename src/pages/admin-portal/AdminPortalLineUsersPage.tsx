@@ -13,34 +13,46 @@
 import { useCallback, useRef, useState, type Ref } from 'react'
 import MagnifyingGlassIcon from '@heroicons/react/24/outline/MagnifyingGlassIcon'
 import PencilSquareIcon from '@heroicons/react/24/outline/PencilSquareIcon'
+import ArrowUturnLeftIcon from '@heroicons/react/24/outline/ArrowUturnLeftIcon'
 import { TitleCard } from '@/components/dashboard/TitleCard'
 import { useLineUsers } from '@/hooks/useLineUsers'
-import { useLineUserEditor, type UseLineUserEditor } from '@/hooks/useLineUserEditor'
+import {
+  REJECT_REASON_MAX_LENGTH,
+  useLineUserEditor,
+  type UseLineUserEditor,
+} from '@/hooks/useLineUserEditor'
 import { useAuth } from '@/auth/useAuth'
-import { canAdminSetAccess } from '@/lib/access-policy'
+import { canAdminSetAccess, canReject } from '@/lib/access-policy'
 import type { AppAccess, LineUser, SystemRole } from '@/lib/api-client'
 // Thai copy + status-badge map live in the centralized-but-modularized per-feature constants
 // module (`@/constants/ui-strings-line-users`) so this component file exports ONLY components;
 // the page and its tests share the same literal.
 import { STATUS_BADGE, T } from '@/constants/ui-strings-line-users'
 
-/** Access-filter option order (matches the toolbar's existing set). */
-const ACCESS_FILTER_OPTIONS: readonly AppAccess[] = ['UNREGISTERED', 'PENDING', 'ALLOWED', 'BLOCKED']
+/** Access-filter option order. REJECTED is filterable — it is a first-class review state. */
+const ACCESS_FILTER_OPTIONS: readonly AppAccess[] = [
+  'UNREGISTERED',
+  'PENDING',
+  'ALLOWED',
+  'BLOCKED',
+  'REJECTED',
+]
 
 /** Roles allowed to see the modal's Edit affordance (STAFF is strictly read-only). Plan §5. */
 const EDITOR_ROLES: readonly SystemRole[] = ['ADMIN', 'SUPER_ADMIN']
 
 /**
- * The status `<select>` option set for the editor, per role (plan §6.3, PO decision (a)).
- * SUPER_ADMIN gets the full override (all four states). ADMIN gets the current state (as the
- * no-op default) PLUS only the targets `canAdminSetAccess` permits — so the set is DERIVED
- * from the backend-mirrored policy, never a hand-rolled literal, and can never offer a
- * reachable `PENDING` target (an ADMIN→PENDING PATCH is structurally impossible).
+ * The status `<select>`'s SELECTABLE targets — strictly `{ALLOWED, BLOCKED}` for BOTH roles,
+ * derived from the backend-mirrored policy rather than hand-rolled. `UNREGISTERED`, `PENDING`
+ * and `REJECTED` are never dropdown values: the first two are not settable by anyone through
+ * this surface, and REJECTED is reachable ONLY via the dedicated Reject action (which always
+ * carries a mandatory reason). SUPER_ADMIN no longer gets a four-state override picker here —
+ * the wider capability still exists on the server, but this surface does not offer it.
+ *
+ * Returns `[]` for an UNREGISTERED user (nothing an operator may set), which locks the select.
  */
-function statusOptionsFor(role: SystemRole | undefined, current: AppAccess): AppAccess[] {
-  if (role === 'SUPER_ADMIN') return ['UNREGISTERED', 'PENDING', 'ALLOWED', 'BLOCKED']
-  const targets = (['ALLOWED', 'BLOCKED'] as AppAccess[]).filter((t) => canAdminSetAccess(current, t))
-  return [...new Set<AppAccess>([current, ...targets])]
+function statusTargetsFor(current: AppAccess): AppAccess[] {
+  return (['ALLOWED', 'BLOCKED'] as AppAccess[]).filter((t) => canAdminSetAccess(current, t))
 }
 
 /**
@@ -124,6 +136,10 @@ export function AdminPortalLineUsersPage() {
   // ONE modal instance, driven by page state — not one <dialog> per row (plan §4).
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [selectedUser, setSelectedUser] = useState<LineUser | null>(null)
+  // The Reject dialog is a SIBLING <dialog>, not a nested one: nesting a modal inside an open
+  // modal-box relies on top-layer stacking that jsdom does not model, and a sibling keeps each
+  // dialog's own focus trap / Esc / return-focus intact.
+  const rejectDialogRef = useRef<HTMLDialogElement>(null)
 
   const handleInspect = useCallback((user: LineUser) => {
     setSelectedUser(user)
@@ -146,6 +162,34 @@ export function AdminPortalLineUsersPage() {
   const handleSave = useCallback(async () => {
     const saved = await editor.save()
     if (saved) setSelectedUser(saved)
+  }, [editor])
+
+  const handleStartReject = useCallback(
+    (user: LineUser) => {
+      editor.startReject(user)
+      rejectDialogRef.current?.showModal()
+    },
+    [editor],
+  )
+
+  const closeRejectModal = useCallback(() => {
+    rejectDialogRef.current?.close()
+  }, [])
+
+  // Esc / backdrop / Cancel all land here (native `close`) — one discard path.
+  const handleRejectDialogClose = useCallback(() => {
+    editor.cancelReject()
+  }, [editor])
+
+  // Reject: on success, close the reason dialog and re-seed the inspect modal's snapshot so
+  // its badge flips to ส่งกลับให้แก้ไข immediately. On failure the dialog STAYS open with the
+  // inline error — never a silent no-op.
+  const handleReject = useCallback(async () => {
+    const rejected = await editor.submitReject()
+    if (rejected) {
+      setSelectedUser((prev) => (prev && prev.id === rejected.id ? rejected : prev))
+      rejectDialogRef.current?.close()
+    }
   }, [editor])
 
   return (
@@ -272,8 +316,17 @@ export function AdminPortalLineUsersPage() {
         canEdit={canEdit}
         role={currentAdmin?.role}
         onSave={handleSave}
+        onStartReject={handleStartReject}
         onClose={handleDialogClose}
         onRequestClose={closeModal}
+      />
+
+      <RejectReasonModal
+        ref={rejectDialogRef}
+        editor={editor}
+        onSubmit={handleReject}
+        onClose={handleRejectDialogClose}
+        onRequestClose={closeRejectModal}
       />
     </TitleCard>
   )
@@ -334,8 +387,11 @@ function LineUserRow({
  * page uses to reset the selection AND the edit state.
  *
  * View mode shows the read-only details (all roles) plus — for ADMIN / SUPER_ADMIN only — an
- * Edit affordance. Edit mode swaps in the registration + status form (Phase B). STAFF never
- * sees the Edit button; the backend is the authority regardless (this gate is UX-only).
+ * Edit affordance and the dedicated **Reject** ("ตีกลับไปให้แก้ไข") action, the latter gated by
+ * `canReject` so it is hidden for an UNREGISTERED user (nothing was submitted to send back)
+ * and, for ADMIN, for an already-REJECTED one. Edit mode swaps in the registration + status
+ * form (Phase B). STAFF never sees either action; the backend is the authority regardless
+ * (these gates are UX-only).
  */
 function LineUserInspectModal({
   ref,
@@ -344,6 +400,7 @@ function LineUserInspectModal({
   canEdit,
   role,
   onSave,
+  onStartReject,
   onClose,
   onRequestClose,
 }: {
@@ -353,10 +410,12 @@ function LineUserInspectModal({
   canEdit: boolean
   role: SystemRole | undefined
   onSave: () => void
+  onStartReject: (user: LineUser) => void
   onClose: () => void
   onRequestClose: () => void
 }) {
   const editing = editor.mode === 'edit'
+  const showReject = canEdit && user !== null && canReject(user.access, role)
   return (
     <dialog ref={ref} className="modal" aria-labelledby="lineuser-modal-title" onClose={onClose}>
       <div className="modal-box max-w-lg">
@@ -377,6 +436,16 @@ function LineUserInspectModal({
             <LineUserDetails user={user} />
             {canEdit && (
               <div className="modal-action">
+                {showReject && (
+                  <button
+                    type="button"
+                    onClick={() => onStartReject(user)}
+                    className="btn btn-warning btn-soft btn-sm focus-visible:ring-2 focus-visible:ring-warning"
+                  >
+                    <ArrowUturnLeftIcon className="size-[1.2em]" aria-hidden />
+                    {T.reject}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => editor.startEdit(user)}
@@ -390,9 +459,7 @@ function LineUserInspectModal({
           </>
         )}
 
-        {user && editing && (
-          <LineUserEditForm user={user} editor={editor} role={role} onSave={onSave} />
-        )}
+        {user && editing && <LineUserEditForm user={user} editor={editor} onSave={onSave} />}
       </div>
       {/* Click-outside close (native dialog form submit → `close` event). */}
       <form method="dialog" className="modal-backdrop">
@@ -403,22 +470,147 @@ function LineUserInspectModal({
 }
 
 /**
+ * The Reject ("ตีกลับไปให้แก้ไข") dialog — a second native `<dialog className="modal">`,
+ * sibling to the inspect modal, opened via `showModal()` so it gets its own focus trap, Esc
+ * handling and return-focus. Its ONE field is the **mandatory** reason: submit is disabled
+ * while it is blank, the field is capped at the backend's 500 chars with a live counter, and
+ * a blank submit can never reach the network (`submitReject` short-circuits). The field
+ * carries `aria-invalid` + `aria-describedby` pointing at the hint/counter and, when present,
+ * the inline error — so the requirement and any failure are announced, not just coloured.
+ *
+ * Every failure path lands in the inline `alert` and KEEPS the dialog open; a 401 is the one
+ * exception (the editor expires the session and the route guard owns the redirect).
+ */
+function RejectReasonModal({
+  ref,
+  editor,
+  onSubmit,
+  onClose,
+  onRequestClose,
+}: {
+  ref: Ref<HTMLDialogElement>
+  editor: UseLineUserEditor
+  onSubmit: () => void
+  onClose: () => void
+  onRequestClose: () => void
+}) {
+  const { rejectTarget, rejectReason, rejectSubmittable, rejecting, rejectError, setRejectReason } =
+    editor
+  const displayName = rejectTarget?.displayName ?? T.unknownUser
+  const blocked = !rejectSubmittable || rejecting
+
+  return (
+    <dialog ref={ref} className="modal" aria-labelledby="lineuser-reject-title" onClose={onClose}>
+      <div className="modal-box max-w-lg">
+        <button
+          type="button"
+          onClick={onRequestClose}
+          aria-label={T.close}
+          className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          ✕
+        </button>
+        <h3 id="lineuser-reject-title" className="text-lg font-bold">
+          {T.rejectTitle}
+        </h3>
+
+        <form
+          className="mt-4 space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!blocked) onSubmit()
+          }}
+        >
+          <p className="text-sm text-base-content/70">
+            <span className="font-semibold text-base-content">{displayName}</span> · {T.rejectIntro}
+          </p>
+
+          <div>
+            <label htmlFor="reject-reason" className="mb-1 block text-sm font-medium">
+              {T.rejectReasonLabel}
+              <span aria-hidden className="ml-0.5 text-error">
+                *
+              </span>
+            </label>
+            <textarea
+              id="reject-reason"
+              required
+              rows={4}
+              value={rejectReason}
+              maxLength={REJECT_REASON_MAX_LENGTH}
+              placeholder={T.rejectReasonPlaceholder}
+              onChange={(e) => setRejectReason(e.target.value)}
+              aria-invalid={rejectError ? true : undefined}
+              aria-describedby={
+                rejectError ? 'reject-reason-error reject-reason-counter' : 'reject-reason-counter'
+              }
+              className={`textarea w-full focus-visible:ring-2 focus-visible:ring-warning ${
+                rejectError ? 'textarea-error' : ''
+              }`}
+            />
+            <p
+              id="reject-reason-counter"
+              className="mt-1 text-end text-xs text-base-content/60 tabular-nums"
+            >
+              {T.rejectReasonCounter(rejectReason.length, REJECT_REASON_MAX_LENGTH)}
+            </p>
+          </div>
+
+          {/* Reserved height is unnecessary here (the dialog is centred), but the alert always
+              renders in the same slot so an error never pushes the actions off-screen. */}
+          {rejectError && (
+            <div
+              id="reject-reason-error"
+              role="alert"
+              className="alert alert-error alert-soft text-sm"
+            >
+              <span>{rejectError}</span>
+            </div>
+          )}
+
+          <div className="modal-action">
+            <button
+              type="button"
+              onClick={onRequestClose}
+              disabled={rejecting}
+              className="btn btn-ghost btn-sm focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              {T.cancel}
+            </button>
+            <button
+              type="submit"
+              disabled={blocked}
+              className="btn btn-warning btn-sm focus-visible:ring-2 focus-visible:ring-warning"
+            >
+              {rejecting && <span className="loading loading-spinner loading-xs" aria-hidden />}
+              {rejecting ? T.rejectSubmitting : T.rejectSubmit}
+            </button>
+          </div>
+        </form>
+      </div>
+      <form method="dialog" className="modal-backdrop">
+        <button aria-label={T.closeBackdrop}>{T.close}</button>
+      </form>
+    </dialog>
+  )
+}
+
+/**
  * The edit form (Phase B, plan §5–§7). Renders the six registration inputs (dept/role as
  * `<select>`s from the lazily-fetched admin option lists) only when the user has a
- * registration row; the status `<select>` (role-gated option set, plan §6.3) is always
- * shown. Save is disabled until the draft is dirty and — for a registered user — the option
- * lists have loaded (so a dept/role choice can be validated). Errors surface in the modal:
- * the staffId-taken (409) case is a per-field error with `aria-invalid`/`aria-describedby`.
+ * registration row; the status `<select>` is always shown, offering strictly
+ * `{ALLOWED, BLOCKED}` for BOTH roles. Save is disabled until the draft is dirty and — for a
+ * registered user — the option lists have loaded (so a dept/role choice can be validated).
+ * Errors surface in the modal: the staffId-taken (409) case is a per-field error with
+ * `aria-invalid`/`aria-describedby`.
  */
 function LineUserEditForm({
   user,
   editor,
-  role,
   onSave,
 }: {
   user: LineUser
   editor: UseLineUserEditor
-  role: SystemRole | undefined
   onSave: () => void
 }) {
   const {
@@ -438,8 +630,14 @@ function LineUserEditForm({
     cancel,
   } = editor
 
-  const statusOptions = statusOptionsFor(role, user.access)
-  const statusLocked = statusOptions.length <= 1
+  // Strictly ALLOWED/BLOCKED for both roles. When the CURRENT state is not one of them
+  // (UNREGISTERED / PENDING / REJECTED) the select leads with a DISABLED placeholder carrying
+  // that state's label, so the controlled value always matches a rendered option — without it
+  // the browser would silently display the first target while the draft still held the old
+  // state, and a Save would look applied but be a no-op.
+  const statusTargets = statusTargetsFor(user.access)
+  const statusLocked = statusTargets.length === 0
+  const currentIsTarget = statusTargets.includes(draftAccess)
   // A registered user's Save waits for the option lists (needed to validate the dept/role
   // choice); an option-load failure keeps Save disabled behind a visible notice (plan §6.2).
   const saveDisabled = saving || !dirty || (draft !== null && !optionsLoaded)
@@ -506,12 +704,17 @@ function LineUserEditForm({
         </label>
         <select
           id="edit-status"
-          value={draftAccess}
+          value={currentIsTarget ? draftAccess : ''}
           onChange={(e) => setDraftAccess(e.target.value as AppAccess)}
           disabled={statusLocked}
           className="select select-bordered w-full focus-visible:ring-2 focus-visible:ring-primary"
         >
-          {statusOptions.map((a) => (
+          {!currentIsTarget && (
+            <option value="" disabled>
+              {STATUS_BADGE[user.access].label}
+            </option>
+          )}
+          {statusTargets.map((a) => (
             <option key={a} value={a}>
               {STATUS_BADGE[a].label}
             </option>

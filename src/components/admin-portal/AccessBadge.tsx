@@ -14,6 +14,9 @@ const ACCESS_BADGE: Record<AppAccess, { readonly className: string; readonly lab
   PENDING: { className: 'badge-warning', label: 'Pending' },
   BLOCKED: { className: 'badge-error', label: 'Blocked' },
   UNREGISTERED: { className: 'badge-ghost', label: 'Unregistered' },
+  // Recoverable "sent back for revision" state — shares PENDING's warning hue (the review
+  // loop), deliberately NOT BLOCKED's terminal `badge-error`.
+  REJECTED: { className: 'badge-warning', label: 'Rejected' },
 }
 
 export function AccessBadge({ access }: { access: AppAccess }) {

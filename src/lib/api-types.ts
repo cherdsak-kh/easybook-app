@@ -158,8 +158,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Approve or block a LINE user (update `access`).
-         * @description Sets `access` (Approve → ALLOWED, Block → BLOCKED). Returns the updated row. ADMIN is bound by the transition matrix (may only reach ALLOWED/BLOCKED, and not from UNREGISTERED); SUPER_ADMIN may set any state and may target soft-deleted rows. An empty body, a bad enum value, or any extra key is a 400.
+         * Approve, block, or reject a LINE user (update `access`).
+         * @description Sets `access` (Approve → ALLOWED, Block → BLOCKED, Reject → REJECTED). Returns the updated row. ADMIN is bound by the transition matrix (may only reach ALLOWED/BLOCKED/REJECTED, and not from UNREGISTERED); SUPER_ADMIN may set any state and may target soft-deleted rows. Rejecting REQUIRES a non-empty `reason` (pushed to the user and shown in the LIFF app): a missing/blank reason, or a reject from UNREGISTERED (SUPER_ADMIN reach), is a 400. An empty body, a bad enum value, an over-500-char `reason`, or any extra key is a 400.
          */
         patch: operations["LineUsersController_updateAccess"];
         trace?: never;
@@ -588,8 +588,13 @@ export interface components {
              * @example PENDING
              * @enum {string}
              */
-            access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
+            access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED" | "REJECTED";
             registration: components["schemas"]["LineUserRegistrationResponseDto"] | null;
+            /**
+             * @description The operator-authored rejection reason, shown by the LIFF RejectedScreen. Non-null IFF `access === REJECTED`; null for every other state (invariant mirror of LineUser.rejectionReason).
+             * @example เบอร์โทรศัพท์ไม่ถูกต้อง กรุณากรอกใหม่
+             */
+            rejectionReason: string | null;
         };
         ErrorResponseDto: {
             /** @example 401 */
@@ -710,7 +715,7 @@ export interface components {
              * @example PENDING
              * @enum {string}
              */
-            access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
+            access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED" | "REJECTED";
             /** @example 2026-07-07T10:00:00.000Z */
             followedAt: string;
             /** @description The user's registration summary, or null for a follower who never submitted the form. */
@@ -738,11 +743,16 @@ export interface components {
         };
         UpdateLineUserAccessDto: {
             /**
-             * @description The user's new access state. Approve → ALLOWED, Block → BLOCKED (the frontend never sends PENDING, but it is accepted).
+             * @description The user's new access state. Approve → ALLOWED, Block → BLOCKED, Reject → REJECTED (the frontend never sends PENDING, but it is accepted).
              * @example ALLOWED
              * @enum {string}
              */
-            access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
+            access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED" | "REJECTED";
+            /**
+             * @description The operator-authored revision reason. Optional at the transport layer (meaningless for ALLOWED/BLOCKED), but the service REQUIRES a non-empty trimmed value when `access === REJECTED` — a missing/blank reason on a REJECTED request is a 400. Ignored (not persisted) for any non-REJECTED target. Max 500 chars.
+             * @example เบอร์โทรศัพท์ไม่ถูกต้อง กรุณากรอกใหม่
+             */
+            reason?: string;
         };
         AdminUpdateLineUserRegistrationDto: {
             /** @example Somchai */
@@ -1280,7 +1290,7 @@ export interface operations {
                 /** @description Case-insensitive substring match on `displayName`. Trimmed; empty/absent → no name filter. */
                 search?: string;
                 /** @description Narrows the list to a single access state. An invalid value is a 400. */
-                access?: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED";
+                access?: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED" | "REJECTED";
             };
             header?: never;
             path?: never;
@@ -1350,6 +1360,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LineUserResponseDto"];
+                };
+            };
+            /** @description An empty body, a bad enum value, a non-string or over-500-char `reason`, an extra key; a REJECTED request with a missing/blank `reason`; or a REJECTED request from UNREGISTERED (SUPER_ADMIN reach). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
             /** @description No session. */

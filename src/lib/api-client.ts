@@ -352,22 +352,31 @@ export async function listLineUsers(
 /**
  * Set a LINE user's access state (`PATCH /line-users/:id`).
  *
- * ADMIN drives the four safe transitions via the row's quick actions (Approve /
- * Reinstate → ALLOWED, Block → BLOCKED), so those only ever send `AccessAction`.
- * SUPER_ADMIN's override picker can force ANY `AppAccess` — including
- * UNREGISTERED / PENDING — which is why this accepts the full union rather than
- * just `AccessAction`. The backend is the authority: a transition an ADMIN is
- * not permitted to make comes back as a **403** (handled by the caller); it is
- * never a client-side silent no-op.
+ * The status dropdown only ever emits `AccessAction` (ALLOWED / BLOCKED) for BOTH
+ * roles; the dedicated **Reject** action is the only caller that sends
+ * `'REJECTED'`, and it MUST pass `reason`. The signature still accepts the full
+ * `AppAccess` union because the backend contract does. The backend is the
+ * authority: a transition an ADMIN is not permitted to make comes back as a
+ * **403** (handled by the caller); it is never a client-side silent no-op.
+ *
+ * `reason` is **optional on the wire** (it is meaningless for ALLOWED/BLOCKED and
+ * is not persisted for them) but the server REQUIRES a non-empty trimmed value
+ * when `access === 'REJECTED'` — a missing/blank reason there is a **400**, and a
+ * >500-char one is a 400 at the validation pipe. It is omitted from the body
+ * entirely when not supplied, so every existing two-argument call site keeps its
+ * exact previous wire shape.
  */
 export async function patchLineUserAccess(
   id: string,
   access: AppAccess,
+  reason?: string,
 ): Promise<LineUser> {
+  const body: components['schemas']['UpdateLineUserAccessDto'] =
+    reason === undefined ? { access } : { access, reason }
   const { data, error, response } = await withCsrfRetry(() =>
     api.PATCH('/api/v1/line-users/{id}', {
       params: { path: { id }, header: { 'x-csrf-token': '' } },
-      body: { access },
+      body,
     }),
   )
   if (!data) throw new ApiError(response.status, messageFrom(error, response))
@@ -417,7 +426,9 @@ function bearer(idToken: string): { Authorization: string } {
 
 /**
  * The single call the client portal makes after LIFF auth to pick which of the
- * four screens (UNREGISTERED / PENDING / ALLOWED / BLOCKED) to render.
+ * five screens (UNREGISTERED / PENDING / ALLOWED / BLOCKED / REJECTED) to render.
+ * `rejectionReason` on the response is non-null IFF `access === 'REJECTED'` and
+ * feeds the client's RejectedScreen.
  */
 export async function getLineUserStatus(idToken: string): Promise<LineUserStatus> {
   const { data, error, response } = await api.GET('/api/v1/line-users/status', {

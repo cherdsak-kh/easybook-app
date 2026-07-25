@@ -58,6 +58,19 @@ export const T = {
   labelStatus: 'สถานะ',
   selectPlaceholder: 'เลือก…',
   optionsLoading: 'กำลังโหลดตัวเลือก…',
+  // Reject ("ตีกลับไปให้แก้ไข") — the dedicated mandatory-reason action. Deliberately NOT a
+  // dropdown value: the status <select> is strictly ALLOWED/BLOCKED for both roles, and
+  // REJECTED is reachable only through this action (which always carries a reason).
+  reject: 'ตีกลับไปให้แก้ไข',
+  rejectTitle: 'ตีกลับไปให้แก้ไข',
+  rejectIntro:
+    'ระบบจะส่งเหตุผลนี้ไปยัง LINE ของผู้ใช้ และผู้ใช้จะแก้ไขข้อมูลแล้วส่งกลับมาให้พิจารณาอีกครั้ง',
+  rejectReasonLabel: 'เหตุผลที่ต้องแก้ไข',
+  rejectReasonPlaceholder: 'เช่น เบอร์โทรศัพท์ไม่ถูกต้อง กรุณากรอกใหม่',
+  /** Live character counter under the reason textarea (`used/max`). */
+  rejectReasonCounter: (used: number, max: number) => `${used}/${max}`,
+  rejectSubmit: 'ยืนยันการตีกลับ',
+  rejectSubmitting: 'กำลังส่ง…',
 } as const
 
 /**
@@ -65,10 +78,17 @@ export const T = {
  * `badge badge-soft ${colorClass}`. Deliberately NOT the shared English
  * `components/admin-portal/AccessBadge` (English labels, no `badge-soft`); that component is
  * left untouched — this page no longer imports it.
+ *
+ * `REJECTED` is `badge-warning`, NOT `badge-error`: `BLOCKED` already owns `badge-error` as
+ * the terminal punitive state, whereas REJECTED is a *recoverable, action-needed* state that
+ * sits in the same review loop as `PENDING` (which is also `badge-warning`). Same hue, and
+ * the label carries the distinction.
  */
+
 export const STATUS_BADGE: Record<AppAccess, { readonly label: string; readonly colorClass: string }> = {
   ALLOWED: { label: 'อนุมัติแล้ว', colorClass: 'badge-success' },
   PENDING: { label: 'รออนุมัติ', colorClass: 'badge-warning' },
   BLOCKED: { label: 'ถูกระงับการใช้งาน', colorClass: 'badge-error' },
   UNREGISTERED: { label: 'ยังไม่ลงทะเบียน', colorClass: 'badge-ghost' },
+  REJECTED: { label: 'ส่งกลับให้แก้ไข', colorClass: 'badge-warning' },
 }

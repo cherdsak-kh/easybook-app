@@ -33,7 +33,30 @@ export const EDITOR_MESSAGES = {
   failed: 'ไม่สามารถบันทึกข้อมูลได้ โปรดลองใหม่อีกครั้ง',
   /** The option-list (department / personnel-role) fetch failed — Save is disabled. */
   optionsFailed: 'ไม่สามารถโหลดตัวเลือกได้ โปรดปิดหน้าต่างแล้วลองใหม่',
+  /**
+   * Reject with a blank reason — the CLIENT-side guard. The reason is mandatory (it is
+   * pushed to the user on LINE and shown in the LIFF app), so `submitReject` refuses to
+   * call the API at all rather than letting the server 400 be the first feedback.
+   */
+  reasonRequired: 'โปรดระบุเหตุผลที่ต้องการให้ผู้ใช้แก้ไข',
+  /**
+   * Reject 400 — the SERVER rejected the request body. Defense in depth for the same
+   * mandatory-reason rule (a whitespace-only reason the client guard missed), and for the
+   * over-500-char / not-from-UNREGISTERED cases. Deliberately distinct from
+   * {@link EDITOR_MESSAGES.reasonRequired}: this one means "the server refused", so it must
+   * not assert a cause the server may not have had.
+   */
+  rejectInvalid: 'ไม่สามารถตีกลับได้ โปรดตรวจสอบเหตุผลที่ระบุแล้วลองใหม่อีกครั้ง',
+  /** Any other reject failure. */
+  rejectFailed: 'ไม่สามารถตีกลับได้ โปรดลองใหม่อีกครั้ง',
 } as const
+
+/**
+ * Max reason length, mirrored from the backend DTO's `@MaxLength(500)`. Enforced here as a
+ * `maxLength` attribute + counter for fast feedback ONLY — the server is the authority and
+ * 400s a longer value at its validation pipe.
+ */
+export const REJECT_REASON_MAX_LENGTH = 500
 
 /** The exact six editable registration fields (`AdminUpdateLineUserRegistrationDto`). */
 export type DraftRegistration = AdminUpdateLineUserRegistration
@@ -86,6 +109,29 @@ export interface UseLineUserEditor {
   save: () => Promise<LineUser | null>
   /** Reset all edit state (on modal close). Keeps the cached option lists. */
   reset: () => void
+
+  // --- Reject ("ตีกลับไปให้แก้ไข") — an independent flow, not part of `save()` -------------
+  /** The user the Reject dialog is open for, or `null` when it is closed. */
+  rejectTarget: LineUser | null
+  /** The mandatory reason draft (raw, untrimmed — the UI echoes exactly what was typed). */
+  rejectReason: string
+  /** True once the reason is non-blank, i.e. the Reject submit is allowed to fire. */
+  rejectSubmittable: boolean
+  /** True while the reject PATCH is in flight. */
+  rejecting: boolean
+  /** Inline reject error (`null` when clean). */
+  rejectError: string | null
+  /** Open the Reject dialog for a user (clears any previous reason/error). */
+  startReject: (user: LineUser) => void
+  setRejectReason: (reason: string) => void
+  /** Close the Reject dialog and discard the reason. No PATCH. */
+  cancelReject: () => void
+  /**
+   * PATCH `access: 'REJECTED'` + the trimmed reason. A blank reason short-circuits to an
+   * inline error with NO network call. Resolves to the updated row on success (already
+   * pushed to the list via `updateUserInPlace`), else `null`.
+   */
+  submitReject: () => Promise<LineUser | null>
 }
 
 const EMPTY_ACCESS: AppAccess = 'UNREGISTERED'
@@ -131,6 +177,11 @@ function registrationChanged(
  * success (registration committed, access failed) the committed state becomes the new
  * baseline — so `registrationChanged` is now false and a retry re-sends only the access
  * PATCH, with no half-applied ambiguity.
+ *
+ * It ALSO owns the independent **Reject** flow (`startReject`/`submitReject`): a single
+ * `PATCH access: 'REJECTED'` + mandatory reason, reachable from view mode and deliberately
+ * NOT folded into `save()` — it has its own required field, its own dialog, and its own
+ * error surface, and it must never be entangled with the registration draft's dirty state.
  */
 export function useLineUserEditor({
   updateUserInPlace,
@@ -144,6 +195,14 @@ export function useLineUserEditor({
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [staffIdError, setStaffIdError] = useState<string | null>(null)
+
+  // Reject state — deliberately separate from the edit draft: the Reject action is reachable
+  // straight from view mode, carries its own mandatory field, and must not be entangled with
+  // the six-field registration draft or `dirty`.
+  const [rejectTarget, setRejectTarget] = useState<LineUser | null>(null)
+  const [rejectReason, setRejectReasonState] = useState('')
+  const [rejecting, setRejecting] = useState(false)
+  const [rejectError, setRejectError] = useState<string | null>(null)
 
   const [departments, setDepartments] = useState<Department[]>([])
   const [personnelRoles, setPersonnelRoles] = useState<PersonnelRole[]>([])
@@ -221,8 +280,73 @@ export function useLineUserEditor({
     setSaving(false)
     setFormError(null)
     setStaffIdError(null)
+    setRejectTarget(null)
+    setRejectReasonState('')
+    setRejecting(false)
+    setRejectError(null)
     // Intentionally KEEP the cached option lists (fetched once for the page's lifetime).
   }, [])
+
+  const startReject = useCallback((user: LineUser) => {
+    setRejectTarget(user)
+    setRejectReasonState('')
+    setRejectError(null)
+    setRejecting(false)
+  }, [])
+
+  const setRejectReason = useCallback((reason: string) => {
+    setRejectReasonState(reason)
+    // Typing is the correction — drop the stale error so the field stops reading as invalid.
+    setRejectError(null)
+  }, [])
+
+  const cancelReject = useCallback(() => {
+    setRejectTarget(null)
+    setRejectReasonState('')
+    setRejectError(null)
+  }, [])
+
+  const submitReject = useCallback(async (): Promise<LineUser | null> => {
+    if (!rejectTarget) return null
+    const reason = rejectReason.trim()
+    if (reason.length === 0) {
+      // MANDATORY reason: never issue the PATCH — a blank submit is a client-side error, not
+      // a round trip. (The server enforces the same rule; this is the fast path, not the gate.)
+      setRejectError(EDITOR_MESSAGES.reasonRequired)
+      return null
+    }
+
+    setRejecting(true)
+    setRejectError(null)
+    try {
+      const updated = await patchLineUserAccess(rejectTarget.id, 'REJECTED', reason)
+      updateUserInPlace(updated)
+      setRejecting(false)
+      setRejectTarget(null)
+      setRejectReasonState('')
+      // Keep the edit baseline in sync when the modal was already seeded for this row, so a
+      // later Edit/Cancel reads the post-reject state rather than a stale snapshot. (Reject is
+      // only reachable from VIEW mode, so there is never a live draft to clobber.)
+      setBaseUser((prev) => (prev && prev.id === updated.id ? updated : prev))
+      return updated
+    } catch (err: unknown) {
+      setRejecting(false)
+      if (err instanceof ApiError && err.status === 401) {
+        expireSession()
+        return null
+      }
+      if (err instanceof ApiError && err.status === 400) {
+        setRejectError(EDITOR_MESSAGES.rejectInvalid)
+      } else if (err instanceof ApiError && err.status === 403) {
+        setRejectError(EDITOR_MESSAGES.forbidden)
+      } else if (err instanceof ApiError && err.status === 404) {
+        setRejectError(EDITOR_MESSAGES.rowGone)
+      } else {
+        setRejectError(EDITOR_MESSAGES.rejectFailed)
+      }
+      return null
+    }
+  }, [rejectTarget, rejectReason, updateUserInPlace, expireSession])
 
   const save = useCallback(async (): Promise<LineUser | null> => {
     if (!baseUser) return null
@@ -322,5 +446,14 @@ export function useLineUserEditor({
     setDraftAccess,
     save,
     reset,
+    rejectTarget,
+    rejectReason,
+    rejectSubmittable: rejectReason.trim().length > 0,
+    rejecting,
+    rejectError,
+    startReject,
+    setRejectReason,
+    cancelReject,
+    submitReject,
   }
 }
