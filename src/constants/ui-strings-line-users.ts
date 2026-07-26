@@ -26,7 +26,7 @@ export const T = {
   unknownUser: 'ไม่ทราบชื่อ',
   notRegistered: 'ยังไม่ลงทะเบียน',
   emptyValue: '—',
-  empty: 'ไม่พบผู้ใช้ที่ตรงกับเงื่อนไข',
+  empty: 'ไม่พบข้อมูลการลงทะเบียน',
   paginationLabel: 'การแบ่งหน้า',
   paginationSummary: (page: number, totalPages: number, total: number) =>
     `หน้า ${page} จาก ${totalPages} · ทั้งหมด ${total} รายการ`,
