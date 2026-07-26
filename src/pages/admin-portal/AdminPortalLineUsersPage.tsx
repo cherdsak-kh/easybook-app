@@ -27,7 +27,7 @@ import type { AppAccess, LineUser, SystemRole } from '@/lib/api-client'
 // Thai copy + status-badge map live in the centralized-but-modularized per-feature constants
 // module (`@/constants/ui-strings-line-users`) so this component file exports ONLY components;
 // the page and its tests share the same literal.
-import { STATUS_BADGE, T } from '@/constants/ui-strings-line-users'
+import { MODAL_STATUS_LABELS, STATUS_BADGE, T } from '@/constants/ui-strings-line-users'
 
 /** Access-filter option order. REJECTED is filterable — it is a first-class review state. */
 const ACCESS_FILTER_OPTIONS: readonly AppAccess[] = [
@@ -182,7 +182,7 @@ export function AdminPortalLineUsersPage() {
   }, [editor])
 
   // Reject: on success, close the reason dialog and re-seed the inspect modal's snapshot so
-  // its badge flips to ส่งกลับให้แก้ไข immediately. On failure the dialog STAYS open with the
+  // its badge flips to ส่งคืนแล้ว immediately. On failure the dialog STAYS open with the
   // inline error — never a silent no-op.
   const handleReject = useCallback(async () => {
     const rejected = await editor.submitReject()
@@ -387,7 +387,7 @@ function LineUserRow({
  * page uses to reset the selection AND the edit state.
  *
  * View mode shows the read-only details (all roles) plus — for ADMIN / SUPER_ADMIN only — an
- * Edit affordance and the dedicated **Reject** ("ตีกลับไปให้แก้ไข") action, the latter gated by
+ * Edit affordance and the dedicated **Reject** ("ส่งคืนเพื่อตรวจสอบข้อมูลใหม่") action, the latter gated by
  * `canReject` so it is hidden for an UNREGISTERED user (nothing was submitted to send back)
  * and, for ADMIN, for an already-REJECTED one. Edit mode swaps in the registration + status
  * form (Phase B). STAFF never sees either action; the backend is the authority regardless
@@ -470,7 +470,7 @@ function LineUserInspectModal({
 }
 
 /**
- * The Reject ("ตีกลับไปให้แก้ไข") dialog — a second native `<dialog className="modal">`,
+ * The Reject ("ส่งคืนเพื่อตรวจสอบข้อมูลใหม่") dialog — a second native `<dialog className="modal">`,
  * sibling to the inspect modal, opened via `showModal()` so it gets its own focus trap, Esc
  * handling and return-focus. Its ONE field is the **mandatory** reason: submit is disabled
  * while it is blank, the field is capped at the backend's 500 chars with a live counter, and
@@ -711,12 +711,12 @@ function LineUserEditForm({
         >
           {!currentIsTarget && (
             <option value="" disabled>
-              {STATUS_BADGE[user.access].label}
+              {MODAL_STATUS_LABELS[user.access]}
             </option>
           )}
           {statusTargets.map((a) => (
             <option key={a} value={a}>
-              {STATUS_BADGE[a].label}
+              {MODAL_STATUS_LABELS[a]}
             </option>
           ))}
         </select>

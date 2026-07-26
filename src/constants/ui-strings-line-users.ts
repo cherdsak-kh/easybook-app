@@ -58,18 +58,18 @@ export const T = {
   labelStatus: 'สถานะ',
   selectPlaceholder: 'เลือก…',
   optionsLoading: 'กำลังโหลดตัวเลือก…',
-  // Reject ("ตีกลับไปให้แก้ไข") — the dedicated mandatory-reason action. Deliberately NOT a
-  // dropdown value: the status <select> is strictly ALLOWED/BLOCKED for both roles, and
+  // Reject ("ส่งคืนเพื่อตรวจสอบข้อมูลใหม่") — the dedicated mandatory-reason action. Deliberately
+  // NOT a dropdown value: the status <select> is strictly ALLOWED/BLOCKED for both roles, and
   // REJECTED is reachable only through this action (which always carries a reason).
-  reject: 'ตีกลับไปให้แก้ไข',
-  rejectTitle: 'ตีกลับไปให้แก้ไข',
+  reject: 'ส่งคืนเพื่อตรวจสอบข้อมูลใหม่',
+  rejectTitle: 'ส่งคืนเพื่อตรวจสอบข้อมูลใหม่',
   rejectIntro:
     'ระบบจะส่งเหตุผลนี้ไปยัง LINE ของผู้ใช้ และผู้ใช้จะแก้ไขข้อมูลแล้วส่งกลับมาให้พิจารณาอีกครั้ง',
-  rejectReasonLabel: 'เหตุผลที่ต้องแก้ไข',
+  rejectReasonLabel: 'เหตุผลการส่งคืน',
   rejectReasonPlaceholder: 'เช่น เบอร์โทรศัพท์ไม่ถูกต้อง กรุณากรอกใหม่',
   /** Live character counter under the reason textarea (`used/max`). */
   rejectReasonCounter: (used: number, max: number) => `${used}/${max}`,
-  rejectSubmit: 'ยืนยันการตีกลับ',
+  rejectSubmit: 'ยืนยันการส่งคืน',
   rejectSubmitting: 'กำลังส่ง…',
 } as const
 
@@ -90,5 +90,32 @@ export const STATUS_BADGE: Record<AppAccess, { readonly label: string; readonly 
   PENDING: { label: 'รออนุมัติ', colorClass: 'badge-warning' },
   BLOCKED: { label: 'ถูกระงับการใช้งาน', colorClass: 'badge-error' },
   UNREGISTERED: { label: 'ยังไม่ลงทะเบียน', colorClass: 'badge-ghost' },
-  REJECTED: { label: 'ส่งกลับให้แก้ไข', colorClass: 'badge-warning' },
+  REJECTED: { label: 'ส่งคืนแล้ว', colorClass: 'badge-warning' },
+}
+
+/**
+ * Labels for the edit modal's status `<select>` ONLY. Deliberately a SECOND map, not a reuse
+ * of {@link STATUS_BADGE}: the table badge is *state-voiced* ("อนุมัติแล้ว" — this is what the
+ * user currently is), whereas a dropdown option is *action-voiced* ("อนุมัติ" — this is what
+ * picking it will do). Same five states, two different grammatical jobs.
+ *
+ * A FULL `Record<AppAccess, string>` rather than a `Partial`: the leading disabled option
+ * renders the user's CURRENT access, which can be any `AppAccess`, so a partial map would
+ * type as `string | undefined` and need a fallback branch that could regress into rendering
+ * `undefined`. The full record makes "no key missing" a compile-time guarantee — a future
+ * `AppAccess` member breaks the build, which is the desired failure mode.
+ *
+ * `REJECTED` / `UNREGISTERED` intentionally mirror their badge labels: those two (plus
+ * `PENDING`) are only ever reachable via the disabled placeholder, never as a target, so
+ * mirroring keeps the placeholder's wording identical to the badge the operator just clicked.
+ *
+ * The toolbar access FILTER does NOT use this map — it stays on `STATUS_BADGE` so its options
+ * match the badge text being filtered.
+ */
+export const MODAL_STATUS_LABELS: Record<AppAccess, string> = {
+  PENDING: 'รออนุมัติ',
+  ALLOWED: 'อนุมัติ',
+  BLOCKED: 'ระงับการใช้งาน',
+  REJECTED: 'ส่งคืนแล้ว',
+  UNREGISTERED: 'ยังไม่ลงทะเบียน',
 }

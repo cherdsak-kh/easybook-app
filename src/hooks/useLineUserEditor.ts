@@ -46,9 +46,9 @@ export const EDITOR_MESSAGES = {
    * {@link EDITOR_MESSAGES.reasonRequired}: this one means "the server refused", so it must
    * not assert a cause the server may not have had.
    */
-  rejectInvalid: 'ไม่สามารถตีกลับได้ โปรดตรวจสอบเหตุผลที่ระบุแล้วลองใหม่อีกครั้ง',
+  rejectInvalid: 'ไม่สามารถส่งคืนได้ โปรดตรวจสอบเหตุผลที่ระบุแล้วลองใหม่อีกครั้ง',
   /** Any other reject failure. */
-  rejectFailed: 'ไม่สามารถตีกลับได้ โปรดลองใหม่อีกครั้ง',
+  rejectFailed: 'ไม่สามารถส่งคืนได้ โปรดลองใหม่อีกครั้ง',
 } as const
 
 /**
@@ -110,7 +110,7 @@ export interface UseLineUserEditor {
   /** Reset all edit state (on modal close). Keeps the cached option lists. */
   reset: () => void
 
-  // --- Reject ("ตีกลับไปให้แก้ไข") — an independent flow, not part of `save()` -------------
+  // --- Reject ("ส่งคืนเพื่อตรวจสอบข้อมูลใหม่") — an independent flow, not part of `save()` ---
   /** The user the Reject dialog is open for, or `null` when it is closed. */
   rejectTarget: LineUser | null
   /** The mandatory reason draft (raw, untrimmed — the UI echoes exactly what was typed). */

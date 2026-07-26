@@ -44,7 +44,7 @@ export function canAdminSetAccess(from: AppAccess, to: AppAccess): boolean {
 }
 
 /**
- * May this role open the Reject ("ตีกลับไปให้แก้ไข") action on a user currently in
+ * May this role open the Reject ("ส่งคืนเพื่อตรวจสอบข้อมูลใหม่") action on a user currently in
  * `from`? This is the gate for the dedicated Reject button — `canAdminSetAccess`
  * alone is not enough, because SUPER_ADMIN bypasses that predicate on the server.
  *

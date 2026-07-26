@@ -81,12 +81,17 @@ const TOKEN = 'id-token-xyz'
  * A DELIBERATE ANCHOR: this literal is NOT imported from `ui-strings-client.ts`,
  * unlike every label below. Asserting `UI.authError.body` against a component
  * rendering `UI.authError.body` would prove nothing, and this string is not
- * decoration — it is the security-adjacent diagnostic that tells an operator a
- * configured LIFF channel is missing the `openid` scope. Pinning it here means a
- * silent re-word reddens CI instead of shipping. Precedent: `routes.test.ts`.
+ * decoration — it is the security-adjacent notice shown when a configured LIFF
+ * channel yields no ID token (typically a missing `openid` scope). The copy was
+ * localised to Thai for end users, so it no longer names the scope itself; the
+ * pin stays so a silent re-word still reddens CI instead of shipping.
+ * Precedent: `routes.test.ts`.
  */
 const AUTH_ERROR_MESSAGE =
-  "LINE Authentication failed: Missing ID Token. Please contact support or verify that the LINE login channel has the 'openid' scope configured."
+  'การตรวจสอบสิทธิ์ LINE ล้มเหลว กรุณาติดต่อเจ้าหน้าที่เพื่อตรวจสอบข้อมูล'
+
+/** Pinned alongside the body, for the same reason: the alert's accessible name. */
+const AUTH_ERROR_TITLE = 'การตรวจสอบสิทธิ์ล้มเหลว'
 
 const OPTIONS: RegistrationOptions = {
   departments: [
@@ -639,7 +644,7 @@ describe('HomePage — OBS-2: configured LIFF but no ID token', () => {
     await resolveSplash()
 
     // Loud, labelled alert with the exact support message.
-    const alert = screen.getByRole('alert', { name: /authentication failed/i })
+    const alert = screen.getByRole('alert', { name: AUTH_ERROR_TITLE })
     expect(alert).toBeInTheDocument()
     expect(screen.getByText(AUTH_ERROR_MESSAGE)).toBeInTheDocument()
 

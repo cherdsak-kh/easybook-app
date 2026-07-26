@@ -65,7 +65,7 @@ export const UI_STRINGS_CLIENT = {
   common: {
     /** Shared by the gate-error retry and the registration options retry: one
      *  generic "retry the thing that just failed" action, not two messages. */
-    tryAgain: 'Try again',
+    tryAgain: 'ลองใหม่อีกครั้ง',
   },
 
   // ---------------------------------------------------------------- Splash
@@ -115,7 +115,7 @@ export const UI_STRINGS_CLIENT = {
     recheck: 'ตรวจสอบสถานะการเพิ่มเพื่อน',
     rechecking: 'กำลังตรวจสอบ…',
     /** Set into state when a re-check still reports "not a friend". */
-    recheckHint: 'ระบบยังไม่พบสถานะการเป็นเพื่อน โปรดเพิ่มบัญชีทางการเป็นเพื่อนแล้วลองใหม่อีกครั้ง',
+    recheckHint: 'ระบบยังไม่พบสถานะการเพิ่มเพื่อน โปรดเพิ่มบัญชีทางการ EasyBook แล้วลองใหม่อีกครั้ง',
   },
 
   // ----------------------------------------------------------- Registration
@@ -134,7 +134,7 @@ export const UI_STRINGS_CLIENT = {
 
     /** `displayName` is the LINE profile name, absent outside a LIFF session. */
     createIntro: (displayName?: string) =>
-      `${displayName ? `สวัสดี ${displayName}! ` : ''}โปรดระบุข้อมูลของคุณ เพื่อให้ผู้ดูแลระบบพิจารณาอนุมัติสิทธิ์การเข้าใช้งาน`,
+      `${displayName ? `สวัสดี ${displayName}! ` : ''}โปรดระบุข้อมูลของคุณ เพื่อให้เจ้าหน้าที่พิจารณาอนุมัติสิทธิ์การเข้าใช้งาน`,
     editIntro: 'อัปเดตข้อมูลของคุณด้านล่าง และส่งเพื่อขออนุมัติอีกครั้ง',
 
     createSubmit: 'ยืนยันการลงทะเบียน',
@@ -149,12 +149,12 @@ export const UI_STRINGS_CLIENT = {
     phone: 'เบอร์โทรศัพท์',
     department: 'ฝ่าย/แผนก',
     departmentPlaceholder: 'เลือกฝ่าย/แผนก',
-    personnelRole: 'ตำแหน่ง/บทบาท',
-    personnelRolePlaceholder: 'เลือกตำแหน่ง/บทบาท',
+    personnelRole: 'ตำแหน่ง',
+    personnelRolePlaceholder: 'เลือกตำแหน่ง',
 
     /** The dynamic option lists (`loadOptions`): loading / failed / empty. */
-    optionsLoading: 'Loading registration options…',
-    optionsError: 'We could not load the registration options. Please try again.',
+    optionsLoading: 'กำลังโหลดตัวเลือก',
+    optionsError: 'ไม่สามารถโหลดตัวเลือกได้ กรุณาลองใหม่อีกครั้ง',
     noOptions:
       'Registration is temporarily unavailable — no options have been configured yet. Please contact the administration.',
 
@@ -179,7 +179,7 @@ export const UI_STRINGS_CLIENT = {
      */
     phoneLength: (count: number) => `เบอร์โทรศัพท์ต้องมี ${count} หลัก`,
     departmentRequired: 'โปรดเลือกฝ่าย/แผนก',
-    personnelRoleRequired: 'โปรดเลือกตำแหน่ง/บทบาท',
+    personnelRoleRequired: 'โปรดเลือกตำแหน่ง',
 
     /**
      * Submit failures, mapped from the API error in `HomePage`. `register` and
@@ -194,15 +194,15 @@ export const UI_STRINGS_CLIENT = {
      */
     registerError: {
       /** 409 — already registered, or the staff ID is taken. */
-      conflict: 'This ID is already registered. Please check your details.',
+      conflict: 'รหัสบุคลากรนี้ถูกใช้งานแล้ว กรุณาตรวจสอบข้อมูลอีกครั้ง',
       /** 400 */
-      invalid: 'Please check the form and try again.',
+      invalid: 'โปรดตรวจสอบข้อมูลในแบบฟอร์ม และลองใหม่อีกครั้ง',
       /** 401 */
-      sessionExpired: 'Your LINE session has expired. Please reopen the app and try again.',
+      sessionExpired: 'เซสชัน LINE ของคุณหมดอายุ กรุณาเปิดแอปพลิเคชันอีกครั้งและลองใหม่อีกครั้ง',
       /** 502 */
-      lineUnreachable: 'We could not reach LINE to verify you. Please try again in a moment.',
+      lineUnreachable: 'ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาลองใหม่อีกครั้งในสักครู่',
       /** Any other ApiError, and any non-ApiError throw. */
-      failed: 'Something went wrong. Please try again.',
+      failed: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
     },
     editError: {
       /** 403 — no longer PENDING (an admin approved/blocked in the meantime). */
@@ -232,7 +232,7 @@ export const UI_STRINGS_CLIENT = {
      * LIFF session. Note the space after the name is part of the prefix.
      */
     body: (displayName?: string) =>
-      `${displayName ? `ขอบคุณ ${displayName} ` : ''}ระบบได้รับข้อมูลการลงทะเบียนของคุณแล้ว โปรดรอผู้ดูแลระบบพิจารณาอนุมัติสิทธิ์การเข้าใช้งาน`,
+      `${displayName ? `ขอบคุณ ${displayName} ` : ''}ระบบได้รับข้อมูลการลงทะเบียนของคุณแล้ว โปรดรอเจ้าหน้าที่พิจารณาอนุมัติสิทธิ์การเข้าใช้งาน`,
 
     /** The read-only echo of what was submitted. */
     summary: {
@@ -240,7 +240,7 @@ export const UI_STRINGS_CLIENT = {
       staffId: 'รหัสบุคลากร',
       phone: 'เบอร์โทรศัพท์',
       department: 'ฝ่าย/แผนก',
-      personnelRole: 'ตำแหน่ง/บทบาท',
+      personnelRole: 'ตำแหน่ง',
       /** Stands in for any value the API left empty. */
       emptyValue: '—',
     },
@@ -259,18 +259,18 @@ export const UI_STRINGS_CLIENT = {
    * Re-submitting flips them back to PENDING server-side.
    */
   rejected: {
-    title: 'ข้อมูลการลงทะเบียนถูกส่งกลับให้แก้ไข',
+    title: 'ข้อมูลการลงทะเบียนไม่ถูกต้อง',
     /** `displayName` is absent outside a LIFF session — same convention as `pending.body`. */
     body: (displayName?: string) =>
-      `${displayName ? `${displayName} ` : ''}ผู้ดูแลระบบขอให้คุณแก้ไขข้อมูลการลงทะเบียน โปรดอ่านเหตุผลด้านล่าง แก้ไขข้อมูลของคุณ แล้วส่งอีกครั้งเพื่อขออนุมัติ`,
+      `${displayName ? `คุณ ${displayName} ` : ''}กรุณาตรวจสอบรายละเอียดด้านล่างนี้ และทำการแก้ไขข้อมูลเพื่อส่งคำขออนุมัติใหม่อีกครั้ง`,
     /** Heading of the prominent reason block — the point of this screen. */
-    reasonLabel: 'เหตุผลจากผู้ดูแลระบบ',
+    reasonLabel: 'เหตุผลจากเจ้าหน้าที่',
     /**
      * Defensive only. The backend invariant is `rejectionReason` non-null IFF
      * `access === REJECTED`, so this should be unreachable — but a null reason
      * must never render as a blank box with no explanation.
      */
-    reasonFallback: 'ผู้ดูแลระบบไม่ได้ระบุเหตุผลไว้ โปรดตรวจสอบข้อมูลของคุณอีกครั้ง',
+    reasonFallback: 'เจ้าหน้าที่ไม่ได้ระบุเหตุผลไว้ กรุณาตรวจสอบข้อมูลและดำเนินการแก้ไข',
     /**
      * Opens the SAME self-edit form a PENDING user uses. Deliberately its own
      * literal (not `pending.edit`, which reads slightly differently): two screens,
@@ -292,15 +292,15 @@ export const UI_STRINGS_CLIENT = {
   // --------------------------------------------------------------- Blocked
   /** BLOCKED: account suspended, no actions. */
   blocked: {
-    title: 'Account suspended',
-    body: 'Your account has been suspended. Please contact the administration.',
+    title: 'บัญชีของคุณถูกระงับการใช้งาน',
+    body: 'ขออภัยในความไม่สะดวก บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อเจ้าหน้าที่เพื่อตรวจสอบข้อมูล',
   },
 
   // ---------------------------------------------------------- Error screens
   /** A gate call (friendship / status) failed — retryable. */
   gateError: {
-    title: 'Something went wrong',
-    body: "We couldn't load your account status. Please check your connection and try again.",
+    title: 'เกิดข้อผิดพลาด',
+    body: 'ไม่สามารถโหลดข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่อและลองอีกครั้ง',
   },
 
   /**
@@ -311,7 +311,7 @@ export const UI_STRINGS_CLIENT = {
    * silent re-word reddens CI rather than shipping.
    */
   authError: {
-    title: 'Authentication failed',
-    body: "LINE Authentication failed: Missing ID Token. Please contact support or verify that the LINE login channel has the 'openid' scope configured.",
+    title: 'การตรวจสอบสิทธิ์ล้มเหลว',
+    body: 'การตรวจสอบสิทธิ์ LINE ล้มเหลว กรุณาติดต่อเจ้าหน้าที่เพื่อตรวจสอบข้อมูล',
   },
 } as const

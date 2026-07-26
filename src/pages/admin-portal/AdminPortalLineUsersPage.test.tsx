@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AdminPortalLineUsersPage } from '@/pages/admin-portal/AdminPortalLineUsersPage'
-import { STATUS_BADGE, T } from '@/constants/ui-strings-line-users'
+import { MODAL_STATUS_LABELS, STATUS_BADGE, T } from '@/constants/ui-strings-line-users'
 import { EDITOR_MESSAGES } from '@/hooks/useLineUserEditor'
 import * as useLineUsersModule from '@/hooks/useLineUsers'
 import * as apiClient from '@/lib/api-client'
@@ -264,13 +264,13 @@ describe('AdminPortalLineUsersPage — status badge map', () => {
     },
   )
 
-  it('P4b: the REJECTED badge reads ส่งกลับให้แก้ไข and uses the recoverable warning tone', () => {
+  it('P4b: the REJECTED badge reads ส่งคืนแล้ว and uses the recoverable warning tone', () => {
     mockUseLineUsers.mockReturnValue(hookState({ users: [registered({ access: 'REJECTED' })] }))
     render(<AdminPortalLineUsersPage />)
 
     // The literal is pinned here on purpose (not read from STATUS_BADGE): the PO specified
     // this exact wording, and it is what the operator scans the table for.
-    const badge = within(screen.getByRole('table')).getByText('ส่งกลับให้แก้ไข')
+    const badge = within(screen.getByRole('table')).getByText('ส่งคืนแล้ว')
     expect(badge).toHaveClass('badge', 'badge-soft', 'badge-warning')
     // NOT badge-error — that hue is BLOCKED's terminal state.
     expect(badge).not.toHaveClass('badge-error')
@@ -471,6 +471,12 @@ describe('AdminPortalLineUsersPage — edit form + option lists (Phase B)', () =
       .getAllByRole('option')
       .map((o) => o.getAttribute('value'))
     expect(values).toEqual(['ALLOWED', 'BLOCKED'])
+    // Option TEXT is the ACTION-voiced modal map ("อนุมัติ"), not the state-voiced table badge
+    // ("อนุมัติแล้ว") — the two surfaces read from deliberately different dictionaries.
+    const labels = within(statusSelect)
+      .getAllByRole('option')
+      .map((o) => o.textContent)
+    expect(labels).toEqual([MODAL_STATUS_LABELS.ALLOWED, MODAL_STATUS_LABELS.BLOCKED])
   })
 
   it.each(['ADMIN', 'SUPER_ADMIN'] as const)(
@@ -487,7 +493,7 @@ describe('AdminPortalLineUsersPage — edit form + option lists (Phase B)', () =
       // …and the leading option is a disabled placeholder showing the CURRENT state, so the
       // select never displays a target the draft has not actually taken.
       expect(options[0]).toBeDisabled()
-      expect(options[0]).toHaveTextContent(STATUS_BADGE.PENDING.label)
+      expect(options[0]).toHaveTextContent(MODAL_STATUS_LABELS.PENDING)
       expect(statusSelect).toHaveValue('')
     },
   )
@@ -579,7 +585,7 @@ describe('AdminPortalLineUsersPage — save wiring (Phase B)', () => {
   })
 })
 
-describe('AdminPortalLineUsersPage — Reject action (ตีกลับไปให้แก้ไข)', () => {
+describe('AdminPortalLineUsersPage — Reject action (ส่งคืนเพื่อตรวจสอบข้อมูลใหม่)', () => {
   const REASON = 'เบอร์โทรศัพท์ไม่ถูกต้อง กรุณากรอกใหม่'
 
   /** Open the inspect modal for `user` as `role` (no Edit click — Reject lives in view mode). */
