@@ -11,9 +11,9 @@ const BASE = '/admin-portal'
 /**
  * Absolute react-router paths for the replica (used by NavLink / Navigate). Every
  * DashWind menu target has a real route now (Phase 3.5 made the whole sidebar
- * clickable): `dashboard`, `team` + `line-users` have bespoke pages; the rest render the
- * shared `AdminPortalStubPage` (see `ADMIN_PORTAL_STUB_ROUTES`). The segment tail of
- * each path matches the corresponding `ADMIN_PORTAL_STUB_ROUTES.segment`.
+ * clickable): `dashboard`, `team`, `line-users` + `profile` have bespoke pages; the rest
+ * render the shared `AdminPortalStubPage` (see `ADMIN_PORTAL_STUB_ROUTES`). The segment
+ * tail of each path matches the corresponding `ADMIN_PORTAL_STUB_ROUTES.segment`.
  */
 export const ADMIN_PORTAL_ROUTES = {
   base: BASE,
@@ -28,7 +28,13 @@ export const ADMIN_PORTAL_ROUTES = {
   register: `${BASE}/register`,
   forgotPassword: `${BASE}/forgot-password`,
   blank: `${BASE}/blank`,
-  settingsProfile: `${BASE}/settings-profile`,
+  /**
+   * The REAL self-service profile page. It replaced the DashWind `settings-profile`
+   * stub outright: the constant, the stub entry and the second sidebar leaf were all
+   * removed together, because two entries both titled "Profile" in one sidebar is a
+   * defect, not a feature.
+   */
+  profile: `${BASE}/profile`,
   settingsBilling: `${BASE}/settings-billing`,
   gettingStarted: `${BASE}/getting-started`,
   features: `${BASE}/features`,
@@ -44,6 +50,7 @@ export const ADMIN_PORTAL_SEGMENTS = {
   dashboard: 'dashboard',
   team: 'team',
   lineUsers: 'line-users',
+  profile: 'profile',
 } as const
 
 /** A DashWind menu target that renders the shared placeholder `AdminPortalStubPage`. */
@@ -58,8 +65,8 @@ export interface AdminPortalStubRoute {
  * The DashWind menu targets that have no bespoke replica page — each renders the
  * shared `AdminPortalStubPage` ("coming soon" placeholder), parameterised by `title`,
  * so clicking any sidebar item produces a real route transition without hand-writing
- * ~13 near-identical files. `dashboard`, `team` + `line-users` have real pages and are NOT
- * here; `login` is a full-screen sibling route (outside the shell) and is NOT here
+ * ~13 near-identical files. `dashboard`, `team`, `line-users` + `profile` have real pages
+ * and are NOT here; `login` is a full-screen sibling route (outside the shell) and is NOT here
  * either. Titles mirror the sidebar labels in `nav-config.tsx` so the header title
  * never drifts.
  */
@@ -75,7 +82,8 @@ export const ADMIN_PORTAL_STUB_ROUTES: readonly AdminPortalStubRoute[] = [
   // removed). Any unknown `/admin-portal/*` path — including the old demo `/404` —
   // is not routed here and falls through to the GLOBAL `*` → `NotFoundPage` in
   // `App.tsx`, which is the single 404 surface for the whole app.
-  { segment: 'settings-profile', title: 'Profile' },
+  // NOTE: `settings-profile` used to stub a "Profile" page here. It is GONE — the real
+  // `/admin-portal/profile` page owns that sidebar leaf now.
   { segment: 'settings-billing', title: 'Billing' },
   { segment: 'getting-started', title: 'Getting Started' },
   { segment: 'features', title: 'Features' },

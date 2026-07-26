@@ -5,7 +5,8 @@ import { AdminPortalLoginPage } from '@/pages/admin-portal/AdminPortalLoginPage'
 import { ADMIN_PORTAL_ROUTES } from '@/components/admin-portal/routes'
 import { AUTH_STRINGS } from '@/constants/ui-strings-auth'
 import * as apiClient from '@/lib/api-client'
-import type { LoginResponse, LoginResult, SystemUser } from '@/lib/api-client'
+import type { LoginResponse, LoginResult } from '@/lib/api-client'
+import { makeSystemUser } from '@/test/system-user-factory'
 
 const UI = AUTH_STRINGS.login
 
@@ -28,26 +29,6 @@ function loginResponse(): LoginResponse {
     firstName: 'Ada',
     lastName: 'Lovelace',
     role: 'ADMIN',
-  }
-}
-
-function makeUser(overrides: Partial<SystemUser> = {}): SystemUser {
-  return {
-    id: 'u1',
-    email: 'admin@easybook.local',
-    firstName: 'Ada',
-    lastName: 'Lovelace',
-    role: 'ADMIN',
-    personnelRole: { id: 1, name: 'Director' },
-    department: { id: 2, name: 'CS' },
-    mustChangePassword: false,
-    phoneNumber: null,
-    profilePictureUrl: null,
-    isActive: true,
-    lineUserId: null,
-    lastLoginAt: null,
-    createdAt: '2026-07-01T00:00:00.000Z',
-    ...overrides,
   }
 }
 
@@ -228,7 +209,7 @@ describe('AdminPortalLoginPage — functional auth', () => {
   })
 
   it('redirects an already-authenticated visitor to the replica dashboard (AC-5)', async () => {
-    mockGetMe.mockResolvedValue(makeUser()) // session probe resolves signed-in
+    mockGetMe.mockResolvedValue(makeSystemUser()) // session probe resolves signed-in
     renderLogin()
 
     expect(await screen.findByText('DASHBOARD REACHED')).toBeInTheDocument()
@@ -238,7 +219,7 @@ describe('AdminPortalLoginPage — functional auth', () => {
 
   it('redirects a temp-password (mustChangePassword) user to the replica dashboard, not a reset gate (AC-5/D4)', async () => {
     // Mount probe: unauthenticated → form shows. Post-login re-probe: temp-password user.
-    mockGetMe.mockResolvedValueOnce(null).mockResolvedValue(makeUser({ mustChangePassword: true }))
+    mockGetMe.mockResolvedValueOnce(null).mockResolvedValue(makeSystemUser({ mustChangePassword: true }))
     mockLogin.mockResolvedValue({ ok: true, user: loginResponse() })
     renderLogin()
 

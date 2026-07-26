@@ -40,6 +40,11 @@ const AdminPortalLineUsersPage = lazy(() =>
     default: m.AdminPortalLineUsersPage,
   })),
 )
+const AdminPortalProfilePage = lazy(() =>
+  import('@/pages/admin-portal/AdminPortalProfilePage').then((m) => ({
+    default: m.AdminPortalProfilePage,
+  })),
+)
 const AdminPortalStubPage = lazy(() =>
   import('@/pages/admin-portal/AdminPortalStubPage').then((m) => ({
     default: m.AdminPortalStubPage,
@@ -150,6 +155,11 @@ function App() {
                 data (wired via `useLineUsers` → `listLineUsers`). The URL segment is now
                 `line-users` (renamed from `leads` to match the page/label). */}
             <Route path={ADMIN_PORTAL_SEGMENTS.lineUsers} element={<AdminPortalLineUsersPage />} />
+            {/* Self-service profile. Replaces the `settings-profile` DashWind stub, which
+                was deleted along with its route constant so the sidebar has exactly one
+                "Profile" leaf. Lazy like every other in-shell page (Phase 4), so
+                `react-easy-crop` never lands in the initial LIFF chunk. */}
+            <Route path={ADMIN_PORTAL_SEGMENTS.profile} element={<AdminPortalProfilePage />} />
             {/* Phase 3.5: every other DashWind menu target is a real route rendering the
                 shared "coming soon" placeholder, so the whole sidebar is clickable. */}
             {ADMIN_PORTAL_STUB_ROUTES.map((stub) => (

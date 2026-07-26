@@ -90,7 +90,10 @@ export const NAV_ITEMS: readonly NavEntry[] = [
     label: 'Settings',
     icon: <Cog6ToothIcon className={ICON} />,
     submenu: [
-      { label: 'Profile', icon: <UserIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.settingsProfile },
+      // The REAL self-service profile page. This leaf used to point at the
+      // `settings-profile` DashWind stub; the stub (and its route constant) were
+      // removed with it, so the sidebar carries exactly ONE "Profile" entry.
+      { label: 'Profile', icon: <UserIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.profile },
       { label: 'Billing', icon: <WalletIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.settingsBilling },
       // The ported Team members table (PO scope addition) — a bespoke page.
       { label: 'Team Members', icon: <UsersIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.team },

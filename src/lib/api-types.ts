@@ -355,7 +355,7 @@ export interface paths {
         head?: never;
         /**
          * Update a back-office user.
-         * @description Never the password and never the email. `role` is SUPER_ADMIN-write-only and is rejected on key presence, so an ADMIN sending any valid role value gets 403. Nobody may change their own `role` or `isActive`. An empty body is a 400.
+         * @description Never the password and never the email. `role` is SUPER_ADMIN-write-only and is rejected on key presence, so an ADMIN sending any valid role value gets 403. Nobody may change their own `role` or `isActive`. An ADMIN may patch their OWN row (department, position and profile fields); their own `role` and `isActive` remain 403, as for everyone, and a different ADMIN or a SUPER_ADMIN is still 403. An unknown OR system-reserved `departmentId`/`personnelRoleId` is the same 400 in both cases — never a 403. An empty body is a 400.
          */
         patch: operations["SystemUsersController_update"];
         trace?: never;
@@ -808,6 +808,14 @@ export interface components {
              */
             role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
         };
+        SystemUserCreatorDto: {
+            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
+            id: string;
+            /** @example Somsri */
+            firstName: string;
+            /** @example Systemadmin */
+            lastName: string;
+        };
         SystemUserOptionDto: {
             /** @example 3 */
             id: number;
@@ -852,6 +860,14 @@ export interface components {
             lastLoginAt: string | null;
             /** @example 2026-07-08T10:00:00.000Z */
             createdAt: string;
+            /** @description Who created this account (audit provenance). Resolved WITHOUT a `deletedAt` filter, so a soft-deleted creator still resolves, forever. Null only for the seeded first SUPER_ADMIN. Carries no email and no role, deliberately. */
+            readonly createdBy: components["schemas"]["SystemUserCreatorDto"] | null;
+            /**
+             * Format: date-time
+             * @description Last write to this row, in ISO 8601. Never null.
+             * @example 2026-07-26T20:42:00.000Z
+             */
+            readonly updatedAt: string;
         };
         UpdateOwnProfileDto: {
             /** @example Ada */
@@ -933,6 +949,14 @@ export interface components {
             lastLoginAt: string | null;
             /** @example 2026-07-08T10:00:00.000Z */
             createdAt: string;
+            /** @description Who created this account (audit provenance). Resolved WITHOUT a `deletedAt` filter, so a soft-deleted creator still resolves, forever. Null only for the seeded first SUPER_ADMIN. Carries no email and no role, deliberately. */
+            readonly createdBy: components["schemas"]["SystemUserCreatorDto"] | null;
+            /**
+             * Format: date-time
+             * @description Last write to this row, in ISO 8601. Never null.
+             * @example 2026-07-26T20:42:00.000Z
+             */
+            readonly updatedAt: string;
             /**
              * @description SHOWN EXACTLY ONCE. Not stored in plaintext, not retrievable, not logged. Deliver it out-of-band; the recipient must change it at first login.
              * @example Kp7Rn2Tq9Wx4Yb6C

@@ -203,6 +203,20 @@ export async function getMe(): Promise<SystemUser | null> {
   }
 }
 
+/**
+ * STRICT read of the signed-in user's own profile — same endpoint as {@link getMe},
+ * different contract. `getMe` is the AuthProvider's deliberately fail-soft probe: it
+ * answers `null` for BOTH "not logged in" (401) and "the request blew up", which is
+ * right for a mount gate and useless for a page that must tell session death apart
+ * from a transient failure. This one THROWS an {@link ApiError} carrying the status,
+ * so the Profile page can bounce on 401 and offer a retry on anything else.
+ */
+export async function getOwnProfile(): Promise<SystemUser> {
+  const { data, error, response } = await api.GET('/api/v1/auth/system/me')
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
 export type LoginResult =
   | { ok: true; user: LoginResponse }
   | { ok: false; status: number; message: string; retryAfter?: string | null }
