@@ -1,11 +1,26 @@
 import { useEffect, useId, useState } from 'react'
 import type { CreateLineUserRegistration, RegistrationOptions } from '@/lib/api-client'
 import { Spinner } from '@/components/Spinner'
+import { UI_STRINGS_CLIENT } from '@/constants/ui-strings-client'
 
-/** Loose, Thai-friendly phone shape — mirrors the backend DTO's `phone` regex. */
-const PHONE_RE = /^[0-9+\-() ]{6,20}$/
-/** Staff/personnel ID: non-empty, up to 50 chars (matches the backend DTO). */
-const ID_MAX = 50
+const UI = UI_STRINGS_CLIENT.registration
+
+/**
+ * Required length of a staff/personnel ID. Exported so tests derive their
+ * fixtures from it (`'1'.repeat(ID_COUNT)`) rather than hardcoding a 13-char
+ * literal: when this rule last changed out-of-band, the hardcoded fixtures went
+ * silently invalid and blocked submission, cascading into unrelated payload
+ * assertions. A string dictionary cannot catch that class of drift; this can.
+ */
+export const ID_COUNT = 13
+
+/**
+ * Required length of a phone number. Exported for the same reason as
+ * {@link ID_COUNT}: tests derive their fixtures from it (`'0'.repeat(PHONE_COUNT)`)
+ * and the copy interpolates it (`UI.phoneLength(PHONE_COUNT)`), so the rule, the
+ * message and the fixtures cannot drift apart when this number changes.
+ */
+export const PHONE_COUNT = 10
 
 export interface RegistrationFormValues {
   firstName: string
@@ -29,21 +44,25 @@ type Errors = Partial<Record<keyof RegistrationFormValues, string>>
 
 function validate(f: RegistrationFormValues): Errors {
   const e: Errors = {}
-  if (!f.firstName.trim()) e.firstName = 'First name is required.'
-  if (!f.lastName.trim()) e.lastName = 'Last name is required.'
-  if (!f.staffId.trim()) e.staffId = 'Staff ID is required.'
-  else if (f.staffId.trim().length > ID_MAX) e.staffId = `Staff ID must be ${ID_MAX} characters or fewer.`
-  if (!f.phone.trim()) e.phone = 'Phone number is required.'
-  else if (!PHONE_RE.test(f.phone.trim()))
-    e.phone = 'Enter a valid phone number (digits, spaces, + - ( ) only).'
-  if (!f.departmentId) e.departmentId = 'Please select a department.'
-  if (!f.personnelRoleId) e.personnelRoleId = 'Please select a role.'
+  if (!f.firstName.trim()) e.firstName = UI.firstNameRequired
+  else if (/\d/.test(f.firstName)) e.firstName = UI.firstNameNoDigits
+  if (!f.lastName.trim()) e.lastName = UI.lastNameRequired
+  else if (/\d/.test(f.lastName)) e.lastName = UI.lastNameNoDigits
+  if (!f.staffId.trim()) e.staffId = UI.staffIdRequired
+  else if (!/^[0-9]+$/.test(f.staffId.trim())) e.staffId = UI.staffIdDigitsOnly
+  else if (f.staffId.trim().length !== ID_COUNT) e.staffId = UI.staffIdLength(ID_COUNT)
+  if (!f.phone.trim()) e.phone = UI.phoneRequired
+  else if (!/^[0-9]+$/.test(f.phone.trim())) e.phone = UI.phoneDigitsOnly
+  else if (f.phone.trim().length !== PHONE_COUNT) e.phone = UI.phoneLength(PHONE_COUNT)
+  if (!f.departmentId) e.departmentId = UI.departmentRequired
+  if (!f.personnelRoleId) e.personnelRoleId = UI.personnelRoleRequired
   return e
 }
 
 const INPUT_CLASS =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100'
-const INPUT_ERR_CLASS = 'border-red-400 focus:border-red-500 focus:ring-red-500 dark:border-red-500/60'
+  'input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60'
+const SELECT_CLASS =
+  'select select-bordered w-full focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60'
 
 export interface RegistrationFormProps {
   /** `create` = first-time registration; `edit` = PENDING self-edit (pre-filled). */
@@ -104,7 +123,7 @@ export function RegistrationForm({
       })
       .catch(() => {
         if (!alive) return
-        setOptionsError('We could not load the registration options. Please try again.')
+        setOptionsError(UI.optionsError)
         setOptionsLoading(false)
       })
     return () => {
@@ -135,59 +154,55 @@ export function RegistrationForm({
       lastName: fields.lastName.trim(),
       staffId: fields.staffId.trim(),
       phone: fields.phone.trim(),
-      departmentId: fields.departmentId,
-      personnelRoleId: fields.personnelRoleId,
+      // <select> values are always DOM strings; the backend now types the option
+      // ids as integers (`@IsInt()`), so coerce before submitting. `validate`
+      // above guarantees a non-empty selection, so `Number()` yields a real
+      // integer here and can never emit `NaN` from the placeholder.
+      departmentId: Number(fields.departmentId),
+      personnelRoleId: Number(fields.personnelRoleId),
     })
   }
 
-  const heading = mode === 'edit' ? 'Edit your registration' : 'Complete your registration'
-  const submitLabel = mode === 'edit' ? 'Save changes' : 'Submit registration'
-  const submittingLabel = mode === 'edit' ? 'Saving…' : 'Submitting…'
+  const heading = mode === 'edit' ? UI.editHeading : UI.createHeading
+  const submitLabel = mode === 'edit' ? UI.editSubmit : UI.createSubmit
+  const submittingLabel = mode === 'edit' ? UI.editSubmitting : UI.createSubmitting
 
   return (
-    <main className="flex min-h-screen justify-center bg-slate-50 px-4 py-8 dark:bg-slate-950">
+    <main className="flex min-h-screen justify-center bg-base-200 px-4 py-8">
       <div className="w-full max-w-md">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{heading}</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {mode === 'edit'
-              ? 'Update your details below and re-submit for approval.'
-              : `${displayName ? `Hi ${displayName}! ` : ''}Tell us who you are so an administrator can approve your access.`}
+        <div className="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm sm:p-8">
+          <h1 className="text-xl font-bold text-base-content">{heading}</h1>
+          <p className="mt-1 text-sm text-base-content/60">
+            {mode === 'edit' ? UI.editIntro : UI.createIntro(displayName)}
           </p>
 
           {serverError && (
-            <p
-              role="alert"
-              className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-            >
+            <div role="alert" className="alert alert-error alert-soft mt-4 text-sm">
               {serverError}
-            </p>
+            </div>
           )}
 
           {/* Options loading / error state — reserve height so the form doesn't jump. */}
           {optionsLoading && (
             <div
-              className="mt-6 flex min-h-[18rem] items-center justify-center text-slate-500 dark:text-slate-400"
+              className="mt-6 flex min-h-[18rem] items-center justify-center text-base-content/60"
               data-testid="options-loading"
             >
-              <Spinner label="Loading registration options…" />
+              <Spinner label={UI.optionsLoading} />
             </div>
           )}
 
           {!optionsLoading && optionsError && (
             <div className="mt-6 min-h-[18rem]">
-              <p
-                role="alert"
-                className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400"
-              >
+              <div role="alert" className="alert alert-error alert-soft text-sm">
                 {optionsError}
-              </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setReloadKey((k) => k + 1)}
-                className="mt-4 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+                className="btn btn-primary mt-4 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
               >
-                Try again
+                {UI_STRINGS_CLIENT.common.tryAgain}
               </button>
             </div>
           )}
@@ -199,8 +214,7 @@ export function RegistrationForm({
                   role="alert"
                   className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
                 >
-                  Registration is temporarily unavailable — no options have been configured yet.
-                  Please contact the administration.
+                  {UI.noOptions}
                 </p>
               )}
 
@@ -208,7 +222,7 @@ export function RegistrationForm({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field
                     id={`${uid}-first`}
-                    label="First name"
+                    label={UI.firstName}
                     value={fields.firstName}
                     onChange={(v) => set('firstName', v)}
                     error={errors.firstName}
@@ -217,7 +231,7 @@ export function RegistrationForm({
                   />
                   <Field
                     id={`${uid}-last`}
-                    label="Last name"
+                    label={UI.lastName}
                     value={fields.lastName}
                     onChange={(v) => set('lastName', v)}
                     error={errors.lastName}
@@ -228,7 +242,7 @@ export function RegistrationForm({
 
                 <Field
                   id={`${uid}-id`}
-                  label="Staff ID"
+                  label={UI.staffId}
                   value={fields.staffId}
                   onChange={(v) => set('staffId', v)}
                   error={errors.staffId}
@@ -238,7 +252,7 @@ export function RegistrationForm({
 
                 <Field
                   id={`${uid}-phone`}
-                  label="Phone"
+                  label={UI.phone}
                   value={fields.phone}
                   onChange={(v) => set('phone', v)}
                   error={errors.phone}
@@ -249,23 +263,23 @@ export function RegistrationForm({
 
                 <SelectField
                   id={`${uid}-dept`}
-                  label="Department"
+                  label={UI.department}
                   value={fields.departmentId}
                   onChange={(v) => set('departmentId', v)}
                   error={errors.departmentId}
                   options={options.departments}
-                  placeholder="Select a department"
+                  placeholder={UI.departmentPlaceholder}
                   disabled={submitting}
                 />
 
                 <SelectField
                   id={`${uid}-role`}
-                  label="Role"
+                  label={UI.personnelRole}
                   value={fields.personnelRoleId}
                   onChange={(v) => set('personnelRoleId', v)}
                   error={errors.personnelRoleId}
                   options={options.personnelRoles}
-                  placeholder="Select a role"
+                  placeholder={UI.personnelRolePlaceholder}
                   disabled={submitting}
                 />
 
@@ -275,17 +289,17 @@ export function RegistrationForm({
                       type="button"
                       onClick={onCancel}
                       disabled={submitting}
-                      className="flex-1 rounded-xl border border-slate-300 px-4 py-3 font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                      className="btn btn-outline flex-1 focus-visible:ring-2 focus-visible:ring-primary"
                     >
-                      Cancel
+                      {UI.cancel}
                     </button>
                   )}
                   <button
                     type="submit"
                     disabled={submitting || noOptions}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60 dark:focus-visible:ring-offset-slate-900"
+                    className="btn btn-primary flex-1 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
                   >
-                    {submitting && <Spinner label={submittingLabel} className="text-white" />}
+                    {submitting && <Spinner label={submittingLabel} className="text-primary-content" />}
                     {submitting ? submittingLabel : submitLabel}
                   </button>
                 </div>
@@ -322,10 +336,7 @@ function Field({
   const errorId = `${id}-error`
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-      >
+      <label htmlFor={id} className="mb-1 block text-sm font-medium">
         {label}
       </label>
       <input
@@ -338,10 +349,10 @@ function Field({
         disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className={`${INPUT_CLASS} ${error ? INPUT_ERR_CLASS : ''}`}
+        className={`${INPUT_CLASS} ${error ? 'input-error' : ''}`}
       />
       {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
+        <p id={errorId} role="alert" className="mt-1 text-xs text-error">
           {error}
         </p>
       )}
@@ -364,17 +375,14 @@ function SelectField({
   value: string
   onChange: (value: string) => void
   error?: string
-  options: readonly { id: string; name: string }[]
+  options: readonly { id: number; name: string }[]
   placeholder: string
   disabled?: boolean
 }) {
   const errorId = `${id}-error`
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
-      >
+      <label htmlFor={id} className="mb-1 block text-sm font-medium">
         {label}
       </label>
       <select
@@ -384,7 +392,7 @@ function SelectField({
         disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className={`${INPUT_CLASS} ${error ? INPUT_ERR_CLASS : ''}`}
+        className={`${SELECT_CLASS} ${error ? 'select-error' : ''}`}
       >
         <option value="" disabled>
           {placeholder}
@@ -396,7 +404,7 @@ function SelectField({
         ))}
       </select>
       {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
+        <p id={errorId} role="alert" className="mt-1 text-xs text-error">
           {error}
         </p>
       )}

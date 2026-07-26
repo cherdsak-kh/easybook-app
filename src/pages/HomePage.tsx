@@ -23,6 +23,10 @@ import {
 } from '@/lib/api-client'
 import { RegistrationForm, type RegistrationFormValues } from '@/components/RegistrationForm'
 import { FullPageSpinner } from '@/components/Spinner'
+import { UI_STRINGS_CLIENT } from '@/constants/ui-strings-client'
+
+/** Client-portal copy. This page renders several screens, so it aliases the whole dictionary. */
+const UI = UI_STRINGS_CLIENT
 
 /** Square brand mark — used inside the LINE client where space is tight. */
 const LOGO_MARK = '/logo/easybook-logo-512px-no-bg.svg'
@@ -48,10 +52,19 @@ type View =
   | { kind: 'registration' }
   | { kind: 'editing' }
   | { kind: 'pending' }
+  | { kind: 'rejected' }
   | { kind: 'allowed' }
   | { kind: 'blocked' }
   | { kind: 'error' }
   | { kind: 'auth-error' }
+
+/**
+ * The two screens the self-edit form can be entered from — and therefore the two
+ * it must return to on Cancel. A REJECTED user who backs out of the form must
+ * land on the Rejected screen (still holding their reason), not on Pending, which
+ * would silently misreport their status.
+ */
+type EditOrigin = 'pending' | 'rejected'
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -62,17 +75,17 @@ const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
  */
 const MOCK_OPTIONS: RegistrationOptions = {
   departments: [
-    { id: 'dept-cs', name: 'Computer Science' },
-    { id: 'dept-math', name: 'Mathematics' },
+    { id: 1, name: 'Computer Science' },
+    { id: 2, name: 'Mathematics' },
   ],
   personnelRoles: [
-    { id: 'role-teacher', name: 'Teacher' },
-    { id: 'role-support', name: 'Support Staff' },
+    { id: 10, name: 'Teacher' },
+    { id: 11, name: 'Support Staff' },
   ],
 }
 
-const nameOf = (opts: RegistrationOptions['departments'], id: string): string =>
-  opts.find((o) => o.id === id)?.name ?? id
+const nameOf = (opts: RegistrationOptions['departments'], id: number): string =>
+  opts.find((o) => o.id === id)?.name ?? String(id)
 
 /** Build a mock registration record from a submitted DTO (dev mock path only). */
 function mockRegistrationFrom(dto: CreateLineUserRegistration): LineUserRegistration {
@@ -92,7 +105,12 @@ function mockRegistrationFrom(dto: CreateLineUserRegistration): LineUserRegistra
   }
 }
 
-/** Derive the form's pre-fill values from an existing registration (edit mode). */
+/**
+ * Derive the form's pre-fill values from an existing registration (edit mode).
+ * The option ids come back as integers, but a `<select value>` is compared as a
+ * DOM string — so stringify them here to keep the currently-selected option
+ * highlighted (the form re-parses them to integers on submit).
+ */
 function initialFrom(reg: LineUserRegistration | null): RegistrationFormValues | undefined {
   if (!reg) return undefined
   return {
@@ -100,16 +118,16 @@ function initialFrom(reg: LineUserRegistration | null): RegistrationFormValues |
     lastName: reg.lastName,
     staffId: reg.staffId,
     phone: reg.phone,
-    departmentId: reg.departmentId,
-    personnelRoleId: reg.personnelRoleId,
+    departmentId: String(reg.departmentId),
+    personnelRoleId: String(reg.personnelRoleId),
   }
 }
 
 /**
  * Client Portal onboarding flow.
  *
- * Splash → **friendship gate** → **access-status gate** → one of four screens
- * (Registration / Pending / Allowed / Blocked). All LINE access is isolated
+ * Splash → **friendship gate** → **access-status gate** → one of five screens
+ * (Registration / Pending / Rejected / Allowed / Blocked). All LINE access is isolated
  * behind `@/lib/liff` (fail-soft) and the backend LINE-consumer endpoints are
  * called through `@/lib/api-client` with the LIFF ID token as a bearer.
  *
@@ -140,14 +158,23 @@ export function HomePage() {
   const [recheckHint, setRecheckHint] = useState<string | null>(null)
 
   // The caller's current registration (populated on the status gate; used to
-  // pre-fill the PENDING edit form and echo submitted details on Pending).
+  // pre-fill the PENDING/REJECTED edit form and echo submitted details on Pending).
   const [registration, setRegistration] = useState<LineUserRegistration | null>(null)
+  // The operator-authored reason behind a REJECTED status. Non-null only while
+  // `access === 'REJECTED'` (backend invariant); it is what RejectedScreen shows.
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null)
+  // Which screen the self-edit form was opened from, so Cancel returns there.
+  const [editOrigin, setEditOrigin] = useState<EditOrigin>('pending')
 
   const active = useRef(true)
   // The verified LIFF ID token used as the bearer; null in local-dev/mock mode.
   const idTokenRef = useRef<string | null>(null)
   // DEV AFFORDANCE: the simulated status used when there is no real ID token.
-  const mockStatusRef = useRef<LineUserStatus>({ access: 'UNREGISTERED', registration: null })
+  const mockStatusRef = useRef<LineUserStatus>({
+    access: 'UNREGISTERED',
+    registration: null,
+    rejectionReason: null,
+  })
 
   /**
    * Loads the dynamic Department / PersonnelRole option lists for the form.
@@ -165,6 +192,9 @@ export function HomePage() {
     switch (access) {
       case 'PENDING':
         setView({ kind: 'pending' })
+        break
+      case 'REJECTED':
+        setView({ kind: 'rejected' })
         break
       case 'ALLOWED':
         setView({ kind: 'allowed' })
@@ -204,6 +234,7 @@ export function HomePage() {
       }
       if (!active.current) return
       setRegistration(status.registration)
+      setRejectionReason(status.rejectionReason)
       route(status.access)
     } catch {
       if (!active.current) return
@@ -287,7 +318,7 @@ export function HomePage() {
       if (friendFlag) {
         await runStatusGate()
       } else {
-        setRecheckHint("We still can't see you as a friend yet. Add the account, then try again.")
+        setRecheckHint(UI.addFriend.recheckHint)
       }
     } finally {
       if (active.current) setRechecking(false)
@@ -304,9 +335,10 @@ export function HomePage() {
         // Gated on isLiffConfigured() (OBS-2): a real-but-tokenless channel must
         // never fake a submit — the status gate already routes it to auth-error.
         const reg = mockRegistrationFrom(dto)
-        mockStatusRef.current = { access: 'PENDING', registration: reg }
+        mockStatusRef.current = { access: 'PENDING', registration: reg, rejectionReason: null }
         if (active.current) {
           setRegistration(reg)
+          setRejectionReason(null)
           setView({ kind: 'pending' })
         }
         return
@@ -321,6 +353,7 @@ export function HomePage() {
       const status = await registerLineUser(dto, token)
       if (!active.current) return
       setRegistration(status.registration)
+      setRejectionReason(status.rejectionReason)
       route(status.access)
     } catch (err) {
       if (!active.current) return
@@ -330,16 +363,22 @@ export function HomePage() {
     }
   }
 
-  /** Open the PENDING edit form (pre-filled from the current registration). */
+  /**
+   * Open the self-edit form (pre-filled from the current registration). Shared by
+   * the PENDING and REJECTED screens — there is exactly ONE edit path, and the
+   * backend's `PATCH /line-users/registration` accepts both states; a REJECTED
+   * re-submit is what flips the caller back to PENDING server-side.
+   */
   function handleStartEdit() {
     setSubmitError(null)
+    setEditOrigin(view.kind === 'rejected' ? 'rejected' : 'pending')
     setView({ kind: 'editing' })
   }
 
-  /** Cancel the edit and return to the Pending screen. */
+  /** Cancel the edit and return to whichever screen opened the form. */
   function handleCancelEdit() {
     setSubmitError(null)
-    setView({ kind: 'pending' })
+    setView({ kind: editOrigin })
   }
 
   async function handleEditSubmit(dto: CreateLineUserRegistration) {
@@ -349,9 +388,10 @@ export function HomePage() {
       if (!isLiffConfigured()) {
         // DEV AFFORDANCE: mock a successful self-edit without a backend.
         const reg = mockRegistrationFrom(dto)
-        mockStatusRef.current = { access: 'PENDING', registration: reg }
+        mockStatusRef.current = { access: 'PENDING', registration: reg, rejectionReason: null }
         if (active.current) {
           setRegistration(reg)
+          setRejectionReason(null)
           setView({ kind: 'pending' })
         }
         return
@@ -364,7 +404,10 @@ export function HomePage() {
       const status = await updateLineUserRegistration(dto, token)
       if (!active.current) return
       setRegistration(status.registration)
-      // Success → back to the (refreshed) Pending screen. `access` stays PENDING.
+      setRejectionReason(status.rejectionReason)
+      // Success → the refreshed status screen. A PENDING caller stays PENDING; a
+      // REJECTED caller comes back as PENDING (the backend clears the reason), so
+      // both land on Pending — routed from the RESPONSE, never assumed.
       route(status.access)
     } catch (err) {
       if (!active.current) return
@@ -378,7 +421,7 @@ export function HomePage() {
     case 'login':
       return <LineLoginScreen onLogin={handleLogin} />
     case 'resolving':
-      return <FullPageSpinner label="Loading your account…" />
+      return <FullPageSpinner label={UI.resolving.loading} />
     case 'add-friend':
       return (
         <AddFriendScreen
@@ -413,6 +456,8 @@ export function HomePage() {
       )
     case 'pending':
       return <PendingScreen profile={profile} registration={registration} onEdit={handleStartEdit} />
+    case 'rejected':
+      return <RejectedScreen profile={profile} reason={rejectionReason} onEdit={handleStartEdit} />
     case 'allowed':
       return <HelloScreen profile={profile} />
     case 'blocked':
@@ -431,20 +476,20 @@ function messageForRegister(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 409) {
       // Either already registered, or the staff ID is taken.
-      return err.message || 'This ID is already registered. Please check your details.'
+      return err.message || UI.registration.registerError.conflict
     }
     if (err.status === 400) {
-      return err.message || 'Please check the form and try again.'
+      return err.message || UI.registration.registerError.invalid
     }
     if (err.status === 401) {
-      return 'Your LINE session has expired. Please reopen the app and try again.'
+      return UI.registration.registerError.sessionExpired
     }
     if (err.status === 502) {
-      return 'We could not reach LINE to verify you. Please try again in a moment.'
+      return UI.registration.registerError.lineUnreachable
     }
-    return err.message || 'Something went wrong. Please try again.'
+    return err.message || UI.registration.registerError.failed
   }
-  return 'Something went wrong. Please try again.'
+  return UI.registration.registerError.failed
 }
 
 /** Map a PENDING self-edit failure to a user-facing, non-crashing message. */
@@ -452,24 +497,24 @@ function messageForEdit(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 403) {
       // No longer PENDING (an admin approved/blocked in the meantime).
-      return 'Your registration can no longer be edited — please reopen the app to refresh your status.'
+      return UI.registration.editError.notEditable
     }
     if (err.status === 409) {
-      return err.message || 'That staff ID is already in use. Please check your details.'
+      return err.message || UI.registration.editError.conflict
     }
     if (err.status === 400) {
       // A selected option was removed, or a field is invalid.
-      return err.message || 'Please review your selections and try again.'
+      return err.message || UI.registration.editError.invalid
     }
     if (err.status === 401) {
-      return 'Your LINE session has expired. Please reopen the app and try again.'
+      return UI.registration.editError.sessionExpired
     }
     if (err.status === 502) {
-      return 'We could not reach LINE to verify you. Please try again in a moment.'
+      return UI.registration.editError.lineUnreachable
     }
-    return err.message || 'Something went wrong. Please try again.'
+    return err.message || UI.registration.editError.failed
   }
-  return 'Something went wrong. Please try again.'
+  return UI.registration.editError.failed
 }
 
 /** Full-screen animated splash shown while LIFF initialises / redirects. */
@@ -477,12 +522,12 @@ function SplashScreen({ entered, inClient }: { entered: boolean; inClient: boole
   return (
     <div
       role="status"
-      aria-label="Loading EasyBook"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-50 dark:bg-slate-900"
+      aria-label={UI.splash.loading}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-base-100"
     >
       <img
         src={inClient ? LOGO_MARK : LOGO_WORDMARK}
-        alt="EasyBook"
+        alt={UI.splash.logoAlt}
         className={[
           inClient ? 'h-28 w-28' : 'w-56 max-w-[70%]',
           'select-none motion-safe:transition-all motion-safe:duration-1000 motion-safe:ease-out',
@@ -496,18 +541,18 @@ function SplashScreen({ entered, inClient }: { entered: boolean; inClient: boole
 /** ALLOWED landing: the greeting (unchanged behaviour). */
 function HelloScreen({ profile }: { profile: LiffProfile | null }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 text-center dark:bg-slate-900">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-base-200 px-4 text-center">
       {profile?.pictureUrl && (
         <img
           src={profile.pictureUrl}
           alt=""
-          className="mb-4 h-20 w-20 rounded-full object-cover shadow-sm ring-2 ring-white dark:ring-slate-800"
+          className="mb-4 h-20 w-20 rounded-full object-cover shadow-sm ring-2 ring-base-100"
         />
       )}
-      <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-        Hello, {profile?.displayName ?? 'there'} 👋
+      <h1 className="text-3xl font-bold text-base-content">
+        {UI.hello.greeting(profile?.displayName ?? UI.hello.fallbackName)}
       </h1>
-      <p className="mt-3 text-slate-500 dark:text-slate-400">Welcome to EasyBook.</p>
+      <p className="mt-3 text-base-content/60">{UI.hello.welcome}</p>
     </main>
   )
 }
@@ -530,33 +575,31 @@ function PendingScreen({
     <StatusCard
       tone="amber"
       icon="clock"
-      title="Registration pending"
-      body={
-        <>
-          {profile?.displayName ? `Thanks, ${profile.displayName}. ` : ''}Your registration has been
-          received. Please wait for an administrator to approve your access.
-        </>
-      }
+      title={UI.pending.title}
+      body={UI.pending.body(profile?.displayName)}
       action={
         <>
           {registration && (
-            <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-left text-sm dark:border-slate-800">
+            <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-base-300 pt-4 text-left text-sm">
               <SummaryItem
-                label="Name"
+                label={UI.pending.summary.fullName}
                 value={`${registration.firstName} ${registration.lastName}`.trim()}
               />
-              <SummaryItem label="Staff ID" value={registration.staffId} />
-              <SummaryItem label="Phone" value={registration.phone} />
-              <SummaryItem label="Department" value={registration.department} />
-              <SummaryItem label="Role" value={registration.personnelRole} />
+              <SummaryItem label={UI.pending.summary.staffId} value={registration.staffId} />
+              <SummaryItem label={UI.pending.summary.phone} value={registration.phone} />
+              <SummaryItem label={UI.pending.summary.department} value={registration.department} />
+              <SummaryItem
+                label={UI.pending.summary.personnelRole}
+                value={registration.personnelRole}
+              />
             </dl>
           )}
           <button
             type="button"
             onClick={onEdit}
-            className="mt-6 inline-flex w-full items-center justify-center rounded-xl border border-amber-300 px-5 py-2.5 font-semibold text-amber-800 transition-colors hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10 dark:focus-visible:ring-offset-slate-900"
+            className="mt-6 inline-flex w-full items-center justify-center rounded-xl border border-amber-300 px-5 py-2.5 font-semibold text-amber-800 transition-colors hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-base-100 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
           >
-            Edit registration
+            {UI.pending.edit}
           </button>
         </>
       }
@@ -568,25 +611,72 @@ function PendingScreen({
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[0.7rem] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+      <dt className="text-[0.7rem] font-medium uppercase tracking-wide text-base-content/50">
         {label}
       </dt>
-      <dd className="truncate text-slate-700 dark:text-slate-200" title={value}>
-        {value || '—'}
+      <dd className="truncate text-base-content/80" title={value}>
+        {value || UI.pending.summary.emptyValue}
       </dd>
     </div>
+  )
+}
+
+/**
+ * REJECTED: an administrator sent the registration back for revision. The whole
+ * point of this screen is the **reason**, so it is rendered in its own bordered
+ * `warning`-toned block above the action rather than folded into the body text.
+ *
+ * The action re-enters the SAME self-edit form a PENDING user gets (`onEdit` is
+ * the shared `handleStartEdit`); re-submitting goes through the existing
+ * `updateLineUserRegistration` path, which the backend answers by flipping the
+ * caller to PENDING and clearing the reason. There is deliberately NO new
+ * submission endpoint here.
+ *
+ * Styling is daisyUI semantic tokens only (`warning` / `base-*`) — no `dark:`
+ * utilities; the client themes carry light/dark via `data-theme`.
+ */
+function RejectedScreen({
+  profile,
+  reason,
+  onEdit,
+}: {
+  profile: LiffProfile | null
+  reason: string | null
+  onEdit: () => void
+}) {
+  return (
+    <StatusCard
+      tone="amber"
+      icon="alert"
+      title={UI.rejected.title}
+      body={UI.rejected.body(profile?.displayName)}
+      action={
+        <>
+          <div className="mt-5 rounded-xl border border-warning/40 bg-warning/10 p-4 text-left">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+              {UI.rejected.reasonLabel}
+            </h2>
+            <p className="mt-1 whitespace-pre-line wrap-break-word text-sm font-medium text-base-content">
+              {reason ?? UI.rejected.reasonFallback}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="btn btn-warning mt-6 w-full focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
+          >
+            {UI.rejected.edit}
+          </button>
+        </>
+      }
+    />
   )
 }
 
 /** BLOCKED: account suspended, no actions. */
 function BlockedScreen() {
   return (
-    <StatusCard
-      tone="red"
-      icon="ban"
-      title="Account suspended"
-      body="Your account has been suspended. Please contact the administration."
-    />
+    <StatusCard tone="red" icon="ban" title={UI.blocked.title} body={UI.blocked.body} />
   )
 }
 
@@ -596,15 +686,15 @@ function GateErrorScreen({ onRetry }: { onRetry: () => void }) {
     <StatusCard
       tone="red"
       icon="ban"
-      title="Something went wrong"
-      body="We couldn't load your account status. Please check your connection and try again."
+      title={UI.gateError.title}
+      body={UI.gateError.body}
       action={
         <button
           type="button"
           onClick={onRetry}
-          className="mt-6 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+          className="btn btn-primary mt-6 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
         >
-          Try again
+          {UI.common.tryAgain}
         </button>
       }
     />
@@ -622,30 +712,28 @@ function AddFriendScreen({
   hint: string | null
 }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8 dark:bg-slate-950">
+    <main className="flex min-h-screen items-center justify-center bg-base-200 px-4 py-8">
       <div className="w-full max-w-sm">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-            เพิ่มเพื่อน EasyBook บน LINE
-          </h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            เพื่อดำเนินการต่อ โปรดเพิ่มบัญชีทางการของเราเป็นเพื่อน โดยสแกนคิวอาร์โค้ดด้านล่างผ่านแอปพลิเคชัน LINE หรือเปิดผ่านอุปกรณ์อื่น
-          </p>
+        <div className="rounded-2xl border border-base-300 bg-base-100 p-6 text-center shadow-sm sm:p-8">
+          <h1 className="text-xl font-bold text-base-content">{UI.addFriend.heading}</h1>
+          <p className="mt-2 text-sm text-base-content/60">{UI.addFriend.intro}</p>
 
           <div className="mt-6 flex justify-center">
+            {/* The QR keeps a literal white background in BOTH modes: a code on a
+                dark surface will not scan. */}
             <img
               src={OA_QR_IMAGE}
-              alt="QR code to add the EasyBook LINE Official Account"
+              alt={UI.addFriend.qrAlt}
               width={192}
               height={192}
-              className="h-48 w-48 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-700"
+              className="h-48 w-48 rounded-xl border border-base-300 bg-white p-2"
             />
           </div>
 
-          <ol className="mt-6 space-y-1 text-left text-sm text-slate-600 dark:text-slate-300">
-            <li>1. เปิดแอปพลิเคชัน LINE และเลือกตัวสแกนคิวอาร์โค้ด</li>
-            <li>2. สแกนคิวอาร์โค้ดด้านบน และกดเพิ่มเพื่อน EasyBook</li>
-            <li>3. กลับมาที่หน้านี้ และกดปุ่มด้านล่าง</li>
+          <ol className="mt-6 space-y-1 text-left text-sm text-base-content/70">
+            {UI.addFriend.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
           </ol>
 
           {hint && (
@@ -658,9 +746,9 @@ function AddFriendScreen({
             type="button"
             onClick={onRecheck}
             disabled={rechecking}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60 dark:focus-visible:ring-offset-slate-900"
+            className="btn btn-primary mt-6 w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
           >
-            {rechecking ? 'กำลังตรวจสอบ...' : 'ตรวจสอบสถานะการเพิ่มเพื่อน'}
+            {rechecking ? UI.addFriend.rechecking : UI.addFriend.recheck}
           </button>
         </div>
       </div>
@@ -680,13 +768,13 @@ function AuthErrorScreen() {
       tone="red"
       icon="ban"
       alert
-      title="Authentication failed"
-      body="LINE Authentication failed: Missing ID Token. Please contact support or verify that the LINE login channel has the 'openid' scope configured."
+      title={UI.authError.title}
+      body={UI.authError.body}
     />
   )
 }
 
-/** Shared centred status card (Pending / Blocked / Error / Auth error). */
+/** Shared centred status card (Pending / Rejected / Blocked / Error / Auth error). */
 function StatusCard({
   tone,
   icon,
@@ -696,7 +784,8 @@ function StatusCard({
   alert = false,
 }: {
   tone: 'amber' | 'red'
-  icon: 'clock' | 'ban'
+  /** `alert` (exclamation) marks the recoverable "needs your attention" Rejected state. */
+  icon: 'clock' | 'ban' | 'alert'
   title: string
   body: React.ReactNode
   action?: React.ReactNode
@@ -708,20 +797,20 @@ function StatusCard({
       ? 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400'
       : 'bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400'
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+    <main className="flex min-h-screen items-center justify-center bg-base-200 px-4">
       <div className="w-full max-w-sm text-center">
         <div
           {...(alert ? { role: 'alert', 'aria-label': title } : {})}
-          className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          className="rounded-2xl border border-base-300 bg-base-100 p-8 shadow-sm"
         >
           <span
             aria-hidden
             className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${toneRing}`}
           >
-            {icon === 'clock' ? <ClockIcon /> : <BanIcon />}
+            {icon === 'clock' ? <ClockIcon /> : icon === 'alert' ? <AlertIcon /> : <BanIcon />}
           </span>
-          <h1 className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-100">{title}</h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{body}</p>
+          <h1 className="mt-4 text-xl font-bold text-base-content">{title}</h1>
+          <p className="mt-2 text-sm text-base-content/60">{body}</p>
           {action}
         </div>
       </div>
@@ -732,28 +821,28 @@ function StatusCard({
 /** Styled "Log in with LINE" card shown to signed-out web visitors. */
 function LineLoginScreen({ onLogin }: { onLogin: () => void }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+    <main className="flex min-h-screen items-center justify-center bg-base-200 px-4">
       <div className="w-full max-w-sm">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-2xl border border-base-300 bg-base-100 p-8 text-center shadow-sm">
           <img
             src={LOGO_MARK}
-            alt="EasyBook"
+            alt={UI.lineLogin.logoAlt}
             className="mx-auto h-14 w-auto max-w-[70%]"
           />
-          <h1 className="mt-6 text-xl font-bold text-slate-900 dark:text-slate-100">
-            ยินดีต้อนรับสู่ EasyBook
-          </h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            เข้าสู่ระบบด้วยบัญชี LINE ของคุณเพื่อใช้งานระบบ
-          </p>
+          <h1 className="mt-6 text-xl font-bold text-base-content">{UI.lineLogin.heading}</h1>
+          <p className="mt-2 text-sm text-base-content/60">{UI.lineLogin.subheading}</p>
 
+          {/* The client theme's `primary` IS LINE-green (#06C755), so `btn-primary`
+              reproduces LINE's sanctioned white-on-green login button — the raw
+              hex literal is retired. This is the documented brand exception
+              (white-on-green ~2.26:1); confined to this primary LIFF CTA. */}
           <button
             type="button"
             onClick={onLogin}
-            className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#06C755] px-4 py-3 font-semibold text-white transition-colors hover:bg-[#05b34c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#06C755] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+            className="btn btn-primary mt-6 w-full gap-2.5 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
           >
             <LineGlyph className="h-5 w-5" />
-            เข้าสู่ระบบด้วย LINE
+            {UI.lineLogin.submit}
           </button>
         </div>
       </div>
@@ -766,6 +855,17 @@ function ClockIcon() {
     <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" aria-hidden="true">
       <circle cx="12" cy="12" r="9" strokeWidth="2" />
       <path strokeWidth="2" strokeLinecap="round" d="M12 7v5l3 2" />
+    </svg>
+  )
+}
+
+/** Exclamation-in-a-circle — "sent back, needs your attention" (Rejected). Decorative. */
+function AlertIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" strokeWidth="2" />
+      <path strokeWidth="2" strokeLinecap="round" d="M12 7.5v5" />
+      <path strokeWidth="2" strokeLinecap="round" d="M12 16.25h.01" />
     </svg>
   )
 }

@@ -1,25 +1,47 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { RegistrationForm, type RegistrationFormValues } from '@/components/RegistrationForm'
+import {
+  ID_COUNT,
+  PHONE_COUNT,
+  RegistrationForm,
+  type RegistrationFormValues,
+} from '@/components/RegistrationForm'
+import { UI_STRINGS_CLIENT as UI } from '@/constants/ui-strings-client'
 import type { RegistrationOptions } from '@/lib/api-client'
+
+/**
+ * Derived from the component's own rule, not a hardcoded 13-char literal: if
+ * `ID_COUNT` changes, this fixture stays valid instead of silently failing
+ * validation and blocking every submit assertion below.
+ */
+const VALID_STAFF_ID = '6'.repeat(ID_COUNT)
+
+/**
+ * Same reason as {@link VALID_STAFF_ID}, for the phone rule: digits-only and
+ * exactly `PHONE_COUNT` long, derived rather than hardcoded so a change to the
+ * required length cannot leave this fixture silently invalid.
+ */
+const VALID_PHONE = '0'.repeat(PHONE_COUNT)
 
 const OPTIONS: RegistrationOptions = {
   departments: [
-    { id: 'dept-cs', name: 'Computer Science' },
-    { id: 'dept-math', name: 'Mathematics' },
+    { id: 1, name: 'Computer Science' },
+    { id: 2, name: 'Mathematics' },
   ],
   personnelRoles: [
-    { id: 'role-teacher', name: 'Teacher' },
-    { id: 'role-support', name: 'Support Staff' },
+    { id: 10, name: 'Teacher' },
+    { id: 11, name: 'Support Staff' },
   ],
 }
 
+// `RegistrationFormValues` holds the raw <select> strings — the stringified
+// integer option ids — which the form parses back to numbers on submit.
 const INITIAL: RegistrationFormValues = {
   firstName: 'Somchai',
   lastName: 'Jaidee',
-  staffId: '6412345678',
-  phone: '081-234-5678',
-  departmentId: 'dept-cs',
-  personnelRoleId: 'role-teacher',
+  staffId: VALID_STAFF_ID,
+  phone: VALID_PHONE,
+  departmentId: '1',
+  personnelRoleId: '10',
 }
 
 function setup(props: Partial<React.ComponentProps<typeof RegistrationForm>> = {}) {
@@ -39,10 +61,10 @@ function setup(props: Partial<React.ComponentProps<typeof RegistrationForm>> = {
 }
 
 function fillIdentity() {
-  fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Somchai' } })
-  fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Jaidee' } })
-  fireEvent.change(screen.getByLabelText('Staff ID'), { target: { value: '6412345678' } })
-  fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '081-234-5678' } })
+  fireEvent.change(screen.getByLabelText(UI.registration.firstName), { target: { value: 'Somchai' } })
+  fireEvent.change(screen.getByLabelText(UI.registration.lastName), { target: { value: 'Jaidee' } })
+  fireEvent.change(screen.getByLabelText(UI.registration.staffId), { target: { value: VALID_STAFF_ID } })
+  fireEvent.change(screen.getByLabelText(UI.registration.phone), { target: { value: VALID_PHONE } })
 }
 
 describe('RegistrationForm — dynamic options', () => {
@@ -58,12 +80,15 @@ describe('RegistrationForm — dynamic options', () => {
     expect(screen.getByTestId('options-loading')).toBeInTheDocument()
 
     resolveOpts(OPTIONS)
-    const dept = (await screen.findByLabelText('Department')) as HTMLSelectElement
+    const dept = (await screen.findByLabelText(UI.registration.department)) as HTMLSelectElement
     expect(within(dept).getByRole('option', { name: 'Computer Science' })).toBeInTheDocument()
     expect(within(dept).getByRole('option', { name: 'Mathematics' })).toBeInTheDocument()
-    const roleSel = screen.getByLabelText('Role') as HTMLSelectElement
+    const roleSel = screen.getByLabelText(UI.registration.personnelRole) as HTMLSelectElement
     expect(within(roleSel).getByRole('option', { name: 'Teacher' })).toBeInTheDocument()
-    // No "student" wording remains anywhere in the form.
+    // No "student" wording remains anywhere in the form. A DELIBERATE ANCHOR:
+    // a negative assertion cannot be derived from the dictionary without going
+    // vacuous — the literal is the requirement (these users are staff, not
+    // students). Precedent: `routes.test.ts`.
     expect(screen.queryByText(/student/i)).not.toBeInTheDocument()
   })
 
@@ -74,13 +99,11 @@ describe('RegistrationForm — dynamic options', () => {
       .mockResolvedValueOnce(OPTIONS)
     setup({ loadOptions })
 
-    expect(
-      await screen.findByText(/could not load the registration options/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(UI.registration.optionsError)).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    fireEvent.click(screen.getByRole('button', { name: UI.common.tryAgain }))
 
-    expect(await screen.findByLabelText('Department')).toBeInTheDocument()
+    expect(await screen.findByLabelText(UI.registration.department)).toBeInTheDocument()
     expect(loadOptions).toHaveBeenCalledTimes(2)
   })
 
@@ -90,39 +113,40 @@ describe('RegistrationForm — dynamic options', () => {
       .mockResolvedValue({ departments: [], personnelRoles: [] } satisfies RegistrationOptions)
     setup({ loadOptions })
 
-    expect(await screen.findByText(/temporarily unavailable/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /submit registration/i })).toBeDisabled()
+    expect(await screen.findByText(UI.registration.noOptions)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: UI.registration.createSubmit })).toBeDisabled()
   })
 
-  it('submits the id-based DTO once options are chosen', async () => {
+  it('submits the id-based DTO with NUMERIC option ids once options are chosen', async () => {
     const { onSubmit } = setup()
-    await screen.findByLabelText('Department')
+    await screen.findByLabelText(UI.registration.department)
 
     fillIdentity()
-    fireEvent.change(screen.getByLabelText('Department'), { target: { value: 'dept-math' } })
-    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'role-support' } })
-    fireEvent.click(screen.getByRole('button', { name: /submit registration/i }))
+    // <select> values are DOM strings; the form must coerce them to integers.
+    fireEvent.change(screen.getByLabelText(UI.registration.department), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText(UI.registration.personnelRole), { target: { value: '11' } })
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.createSubmit }))
 
     expect(onSubmit).toHaveBeenCalledWith({
       firstName: 'Somchai',
       lastName: 'Jaidee',
-      staffId: '6412345678',
-      phone: '081-234-5678',
-      departmentId: 'dept-math',
-      personnelRoleId: 'role-support',
+      staffId: VALID_STAFF_ID,
+      phone: VALID_PHONE,
+      departmentId: 2,
+      personnelRoleId: 11,
     })
   })
 
   it('blocks submit until a department and role are selected', async () => {
     const { onSubmit } = setup()
-    await screen.findByLabelText('Department')
+    await screen.findByLabelText(UI.registration.department)
 
     fillIdentity() // identity valid, but no options selected yet
-    fireEvent.click(screen.getByRole('button', { name: /submit registration/i }))
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.createSubmit }))
 
     expect(onSubmit).not.toHaveBeenCalled()
-    expect(screen.getByText('Please select a department.')).toBeInTheDocument()
-    expect(screen.getByText('Please select a role.')).toBeInTheDocument()
+    expect(screen.getByText(UI.registration.departmentRequired)).toBeInTheDocument()
+    expect(screen.getByText(UI.registration.personnelRoleRequired)).toBeInTheDocument()
   })
 })
 
@@ -131,22 +155,23 @@ describe('RegistrationForm — edit mode', () => {
     const onCancel = vi.fn()
     setup({ mode: 'edit', initial: INITIAL, onCancel })
 
-    await screen.findByLabelText('Department')
-    expect(screen.getByLabelText('First name')).toHaveValue('Somchai')
-    expect(screen.getByLabelText('Staff ID')).toHaveValue('6412345678')
-    expect(screen.getByLabelText('Department')).toHaveValue('dept-cs')
-    expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument()
+    await screen.findByLabelText(UI.registration.department)
+    expect(screen.getByLabelText(UI.registration.firstName)).toHaveValue('Somchai')
+    expect(screen.getByLabelText(UI.registration.staffId)).toHaveValue(VALID_STAFF_ID)
+    // The pre-filled numeric id ('1') keeps its option selected in the <select>.
+    expect(screen.getByLabelText(UI.registration.department)).toHaveValue('1')
+    expect(screen.getByRole('button', { name: UI.registration.editSubmit })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.cancel }))
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
   it('emits edited values via onSubmit', async () => {
     const { onSubmit } = setup({ mode: 'edit', initial: INITIAL })
-    await screen.findByLabelText('Department')
+    await screen.findByLabelText(UI.registration.department)
 
-    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Somsak' } })
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    fireEvent.change(screen.getByLabelText(UI.registration.firstName), { target: { value: 'Somsak' } })
+    fireEvent.click(screen.getByRole('button', { name: UI.registration.editSubmit }))
 
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ firstName: 'Somsak' })),

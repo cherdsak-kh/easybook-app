@@ -121,6 +121,17 @@ export type LoginResponse = components['schemas']['LoginResponseDto']
 export type PaginatedSystemUsers = components['schemas']['PaginatedSystemUsersResponseDto']
 export type CreateSystemUserBody = components['schemas']['CreateSystemUserDto']
 export type UpdateSystemUserBody = components['schemas']['UpdateSystemUserDto']
+/**
+ * A `SystemUser` plus the one-time `temporaryPassword`. Returned ONLY by
+ * `createSystemUser` and `resetSystemUserPassword` — the plaintext is shown once
+ * and is never retrievable again, so it must never be persisted or logged.
+ */
+export type SystemUserWithTemporaryPassword =
+  components['schemas']['SystemUserWithTemporaryPasswordDto']
+/** The `{ id, name }` Department / PersonnelRole embed resolved on every read. */
+export type SystemUserOption = components['schemas']['SystemUserOptionDto']
+/** The four self-editable profile fields. `role`/`department`/`personnelRole` are absent by design. */
+export type UpdateOwnProfileBody = components['schemas']['UpdateOwnProfileDto']
 export type LineUser = components['schemas']['LineUserResponseDto']
 export type PaginatedLineUsers = components['schemas']['PaginatedLineUsersResponseDto']
 export type AppAccess = LineUser['access']
@@ -135,6 +146,13 @@ export type CreateLineUserRegistration =
   components['schemas']['CreateLineUserRegistrationDto']
 export type UpdateLineUserRegistration =
   components['schemas']['UpdateLineUserRegistrationDto']
+/**
+ * The admin registration-edit body: the six editable fields with `departmentId` /
+ * `personnelRoleId` as integer ids. `lineUserId` is absent by construction (the
+ * backend 400s any attempt to send it), so it can never be edited from here.
+ */
+export type AdminUpdateLineUserRegistration =
+  components['schemas']['AdminUpdateLineUserRegistrationDto']
 
 /** Dynamic registration option lists (admin-curated Departments / PersonnelRoles). */
 export type RegistrationOptions = components['schemas']['RegistrationOptionsResponseDto']
@@ -146,7 +164,12 @@ export type PersonnelRole = components['schemas']['PersonnelRoleResponseDto']
 /** Both option create/rename bodies are structurally `{ name }`. */
 export type OptionInput = components['schemas']['CreateDepartmentDto']
 
-/** The Allow/Block actions the LINE Users UI may send — never PENDING. */
+/**
+ * The two "quick" transitions an ADMIN's row buttons emit (Approve/Reinstate →
+ * ALLOWED, Block → BLOCKED). SUPER_ADMIN's override picker is not limited to
+ * these — it sends the full `AppAccess` — so `patchLineUserAccess` takes the
+ * wider union, not this.
+ */
 export type AccessAction = Extract<AppAccess, 'ALLOWED' | 'BLOCKED'>
 
 // ---------------------------------------------------------------------------
@@ -211,6 +234,93 @@ export async function logout(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Self-service (the signed-in user acting on themselves).
+// ---------------------------------------------------------------------------
+
+/** New-password rules, mirrored from the backend DTO. The server is the control. */
+export const PASSWORD_MIN_LENGTH = 12
+export const PASSWORD_MAX_LENGTH = 128
+
+/**
+ * Change your own password — the forced-reset door AND the voluntary one.
+ * `currentPassword` is required: without it a hijacked session would be a
+ * one-request account takeover.
+ *
+ * CRITICAL: a WRONG `currentPassword` is a **400, never a 401**. Callers must
+ * render it inline and must NOT treat it as session death — a 401 here means the
+ * session genuinely died. On success the server clears `mustChangePassword`;
+ * re-probe `getMe()` rather than trusting local state.
+ */
+export async function changeOwnPassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const { error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/auth/system/password', {
+      params: { header: { 'x-csrf-token': '' } },
+      body: { currentPassword, newPassword },
+    }),
+  )
+  if (!response.ok) throw new ApiError(response.status, messageFrom(error, response))
+}
+
+/**
+ * Edit your own profile. Accepts EXACTLY `firstName`, `lastName`, `phoneNumber`,
+ * `profilePictureUrl` — `role`, `departmentId` and `personnelRoleId` are absent
+ * from the DTO, so sending one is a 400 (`forbidNonWhitelisted`). A SUPER_ADMIN
+ * manages those via `patchSystemUser`.
+ */
+export async function updateOwnProfile(body: UpdateOwnProfileBody): Promise<SystemUser> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.PATCH('/api/v1/auth/system/me', {
+      params: { header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * Avatar constraints, mirrored client-side for fast feedback only — the server
+ * enforces them authoritatively (and sniffs magic bytes, which we cannot).
+ *
+ * The size limit is EXCLUSIVE: the backend accepts a file of exactly 2 MiB and
+ * rejects 2 MiB + 1, so the reject condition here must be `> AVATAR_MAX_BYTES`,
+ * never `>=`, or the client would reject a file the server would have taken.
+ */
+export const AVATAR_MAX_BYTES = 2 * 1024 * 1024
+export const AVATAR_ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
+
+/**
+ * Upload your own avatar: `multipart/form-data`, one part named `file`, straight
+ * to the backend (it proxies to R2 — this is NOT a presign flow). The CSRF token
+ * rides as a HEADER (the middleware attaches it); putting it in the form body
+ * would be a 400.
+ *
+ * Returns the UPDATED user with `profilePictureUrl` already pointing at the new
+ * object — render from this body rather than constructing the URL.
+ */
+export async function uploadOwnAvatar(file: File): Promise<SystemUser> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/auth/system/me/avatar', {
+      params: { header: { 'x-csrf-token': '' } },
+      // The generated type calls `file` a binary string; the wire wants a File.
+      body: { file: file as unknown as string },
+      // Returning FormData makes openapi-fetch drop its JSON Content-Type so the
+      // browser sets the multipart boundary itself.
+      bodySerializer(body: { file: string }) {
+        const form = new FormData()
+        form.append('file', body.file as unknown as File)
+        return form
+      },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+// ---------------------------------------------------------------------------
 // LINE users.
 // ---------------------------------------------------------------------------
 
@@ -240,17 +350,60 @@ export async function listLineUsers(
 }
 
 /**
- * Approve/Block a LINE user. The frontend only ever sends ALLOWED or BLOCKED —
- * PENDING is a system state, never a user action.
+ * Set a LINE user's access state (`PATCH /line-users/:id`).
+ *
+ * The status dropdown only ever emits `AccessAction` (ALLOWED / BLOCKED) for BOTH
+ * roles; the dedicated **Reject** action is the only caller that sends
+ * `'REJECTED'`, and it MUST pass `reason`. The signature still accepts the full
+ * `AppAccess` union because the backend contract does. The backend is the
+ * authority: a transition an ADMIN is not permitted to make comes back as a
+ * **403** (handled by the caller); it is never a client-side silent no-op.
+ *
+ * `reason` is **optional on the wire** (it is meaningless for ALLOWED/BLOCKED and
+ * is not persisted for them) but the server REQUIRES a non-empty trimmed value
+ * when `access === 'REJECTED'` — a missing/blank reason there is a **400**, and a
+ * >500-char one is a 400 at the validation pipe. It is omitted from the body
+ * entirely when not supplied, so every existing two-argument call site keeps its
+ * exact previous wire shape.
  */
 export async function patchLineUserAccess(
   id: string,
-  access: AccessAction,
+  access: AppAccess,
+  reason?: string,
 ): Promise<LineUser> {
+  const body: components['schemas']['UpdateLineUserAccessDto'] =
+    reason === undefined ? { access } : { access, reason }
   const { data, error, response } = await withCsrfRetry(() =>
     api.PATCH('/api/v1/line-users/{id}', {
       params: { path: { id }, header: { 'x-csrf-token': '' } },
-      body: { access },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * Admin edit of a LINE user's registration (`PATCH /line-users/:id/registration`).
+ *
+ * A DIFFERENT route from `patchLineUserAccess` (`PATCH /line-users/:id`): this
+ * writes the six self-submitted registration fields and has NO access/rich-menu
+ * side effect (so there is no 502 path here). Cookie session + CSRF like the other
+ * admin mutations. The backend stays the authority: a staffId taken by another
+ * registration → **409** (`STAFF_ID_TAKEN`); a blank/invalid field or a
+ * deleted/unknown/**system-reserved** option id → **400**; a user with no
+ * registration row, or an unknown/soft-deleted id → **404**; only **401** means
+ * the session died. On success it returns the updated `LineUserResponseDto` so the
+ * caller can patch the row in place, exactly like `patchLineUserAccess`.
+ */
+export async function patchLineUserRegistration(
+  id: string,
+  body: AdminUpdateLineUserRegistration,
+): Promise<LineUser> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.PATCH('/api/v1/line-users/{id}/registration', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+      body,
     }),
   )
   if (!data) throw new ApiError(response.status, messageFrom(error, response))
@@ -273,7 +426,9 @@ function bearer(idToken: string): { Authorization: string } {
 
 /**
  * The single call the client portal makes after LIFF auth to pick which of the
- * four screens (UNREGISTERED / PENDING / ALLOWED / BLOCKED) to render.
+ * five screens (UNREGISTERED / PENDING / ALLOWED / BLOCKED / REJECTED) to render.
+ * `rejectionReason` on the response is non-null IFF `access === 'REJECTED'` and
+ * feeds the client's RejectedScreen.
  */
 export async function getLineUserStatus(idToken: string): Promise<LineUserStatus> {
   const { data, error, response } = await api.GET('/api/v1/line-users/status', {
@@ -351,11 +506,35 @@ export async function listSystemUsers(
   return data
 }
 
-export async function createSystemUser(body: CreateSystemUserBody): Promise<SystemUser> {
+/**
+ * Create a staff account. The SERVER issues the password — there is no
+ * `password` field — and returns `temporaryPassword` EXACTLY ONCE in this
+ * response. Show it to the admin once, then let it fall out of scope.
+ */
+export async function createSystemUser(
+  body: CreateSystemUserBody,
+): Promise<SystemUserWithTemporaryPassword> {
   const { data, error, response } = await withCsrfRetry(() =>
     api.POST('/api/v1/system-users', {
       params: { header: { 'x-csrf-token': '' } },
       body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * Issue a NEW temporary password for someone else (SUPER_ADMIN only; never
+ * yourself — the backend 403s a self-reset). The plaintext comes back exactly
+ * once, in `temporaryPassword`.
+ */
+export async function resetSystemUserPassword(
+  id: string,
+): Promise<SystemUserWithTemporaryPassword> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/system-users/{id}/reset-password', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
     }),
   )
   if (!data) throw new ApiError(response.status, messageFrom(error, response))
@@ -422,7 +601,7 @@ export async function createDepartment(body: OptionInput): Promise<Department> {
   return data
 }
 
-export async function patchDepartment(id: string, body: OptionInput): Promise<Department> {
+export async function patchDepartment(id: number, body: OptionInput): Promise<Department> {
   const { data, error, response } = await withCsrfRetry(() =>
     api.PATCH('/api/v1/departments/{id}', {
       params: { path: { id }, header: { 'x-csrf-token': '' } },
@@ -434,7 +613,7 @@ export async function patchDepartment(id: string, body: OptionInput): Promise<De
 }
 
 /** Soft-delete a department option. Returns nothing on 204. */
-export async function deleteDepartment(id: string): Promise<void> {
+export async function deleteDepartment(id: number): Promise<void> {
   const { error, response } = await withCsrfRetry(() =>
     api.DELETE('/api/v1/departments/{id}', {
       params: { path: { id }, header: { 'x-csrf-token': '' } },
@@ -460,7 +639,7 @@ export async function createPersonnelRole(body: OptionInput): Promise<PersonnelR
   return data
 }
 
-export async function patchPersonnelRole(id: string, body: OptionInput): Promise<PersonnelRole> {
+export async function patchPersonnelRole(id: number, body: OptionInput): Promise<PersonnelRole> {
   const { data, error, response } = await withCsrfRetry(() =>
     api.PATCH('/api/v1/personnel-roles/{id}', {
       params: { path: { id }, header: { 'x-csrf-token': '' } },
@@ -472,7 +651,7 @@ export async function patchPersonnelRole(id: string, body: OptionInput): Promise
 }
 
 /** Soft-delete a personnel-role option. Returns nothing on 204. */
-export async function deletePersonnelRole(id: string): Promise<void> {
+export async function deletePersonnelRole(id: number): Promise<void> {
   const { error, response } = await withCsrfRetry(() =>
     api.DELETE('/api/v1/personnel-roles/{id}', {
       params: { path: { id }, header: { 'x-csrf-token': '' } },

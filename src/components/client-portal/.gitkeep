@@ -1,0 +1,4 @@
+# Forward-looking placeholder (Phase 3, AC-11). This directory establishes the
+# future client-portal namespace split. It is intentionally EMPTY — no route, no
+# component, nothing imports it. Git does not track empty directories, so this
+# file exists only to keep the folder under version control.
