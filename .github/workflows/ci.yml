@@ -49,7 +49,32 @@ jobs:
         # High/critical vulnerabilities fail CI outright. Do NOT change this to `audit fix
         # --force` in this workflow — that silently pulls in breaking major-version bumps.
         # A real finding here is a devops decision, not something CI auto-resolves.
-        run: npm audit --audit-level=high
+        #
+        # Runs through audit-ci rather than bare `npm audit` so that ONE documented,
+        # non-applicable advisory can be allowlisted by id without lowering the severity
+        # threshold for everything else. Config lives in .audit-ci.json (JSON takes no
+        # comments, so the rationale is here):
+        #   high: true      — same threshold as the previous `--audit-level=high`
+        #   skip-dev: true  — equivalent to `--omit=dev`. The deployed artifact is a static
+        #                     nginx bundle of dist/, so devDependencies (vite, vitest,
+        #                     oxlint, tailwind, postcss…) never ship and a devDep-only
+        #                     advisory cannot reach production. This alone clears
+        #                     brace-expansion, js-yaml and postcss.
+        #
+        # ALLOWLIST — GHSA-qwww-vcr4-c8h2, react-router "RSC Mode CSRF Bypass Allows Action
+        # Execution Before 400 Response" (vulnerable >=7.12.0 <8.3.0). Allowlisted because:
+        #   * No fix exists. The advisory's fixed version 8.3.0 is unpublished; 7.18.1 is
+        #     the latest release of react-router/react-router-dom.
+        #   * Downgrading is strictly WORSE. Every earlier 7.x carries more severe
+        #     advisories — vendored turbo-stream arbitrary constructor injection (<7.14.1),
+        #     SSR XSS in ScrollRestoration (<7.12.0), and unauthenticated DoS (<7.15.0 and
+        #     <7.18.0). 7.18.1 is the most-patched version obtainable.
+        #   * Not applicable. The advisory requires react-router's RSC mode executing server
+        #     actions. src/main.tsx mounts a plain <BrowserRouter> and cd.yml deploys a
+        #     static nginx container — this app has no server, no actions and no RSC.
+        # REVISIT when react-router 8.3.0 ships: upgrade, then DELETE this allowlist entry.
+        # Any NEW high-severity advisory still fails the build.
+        run: npx audit-ci --config .audit-ci.json
 
       - name: Upload build artifact
         if: success()
