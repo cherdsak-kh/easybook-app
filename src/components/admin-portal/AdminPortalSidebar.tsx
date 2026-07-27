@@ -8,6 +8,7 @@
 // which daisyUI-5 compacts by default). Close-drawer clicks target `ADMIN_PORTAL_DRAWER_ID`.
 import { NavLink, useLocation } from 'react-router-dom'
 import XMarkIcon from '@heroicons/react/24/outline/XMarkIcon'
+import { BRAND } from '@/constants/ui-strings-brand'
 import { SidebarSubmenu } from './SidebarSubmenu'
 import {
   ADMIN_PORTAL_DRAWER_ID,
@@ -32,8 +33,8 @@ function submenuHasActiveChild(entry: NavSubmenu, pathname: string): boolean {
  * The replica sidebar, rendered as daisyUI's `drawer-side`. On `lg+` it is
  * persistent; on mobile it slides in over a `drawer-overlay` scrim. Both the scrim
  * `<label>` and the ✕ button point at the drawer checkbox so tapping either closes
- * it, and each live `NavLink`'s `onClick` closes it too. The brand row keeps the
- * "DashWind" wordmark beside an inline-SVG placeholder mark (no binary asset).
+ * it, and each live `NavLink`'s `onClick` closes it too. The brand row carries the real
+ * EasyBook mark and wordmark (it used to be an inline-SVG placeholder + "DashWind").
  */
 export function AdminPortalSidebar() {
   const { pathname } = useLocation()
@@ -66,17 +67,23 @@ export function AdminPortalSidebar() {
             them taller — together they restore DashWind's breathable daisyUI-4 menu
             spacing that daisyUI-5 compacts by default. */}
         <ul className="menu w-full gap-1">
-          {/* Brand row: inline-SVG placeholder mark + "DashWind" wordmark. */}
+          {/* Brand row: the real EasyBook mark + the "EasyBook" wordmark. Both come from
+              the shared `BRAND` module, so this row and the login screen's `LandingIntro`
+              cannot drift apart. The mark is served from `public/` at its runtime URL
+              (`/logo/…svg`), not imported as a module.
+
+              The `h-10 w-10` box is the exact size of the inline-SVG placeholder it
+              replaced, so the sidebar header height is unchanged. `object-contain` keeps a
+              non-square asset from stretching. */}
           <li className="mb-2 text-xl font-semibold">
             <div className="pointer-events-none flex items-center gap-2">
-              <span
-                aria-hidden
-                className="mask mask-squircle flex h-10 w-10 items-center justify-center bg-primary text-primary-content"
-              >
-                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
-                  <path d="M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z" />
-                </svg>
-              </span>
+              <img
+                src={BRAND.logoSrc}
+                alt={BRAND.logoAlt}
+                width={40}
+                height={40}
+                className="h-10 w-10 object-contain"
+              />
               <span>{BRAND_NAME}</span>
             </div>
           </li>

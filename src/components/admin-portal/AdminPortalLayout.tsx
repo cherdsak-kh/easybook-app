@@ -9,6 +9,7 @@ import { useEffect, useRef } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { AdminPortalHeader } from './AdminPortalHeader'
 import { AdminPortalSidebar } from './AdminPortalSidebar'
+import { ToastProvider } from './ToastProvider'
 import { ADMIN_PORTAL_DRAWER_ID } from './nav-config'
 
 /**
@@ -28,6 +29,12 @@ import { ADMIN_PORTAL_DRAWER_ID } from './nav-config'
  * real `<h1>` are unaffected, but the stub pages top out at `<h2>`, so without this the
  * main landmark would be nameless on those routes. The label is English to match the
  * shell's other landmark/control names ("Sidebar navigation", "Open menu").
+ *
+ * `ToastProvider` is mounted HERE, once, wrapping the whole shell: every in-shell page
+ * shares one queue, one position (`toast-end toast-top`) and one design. Mounting it per
+ * page would let two pages disagree about where a confirmation appears, which is the exact
+ * inconsistency this refactor removed. It sits OUTSIDE the drawer element so a toast is
+ * never clipped by the drawer's stacking context.
  */
 export function AdminPortalLayout() {
   const mainRef = useRef<HTMLElement>(null)
@@ -38,24 +45,26 @@ export function AdminPortalLayout() {
   }, [pathname])
 
   return (
-    <div className="drawer lg:drawer-open">
-      <input
-        id={ADMIN_PORTAL_DRAWER_ID}
-        type="checkbox"
-        className="drawer-toggle"
-        aria-label="Sidebar navigation"
-      />
-      <div className="drawer-content flex min-h-screen flex-col bg-base-200">
-        <AdminPortalHeader />
-        <main
-          ref={mainRef}
-          aria-label="Main content"
-          className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6"
-        >
-          <Outlet />
-        </main>
+    <ToastProvider>
+      <div className="drawer lg:drawer-open">
+        <input
+          id={ADMIN_PORTAL_DRAWER_ID}
+          type="checkbox"
+          className="drawer-toggle"
+          aria-label="Sidebar navigation"
+        />
+        <div className="drawer-content flex min-h-screen flex-col bg-base-200">
+          <AdminPortalHeader />
+          <main
+            ref={mainRef}
+            aria-label="Main content"
+            className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6"
+          >
+            <Outlet />
+          </main>
+        </div>
+        <AdminPortalSidebar />
       </div>
-      <AdminPortalSidebar />
-    </div>
+    </ToastProvider>
   )
 }

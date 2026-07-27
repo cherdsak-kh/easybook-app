@@ -86,7 +86,9 @@ export const PROFILE_STRINGS = {
     confirm: 'ยืนยัน',
     close: 'ปิด',
     closeBackdrop: 'ปิดหน้าต่าง',
-    dismiss: 'ปิดข้อความแจ้งเตือน',
+    // `dismiss` MOVED to `ui-strings-toast.ts` (`TOAST_STRINGS.dismiss`) when this page's
+    // hand-rolled toast became the portal-wide shared one. It is the toast's own chrome,
+    // not profile copy, and duplicating the literal in two modules is how they drift.
     changePassword: 'เปลี่ยนรหัสผ่าน',
     changeAvatar: 'เปลี่ยนรูปโปรไฟล์',
     /** Accessible name of the copy-to-clipboard button beside the CUID. */

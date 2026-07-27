@@ -1,16 +1,31 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AdminPortalLineUsersPage } from '@/pages/admin-portal/AdminPortalLineUsersPage'
-import { MODAL_STATUS_LABELS, STATUS_BADGE, T } from '@/constants/ui-strings-line-users'
+import { ToastProvider } from '@/components/admin-portal/ToastProvider'
+import {
+  MODAL_STATUS_LABELS,
+  SEARCH_FIELD_LABELS,
+  SEARCH_FIELD_OPTIONS,
+  SORT_LABELS,
+  SORT_OPTIONS,
+  STATUS_BADGE,
+  T,
+} from '@/constants/ui-strings-line-users'
 import { EDITOR_MESSAGES } from '@/hooks/useLineUserEditor'
 import * as useLineUsersModule from '@/hooks/useLineUsers'
+import { LEADS_MESSAGES } from '@/hooks/useLineUsers'
 import * as apiClient from '@/lib/api-client'
 import type { UseLineUsers } from '@/hooks/useLineUsers'
 import type { Department, LineUser, PersonnelRole, SystemRole } from '@/lib/api-client'
 
-// View test: mock the orchestration hook so we drive the page purely by its state
-// (loading / empty / error / rows). The hook itself is covered separately in
-// `useLineUsers.test.ts`.
-vi.mock('@/hooks/useLineUsers', () => ({ useLineUsers: vi.fn() }))
+// View test: mock the orchestration HOOK so we drive the page purely by its state
+// (loading / empty / error / truncated / rows). The hook itself is covered separately in
+// `useLineUsers.test.ts`. Everything else in that module — notably the real
+// `LEADS_MESSAGES` copy the row-error toast renders — stays REAL, so this suite and the
+// page read the same literal.
+vi.mock('@/hooks/useLineUsers', async (importActual) => ({
+  ...(await importActual<typeof import('@/hooks/useLineUsers')>()),
+  useLineUsers: vi.fn(),
+}))
 
 // The page now reads `useAuth()` for role gating (Edit visibility) + `expireSession`. Mock
 // it at the boundary; the returned value is configurable per test via `authAs`.
@@ -79,11 +94,27 @@ function makeRole(o: Partial<PersonnelRole> = {}): PersonnelRole {
   }
 }
 
+/**
+ * Render the page inside the shared `ToastProvider`.
+ *
+ * REQUIRED since the toast unification: the page routes its row-mutation error through
+ * `useToast()`, which throws outside a provider by design (a silent no-op default would
+ * turn "nobody mounted the provider" into "the error never appears"). The app mounts it
+ * once in `AdminPortalLayout`; an isolated page render has to supply it.
+ */
+function renderPage() {
+  return render(
+    <ToastProvider>
+      <AdminPortalLineUsersPage />
+    </ToastProvider>,
+  )
+}
+
 /** Open the inspect modal for a single registered user, as the given role, and click Edit. */
 async function openEditor(user: LineUser, role: SystemRole = 'ADMIN') {
   authAs(role)
   mockUseLineUsers.mockReturnValue(hookState({ users: [user] }))
-  render(<AdminPortalLineUsersPage />)
+  renderPage()
   fireEvent.click(screen.getByRole('button', { name: new RegExp(T.inspect) }))
   fireEvent.click(screen.getByRole('button', { name: T.edit }))
 }
@@ -156,20 +187,30 @@ function hookState(o: Partial<UseLineUsers> = {}): UseLineUsers {
     totalPages: 0,
     loading: false,
     error: null,
-    // Phase A leaves the mutation machinery in the hook but unused by the page; keep the
-    // full shape so the mock satisfies the `UseLineUsers` contract.
+    // The fetch-all tripwire. Off by default; the truncation test flips it.
+    truncated: false,
+    loadedCount: 0,
     rowError: null,
     pendingId: null,
     page: 1,
     setPage: vi.fn(),
     search: '',
     setSearch: vi.fn(),
+    searchField: 'all',
+    setSearchField: vi.fn(),
+    sortBy: 'registeredAtDesc',
+    setSortBy: vi.fn(),
     accessFilter: '',
     setAccessFilter: vi.fn(),
     changeAccess: vi.fn(),
     updateUserInPlace: vi.fn(),
     clearRowError: vi.fn(),
     refetch: vi.fn(),
+    // The live channel is OFF by default here so the pre-existing specs keep describing a
+    // page with exactly one live region (the loading announcement). Each realtime spec below
+    // opts into the status it is asserting.
+    realtimeStatus: 'disabled',
+    deletedRowId: null,
     ...o,
   }
 }
@@ -186,27 +227,33 @@ beforeEach(() => {
 describe('AdminPortalLineUsersPage — states', () => {
   it('P1: renders a loading skeleton while fetching', () => {
     mockUseLineUsers.mockReturnValue(hookState({ loading: true }))
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
 
     expect(screen.getByTestId('lineusers-skeleton')).toBeInTheDocument()
   })
 
   it('P2: renders an empty state (no crash) when there are no users', () => {
     mockUseLineUsers.mockReturnValue(hookState({ users: [] }))
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
 
     expect(screen.getByText(T.empty)).toBeInTheDocument()
   })
 
   it('P3: renders the page-level load error', () => {
     mockUseLineUsers.mockReturnValue(hookState({ error: 'Could not load LINE users. Please try again.' }))
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
 
     expect(screen.getByRole('alert')).toHaveTextContent('Could not load LINE users. Please try again.')
   })
 })
 
 describe('AdminPortalLineUsersPage — row mapping', () => {
+  /**
+   * CHANGED by the Name-column rework. The cell used to render the LINE display name as
+   * the bold primary line with the registration name beneath it; it now renders ONLY the
+   * registration name. The display-name assertion is INVERTED rather than dropped — that
+   * absence is the acceptance criterion.
+   */
   it('P4: maps a registered user across the columns (index, name, department, phone, status badge, B.E. date, inspect button)', () => {
     mockUseLineUsers.mockReturnValue(
       hookState({
@@ -215,14 +262,14 @@ describe('AdminPortalLineUsersPage — row mapping', () => {
         totalPages: 1,
       }),
     )
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
     const table = screen.getByRole('table')
 
     // ลำดับ — page-aware row index (page 1 → 1).
     expect(within(table).getByText('1')).toBeInTheDocument()
-    // ชื่อ-สกุล — display name (bold) + registration real name (sub-line).
-    expect(within(table).getByText('Alice Wonderland')).toBeInTheDocument()
+    // ชื่อ-สกุล — the registration's real name, and ONLY that.
     expect(within(table).getByText('Alice Wong')).toBeInTheDocument()
+    expect(within(table).queryByText('Alice Wonderland')).not.toBeInTheDocument()
     // ฝ่าย/แผนก + เบอร์โทรศัพท์.
     expect(within(table).getByText('Computer Science')).toBeInTheDocument()
     expect(within(table).getByText('0812345678')).toBeInTheDocument()
@@ -234,21 +281,81 @@ describe('AdminPortalLineUsersPage — row mapping', () => {
     expect(screen.getByRole('button', { name: /ตรวจสอบข้อมูล/ })).toBeInTheDocument()
   })
 
-  it('P5: shows the not-registered sub-line and em-dashes for a follower with no registration', () => {
+  it('P5: shows the not-registered fallback and em-dashes for a follower with no registration', () => {
     mockUseLineUsers.mockReturnValue(
       hookState({ users: [makeUser({ displayName: 'Bob', access: 'UNREGISTERED', registration: null })] }),
     )
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
     const table = screen.getByRole('table')
 
-    // Row sub-line + the UNREGISTERED status badge both read "ยังไม่ลงทะเบียน"; pick the
-    // one that is the badge (by class) to assert the neutral badge-ghost color per §3.
+    // The name cell's fallback + the UNREGISTERED status badge both read "ยังไม่ลงทะเบียน";
+    // pick the one that is the badge (by class) to assert the neutral badge-ghost color.
+    // The fallback SURVIVES the filter-option removal — they are different surfaces.
     const unregLabels = within(table).getAllByText(T.notRegistered)
     expect(unregLabels.length).toBeGreaterThanOrEqual(2)
     const badge = unregLabels.find((el) => el.className.includes('badge'))
     expect(badge).toHaveClass('badge', 'badge-soft', 'badge-ghost')
     // department + phone fall back to the em-dash.
     expect(within(table).getAllByText(T.emptyValue).length).toBeGreaterThanOrEqual(2)
+    // The LINE display name is not in the table at all any more.
+    expect(within(table).queryByText('Bob')).not.toBeInTheDocument()
+  })
+})
+
+describe('AdminPortalLineUsersPage — Name column (display name removed, avatar kept)', () => {
+  it('N1: renders ONLY the registration name — the LINE display name is gone from the cell', () => {
+    mockUseLineUsers.mockReturnValue(
+      hookState({ users: [registered({ displayName: 'ชื่อที่แสดงใน LINE' })] }),
+    )
+    renderPage()
+
+    const nameCell = within(screen.getByRole('table')).getByText('Alice Wong').closest('td')!
+    expect(nameCell).toHaveTextContent('Alice Wong')
+    expect(nameCell).not.toHaveTextContent('ชื่อที่แสดงใน LINE')
+  })
+
+  it('N2: KEEPS the LINE avatar image in that cell (PO decision OPEN-3)', () => {
+    mockUseLineUsers.mockReturnValue(
+      hookState({
+        users: [registered({ displayName: 'Alice Wonderland', pictureUrl: 'https://cdn.line/a.jpg' })],
+      }),
+    )
+    renderPage()
+
+    const nameCell = within(screen.getByRole('table')).getByText('Alice Wong').closest('td')!
+    const avatar = nameCell.querySelector('.avatar')
+    expect(avatar).not.toBeNull()
+    const img = avatar!.querySelector('img')!
+    expect(img).toHaveAttribute('src', 'https://cdn.line/a.jpg')
+    // Decorative: the adjacent cell text already names the row, so it must not be
+    // announced twice.
+    expect(img).toHaveAttribute('alt', '')
+    expect(img).toHaveAttribute('loading', 'lazy')
+  })
+
+  it('N3: falls back to the daisyUI avatar-placeholder (initials) when there is no picture', () => {
+    mockUseLineUsers.mockReturnValue(hookState({ users: [registered({ pictureUrl: null })] }))
+    renderPage()
+
+    const nameCell = within(screen.getByRole('table')).getByText('Alice Wong').closest('td')!
+    const avatar = nameCell.querySelector('.avatar')!
+    // daisyUI 5 modifier (skill: components/avatar.md) — NOT a hand-rolled flex centre.
+    expect(avatar).toHaveClass('avatar-placeholder')
+    expect(avatar.querySelector('img')).toBeNull()
+  })
+
+  it('N4: the inspect button is named by the VISIBLE row name, not the display name', () => {
+    mockUseLineUsers.mockReturnValue(
+      hookState({ users: [registered({ displayName: 'Alice Wonderland' })] }),
+    )
+    renderPage()
+
+    expect(
+      screen.getByRole('button', { name: `${T.inspect}: Alice Wong` }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: `${T.inspect}: Alice Wonderland` }),
+    ).not.toBeInTheDocument()
   })
 })
 
@@ -257,7 +364,7 @@ describe('AdminPortalLineUsersPage — status badge map', () => {
     'renders the Thai label for access %s',
     (access) => {
       mockUseLineUsers.mockReturnValue(hookState({ users: [registered({ access })] }))
-      render(<AdminPortalLineUsersPage />)
+      renderPage()
       const table = screen.getByRole('table')
 
       expect(within(table).getByText(STATUS_BADGE[access].label)).toBeInTheDocument()
@@ -266,7 +373,7 @@ describe('AdminPortalLineUsersPage — status badge map', () => {
 
   it('P4b: the REJECTED badge reads ส่งคืนแล้ว and uses the recoverable warning tone', () => {
     mockUseLineUsers.mockReturnValue(hookState({ users: [registered({ access: 'REJECTED' })] }))
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
 
     // The literal is pinned here on purpose (not read from STATUS_BADGE): the PO specified
     // this exact wording, and it is what the operator scans the table for.
@@ -282,7 +389,7 @@ describe('AdminPortalLineUsersPage — toolbar', () => {
     const setSearch = vi.fn()
     const setAccessFilter = vi.fn()
     mockUseLineUsers.mockReturnValue(hookState({ users: [registered()], setSearch, setAccessFilter }))
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
 
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'ali' } })
     expect(setSearch).toHaveBeenCalledWith('ali')
@@ -291,6 +398,144 @@ describe('AdminPortalLineUsersPage — toolbar', () => {
       target: { value: 'ALLOWED' },
     })
     expect(setAccessFilter).toHaveBeenCalledWith('ALLOWED')
+  })
+
+  it('P7b: renders the "ค้นหาด้วย…" select with every field option, defaulting to ทุกช่อง', () => {
+    mockUseLineUsers.mockReturnValue(hookState({ users: [registered()] }))
+    renderPage()
+
+    const select = screen.getByRole('combobox', { name: T.searchFieldLabel })
+    const values = within(select)
+      .getAllByRole('option')
+      .map((o) => o.getAttribute('value'))
+    expect(values).toEqual([...SEARCH_FIELD_OPTIONS])
+    // "ทุกช่อง" (all fields) leads AND is the selected default — PO decision OPEN-6.
+    expect(within(select).getAllByRole('option')[0]).toHaveTextContent(SEARCH_FIELD_LABELS.all)
+    expect(select).toHaveValue('all')
+  })
+
+  it('P7c: forwards a search-field change to setSearchField', () => {
+    const setSearchField = vi.fn()
+    mockUseLineUsers.mockReturnValue(hookState({ users: [registered()], setSearchField }))
+    renderPage()
+
+    fireEvent.change(screen.getByRole('combobox', { name: T.searchFieldLabel }), {
+      target: { value: 'phone' },
+    })
+    expect(setSearchField).toHaveBeenCalledWith('phone')
+  })
+
+  it('P7d: renders the "เรียงลำดับ…" select with every sort option, defaulting to newest-first', () => {
+    mockUseLineUsers.mockReturnValue(hookState({ users: [registered()] }))
+    renderPage()
+
+    const select = screen.getByRole('combobox', { name: T.sortLabel })
+    const values = within(select)
+      .getAllByRole('option')
+      .map((o) => o.getAttribute('value'))
+    expect(values).toEqual([...SORT_OPTIONS])
+    const labels = within(select)
+      .getAllByRole('option')
+      .map((o) => o.textContent)
+    expect(labels).toEqual(SORT_OPTIONS.map((s) => SORT_LABELS[s]))
+    expect(select).toHaveValue('registeredAtDesc')
+  })
+
+  it('P7e: forwards a sort change to setSortBy', () => {
+    const setSortBy = vi.fn()
+    mockUseLineUsers.mockReturnValue(hookState({ users: [registered()], setSortBy }))
+    renderPage()
+
+    fireEvent.change(screen.getByRole('combobox', { name: T.sortLabel }), {
+      target: { value: 'nameAsc' },
+    })
+    expect(setSortBy).toHaveBeenCalledWith('nameAsc')
+  })
+
+  it('P7f: the status filter offers NO "ยังไม่ลงทะเบียน" (UNREGISTERED) option', () => {
+    mockUseLineUsers.mockReturnValue(
+      hookState({ users: [makeUser({ access: 'UNREGISTERED', registration: null })] }),
+    )
+    renderPage()
+
+    const filter = screen.getByRole('combobox', { name: T.accessFilterLabel })
+    const values = within(filter)
+      .getAllByRole('option')
+      .map((o) => o.getAttribute('value'))
+    expect(values).toEqual(['', 'PENDING', 'ALLOWED', 'BLOCKED', 'REJECTED'])
+    expect(values).not.toContain('UNREGISTERED')
+    expect(
+      within(filter).queryByRole('option', { name: STATUS_BADGE.UNREGISTERED.label }),
+    ).not.toBeInTheDocument()
+    // …but the BADGE for such a row still renders — the two are different surfaces.
+    expect(
+      within(screen.getByRole('table')).getAllByText(STATUS_BADGE.UNREGISTERED.label).length,
+    ).toBeGreaterThanOrEqual(1)
+  })
+
+  it('P7g: the search label no longer claims to search the LINE display name', () => {
+    mockUseLineUsers.mockReturnValue(hookState({ users: [registered()] }))
+    renderPage()
+
+    expect(screen.getByLabelText(T.searchLabel)).toHaveAttribute('type', 'search')
+    expect(screen.queryByText('ค้นหาจากชื่อที่แสดง')).not.toBeInTheDocument()
+  })
+})
+
+describe('AdminPortalLineUsersPage — fetch-all loading + truncation tripwire', () => {
+  it('P23: announces the multi-request load politely while the skeleton is drawn', () => {
+    mockUseLineUsers.mockReturnValue(hookState({ loading: true }))
+    renderPage()
+
+    const live = screen.getByRole('status')
+    expect(live).toHaveTextContent(T.loading)
+    expect(live).toHaveAttribute('aria-live', 'polite')
+    // The skeleton itself stays hidden from AT, so the wait is announced ONCE.
+    expect(screen.getByTestId('lineusers-skeleton')).toHaveAttribute('aria-hidden')
+  })
+
+  it('P24: shows a visible, non-blocking truncation warning when MAX_PAGES fired', () => {
+    mockUseLineUsers.mockReturnValue(
+      hookState({ users: [registered()], truncated: true, loadedCount: 3000 }),
+    )
+    renderPage()
+
+    const warning = screen.getByText(T.truncatedWarning(3000))
+    expect(warning.closest('.alert')).toHaveClass('alert-warning')
+    // Non-blocking: the rows are still rendered underneath it.
+    expect(within(screen.getByRole('table')).getByText('Alice Wong')).toBeInTheDocument()
+  })
+
+  it('P25: shows NO truncation warning on a complete load', () => {
+    mockUseLineUsers.mockReturnValue(
+      hookState({ users: [registered()], truncated: false, loadedCount: 1 }),
+    )
+    renderPage()
+
+    expect(screen.queryByText(T.truncatedWarning(1))).not.toBeInTheDocument()
+  })
+})
+
+describe('AdminPortalLineUsersPage — row-mutation errors go to the shared toast', () => {
+  it('P26: a rowError surfaces as an assertive error toast, never as a silent no-op', async () => {
+    mockUseLineUsers.mockReturnValue(
+      hookState({ users: [registered()], rowError: LEADS_MESSAGES.rowForbidden }),
+    )
+    renderPage()
+
+    const toast = await screen.findByText(LEADS_MESSAGES.rowForbidden)
+    const live = toast.closest('[role="alert"]') as HTMLElement
+    expect(live).not.toBeNull()
+    expect(live).toHaveClass('alert', 'alert-error')
+    // Shared provider ⇒ the portal-wide top-right position.
+    expect(live.closest('.toast')).toHaveClass('toast-end', 'toast-top')
+  })
+
+  it('P27: no rowError ⇒ no toast at all', () => {
+    mockUseLineUsers.mockReturnValue(hookState({ users: [registered()], rowError: null }))
+    const { container } = renderPage()
+
+    expect(container.querySelector('.toast')).toBeNull()
   })
 })
 
@@ -306,7 +551,7 @@ describe('AdminPortalLineUsersPage — pagination', () => {
         setPage,
       }),
     )
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
 
     expect(screen.getByText(T.paginationSummary(1, 3, 45))).toBeInTheDocument()
     expect(screen.getByRole('button', { name: T.previous })).toBeDisabled()
@@ -321,12 +566,12 @@ describe('AdminPortalLineUsersPage — read-only inspect modal', () => {
     mockUseLineUsers.mockReturnValue(
       hookState({ users: [registered({ displayName: 'Alice Wonderland', access: 'ALLOWED' })] }),
     )
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
 
     // Registration-only fields (staffId + personnelRole) are NOT in the table columns, so
     // their presence proves the modal opened with this user's data.
     expect(screen.queryByText('STAFF-123')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบข้อมูล: Alice Wonderland/ }))
+    fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบข้อมูล: Alice Wong/ }))
 
     expect(screen.getByText('STAFF-123')).toBeInTheDocument()
     expect(screen.getByText('Teacher')).toBeInTheDocument()
@@ -339,9 +584,9 @@ describe('AdminPortalLineUsersPage — read-only inspect modal', () => {
 
   it('P9: closing the modal via the ✕ button clears the selection', async () => {
     mockUseLineUsers.mockReturnValue(hookState({ users: [registered({ displayName: 'Alice Wonderland' })] }))
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
 
-    fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบข้อมูล: Alice Wonderland/ }))
+    fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบข้อมูล: Alice Wong/ }))
     expect(screen.getByText('STAFF-123')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: T.close }))
@@ -352,14 +597,18 @@ describe('AdminPortalLineUsersPage — read-only inspect modal', () => {
     mockUseLineUsers.mockReturnValue(
       hookState({ users: [makeUser({ displayName: 'Dave', access: 'UNREGISTERED', registration: null })] }),
     )
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
 
     fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบข้อมูล: Dave/ }))
 
     // No crash, a clear not-registered notice, and NO registration rows (staffId/role).
+    // The two field-label queries are SCOPED to the dialog now: the toolbar's new
+    // "ค้นหาด้วย…" select offers a "รหัสพนักงาน" option carrying the same literal, so an
+    // unscoped `queryByText` would match the dropdown and fail for the wrong reason.
+    const modal = screen.getByRole('heading', { name: T.modalTitle }).closest('dialog')!
     expect(screen.getByText(T.notRegisteredNotice)).toBeInTheDocument()
-    expect(screen.queryByText(T.fieldStaffId)).not.toBeInTheDocument()
-    expect(screen.queryByText(T.fieldPersonnelRole)).not.toBeInTheDocument()
+    expect(within(modal).queryByText(T.fieldStaffId)).not.toBeInTheDocument()
+    expect(within(modal).queryByText(T.fieldPersonnelRole)).not.toBeInTheDocument()
     // The LINE-side status badge still renders inside the modal.
     expect(screen.getAllByText(STATUS_BADGE.UNREGISTERED.label).length).toBeGreaterThanOrEqual(1)
   })
@@ -369,8 +618,8 @@ describe('AdminPortalLineUsersPage — Edit button RBAC (Phase B)', () => {
   function openModalAs(role: SystemRole) {
     authAs(role)
     mockUseLineUsers.mockReturnValue(hookState({ users: [registered({ displayName: 'Alice Wonderland' })] }))
-    render(<AdminPortalLineUsersPage />)
-    fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบข้อมูล: Alice Wonderland/ }))
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบข้อมูล: Alice Wong/ }))
   }
 
   it('P11: STAFF sees NO Edit button (read-only modal)', () => {
@@ -443,7 +692,7 @@ describe('AdminPortalLineUsersPage — edit form + option lists (Phase B)', () =
     mockUseLineUsers.mockReturnValue(
       hookState({ users: [makeUser({ displayName: 'Dave', access: 'UNREGISTERED', registration: null })] }),
     )
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
     fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบข้อมูล: Dave/ }))
     fireEvent.click(screen.getByRole('button', { name: T.edit }))
 
@@ -516,7 +765,7 @@ describe('AdminPortalLineUsersPage — save wiring (Phase B)', () => {
     const updateUserInPlace = vi.fn()
     authAs('ADMIN')
     mockUseLineUsers.mockReturnValue(hookState({ users: [registered()], updateUserInPlace }))
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
     fireEvent.click(screen.getByRole('button', { name: new RegExp(T.inspect) }))
     fireEvent.click(screen.getByRole('button', { name: T.edit }))
     await screen.findByRole('option', { name: 'Computer Science' }) // options loaded → Save enabled once dirty
@@ -539,7 +788,7 @@ describe('AdminPortalLineUsersPage — save wiring (Phase B)', () => {
   it('P19: changing only the status + Save → patchLineUserAccess only (no registration PATCH)', async () => {
     authAs('ADMIN')
     mockUseLineUsers.mockReturnValue(hookState({ users: [registered({ access: 'PENDING' })] }))
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
     fireEvent.click(screen.getByRole('button', { name: new RegExp(T.inspect) }))
     fireEvent.click(screen.getByRole('button', { name: T.edit }))
     await screen.findByRole('option', { name: 'Computer Science' })
@@ -556,7 +805,7 @@ describe('AdminPortalLineUsersPage — save wiring (Phase B)', () => {
   it('P21: a registration 409 surfaces the staffId-taken error near the staffId field and keeps the modal open', async () => {
     authAs('ADMIN')
     mockUseLineUsers.mockReturnValue(hookState({ users: [registered()] }))
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
     fireEvent.click(screen.getByRole('button', { name: new RegExp(T.inspect) }))
     fireEvent.click(screen.getByRole('button', { name: T.edit }))
     await screen.findByRole('option', { name: 'Computer Science' })
@@ -592,7 +841,7 @@ describe('AdminPortalLineUsersPage — Reject action (ส่งคืนเพ�
   function inspectAs(user: LineUser, role: SystemRole) {
     authAs(role)
     mockUseLineUsers.mockReturnValue(hookState({ users: [user] }))
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
     fireEvent.click(screen.getByRole('button', { name: new RegExp(T.inspect) }))
   }
 
@@ -663,7 +912,7 @@ describe('AdminPortalLineUsersPage — Reject action (ส่งคืนเพ�
     mockUseLineUsers.mockReturnValue(
       hookState({ users: [registered({ access: 'PENDING' })], updateUserInPlace }),
     )
-    render(<AdminPortalLineUsersPage />)
+    renderPage()
     fireEvent.click(screen.getByRole('button', { name: new RegExp(T.inspect) }))
     fireEvent.click(screen.getByRole('button', { name: T.reject }))
 
@@ -712,5 +961,110 @@ describe('AdminPortalLineUsersPage — Reject action (ส่งคืนเพ�
     fireEvent.click(screen.getByRole('button', { name: T.cancel }))
 
     expect(mockPatchAccess).not.toHaveBeenCalled()
+  })
+})
+
+describe('AdminPortalLineUsersPage — live-channel indicator (AC F14)', () => {
+  it('P28: shows the LIVE state as a daisyUI status dot with text, dot decorative', () => {
+    mockUseLineUsers.mockReturnValue(hookState({ users: [registered()], realtimeStatus: 'live' }))
+    renderPage()
+
+    const indicator = screen.getByText(T.realtimeLive).closest('[role="status"]') as HTMLElement
+    expect(indicator).not.toBeNull()
+    expect(indicator).toHaveClass('badge')
+    expect(indicator).toHaveAttribute('aria-live', 'polite')
+    // Colour is never the message: the dot is aria-hidden, the adjacent text carries it.
+    const dot = indicator.querySelector('.status') as HTMLElement
+    expect(dot).toHaveClass('status-success')
+    expect(dot).toHaveAttribute('aria-hidden')
+  })
+
+  it('P29: shows the CONNECTING state while the handshake is in flight', () => {
+    mockUseLineUsers.mockReturnValue(
+      hookState({ users: [registered()], realtimeStatus: 'connecting' }),
+    )
+    renderPage()
+
+    const indicator = screen.getByText(T.realtimeConnecting).closest('[role="status"]') as HTMLElement
+    expect(indicator.querySelector('.status')).toHaveClass('status-info')
+    // Reduced motion is respected: the pulse is motion-safe only.
+    expect(indicator.querySelector('.status')).toHaveClass('motion-safe:animate-pulse')
+  })
+
+  it('P30: a dead socket degrades to a warning indicator and NEVER blanks the table', () => {
+    mockUseLineUsers.mockReturnValue(
+      hookState({
+        users: [registered()],
+        meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
+        totalPages: 1,
+        realtimeStatus: 'offline',
+      }),
+    )
+    renderPage()
+
+    const indicator = screen.getByText(T.realtimeOffline).closest('[role="status"]') as HTMLElement
+    expect(indicator.querySelector('.status')).toHaveClass('status-warning')
+    expect(indicator).toHaveAttribute('title', T.realtimeOfflineHint)
+    // Real-time is an enhancement, not a dependency: the fetched rows and the pager stay.
+    expect(within(screen.getByRole('table')).getByText('Alice Wong')).toBeInTheDocument()
+    expect(screen.getByText(T.paginationSummary(1, 1, 1))).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('P31: renders NO indicator when real-time is switched off at build time', () => {
+    mockUseLineUsers.mockReturnValue(
+      hookState({ users: [registered()], realtimeStatus: 'disabled' }),
+    )
+    renderPage()
+
+    expect(screen.queryByText(T.realtimeLive)).not.toBeInTheDocument()
+    expect(screen.queryByText(T.realtimeOffline)).not.toBeInTheDocument()
+    expect(screen.queryByText(T.realtimeConnecting)).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+})
+
+describe('AdminPortalLineUsersPage — a deleted row cannot leave a modal bound to it', () => {
+  it('P32: closes the inspect modal when the open row is deleted live (edge case 11)', () => {
+    const user = registered({ id: 'lu1' })
+    const state = hookState({ users: [user] })
+    mockUseLineUsers.mockReturnValue(state)
+    const { rerender } = renderPage()
+
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(T.inspect) }))
+    expect(screen.getByRole('dialog', { name: T.modalTitle })).toHaveAttribute('open')
+
+    // Another admin's unfollow arrives for the very row on screen.
+    mockUseLineUsers.mockReturnValue(hookState({ ...state, users: [], deletedRowId: 'lu1' }))
+    rerender(
+      <ToastProvider>
+        <AdminPortalLineUsersPage />
+      </ToastProvider>,
+    )
+
+    // A closed <dialog> leaves the accessibility tree entirely…
+    expect(screen.queryByRole('dialog', { name: T.modalTitle })).not.toBeInTheDocument()
+    // …and the native `close` event reset the selection, so nothing is left bound to the
+    // vanished row (an operator must never be able to save an edit to a deleted user).
+    expect(screen.queryByText('STAFF-123')).not.toBeInTheDocument()
+  })
+
+  it('P33: leaves the modal open when a DIFFERENT row is deleted', () => {
+    const user = registered({ id: 'lu1' })
+    const state = hookState({ users: [user] })
+    mockUseLineUsers.mockReturnValue(state)
+    const { rerender } = renderPage()
+
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(T.inspect) }))
+
+    mockUseLineUsers.mockReturnValue(hookState({ ...state, deletedRowId: 'someone-else' }))
+    rerender(
+      <ToastProvider>
+        <AdminPortalLineUsersPage />
+      </ToastProvider>,
+    )
+
+    expect(screen.getByRole('dialog', { name: T.modalTitle })).toHaveAttribute('open')
+    expect(screen.getByText('STAFF-123')).toBeInTheDocument()
   })
 })

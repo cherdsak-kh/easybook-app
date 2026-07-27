@@ -4,11 +4,13 @@ import { AuthProvider } from '@/auth/AuthProvider'
 import { AdminPortalProfilePage } from '@/pages/admin-portal/AdminPortalProfilePage'
 import { AdminPortalHeader } from '@/components/admin-portal/AdminPortalHeader'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
+import { ToastProvider } from '@/components/admin-portal/ToastProvider'
 import {
   PROFILE_STRINGS,
   ROLE_LABEL,
   type BilingualLabel,
 } from '@/constants/ui-strings-profile'
+import { TOAST_STRINGS } from '@/constants/ui-strings-toast'
 import { formatThaiDateTime } from '@/lib/format-th-datetime'
 import * as apiClient from '@/lib/api-client'
 import {
@@ -122,13 +124,22 @@ function personnelRole(o: Partial<PersonnelRole> = {}): PersonnelRole {
   }
 }
 
-/** Render the page inside the REAL AuthProvider (only the api-client is mocked). */
+/**
+ * Render the page inside the REAL AuthProvider (only the api-client is mocked).
+ *
+ * `ToastProvider` is now REQUIRED here: the page's hand-rolled save toast was extracted
+ * into the shared provider, which the app mounts once in `AdminPortalLayout`. `useToast()`
+ * throws outside a provider on purpose (a silent no-op default would hide a missing
+ * mount), so an isolated page render has to supply it.
+ */
 async function renderProfile(user: SystemUser | null = makeSystemUser()) {
   if (user) mockGetOwnProfile.mockResolvedValue(user)
   mockGetMe.mockResolvedValue(user)
   const view = render(
     <AuthProvider>
-      <AdminPortalProfilePage />
+      <ToastProvider>
+        <AdminPortalProfilePage />
+      </ToastProvider>
     </AuthProvider>,
   )
   if (user) await screen.findByRole('heading', { name: new RegExp(T.cards.account.en) })
@@ -196,7 +207,9 @@ describe('AdminPortalProfilePage — load states', () => {
 
     render(
       <AuthProvider>
-        <AdminPortalProfilePage />
+        <ToastProvider>
+          <AdminPortalProfilePage />
+        </ToastProvider>
       </AuthProvider>,
     )
 
@@ -216,7 +229,9 @@ describe('AdminPortalProfilePage — load states', () => {
 
     render(
       <AuthProvider>
-        <AdminPortalProfilePage />
+        <ToastProvider>
+          <AdminPortalProfilePage />
+        </ToastProvider>
       </AuthProvider>,
     )
 
@@ -237,7 +252,9 @@ describe('AdminPortalProfilePage — load states', () => {
 
     render(
       <AuthProvider>
-        <AdminPortalProfilePage />
+        <ToastProvider>
+          <AdminPortalProfilePage />
+        </ToastProvider>
       </AuthProvider>,
     )
 
@@ -810,15 +827,26 @@ describe('AdminPortalProfilePage — save success toast', () => {
     const live = toast.closest('[role="status"]') as HTMLElement
     expect(live).not.toBeNull()
     expect(live).toHaveAttribute('aria-live', 'polite')
-    // daisyUI `toast` wrapper + `alert` body (skill: components/toast.md, alert.md).
-    expect(live.closest('.toast')).not.toBeNull()
-    expect(live).toHaveClass('alert')
+    // daisyUI `toast` wrapper + `alert` body (skill: components/toast.md, alert.md), now
+    // from the SHARED provider and therefore pinned to the portal-wide top-right corner.
+    const wrapper = live.closest('.toast') as HTMLElement
+    expect(wrapper).not.toBeNull()
+    expect(wrapper).toHaveClass('toast-end', 'toast-top')
+    expect(live).toHaveClass('alert', 'alert-success')
 
-    fireEvent.click(screen.getByRole('button', { name: T.actions.dismiss }))
+    // The close button's label moved to the shared toast strings module with the component.
+    fireEvent.click(screen.getByRole('button', { name: TOAST_STRINGS.dismiss }))
     expect(screen.queryByText(T.save.success)).not.toBeInTheDocument()
   })
 
-  it('shows NO toast when nothing changed (no request was sent)', async () => {
+  /**
+   * CHANGED (was: "shows NO toast when nothing changed"). The "ไม่มีการเปลี่ยนแปลงข้อมูล"
+   * notice used to render as an inline `alert` under the cards; it is a transient outcome
+   * of the button the user just pressed, so it is now a neutral `info` toast. The load-
+   * bearing assertion — that the SUCCESS copy never appears when nothing was written —
+   * is unchanged and is joined by a stronger one on the tone.
+   */
+  it('shows the neutral no-changes toast, never the success toast, when nothing changed', async () => {
     await renderProfile()
     await enterEdit()
 
@@ -827,8 +855,12 @@ describe('AdminPortalProfilePage — save success toast', () => {
       fireEvent.click(screen.getByRole('button', { name: T.actions.confirm }))
     })
 
-    expect(await screen.findByText(T.save.noChanges)).toBeInTheDocument()
+    const notice = await screen.findByText(T.save.noChanges)
     expect(screen.queryByText(T.save.success)).not.toBeInTheDocument()
+    // Info, not success: nothing was saved, so it must not be dressed as a save.
+    const live = notice.closest('[role="status"]') as HTMLElement
+    expect(live).toHaveClass('alert', 'alert-info')
+    expect(live.closest('.toast')).not.toBeNull()
   })
 
   it('shows NO toast when the save FAILS', async () => {
@@ -1026,10 +1058,10 @@ describe('AdminPortalProfilePage — the NAVBAR avatar follows an upload', () =>
               <Route
                 path="/admin-portal/profile"
                 element={
-                  <>
+                  <ToastProvider>
                     <AdminPortalHeader />
                     <AdminPortalProfilePage />
-                  </>
+                  </ToastProvider>
                 }
               />
             </Route>

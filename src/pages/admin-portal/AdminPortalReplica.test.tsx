@@ -6,8 +6,14 @@ import { AdminPortalSidebar } from '@/components/admin-portal/AdminPortalSidebar
 import { AdminPortalHeader } from '@/components/admin-portal/AdminPortalHeader'
 import { AdminPortalLayout } from '@/components/admin-portal/AdminPortalLayout'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
+import { LandingIntro } from '@/components/admin-portal/LandingIntro'
 import { TeamMembers } from '@/components/admin-portal/TeamMembers'
-import { ADMIN_PORTAL_ROUTES } from '@/components/admin-portal/routes'
+import { NAV_ITEMS, isSubmenu } from '@/components/admin-portal/nav-config'
+import {
+  ADMIN_PORTAL_ROUTES,
+  ADMIN_PORTAL_STUB_ROUTES,
+} from '@/components/admin-portal/routes'
+import { BRAND } from '@/constants/ui-strings-brand'
 import { PROFILE_STRINGS } from '@/constants/ui-strings-profile'
 import * as apiClient from '@/lib/api-client'
 
@@ -81,12 +87,22 @@ describe('AdminPortal replica — Team members table (frozen mock)', () => {
 })
 
 describe('AdminPortal replica — sidebar is fully navigable (Phase 3.5)', () => {
-  it('renders every top-level entry as a real link, and submenu parents as toggles', () => {
-    render(
+  function renderSidebar() {
+    return render(
       <MemoryRouter initialEntries={['/admin-portal/dashboard']}>
         <AdminPortalSidebar />
       </MemoryRouter>,
     )
+  }
+
+  /**
+   * CHANGED: the `Pages` submenu assertion is INVERTED, not deleted. The whole `Pages`
+   * group (Login / Register / Forgot Password / Blank Page) was removed along with the
+   * three placeholder routes behind it, so "there is no Pages button" is now the
+   * requirement — see the "Pages menu removed" block below.
+   */
+  it('renders every top-level entry as a real link, and submenu parents as toggles', () => {
+    renderSidebar()
 
     // Previously-inert entries are now live links (no visual-only buttons remain). The
     // former "Leads" leaf was re-contextualised to the LINE-user registration data page
@@ -95,9 +111,97 @@ describe('AdminPortal replica — sidebar is fully navigable (Phase 3.5)', () =>
     expect(screen.getByRole('link', { name: /ข้อมูลการลงทะเบียน/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Transactions/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Calendar/ })).toBeInTheDocument()
-    // Submenu parents expand rather than navigate, so they stay buttons.
-    expect(screen.getByRole('button', { name: /Pages/ })).toBeInTheDocument()
+    // The two surviving submenu parents expand rather than navigate, so they stay buttons.
     expect(screen.getByRole('button', { name: /Settings/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Documentation/ })).toBeInTheDocument()
+  })
+
+  describe('Pages menu removed (+ its dead routes)', () => {
+    it('has NO "Pages" entry and none of its four submenu leaves', () => {
+      renderSidebar()
+
+      expect(screen.queryByRole('button', { name: /Pages/ })).not.toBeInTheDocument()
+      for (const label of ['Login', 'Register', 'Forgot Password', 'Blank Page']) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument()
+        expect(screen.queryByRole('link', { name: new RegExp(label) })).not.toBeInTheDocument()
+      }
+    })
+
+    it('drops the register / forgot-password / blank ROUTE constants and stub routes', () => {
+      // The routes are generated from `ADMIN_PORTAL_STUB_ROUTES`, so an absent entry IS an
+      // absent `<Route>`: those paths now fall through to the single global 404.
+      const segments = ADMIN_PORTAL_STUB_ROUTES.map((s) => s.segment)
+      expect(segments).not.toContain('register')
+      expect(segments).not.toContain('forgot-password')
+      expect(segments).not.toContain('blank')
+
+      // No nav leaf points at any of them either.
+      const leaves = NAV_ITEMS.flatMap((e) => (isSubmenu(e) ? e.submenu : [e]))
+      for (const to of leaves.map((l) => l.to)) {
+        expect(to).not.toMatch(/\/(register|forgot-password|blank)$/)
+      }
+
+      // The route constants themselves are gone from the object.
+      const routeKeys = Object.keys(ADMIN_PORTAL_ROUTES)
+      expect(routeKeys).not.toContain('register')
+      expect(routeKeys).not.toContain('forgotPassword')
+      expect(routeKeys).not.toContain('blank')
+    })
+
+    it('KEEPS the real login route reachable — it is simply no longer a sidebar entry', () => {
+      // `/admin-portal/login` is the working login page and stays registered in `App.tsx`
+      // (outside `ProtectedRoute`); only the DashWind "Pages → Login" shortcut is gone.
+      expect(ADMIN_PORTAL_ROUTES.login).toBe('/admin-portal/login')
+      // …and it is NOT a stub route, so it never renders the "coming soon" placeholder.
+      expect(ADMIN_PORTAL_STUB_ROUTES.map((s) => s.segment)).not.toContain('login')
+    })
+
+    it('KEEPS AdminPortalStubPage — eight other menu targets still render it', () => {
+      // Grep-verified outcome (plan §7 asked for exactly this check): the three deleted
+      // routes had NO bespoke components; they all rendered the SHARED stub page, which
+      // Transactions / Analytics / Integration / Calendar / Billing / Getting Started /
+      // Features / Components still use. Deleting it would break eight live routes.
+      expect(ADMIN_PORTAL_STUB_ROUTES.length).toBeGreaterThan(0)
+      expect(typeof AdminPortalStubPage).toBe('function')
+    })
+  })
+})
+
+describe('AdminPortal replica — EasyBook branding', () => {
+  it('renders the EasyBook logo asset and wordmark in the sidebar brand row', () => {
+    render(
+      <MemoryRouter initialEntries={['/admin-portal/dashboard']}>
+        <AdminPortalSidebar />
+      </MemoryRouter>,
+    )
+
+    const logo = screen.getByAltText(BRAND.logoAlt)
+    expect(logo.tagName).toBe('IMG')
+    expect(logo).toHaveAttribute('src', '/logo/easybook-logo-512px-no-bg.svg')
+    expect(screen.getByText(BRAND.name)).toBeInTheDocument()
+    expect(BRAND.name).toBe('EasyBook')
+  })
+
+  it('renders the SAME brand on the login screen, so the shell and login cannot disagree', () => {
+    render(<LandingIntro />)
+
+    expect(screen.getByRole('heading', { name: BRAND.name })).toBeInTheDocument()
+    // Decorative here: the <h1> right below already announces the brand.
+    const logo = document.querySelector('img[alt=""]') as HTMLImageElement
+    expect(logo).not.toBeNull()
+    expect(logo).toHaveAttribute('src', BRAND.logoSrc)
+  })
+
+  it('renders "DashWind" nowhere in the sidebar — the wordmark is EasyBook now', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/admin-portal/dashboard']}>
+        <AdminPortalSidebar />
+      </MemoryRouter>,
+    )
+
+    // Only the user-visible wordmark changed; the DashWind ATTRIBUTION comments in the
+    // source (a THIRD_PARTY_NOTICES.md licence obligation) are untouched and are not DOM.
+    expect(container.textContent).not.toMatch(/DashWind/)
   })
 })
 

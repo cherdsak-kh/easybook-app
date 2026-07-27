@@ -34,6 +34,22 @@ export default defineConfig({
         target: 'http://localhost:3300',
         changeOrigin: true,
       },
+      // The Socket.IO engine path is `/socket.io/`, which is NOT under `/api` and NOT under
+      // the backend's `/api/v1` global prefix (the gateway attaches to the raw HTTP server),
+      // so it needs its own entry or every dev handshake 404s.
+      //
+      // `ws: true` is MANDATORY — without it the polling handshake proxies fine and the
+      // upgrade to WebSocket dies at the dev server, which looks like a mysterious
+      // reconnect loop rather than a proxy bug.
+      //
+      // `changeOrigin` rewrites `Host`, NOT `Origin`, so the backend still sees
+      // `http://localhost:2200` — which is what its `CORS_ORIGIN` allowlist / CSWSH
+      // `Origin` check expects.
+      '/socket.io': {
+        target: 'http://localhost:3300',
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 })

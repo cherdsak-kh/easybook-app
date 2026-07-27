@@ -4,6 +4,7 @@ import { ApiError, getOwnProfile, type SystemRole, type SystemUser } from '@/lib
 import { useAuth } from '@/auth/useAuth'
 import { useProfileEditor } from '@/hooks/useProfileEditor'
 import { PROFILE_STRINGS } from '@/constants/ui-strings-profile'
+import { useToast } from '@/components/admin-portal/useToast'
 import { AccountInfoCard } from '@/components/admin-portal/profile/AccountInfoCard'
 import { AuditTrailCard } from '@/components/admin-portal/profile/AuditTrailCard'
 import { AvatarCropModal } from '@/components/admin-portal/profile/AvatarCropModal'
@@ -20,9 +21,6 @@ const T = PROFILE_STRINGS
  * `@Roles(SUPER_ADMIN, ADMIN)` guard. The server remains the authority.
  */
 const SELF_EDITOR_ROLES: readonly SystemRole[] = ['SUPER_ADMIN', 'ADMIN']
-
-/** How long the save-success toast stays up before dismissing itself. */
-const TOAST_MS = 4000
 
 /**
  * The admin-portal self-service Profile page (`/admin-portal/profile`).
@@ -77,26 +75,14 @@ export function AdminPortalProfilePage() {
 
   const canSelfEdit = user ? SELF_EDITOR_ROLES.includes(user.role) : false
 
-  const [toast, setToast] = useState<string | null>(null)
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const showToast = useCallback((message: string) => {
-    setToast(message)
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    toastTimerRef.current = setTimeout(() => setToast(null), TOAST_MS)
-  }, [])
-
-  const dismissToast = useCallback(() => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    setToast(null)
-  }, [])
-
-  useEffect(
-    () => () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    },
-    [],
-  )
+  /**
+   * This page's hand-rolled `toast` + auto-dismiss timer + `SaveToast` component are GONE:
+   * they became the shared `ToastProvider` (plan §7 / OPEN-5 — extracted, not rewritten,
+   * and no toast dependency was installed). The visible change here is the position, which
+   * is now `toast-end toast-top` for every toast in the portal instead of this page's
+   * former bottom-right.
+   */
+  const { show: showToast } = useToast()
 
   /**
    * How many writes have actually committed. Read around `confirmSave()` so the success
@@ -142,10 +128,15 @@ export function AdminPortalProfilePage() {
     const commitsBefore = commitCountRef.current
     const saved = await editor.confirmSave()
     // Close only on success; a failure keeps the draft and surfaces the error on the
-    // page's action bar, never as a silent no-op.
-    if (saved) confirmDialogRef.current?.close()
-    // Toast only when something was actually written, never on the no-op path.
-    if (saved && commitCountRef.current > commitsBefore) showToast(T.save.success)
+    // page's action bar as an INLINE alert, never as a silent no-op. That error stays
+    // inline on purpose (plan §7): it belongs to the form the user is still looking at.
+    if (!saved) return
+    confirmDialogRef.current?.close()
+    // Both outcomes are transient results of the button the user just pressed, so both are
+    // toasts. `confirmSave()` also resolves truthy on the "nothing changed, nothing sent"
+    // path, which must NOT claim a save — hence the commit counter, not the return value.
+    if (commitCountRef.current > commitsBefore) showToast(T.save.success, 'success')
+    else showToast(T.save.noChanges, 'info')
   }, [editor, showToast])
 
   // Esc / backdrop / Cancel all fire the native `close` — one dismissal path.
@@ -217,6 +208,12 @@ export function AdminPortalProfilePage() {
         {canSelfEdit && <AuditTrailCard user={user} />}
       </div>
 
+      {/* These two stay INLINE (plan §7's rule: persistent state of the thing on screen →
+          inline alert). `optionsError` is why Save is still disabled, and `error` is why
+          the draft is still open — both describe the form the user is looking at, so
+          moving them to a corner toast would break the connection to the control.
+          `editor.notice` ("ไม่มีการเปลี่ยนแปลงข้อมูล") used to render here too; it is a
+          transient outcome, so it became a toast in `handleConfirmSave`. */}
       {editor.optionsError && (
         <div role="alert" className="alert alert-warning alert-soft text-sm">
           <span>{editor.optionsError}</span>
@@ -225,11 +222,6 @@ export function AdminPortalProfilePage() {
       {editor.error && (
         <div role="alert" className="alert alert-error alert-soft text-sm">
           <span>{editor.error}</span>
-        </div>
-      )}
-      {editor.notice && (
-        <div role="status" className="alert alert-info alert-soft text-sm">
-          <span>{editor.notice}</span>
         </div>
       )}
 
@@ -280,45 +272,6 @@ export function AdminPortalProfilePage() {
         onRequestClose={() => avatarDialogRef.current?.close()}
         onExpireSession={expireSession}
       />
-
-      {toast && <SaveToast message={toast} onDismiss={dismissToast} />}
-    </div>
-  )
-}
-
-/**
- * Save-success toast — daisyUI `toast` (the fixed corner stack) wrapping an `alert`
- * (skill: components/toast.md, alert.md). `toast-end toast-bottom` keeps it clear of
- * the sticky navbar and inside thumb reach in the LINE webview.
- *
- * It is ANNOUNCED, not just drawn: `role="status"` (+ an explicit `aria-live="polite"`)
- * on the alert means a screen reader reports the save without stealing focus, which
- * `role="alert"` would be too aggressive for on a success. It both auto-dismisses after
- * {@link TOAST_MS} and carries a real close button, so it never becomes a permanent
- * obstruction. daisyUI's own entry animation is already wrapped in
- * `@media (prefers-reduced-motion: no-preference)`, so reduced-motion users get the
- * toast with no slide.
- */
-function SaveToast({
-  message,
-  onDismiss,
-}: {
-  readonly message: string
-  readonly onDismiss: () => void
-}) {
-  return (
-    <div className="toast toast-end toast-bottom z-50">
-      <div role="status" aria-live="polite" className="alert alert-success">
-        <span>{message}</span>
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label={T.actions.dismiss}
-          className="btn btn-ghost btn-circle btn-xs focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          ✕
-        </button>
-      </div>
     </div>
   )
 }

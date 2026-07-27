@@ -8,23 +8,20 @@
 // the replica login screen; every other target renders the shared `AdminPortalStubPage`
 // placeholder — so no menu item is a dead end.
 import type { ReactNode } from 'react'
-import ArrowRightOnRectangleIcon from '@heroicons/react/24/outline/ArrowRightOnRectangleIcon'
 import BoltIcon from '@heroicons/react/24/outline/BoltIcon'
 import CalendarDaysIcon from '@heroicons/react/24/outline/CalendarDaysIcon'
 import ChartBarIcon from '@heroicons/react/24/outline/ChartBarIcon'
 import CodeBracketSquareIcon from '@heroicons/react/24/outline/CodeBracketSquareIcon'
 import Cog6ToothIcon from '@heroicons/react/24/outline/Cog6ToothIcon'
 import CurrencyDollarIcon from '@heroicons/react/24/outline/CurrencyDollarIcon'
-import DocumentDuplicateIcon from '@heroicons/react/24/outline/DocumentDuplicateIcon'
-import DocumentIcon from '@heroicons/react/24/outline/DocumentIcon'
 import DocumentTextIcon from '@heroicons/react/24/outline/DocumentTextIcon'
 import IdentificationIcon from '@heroicons/react/24/outline/IdentificationIcon'
-import KeyIcon from '@heroicons/react/24/outline/KeyIcon'
 import Squares2X2Icon from '@heroicons/react/24/outline/Squares2X2Icon'
 import TableCellsIcon from '@heroicons/react/24/outline/TableCellsIcon'
 import UserIcon from '@heroicons/react/24/outline/UserIcon'
 import UsersIcon from '@heroicons/react/24/outline/UsersIcon'
 import WalletIcon from '@heroicons/react/24/outline/WalletIcon'
+import { BRAND } from '@/constants/ui-strings-brand'
 import { PROFILE_STRINGS } from '@/constants/ui-strings-profile'
 import { ADMIN_PORTAL_ROUTES } from './routes'
 
@@ -36,8 +33,15 @@ import { ADMIN_PORTAL_ROUTES } from './routes'
  */
 export const ADMIN_PORTAL_DRAWER_ID = 'admin-portal-drawer'
 
-/** DashWind wordmark, kept verbatim for brand fidelity. */
-export const BRAND_NAME = 'DashWind'
+/**
+ * The sidebar wordmark. Re-exported from the shared {@link BRAND} module rather than
+ * declared here so the login screen (`LandingIntro`) and the shell cannot disagree.
+ *
+ * It used to be the literal `'DashWind'` — the upstream template's name. Only the
+ * USER-VISIBLE wordmark changed: the DashWind attribution comments in this file and in
+ * `THIRD_PARTY_NOTICES.md` are a licence obligation and stay exactly as they are.
+ */
+export const BRAND_NAME = BRAND.name
 
 const ICON = 'h-6 w-6'
 const SUBMENU_ICON = 'h-5 w-5'
@@ -76,17 +80,15 @@ export const NAV_ITEMS: readonly NavEntry[] = [
   { label: 'Analytics', icon: <ChartBarIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.charts },
   { label: 'Integration', icon: <BoltIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.integration },
   { label: 'Calendar', icon: <CalendarDaysIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.calendar },
-  {
-    label: 'Pages',
-    icon: <DocumentDuplicateIcon className={ICON} />,
-    submenu: [
-      // Live — the replica's own full-screen login screen (a real sibling route).
-      { label: 'Login', icon: <ArrowRightOnRectangleIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.login },
-      { label: 'Register', icon: <UserIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.register },
-      { label: 'Forgot Password', icon: <KeyIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.forgotPassword },
-      { label: 'Blank Page', icon: <DocumentIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.blank },
-    ],
-  },
+  // REMOVED: the DashWind `Pages` submenu (Login / Register / Forgot Password / Blank
+  // Page). Three of its four leaves pointed at "coming soon" placeholders for auth screens
+  // this product does not have and will not grow here — self-service registration and
+  // password recovery are deliberately NOT features of an invite-only back office — so the
+  // routes were deleted with the menu rather than left as reachable dead ends.
+  //
+  // `/admin-portal/login` is untouched and still the app's real, working login page; it is
+  // simply not a SIDEBAR entry, because the sidebar only renders inside the authenticated
+  // shell, where "go to the login page" is not a thing anyone needs.
   {
     label: 'Settings',
     icon: <Cog6ToothIcon className={ICON} />,

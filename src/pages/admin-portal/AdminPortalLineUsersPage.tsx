@@ -1,21 +1,25 @@
-// The admin-portal "LINE User Registration Data" surface (formerly "Leads"). Phase A:
-// a re-contextualised, Thai-localized view of REAL LINE-user data (via `useLineUsers` →
-// `listLineUsers`), replacing both the earlier live table AND the static mockup rows.
-// It keeps the DashWind `TitleCard` chrome; every row is a live LINE follower. All
-// fetch/pagination/filter orchestration still lives in `useLineUsers`; this file is
-// presentational + wiring only.
+// The admin-portal "LINE User Registration Data" surface (formerly "Leads"): a
+// re-contextualised, Thai-localized view of REAL LINE-user data (via `useLineUsers` →
+// `listLineUsers`). It keeps the DashWind `TitleCard` chrome; every row is a live LINE
+// follower. All fetch/search/sort/pagination orchestration lives in `useLineUsers`; this
+// file is presentational + wiring only.
 //
-// Phase A is READ-ONLY: the per-row "ตรวจสอบข้อมูล" action opens a single native
-// `<dialog>` inspect modal that DISPLAYS a follower's registration details. The Phase-B
-// edit mode / role-gated status select / two-endpoint save are deliberately NOT here — the
-// `useLineUsers` mutation machinery (`changeAccess`/`rowError`/`pendingId`) is retained in
-// the hook but intentionally unused by this page for now (plan §7).
-import { useCallback, useRef, useState, type Ref } from 'react'
+// The data model here is FETCH-ALL: the hook loops the server's 100-row pages once, and
+// search / sort / status-filter / pagination are then pure functions of the in-memory
+// array. Nothing on this page issues a request while the operator types or re-sorts, and
+// the server's `search`/`access` query params — still part of the published API for other
+// callers — are simply never sent from here.
+//
+// The per-row "ตรวจสอบข้อมูล" action opens a single native `<dialog>` inspect modal;
+// ADMIN/SUPER_ADMIN additionally get edit mode and the mandatory-reason Reject flow.
+import { useCallback, useEffect, useRef, useState, type Ref } from 'react'
 import MagnifyingGlassIcon from '@heroicons/react/24/outline/MagnifyingGlassIcon'
 import PencilSquareIcon from '@heroicons/react/24/outline/PencilSquareIcon'
 import ArrowUturnLeftIcon from '@heroicons/react/24/outline/ArrowUturnLeftIcon'
 import { TitleCard } from '@/components/dashboard/TitleCard'
+import { useToast } from '@/components/admin-portal/useToast'
 import { useLineUsers } from '@/hooks/useLineUsers'
+import type { RealtimeStatus } from '@/hooks/useLineUsersRealtime'
 import {
   REJECT_REASON_MAX_LENGTH,
   useLineUserEditor,
@@ -27,16 +31,27 @@ import type { AppAccess, LineUser, SystemRole } from '@/lib/api-client'
 // Thai copy + status-badge map live in the centralized-but-modularized per-feature constants
 // module (`@/constants/ui-strings-line-users`) so this component file exports ONLY components;
 // the page and its tests share the same literal.
-import { MODAL_STATUS_LABELS, STATUS_BADGE, T } from '@/constants/ui-strings-line-users'
+import {
+  MODAL_STATUS_LABELS,
+  SEARCH_FIELD_LABELS,
+  SEARCH_FIELD_OPTIONS,
+  SORT_LABELS,
+  SORT_OPTIONS,
+  STATUS_BADGE,
+  T,
+  type SearchField,
+  type SortOption,
+} from '@/constants/ui-strings-line-users'
 
-/** Access-filter option order. REJECTED is filterable — it is a first-class review state. */
-const ACCESS_FILTER_OPTIONS: readonly AppAccess[] = [
-  'UNREGISTERED',
-  'PENDING',
-  'ALLOWED',
-  'BLOCKED',
-  'REJECTED',
-]
+/**
+ * Access-filter option order. REJECTED is filterable — it is a first-class review state.
+ *
+ * `UNREGISTERED` is deliberately ABSENT (PO decision): "ยังไม่ลงทะเบียน" is not a review
+ * state an operator filters for on a *registration data* page. Note this is distinct from
+ * the row's name-cell FALLBACK, which still reads `T.notRegistered`, and from
+ * `STATUS_BADGE.UNREGISTERED`, which still renders for such rows — both stay.
+ */
+const ACCESS_FILTER_OPTIONS: readonly AppAccess[] = ['PENDING', 'ALLOWED', 'BLOCKED', 'REJECTED']
 
 /** Roles allowed to see the modal's Edit affordance (STAFF is strictly read-only). Plan §5. */
 const EDITOR_ROLES: readonly SystemRole[] = ['ADMIN', 'SUPER_ADMIN']
@@ -76,6 +91,45 @@ function initialsOf(name: string | null): string {
   return name.trim().slice(0, 2).toUpperCase() || '?'
 }
 
+/**
+ * The live-channel indicator (AC F14, design §11.3).
+ *
+ * daisyUI 5 canonical markup (skill: components/status.md + components/badge.md): a `badge`
+ * carrying a `status` dot. The dot is DECORATIVE (`aria-hidden`) — colour alone must never be
+ * the message — and the adjacent text is what actually says whether the table updates itself.
+ *
+ * Renders NOTHING when real-time is switched off at build time (`VITE_WS_ENABLED=false`):
+ * announcing "not connected" for a feature the deployment deliberately disabled is noise. A
+ * dead socket, by contrast, is worth saying out loud — but quietly, and it must never blank
+ * or block the table, which keeps working from the initial fetch-all.
+ */
+function RealtimeIndicator({ status }: { status: RealtimeStatus }) {
+  if (status === 'disabled') return null
+  const dotClass =
+    status === 'live'
+      ? 'status-success'
+      : status === 'connecting'
+        ? 'status-info motion-safe:animate-pulse'
+        : 'status-warning'
+  const label =
+    status === 'live'
+      ? T.realtimeLive
+      : status === 'connecting'
+        ? T.realtimeConnecting
+        : T.realtimeOffline
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      title={status === 'offline' ? T.realtimeOfflineHint : undefined}
+      className="badge badge-ghost badge-sm gap-2 align-middle font-normal"
+    >
+      <span aria-hidden className={`status ${dotClass}`} />
+      {label}
+    </span>
+  )
+}
+
 /** Thai status badge — `badge badge-soft <color>` per plan §3. */
 function StatusBadge({ access }: { access: AppAccess }) {
   const { label, colorClass } = STATUS_BADGE[access]
@@ -85,6 +139,17 @@ function StatusBadge({ access }: { access: AppAccess }) {
 /**
  * LINE avatar with the initials fallback (NO external image host — `img.daisyui.com` is
  * banned). Renders `pictureUrl` when present, else the display-name initials.
+ *
+ * daisyUI 5 canonical markup (skill: components/avatar.md, components/mask.md): the
+ * no-image case takes the `avatar-placeholder` MODIFIER, which is what centres the
+ * initials — hand-rolling that with flex utilities was the drift the skill exists to stop.
+ * The image itself carries `alt=""` because the adjacent cell text already names the row;
+ * a decorative duplicate would just make a screen reader say the name twice.
+ *
+ * This avatar SURVIVES the Name-column rework (PO decision OPEN-3): the LINE display name
+ * is gone from the cell, and the avatar is the last visual identity anchor left, so it
+ * stays — including its display-name initials fallback, which is part of the avatar, not
+ * of the name text.
  */
 function UserAvatar({
   pictureUrl,
@@ -96,15 +161,18 @@ function UserAvatar({
   size?: string
 }) {
   return (
-    <div className="avatar">
-      <div className={`mask mask-squircle ${size}`}>
+    <div className={pictureUrl ? 'avatar' : 'avatar avatar-placeholder'}>
+      <div
+        className={
+          pictureUrl
+            ? `mask mask-squircle ${size}`
+            : `mask mask-squircle bg-base-300 text-base-content/70 ${size}`
+        }
+      >
         {pictureUrl ? (
           <img src={pictureUrl} alt="" loading="lazy" />
         ) : (
-          <span
-            aria-hidden
-            className="flex h-full w-full items-center justify-center bg-base-300 text-sm font-semibold text-base-content/70"
-          >
+          <span aria-hidden className="text-sm font-semibold">
             {initialsOf(displayName)}
           </span>
         )}
@@ -120,18 +188,44 @@ export function AdminPortalLineUsersPage() {
     totalPages,
     loading,
     error,
+    truncated,
+    loadedCount,
+    rowError,
     page,
     setPage,
     search,
     setSearch,
+    searchField,
+    setSearchField,
+    sortBy,
+    setSortBy,
     accessFilter,
     setAccessFilter,
     updateUserInPlace,
+    realtimeStatus,
+    deletedRowId,
   } = useLineUsers()
 
   const { user: currentAdmin, expireSession } = useAuth()
   const canEdit = currentAdmin ? EDITOR_ROLES.includes(currentAdmin.role) : false
   const editor = useLineUserEditor({ updateUserInPlace, expireSession })
+
+  // A row-mutation failure is a TRANSIENT OUTCOME of an action the operator just took, so
+  // it is a toast rather than an inline alert (plan §7's rule). Without this the hook's
+  // `rowError` had no surface at all — a failed write would have been a silent no-op.
+  // The ref makes the effect idempotent under React StrictMode's double-invoke, so one
+  // failure produces exactly one toast.
+  const { show } = useToast()
+  const shownRowErrorRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (rowError === null) {
+      shownRowErrorRef.current = null
+      return
+    }
+    if (shownRowErrorRef.current === rowError) return
+    shownRowErrorRef.current = rowError
+    show(rowError, 'error')
+  }, [rowError, show])
 
   // ONE modal instance, driven by page state — not one <dialog> per row (plan §4).
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -145,6 +239,29 @@ export function AdminPortalLineUsersPage() {
     setSelectedUser(user)
     dialogRef.current?.showModal()
   }, [])
+
+  // A live `lineUser.deleted` for the row currently being inspected must not leave the modal
+  // bound to a row that no longer exists (plan edge case 11) — worst case an operator would
+  // be editing, and saving, a vanished user. Closing fires the native `close` event, which is
+  // the page's single reset path, so the selection AND any edit draft are discarded together.
+  //
+  // Driven by the hook's explicit `deletedRowId` signal rather than "the row left `users`":
+  // a row leaves the visible page for entirely legitimate reasons (a filter, a search, a page
+  // change) that must NOT close the modal.
+  //
+  // The ref makes each deletion act EXACTLY ONCE (same pattern as the row-error toast below):
+  // without it, StrictMode's double-invoke or a later `selectedUser` change would re-run the
+  // check against a long-past deletion and slam a freshly opened modal shut.
+  const handledDeletionRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (deletedRowId === null) {
+      handledDeletionRef.current = null
+      return
+    }
+    if (handledDeletionRef.current === deletedRowId) return
+    handledDeletionRef.current = deletedRowId
+    if (selectedUser?.id === deletedRowId) dialogRef.current?.close()
+  }, [deletedRowId, selectedUser])
 
   const closeModal = useCallback(() => {
     dialogRef.current?.close()
@@ -193,10 +310,26 @@ export function AdminPortalLineUsersPage() {
   }, [editor])
 
   return (
-    <TitleCard title={T.title} topMargin="mt-2">
-      {/* Toolbar: debounced search + access filter (both reset to page 1). */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-        <div className="flex-1">
+    <TitleCard
+      title={T.title}
+      topMargin="mt-2"
+      // `undefined` (not a component that renders null) when real-time is switched off, so the
+      // heading row keeps its plain layout instead of reserving an empty float.
+      topSideButtons={
+        realtimeStatus === 'disabled' ? undefined : <RealtimeIndicator status={realtimeStatus} />
+      }
+    >
+      {/* Toolbar: search text + "ค้นหาด้วย…" field + "เรียงลำดับ…" order + status filter.
+          All four are CLIENT-SIDE and each resets to page 1. Mobile-first: one column on
+          the narrowest viewport, two from `sm`, four from `xl`; the text box spans the row
+          on `sm` because it is the control operators aim at first. daisyUI 5 has no
+          `input-bordered`/`select-bordered` (skill: components/input.md, select.md) — the
+          bare `input`/`select` component classes already carry the border. (Those dead
+          class names still linger on the MODAL's edit-form controls below and in a few
+          other files; they are inert, pre-date this change, and removing them repo-wide is
+          its own task rather than drive-by churn here.) */}
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="sm:col-span-2 xl:col-span-1">
           <label htmlFor="lineusers-search" className="mb-1 block text-sm font-medium">
             {T.searchLabel}
           </label>
@@ -206,8 +339,44 @@ export function AdminPortalLineUsersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={T.searchPlaceholder}
-            className="input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary"
+            className="input w-full focus-visible:ring-2 focus-visible:ring-primary"
           />
+        </div>
+        <div>
+          <label htmlFor="lineusers-search-field" className="mb-1 block text-sm font-medium">
+            {T.searchFieldLabel}
+          </label>
+          <select
+            id="lineusers-search-field"
+            aria-label={T.searchFieldLabel}
+            value={searchField}
+            onChange={(e) => setSearchField(e.target.value as SearchField)}
+            className="select w-full focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            {SEARCH_FIELD_OPTIONS.map((f) => (
+              <option key={f} value={f}>
+                {SEARCH_FIELD_LABELS[f]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="lineusers-sort" className="mb-1 block text-sm font-medium">
+            {T.sortLabel}
+          </label>
+          <select
+            id="lineusers-sort"
+            aria-label={T.sortLabel}
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            className="select w-full focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            {SORT_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {SORT_LABELS[s]}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label htmlFor="lineusers-access-filter" className="mb-1 block text-sm font-medium">
@@ -218,7 +387,7 @@ export function AdminPortalLineUsersPage() {
             aria-label={T.accessFilterLabel}
             value={accessFilter}
             onChange={(e) => setAccessFilter(e.target.value as AppAccess | '')}
-            className="select select-bordered w-full focus-visible:ring-2 focus-visible:ring-primary sm:w-56"
+            className="select w-full focus-visible:ring-2 focus-visible:ring-primary"
           >
             <option value="">{T.accessFilterAll}</option>
             {ACCESS_FILTER_OPTIONS.map((a) => (
@@ -229,6 +398,23 @@ export function AdminPortalLineUsersPage() {
           </select>
         </div>
       </div>
+
+      {/* The `MAX_PAGES` tripwire. Non-blocking and `role="status"` (not `alert`): the list
+          below is still usable, so this must be announced politely, not urgently. */}
+      {!loading && !error && truncated && (
+        <div role="status" className="alert alert-warning alert-soft mb-4 text-sm">
+          <span>{T.truncatedWarning(loadedCount)}</span>
+        </div>
+      )}
+
+      {/* The fetch-all loop can span several round trips, so the wait is ANNOUNCED as well
+          as drawn. It lives outside the table because a live region on a <tr> would break
+          the table's row semantics; the skeleton itself stays `aria-hidden`. */}
+      {loading && (
+        <span role="status" aria-live="polite" className="sr-only">
+          {T.loading}
+        </span>
+      )}
 
       {/* Reserve height so state swaps (skeleton → error / empty / rows) don't shift layout. */}
       <div className="min-h-64 w-full overflow-x-auto">
@@ -332,7 +518,21 @@ export function AdminPortalLineUsersPage() {
   )
 }
 
-/** One LINE follower rendered as a table row (plan §2.1 column mapping). Read-only. */
+/**
+ * One LINE follower rendered as a table row.
+ *
+ * The **Name column shows ONLY the registration's Name-Surname** (or the not-registered
+ * fallback). The LINE display name that used to sit above it as the bold primary line is
+ * gone — this is a *registration data* page, and two names in one cell made the operator
+ * read the wrong one. The LINE **avatar** stays (PO decision OPEN-3), and the inspect
+ * modal still shows the display name; only this cell changed.
+ *
+ * The inspect button's accessible name follows the cell: for a registered row it is the
+ * real name the operator can actually see. For an unregistered row there is no real name,
+ * so it falls back to the LINE display name — the only identity that row has, and the one
+ * the modal will show — rather than to a generic "ยังไม่ลงทะเบียน" that every such row
+ * would share.
+ */
 function LineUserRow({
   user,
   index,
@@ -344,18 +544,19 @@ function LineUserRow({
 }) {
   const reg = user.registration
   const realName = reg ? `${reg.firstName} ${reg.lastName}`.trim() : ''
-  const displayName = user.displayName ?? T.unknownUser
+  const rowLabel = realName || user.displayName || T.unknownUser
   return (
-    <tr className="hover:bg-base-300">
+    <tr className="transition-colors hover:bg-base-300">
       <td className="text-center font-semibold">{index}</td>
       <td>
         <div className="flex items-center gap-3">
           <UserAvatar pictureUrl={user.pictureUrl} displayName={user.displayName} />
           <div className="min-w-0">
-            <div className="truncate font-bold">{displayName}</div>
-            <div className="truncate text-sm opacity-60">
-              {realName || <span className="italic">{T.notRegistered}</span>}
-            </div>
+            {realName ? (
+              <div className="truncate font-bold">{realName}</div>
+            ) : (
+              <div className="truncate italic opacity-60">{T.notRegistered}</div>
+            )}
           </div>
         </div>
       </td>
@@ -369,8 +570,8 @@ function LineUserRow({
         <button
           type="button"
           onClick={() => onInspect(user)}
-          aria-label={`${T.inspect}: ${displayName}`}
-          className="btn btn-info btn-soft btn-sm focus-visible:ring-2 focus-visible:ring-info"
+          aria-label={`${T.inspect}: ${rowLabel}`}
+          className="btn btn-info btn-soft btn-sm transition-colors focus-visible:ring-2 focus-visible:ring-info"
         >
           <MagnifyingGlassIcon className="size-[1.2em]" aria-hidden />
           {T.inspect}
@@ -894,7 +1095,15 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   )
 }
 
-/** Loading placeholder — one testable node that reserves row height. */
+/**
+ * Loading placeholder — one testable node that reserves row height so the swap to real
+ * rows does not shift the layout under the operator. Uses daisyUI's `skeleton` component
+ * (skill: components/skeleton.md) rather than a hand-rolled `bg-base-300 animate-pulse`
+ * pair; `skeleton`'s own shimmer is already reduced-motion aware.
+ *
+ * `aria-hidden` on purpose: the wait is announced by the sr-only live region above the
+ * table, so a screen reader hears one sentence instead of five empty rows.
+ */
 function SkeletonRows() {
   return (
     <tr data-testid="lineusers-skeleton" aria-hidden>
@@ -902,8 +1111,8 @@ function SkeletonRows() {
         <div className="space-y-3 py-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3">
-              <span className="h-12 w-12 shrink-0 rounded-lg bg-base-300 motion-safe:animate-pulse" />
-              <span className="h-4 flex-1 rounded bg-base-300 motion-safe:animate-pulse" />
+              <span className="skeleton h-12 w-12 shrink-0" />
+              <span className="skeleton h-4 flex-1" />
             </div>
           ))}
         </div>
