@@ -3,23 +3,25 @@
 // See THIRD_PARTY_NOTICES.md. Ports `containers/Header.js` (navbar) + the notification
 // list from `features/common/components/NotificationBodyRightDrawer.js`. Stripped:
 // `theme-change`/`themeChange()`, Redux (`useSelector`/`useDispatch`), the right-drawer
-// slice and the `localStorage.clear()` logout. `pageTitle` → local `usePageTitle`.
+// slice and the `localStorage.clear()` logout. The template's `pageTitle` <h1> has since
+// been dropped entirely (see below).
 //
 // Phase 3.5 makes the chrome interactive WITHOUT Redux/theme-change:
 //  - Sun/Moon toggle → drives `AdminPortalThemeLayout`'s local theme via context.
 //  - Bell → a CSS-only daisyUI dropdown panel of mock notifications (focus-driven
 //    open/close, click-away + Esc handled by the browser — no document listeners).
 //  - Profile menu → real interactive items (cursor-pointer, hover, close-on-select).
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Bars3Icon from '@heroicons/react/24/outline/Bars3Icon'
 import BellIcon from '@heroicons/react/24/outline/BellIcon'
 import MoonIcon from '@heroicons/react/24/outline/MoonIcon'
 import SunIcon from '@heroicons/react/24/outline/SunIcon'
 import UserIcon from '@heroicons/react/24/outline/UserIcon'
 import { ADMIN_PORTAL_ROUTES } from './routes'
-import { ADMIN_PORTAL_DRAWER_ID, usePageTitle } from './nav-config'
+import { ADMIN_PORTAL_DRAWER_ID } from './nav-config'
 import { useAdminPortalTheme } from './admin-portal-theme'
 import { useAuth } from '@/auth/useAuth'
+import { PROFILE_STRINGS } from '@/constants/ui-strings-profile'
 
 interface HeaderNotification {
   readonly id: number
@@ -45,18 +47,23 @@ function closeMenus() {
 }
 
 /**
- * Replica top bar (daisyUI `navbar`): a mobile drawer toggle, the current page title,
- * a working light/dark Sun/Moon toggle, a notification dropdown and a profile dropdown.
- * The hamburger is a `<label htmlFor>` bound to the drawer checkbox. "Logout" tears down
- * the real cookie session via `useAuth().logout` before navigating back to the replica
- * login.
+ * Replica top bar (daisyUI `navbar`): a mobile drawer toggle, a working light/dark
+ * Sun/Moon toggle, a notification dropdown and a profile dropdown. The hamburger is a
+ * `<label htmlFor>` bound to the drawer checkbox. "Logout" tears down the real cookie
+ * session via `useAuth().logout` before navigating back to the replica login.
+ *
+ * **There is no page title here** (PO review). The template's
+ * `<h1 class="ml-2 truncate text-2xl">{pageTitle}</h1>` was removed for ALL pages at ALL
+ * breakpoints — in the narrow LINE webview the hamburger sat on top of it — and
+ * `usePageTitle`/`TITLE_BY_PATH` went with it, since nothing else consumed them. The
+ * `<main>` landmark in `AdminPortalLayout` carries an explicit accessible name so the
+ * page content region is still announced on the stub pages that have no `<h1>` of their
+ * own; pages that own a real `<h1>` (e.g. Profile) are unaffected.
  */
 export function AdminPortalHeader() {
   const navigate = useNavigate()
-  const { pathname } = useLocation()
-  const pageTitle = usePageTitle(pathname)
   const { theme, toggleTheme } = useAdminPortalTheme()
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
   const isDark = theme === 'dashwind-dark'
 
   return (
@@ -69,7 +76,6 @@ export function AdminPortalHeader() {
         >
           <Bars3Icon aria-hidden className="h-5 w-5" />
         </label>
-        <h1 className="ml-2 truncate text-2xl font-semibold">{pageTitle}</h1>
       </div>
 
       <div className="flex-none">
@@ -131,22 +137,46 @@ export function AdminPortalHeader() {
           </div>
         </div>
 
-        {/* Profile dropdown — inline-SVG avatar, interactive items, visual-only logout. */}
+        {/* Profile dropdown. The trigger shows the SIGNED-IN user's real avatar when they
+            have one, falling back to the icon placeholder otherwise — and because it reads
+            `useAuth().user`, the `refresh()` the profile page fires after a successful
+            avatar upload repaints it immediately, with no hard refresh and no new global
+            store. daisyUI `avatar` structure per the skill: `.avatar > div > img`. The
+            image is `alt=""` because the button already carries "Profile menu"; a duplicate
+            name on the child would just be announced twice. */}
         <div className="dropdown dropdown-end ml-4">
           <div tabIndex={0} role="button" aria-label="Profile menu" className="btn btn-ghost btn-circle avatar">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-base-300 text-base-content">
-              <UserIcon aria-hidden className="h-6 w-6" />
-            </div>
+            {user?.profilePictureUrl ? (
+              <div className="h-10 w-10 rounded-full">
+                <img
+                  src={user.profilePictureUrl}
+                  alt=""
+                  className="h-full w-full rounded-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-base-300 text-base-content">
+                <UserIcon aria-hidden className="h-6 w-6" />
+              </div>
+            )}
           </div>
           <ul
             tabIndex={0}
             className="menu dropdown-content menu-sm z-30 mt-3 w-52 rounded-box bg-base-100 p-2 shadow"
           >
             <li>
-              <button type="button" className="cursor-pointer justify-between" onClick={closeMenus}>
-                Profile Settings
-                <span className="badge">New</span>
-              </button>
+              {/* A real `<Link>`, not the template's inert button: this item NAVIGATES, so
+                  it must be a link (middle-click, focus order, `role="link"`). It points at
+                  the real page — the deleted `settings-profile` stub is a 404 by design.
+                  The DashWind "New" badge is dropped: it was demo decoration and it
+                  polluted the item's accessible name. */}
+              <Link
+                to={ADMIN_PORTAL_ROUTES.profile}
+                className="cursor-pointer"
+                onClick={closeMenus}
+              >
+                {PROFILE_STRINGS.navLabel}
+              </Link>
             </li>
             <li>
               <button type="button" className="cursor-pointer" onClick={closeMenus}>

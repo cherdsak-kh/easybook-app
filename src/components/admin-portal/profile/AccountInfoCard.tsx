@@ -1,6 +1,6 @@
 import KeyIcon from '@heroicons/react/24/outline/KeyIcon'
 import type { SystemUser } from '@/lib/api-client'
-import { PROFILE_STRINGS, ROLE_BADGE } from '@/constants/ui-strings-profile'
+import { PROFILE_STRINGS, ROLE_BADGE, ROLE_LABEL } from '@/constants/ui-strings-profile'
 import { ProfileCard } from './ProfileCard'
 import { ProfileFieldRow, ProfileFieldValue } from './ProfileFieldRow'
 
@@ -40,10 +40,21 @@ export function AccountInfoCard({
       </ProfileFieldRow>
 
       <ProfileFieldRow label={T.fields.password}>
+        {/* CONTRAST FIX (PO review), and why THIS variant. `btn-outline` paints both the
+            text and the border with `--btn-color` (daisyUI 5: `.btn-outline { color:
+            var(--btn-color); --btn-border: var(--btn-color) }`), so the colour class is
+            the whole contrast story. The previous `btn-neutral` resolved to
+            `--color-neutral`, which in `dashwind-dark` is oklch(0.3138) sitting on a
+            `base-100` of oklch(0.2533) — a measured **1.22:1**, i.e. invisible. Measured
+            against the real tokens in `index.css`, `btn-primary` is the variant that
+            clears AA in BOTH admin-portal themes:
+              dashwind-dark   primary on base-100 = 4.71:1  (hover fill: 5.99:1)
+              dashwind-light  primary on base-100 = 7.68:1  (hover fill: 5.59:1)
+            No `dark:` utility is involved — one class, resolved per `data-theme`. */}
         <button
           type="button"
           onClick={onChangePassword}
-          className="btn btn-outline btn-neutral btn-xs transition-colors focus-visible:ring-2 focus-visible:ring-primary"
+          className="btn btn-outline btn-primary btn-xs transition-colors focus-visible:ring-2 focus-visible:ring-primary"
         >
           <KeyIcon className="size-[1.2em]" aria-hidden />
           {T.actions.changePassword}
@@ -51,7 +62,8 @@ export function AccountInfoCard({
       </ProfileFieldRow>
 
       <ProfileFieldRow label={T.fields.role}>
-        <span className={`badge badge-sm ${ROLE_BADGE[user.role]}`}>{user.role}</span>
+        {/* The Thai label, never the raw `SUPER_ADMIN`/`ADMIN`/`STAFF` wire token. */}
+        <span className={`badge badge-sm ${ROLE_BADGE[user.role]}`}>{ROLE_LABEL[user.role]}</span>
       </ProfileFieldRow>
 
       <ProfileFieldRow label={T.fields.line}>

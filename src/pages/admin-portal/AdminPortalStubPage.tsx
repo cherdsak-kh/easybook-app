@@ -11,13 +11,16 @@ import DocumentTextIcon from '@heroicons/react/24/outline/DocumentTextIcon'
 import { TitleCard } from '@/components/dashboard/TitleCard'
 
 interface AdminPortalStubPageProps {
-  /** The DashWind menu label — matches the header title from `usePageTitle`. */
+  /**
+   * The DashWind menu label. Since the navbar page title was removed (PO review), this
+   * is now the ONLY place the page's name appears — the card heading + `<h2>` below.
+   */
   readonly title: string
 }
 
 /**
  * A "coming soon" placeholder that renders inside the replica shell (so the sidebar,
- * header, page title and theme all stay live). Presentational only — no data, no auth.
+ * header and theme all stay live). Presentational only — no data, no auth.
  */
 export function AdminPortalStubPage({ title }: AdminPortalStubPageProps) {
   return (

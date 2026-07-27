@@ -154,11 +154,15 @@ export function useProfileEditor({
     setOptionsError(null)
     try {
       const [depts, roles] = await Promise.all([listDepartments(), listPersonnelRoles()])
-      // System-reserved options are a guaranteed 400 for an ADMIN, so they are never
-      // selectable. The card still DISPLAYS a reserved current value (it pins it as a
-      // disabled option) so the control can't silently drop the user's real value.
-      setDepartments(depts.filter((d) => !d.isSystemReserved))
-      setPersonnelRoles(roles.filter((r) => !r.isSystemReserved))
+      // Stored VERBATIM — no `isSystemReserved` filter. The SERVER already decides who
+      // may see a reserved row: `GET /api/v1/departments` (and the personnel-roles
+      // twin) pass `includeReserved: mayUseSystemReservedOptions(actor)`, so a
+      // SUPER_ADMIN's response contains the reserved options and everyone else's does
+      // not. Re-filtering here used to hide them from the ONE role allowed to pick
+      // them, which is the bug this removal fixes; it also duplicated an authorisation
+      // decision in the client, where it can only ever drift from the backend.
+      setDepartments(depts)
+      setPersonnelRoles(roles)
       loadedRef.current = true
       setOptionsLoaded(true)
     } catch (err: unknown) {

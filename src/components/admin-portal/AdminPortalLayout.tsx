@@ -22,6 +22,12 @@ import { ADMIN_PORTAL_DRAWER_ID } from './nav-config'
  * scrollable `<main>` that renders the nested page via `<Outlet/>`; `<main>` scrolls
  * back to top on navigation (keyed on `pathname`, instant — no smooth animation in
  * the narrow webview).
+ *
+ * `<main>` carries an explicit `aria-label` because the navbar's `<h1>{pageTitle}</h1>`
+ * was removed (PO review — it collided with the hamburger on mobile). Pages that own a
+ * real `<h1>` are unaffected, but the stub pages top out at `<h2>`, so without this the
+ * main landmark would be nameless on those routes. The label is English to match the
+ * shell's other landmark/control names ("Sidebar navigation", "Open menu").
  */
 export function AdminPortalLayout() {
   const mainRef = useRef<HTMLElement>(null)
@@ -41,7 +47,11 @@ export function AdminPortalLayout() {
       />
       <div className="drawer-content flex min-h-screen flex-col bg-base-200">
         <AdminPortalHeader />
-        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        <main
+          ref={mainRef}
+          aria-label="Main content"
+          className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6"
+        >
           <Outlet />
         </main>
       </div>

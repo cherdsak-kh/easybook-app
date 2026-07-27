@@ -25,6 +25,7 @@ import TableCellsIcon from '@heroicons/react/24/outline/TableCellsIcon'
 import UserIcon from '@heroicons/react/24/outline/UserIcon'
 import UsersIcon from '@heroicons/react/24/outline/UsersIcon'
 import WalletIcon from '@heroicons/react/24/outline/WalletIcon'
+import { PROFILE_STRINGS } from '@/constants/ui-strings-profile'
 import { ADMIN_PORTAL_ROUTES } from './routes'
 
 /**
@@ -92,8 +93,14 @@ export const NAV_ITEMS: readonly NavEntry[] = [
     submenu: [
       // The REAL self-service profile page. This leaf used to point at the
       // `settings-profile` DashWind stub; the stub (and its route constant) were
-      // removed with it, so the sidebar carries exactly ONE "Profile" entry.
-      { label: 'Profile', icon: <UserIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.profile },
+      // removed with it, so the sidebar carries exactly ONE profile entry. The label
+      // is the SHARED `PROFILE_STRINGS.navLabel` — the navbar avatar dropdown renders
+      // the same constant, so the two ways into this page cannot be worded differently.
+      {
+        label: PROFILE_STRINGS.navLabel,
+        icon: <UserIcon className={SUBMENU_ICON} />,
+        to: ADMIN_PORTAL_ROUTES.profile,
+      },
       { label: 'Billing', icon: <WalletIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.settingsBilling },
       // The ported Team members table (PO scope addition) — a bespoke page.
       { label: 'Team Members', icon: <UsersIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.team },
@@ -110,19 +117,8 @@ export const NAV_ITEMS: readonly NavEntry[] = [
   },
 ]
 
-/** Absolute path → page title, built once from every leaf of `NAV_ITEMS`. */
-const TITLE_BY_PATH = new Map<string, string>(
-  NAV_ITEMS.flatMap((entry) => (isSubmenu(entry) ? entry.submenu : [entry])).map((leaf) => [
-    leaf.to,
-    leaf.label,
-  ]),
-)
-
-/**
- * The navbar page title, derived from the SAME config the sidebar renders so the
- * two can never drift. Pure lookup (no Redux, no context): the brand name is the
- * fallback for any unmapped path.
- */
-export function usePageTitle(pathname: string): string {
-  return TITLE_BY_PATH.get(pathname) ?? BRAND_NAME
-}
+// REMOVED (PO review): `TITLE_BY_PATH` + `usePageTitle(pathname)`. They existed only to
+// feed the navbar's `<h1>{pageTitle}</h1>`, which is gone from `AdminPortalHeader` for
+// every page at every breakpoint (on mobile the hamburger overlapped it). Nothing else
+// imported either symbol — grep-verified — so they are deleted rather than left as dead
+// code. `BRAND_NAME` survives: the sidebar's wordmark still uses it.

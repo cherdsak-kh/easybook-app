@@ -364,13 +364,42 @@ describe('useProfileEditor — error mapping', () => {
     expect(result.current.optionsLoaded).toBe(false)
   })
 
-  it('drops system-reserved options from the selectable lists', async () => {
-    mockListDepartments.mockResolvedValue([dept(), dept({ id: 9, name: 'Reserved', isSystemReserved: true })])
+  // INVERTED (PO review). This test previously asserted
+  // `departments.map(d => d.id) === [2]` — i.e. that the hook DROPPED every
+  // `isSystemReserved` row. That client-side filter was the bug: `GET /api/v1/departments`
+  // already applies `includeReserved: mayUseSystemReservedOptions(actor)` server-side, so
+  // a reserved row only ever reaches this hook when the signed-in actor is a SUPER_ADMIN —
+  // exactly the role that is allowed to pick it. Filtering here hid the options from the
+  // one role entitled to them. The hook now stores the response verbatim; the server is
+  // the sole authority on visibility.
+  it('keeps system-reserved options verbatim — the server, not the client, decides visibility', async () => {
+    mockListDepartments.mockResolvedValue([
+      dept(),
+      dept({ id: 9, name: 'Reserved', isSystemReserved: true }),
+    ])
+    mockListPersonnelRoles.mockResolvedValue([
+      personnelRole(),
+      personnelRole({ id: 8, name: 'Reserved role', isSystemReserved: true }),
+    ])
     const { result } = setup()
 
     act(() => result.current.startEdit())
 
     await waitFor(() => expect(result.current.optionsLoaded).toBe(true))
-    expect(result.current.departments.map((d) => d.id)).toEqual([2])
+    expect(result.current.departments.map((d) => d.id)).toEqual([2, 9])
+    expect(result.current.personnelRoles.map((r) => r.id)).toEqual([1, 8])
+  })
+
+  it('passes through a response with NO reserved rows unchanged (the ADMIN/STAFF case)', async () => {
+    // The backend hides reserved rows from a non-SUPER_ADMIN, so this is what an ADMIN's
+    // response looks like. Nothing is added, nothing is dropped.
+    mockListDepartments.mockResolvedValue([dept(), dept({ id: 3, name: 'Maths' })])
+    const { result } = setup()
+
+    act(() => result.current.startEdit())
+
+    await waitFor(() => expect(result.current.optionsLoaded).toBe(true))
+    expect(result.current.departments.map((d) => d.id)).toEqual([2, 3])
+    expect(result.current.departments.some((d) => d.isSystemReserved)).toBe(false)
   })
 })

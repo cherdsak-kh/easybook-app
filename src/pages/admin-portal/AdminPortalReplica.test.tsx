@@ -7,6 +7,8 @@ import { AdminPortalHeader } from '@/components/admin-portal/AdminPortalHeader'
 import { AdminPortalLayout } from '@/components/admin-portal/AdminPortalLayout'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
 import { TeamMembers } from '@/components/admin-portal/TeamMembers'
+import { ADMIN_PORTAL_ROUTES } from '@/components/admin-portal/routes'
+import { PROFILE_STRINGS } from '@/constants/ui-strings-profile'
 import * as apiClient from '@/lib/api-client'
 
 // The header now reads `useAuth().logout`, so any render that mounts it must sit inside a
@@ -142,8 +144,8 @@ describe('AdminPortal replica — notification panel (Phase 3.5)', () => {
 })
 
 describe('AdminPortal replica — stub pages (Phase 3.5)', () => {
-  it('renders a navigable placeholder inside the shell for a stubbed menu target', () => {
-    render(
+  function renderStubInShell() {
+    return render(
       <MemoryRouter initialEntries={['/admin-portal/line-users']}>
         <AuthProvider>
           <Routes>
@@ -156,9 +158,52 @@ describe('AdminPortal replica — stub pages (Phase 3.5)', () => {
         </AuthProvider>
       </MemoryRouter>,
     )
+  }
 
-    // Both the header title and the stub body read the parameterised title.
-    expect(screen.getAllByText('Leads').length).toBeGreaterThan(0)
+  it('renders a navigable placeholder inside the shell for a stubbed menu target', () => {
+    renderStubInShell()
+
+    // UPDATED (PO review): the title now comes from the stub BODY only — the navbar's
+    // `<h1>{pageTitle}</h1>` was removed for every page at every breakpoint, so the two
+    // remaining occurrences are the TitleCard heading and the hero `<h2>`, both inside
+    // `<main>`. This used to be `getAllByText('Leads').length > 0` with the header
+    // counted in; it is tightened rather than relaxed.
+    const main = screen.getByRole('main')
+    expect(within(main).getAllByText('Leads').length).toBeGreaterThan(0)
     expect(screen.getByText(/coming soon/i)).toBeInTheDocument()
+  })
+
+  it('renders NO navbar page title, at any breakpoint, and keeps <main> named', () => {
+    renderStubInShell()
+
+    // The stub page tops out at <h2>, so after removing the navbar <h1> there is no
+    // level-1 heading at all here — which is exactly why `<main>` carries an explicit
+    // accessible name instead.
+    expect(screen.queryAllByRole('heading', { level: 1 })).toHaveLength(0)
+    expect(screen.getByRole('main')).toHaveAccessibleName('Main content')
+
+    // The hamburger is the only thing left in the navbar's leading slot, so nothing can
+    // overlap it. (`Open menu` is the label on the drawer <label>.)
+    const hamburger = screen.getByLabelText('Open menu')
+    const navbar = hamburger.closest('.navbar') as HTMLElement
+    expect(within(navbar).queryAllByRole('heading')).toHaveLength(0)
+  })
+})
+
+describe('AdminPortal replica — navbar profile dropdown', () => {
+  it('links to the real profile page under its Thai label (no "Profile Settings")', () => {
+    renderHeaderAt('/admin-portal/dashboard')
+
+    const link = screen.getByRole('link', { name: PROFILE_STRINGS.navLabel })
+    expect(link).toHaveAttribute('href', ADMIN_PORTAL_ROUTES.profile)
+    expect(screen.queryByText('Profile Settings')).not.toBeInTheDocument()
+  })
+
+  it('falls back to the icon placeholder when the session has no avatar', () => {
+    renderHeaderAt('/admin-portal/dashboard')
+
+    // `getMe` resolves null in this suite → unauthenticated → no picture, and never an
+    // <img> with an empty src.
+    expect(screen.getByRole('button', { name: 'Profile menu' }).querySelector('img')).toBeNull()
   })
 })

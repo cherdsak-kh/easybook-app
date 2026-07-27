@@ -155,9 +155,18 @@ function ReadOnlyRows({ user }: { readonly user: SystemUser }) {
 }
 
 /**
- * A text input that is flat + `readOnly` in view mode and bordered + writable in edit
- * mode. Both states are one declarative render, so there is no imperative class
- * juggling and no chance of the DOM and the state disagreeing.
+ * A text input that reads as PLAIN TEXT in view mode and as a real field in edit mode.
+ * Both states are one declarative render, so there is no imperative class juggling and
+ * no chance of the DOM and the state disagreeing.
+ *
+ * View mode (PO review): no border, no fill, no padding and **no focus ring**.
+ * `input-ghost` is daisyUI 5's own borderless/transparent input variant (skill:
+ * components/input.md), but it does NOT reset the base `.input:focus { outline: 2px
+ * solid … }` rule — a `readOnly` input is still focusable, so without `focus:outline-none`
+ * a 2px ring would still appear on a control that only displays text. `tabIndex={-1}`
+ * is what makes dropping that ring legitimate rather than an a11y regression: the field
+ * is out of the tab order in view mode, so it can never take KEYBOARD focus and lose a
+ * visible indicator. Entering edit restores both the tab stop and the focus ring.
  */
 function TextField({
   id,
@@ -181,9 +190,12 @@ function TextField({
       value={value}
       readOnly={!editing}
       disabled={disabled}
+      tabIndex={editing ? undefined : -1}
       onChange={(e) => onChange(e.target.value)}
-      className={`input input-sm w-full transition-colors focus-visible:ring-2 focus-visible:ring-primary ${
-        editing ? '' : 'border-transparent bg-base-200'
+      className={`input input-sm w-full transition-colors ${
+        editing
+          ? 'focus-visible:ring-2 focus-visible:ring-primary'
+          : 'input-ghost px-0 focus:outline-none'
       }`}
     />
   )
@@ -245,8 +257,16 @@ function OptionSelect({
       value={value ?? ''}
       disabled={!usable}
       onChange={(e) => onChange(Number(e.target.value))}
-      className={`select select-sm w-full transition-colors focus-visible:ring-2 focus-visible:ring-primary ${
-        editing ? '' : 'border-transparent bg-base-200'
+      className={`select select-sm w-full transition-colors ${
+        editing
+          ? 'focus-visible:ring-2 focus-visible:ring-primary'
+          : // Plain-text view mode, to match `TextField`. `select-ghost` drops the
+            // border/fill; `bg-none` drops daisyUI's chevron (it is painted with two
+            // `linear-gradient` background-images, not a pseudo-element); and the three
+            // `disabled:*` utilities beat daisyUI's own `:disabled` rule, which would
+            // otherwise repaint a base-200 box and fade the text to 40% opacity —
+            // unreadable as a value. Already out of the tab order via `disabled`.
+            'select-ghost bg-none px-0 focus:outline-none disabled:cursor-default disabled:border-transparent disabled:bg-transparent disabled:text-base-content'
       }`}
     >
       {value == null && (

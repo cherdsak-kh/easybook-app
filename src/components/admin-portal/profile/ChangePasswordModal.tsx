@@ -1,4 +1,6 @@
 import { useCallback, useState, type Ref } from 'react'
+import EyeIcon from '@heroicons/react/24/outline/EyeIcon'
+import EyeSlashIcon from '@heroicons/react/24/outline/EyeSlashIcon'
 import {
   ApiError,
   changeOwnPassword,
@@ -207,9 +209,22 @@ export function ChangePasswordModal({
 }
 
 /**
- * One labelled password input. daisyUI v4's `form-control` + `label-text` wrapper is
- * gone in v5 — a plain `<label htmlFor>` + `input input-sm` is the v5 shape, and it
- * keeps the label/control association real rather than positional.
+ * One labelled password input **with a show/hide eye toggle**, ported from
+ * `AdminPortalLoginPage.tsx`: same `relative` wrapper, same overlaid
+ * `btn btn-ghost btn-sm btn-square` on the input's right edge, same `pr-10` so typed
+ * text clears the icon, and the same `EyeIcon` / `EyeSlashIcon` heroicons. The input
+ * keeps every one of its own attributes (label association, `aria-describedby`).
+ *
+ * The one deliberate divergence from the login screen is the accessible NAME. The login
+ * form has a single password box, so its bare "แสดงรหัสผ่าน" is unambiguous; this modal
+ * has three, and three buttons sharing one name is a dead end for a screen-reader user.
+ * Each toggle is therefore named after its own field — "แสดงรหัสผ่านเดิม",
+ * "แสดงรหัสผ่านใหม่", "แสดงยืนยันรหัสผ่านใหม่" — which also keeps every `getByRole('button')`
+ * query in the suite scoped to exactly one control.
+ *
+ * daisyUI v4's `form-control` + `label-text` wrapper is gone in v5 — a plain
+ * `<label htmlFor>` + `input input-sm` is the v5 shape (skill: components/input.md,
+ * button.md), and it keeps the label/control association real rather than positional.
  */
 function PasswordField({
   id,
@@ -230,22 +245,43 @@ function PasswordField({
   readonly describedBy?: string
   readonly onChange: (value: string) => void
 }) {
+  const [visible, setVisible] = useState(false)
+
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-sm font-medium">
         {label}
       </label>
-      <input
-        id={id}
-        type="password"
-        value={value}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-        disabled={disabled}
-        aria-describedby={describedBy}
-        onChange={(e) => onChange(e.target.value)}
-        className="input input-sm w-full focus-visible:ring-2 focus-visible:ring-primary"
-      />
+      <div className="relative">
+        <input
+          id={id}
+          type={visible ? 'text' : 'password'}
+          value={value}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          disabled={disabled}
+          aria-describedby={describedBy}
+          onChange={(e) => onChange(e.target.value)}
+          className="input input-sm w-full pr-9 focus-visible:ring-2 focus-visible:ring-primary"
+        />
+        {/* `btn-xs` (24px), not the login screen's `btn-sm` (32px): this modal's boxes
+            are `input-sm`, which is itself 32px tall, so a 32px toggle would fill the
+            field edge to edge. */}
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          disabled={disabled}
+          aria-label={visible ? T.password.hide(label) : T.password.show(label)}
+          aria-pressed={visible}
+          className="btn btn-ghost btn-xs btn-square absolute top-1/2 right-1 -translate-y-1/2 text-base-content/60 focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          {visible ? (
+            <EyeSlashIcon className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <EyeIcon className="h-4 w-4" aria-hidden="true" />
+          )}
+        </button>
+      </div>
     </div>
   )
 }

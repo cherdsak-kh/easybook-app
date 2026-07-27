@@ -224,6 +224,19 @@ export function useLineUserEditor({
       const [depts, roles] = await Promise.all([listDepartments(), listPersonnelRoles()])
       // Exclude system-reserved options — the backend 400s a reserved id, so an admin must
       // never be able to pick one (plan §6.2, mirrors options-management behavior).
+      //
+      // KEEP THIS FILTER, and note it is NOT the same rule as the staff-profile page, which
+      // deliberately does NOT filter. The two write surfaces differ on purpose:
+      //   • SystemUser  (PATCH /system-users/:id)          -> mayUseSystemReservedOptions(actor);
+      //     a SUPER_ADMIN MAY assign a reserved option, so that page must show them.
+      //   • LineUserRegistration (PATCH /line-users/:id/registration) -> the service HARDCODES
+      //     `isSystemReserved: false` in the WHERE with no actor parameter, so a reserved id is a
+      //     400 for EVERYONE — SUPER_ADMIN gets no carve-out (easybook-service
+      //     line-user.service.ts:329, pinned by AC-B6 in line-user.service.spec.ts, which runs
+      //     it.each([ADMIN, SUPER_ADMIN]) and expects 400 for both).
+      // `listDepartments()` is the authenticated back-office list, so it DOES return reserved rows
+      // to a SUPER_ADMIN. Dropping this filter would therefore let a SUPER_ADMIN pick an option the
+      // save is guaranteed to reject — the exact class of bug access-policy.ts exists to prevent.
       setDepartments(depts.filter((d) => !d.isSystemReserved))
       setPersonnelRoles(roles.filter((r) => !r.isSystemReserved))
       loadedRef.current = true

@@ -24,8 +24,20 @@ export interface BilingualLabel {
 }
 
 export const PROFILE_STRINGS = {
-  /** Page heading (the shell's navbar title comes from `nav-config`, not from here). */
+  /**
+   * Page heading. Renders as exactly `ข้อมูลผู้ใช้งาน (User Profile)` — the role badge
+   * that used to sit beside it was removed (PO review): the role is already stated on
+   * the header card and in the account card, and a third copy in the `<h1>` made the
+   * page's accessible name role-dependent.
+   */
   heading: { th: 'ข้อมูลผู้ใช้งาน', en: 'User Profile' },
+
+  /**
+   * The label this page is known by in the SHELL — the sidebar's Settings → Profile
+   * leaf and the navbar avatar dropdown. Both read this one literal so the two entry
+   * points into `/admin-portal/profile` can never drift apart (or from the tests).
+   */
+  navLabel: 'ข้อมูลผู้ใช้งาน',
 
   /** Rendered wherever a nullable value is absent (`—`, never "Invalid Date"). */
   emptyValue: '—',
@@ -59,19 +71,33 @@ export const PROFILE_STRINGS = {
     lastLogin: { th: 'ล็อกอินล่าสุด', en: 'Last Login' },
   },
 
-  /** The account id shown under the display name in the header card. */
-  idPrefix: 'id:',
+  /**
+   * The account id shown under the display name in the header card. Spelled `CUID:`
+   * (not `id:`) because that is what the value literally is — a collision-resistant
+   * unique id — and support staff are asked for it by that name.
+   */
+  idPrefix: 'CUID:',
 
   actions: {
-    edit: 'แก้ไขโปรไฟล์',
+    edit: 'แก้ไขข้อมูล',
     save: 'บันทึกข้อมูล',
     saving: 'กำลังบันทึก…',
     cancel: 'ยกเลิก',
     confirm: 'ยืนยัน',
     close: 'ปิด',
     closeBackdrop: 'ปิดหน้าต่าง',
+    dismiss: 'ปิดข้อความแจ้งเตือน',
     changePassword: 'เปลี่ยนรหัสผ่าน',
     changeAvatar: 'เปลี่ยนรูปโปรไฟล์',
+    /** Accessible name of the copy-to-clipboard button beside the CUID. */
+    copyId: 'คัดลอก CUID',
+  },
+
+  /** Copy-to-clipboard feedback. Both outcomes are announced — a failure is never silent. */
+  copy: {
+    done: 'คัดลอกแล้ว',
+    /** `navigator.clipboard` can be absent (insecure context) or denied by the user. */
+    failed: 'ไม่สามารถคัดลอกได้',
   },
 
   /** Alt text for the avatar image; empty-ish names still produce a sane sentence. */
@@ -89,6 +115,11 @@ export const PROFILE_STRINGS = {
   save: {
     confirmTitle: 'ยืนยันการบันทึกข้อมูล',
     confirmBody: 'คุณต้องการบันทึกการเปลี่ยนแปลงข้อมูลโปรไฟล์ใช่หรือไม่?',
+    /**
+     * Shown in the success toast, and ONLY when a PATCH actually committed — the
+     * "nothing changed" path sends no request and gets `noChanges` instead.
+     */
+    success: 'บันทึกข้อมูลเรียบร้อยแล้ว',
     /** Nothing changed — we deliberately send NO request (an empty body is a 400). */
     noChanges: 'ไม่มีการเปลี่ยนแปลงข้อมูล',
     /** 400 — a rejected value, or an unknown / system-reserved department / position id. */
@@ -130,6 +161,16 @@ export const PROFILE_STRINGS = {
      */
     wrongCurrent: 'รหัสผ่านเดิมไม่ถูกต้อง',
     failed: 'ไม่สามารถเปลี่ยนรหัสผ่านได้ โปรดลองใหม่อีกครั้ง',
+    /**
+     * Accessible name of a show/hide eye toggle, PARAMETERISED BY FIELD. The login
+     * screen has one password box so a bare "แสดงรหัสผ่าน" is unambiguous there; this
+     * modal has three, and three identically-named buttons would be useless to a
+     * screen-reader user. Interpolating the field label makes each name unique
+     * ("แสดงรหัสผ่านเดิม" / "แสดงรหัสผ่านใหม่" / …) and keeps every test query scoped
+     * to one control.
+     */
+    show: (field: string) => `แสดง${field}`,
+    hide: (field: string) => `ซ่อน${field}`,
   },
 
   avatar: {
@@ -146,6 +187,21 @@ export const PROFILE_STRINGS = {
     failed: 'ไม่สามารถอัปโหลดรูปภาพได้ โปรดลองใหม่อีกครั้ง',
   },
 } as const
+
+/**
+ * Role → the Thai label shown to the user. The raw enum value (`SUPER_ADMIN`, …) is a
+ * wire/DB token, never UI copy, so it is not rendered anywhere on this page any more.
+ *
+ * Deliberately Thai-ONLY, not "SUPER_ADMIN (ผู้ดูแลระบบสูงสุด)": every other value on
+ * this page renders in one language, and the bilingual `{ th, en }` treatment is
+ * reserved for field/section LABELS (see {@link BilingualLabel}), not for values.
+ * This is not i18n — there is no locale and no `t()`.
+ */
+export const ROLE_LABEL: Readonly<Record<SystemRole, string>> = {
+  SUPER_ADMIN: 'ผู้ดูแลระบบสูงสุด',
+  ADMIN: 'ผู้ดูแลระบบ',
+  STAFF: 'เจ้าหน้าที่',
+}
 
 /**
  * Role → badge colour. daisyUI **semantic** colour classes only: each theme supplies

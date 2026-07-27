@@ -1,8 +1,14 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
 import CameraIcon from '@heroicons/react/24/outline/CameraIcon'
+import CheckIcon from '@heroicons/react/24/outline/CheckIcon'
+import ClipboardDocumentIcon from '@heroicons/react/24/outline/ClipboardDocumentIcon'
 import type { SystemUser } from '@/lib/api-client'
-import { PROFILE_STRINGS, ROLE_BADGE, ROLE_RING } from '@/constants/ui-strings-profile'
+import { PROFILE_STRINGS, ROLE_BADGE, ROLE_LABEL, ROLE_RING } from '@/constants/ui-strings-profile'
 
 const T = PROFILE_STRINGS
+
+/** How long the "copied" / "failed" confirmation stays on screen. */
+const COPY_FEEDBACK_MS = 2000
 
 /** First letters of the given/family name; `?` when both are blank. */
 function initialsOf(user: SystemUser): string {
@@ -67,14 +73,85 @@ export function ProfileHeaderCard({
 
         <div className="mt-2 flex min-w-0 flex-col items-center gap-1 sm:mt-0 sm:items-start">
           <h2 className="text-xl font-semibold wrap-break-word sm:text-2xl">{displayName}</h2>
-          <p className="font-mono text-xs break-all text-base-content/50 sm:text-sm">
-            {T.idPrefix} {user.id}
-          </p>
+          <CuidRow id={user.id} />
           <div className="mt-1 flex gap-2 sm:mt-2">
-            <span className={`badge font-medium ${ROLE_BADGE[user.role]}`}>{user.role}</span>
+            <span className={`badge font-medium ${ROLE_BADGE[user.role]}`}>
+              {ROLE_LABEL[user.role]}
+            </span>
           </div>
         </div>
       </div>
     </section>
+  )
+}
+
+/**
+ * `CUID: <value>` plus a copy-to-clipboard button — the id is the one thing support
+ * asks a user to read out, and reading a 25-character cuid aloud is a bug report
+ * waiting to happen.
+ *
+ * Failure handling is the whole point of the `try/catch`: `navigator.clipboard` is
+ * **absent entirely** outside a secure context (and in jsdom), and present-but-denied
+ * when the user refuses the permission. The first case throws synchronously on the
+ * property access and the second rejects — both land in the same `catch` because the
+ * access happens inside an `async` function, so neither can escape as an unhandled
+ * rejection. A failure is SHOWN (`copy.failed`), never swallowed.
+ *
+ * Feedback is a live region so it is announced, not merely drawn: the icon swap alone
+ * would be invisible to a screen-reader user.
+ */
+function CuidRow({ id }: { readonly id: string }) {
+  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Clear on unmount so a pending timeout can never setState on a dead component.
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    },
+    [],
+  )
+
+  const copy = useCallback(async () => {
+    let next: 'copied' | 'failed'
+    try {
+      await navigator.clipboard.writeText(id)
+      next = 'copied'
+    } catch {
+      next = 'failed'
+    }
+    setStatus(next)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setStatus('idle'), COPY_FEEDBACK_MS)
+  }, [id])
+
+  return (
+    <div className="flex max-w-full flex-wrap items-center justify-center gap-1 sm:justify-start">
+      <p className="font-mono text-xs break-all text-base-content/50 sm:text-sm">
+        {T.idPrefix} {id}
+      </p>
+      <button
+        type="button"
+        onClick={() => void copy()}
+        aria-label={T.actions.copyId}
+        title={T.actions.copyId}
+        className="btn btn-ghost btn-circle btn-xs shrink-0 text-base-content/60 transition-colors hover:text-base-content focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        {status === 'copied' ? (
+          <CheckIcon className="size-4 text-success" aria-hidden />
+        ) : (
+          <ClipboardDocumentIcon className="size-4" aria-hidden />
+        )}
+      </button>
+      {/* Always mounted so the live region exists BEFORE it gains content — a region
+          inserted at the same moment as its text is unreliably announced. */}
+      <span
+        role="status"
+        aria-live="polite"
+        className={`text-xs ${status === 'failed' ? 'text-error' : 'text-success'}`}
+      >
+        {status === 'copied' ? T.copy.done : status === 'failed' ? T.copy.failed : ''}
+      </span>
+    </div>
   )
 }
