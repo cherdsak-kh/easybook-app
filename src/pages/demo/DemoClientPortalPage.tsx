@@ -600,34 +600,34 @@ function FormScreen({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <fieldset className="fieldset">
-              <legend className="fieldset-legend font-semibold">วันเริ่มต้น</legend>
+              <legend className="fieldset-legend font-semibold">วันเริ่มต้น <span className="text-error ml-1">*</span></legend>
               <input type="date" className="input input-bordered w-full" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
             </fieldset>
             <fieldset className="fieldset">
-              <legend className="fieldset-legend font-semibold">วันสิ้นสุด</legend>
+              <legend className="fieldset-legend font-semibold">วันสิ้นสุด <span className="text-error ml-1">*</span></legend>
               <input type="date" className="input input-bordered w-full" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
             </fieldset>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <fieldset className="fieldset">
-              <legend className="fieldset-legend font-semibold">เวลาเริ่มต้น</legend>
+              <legend className="fieldset-legend font-semibold">เวลาเริ่มต้น <span className="text-error ml-1">*</span></legend>
               <input type="time" className="input input-bordered w-full" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
             </fieldset>
             <fieldset className="fieldset">
-              <legend className="fieldset-legend font-semibold">เวลาสิ้นสุด</legend>
+              <legend className="fieldset-legend font-semibold">เวลาสิ้นสุด <span className="text-error ml-1">*</span></legend>
               <input type="time" className="input input-bordered w-full" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
             </fieldset>
           </div>
 
           <fieldset className="fieldset">
-            <legend className="fieldset-legend font-semibold">จำนวนผู้เข้าร่วม (คน)</legend>
+            <legend className="fieldset-legend font-semibold">จำนวนผู้เข้าร่วม (คน) <span className="text-error ml-1">*</span></legend>
             <input type="number" className="input input-bordered w-full" value={attendees} onChange={(e) => setAttendees(e.target.value)} max={venue.capacity} required />
             <span className="fieldset-label text-xs text-base-content/50">สูงสุดไม่เกิน {venue.capacity} คน</span>
           </fieldset>
 
           <fieldset className="fieldset">
-            <legend className="fieldset-legend font-semibold">รายละเอียด</legend>
+            <legend className="fieldset-legend font-semibold">รายละเอียด <span className="text-error ml-1">*</span></legend>
             <textarea className="textarea textarea-bordered w-full h-24" placeholder="ระบุรายละเอียด..." value={purpose} onChange={(e) => setPurpose(e.target.value)} required></textarea>
           </fieldset>
 
