@@ -6,6 +6,7 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   CalendarDaysIcon,
+  PencilSquareIcon,
 } from '@heroicons/react/24/outline'
 
 // ==========================================
@@ -143,6 +144,7 @@ const getBookingTimes = (startDate: string, endDate: string, startTime: string, 
 export function DemoClientPortalPage() {
   const [screen, setScreen] = useState<'home' | 'details' | 'form' | 'my-bookings'>('home')
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null)
+  const [editingBooking, setEditingBooking] = useState<BookingRequest | null>(null)
   const [bookings, setBookings] = useState<BookingRequest[]>([])
 
   // Load from localStorage on mount and poll every second to sync with Admin tab
@@ -171,7 +173,17 @@ export function DemoClientPortalPage() {
     setScreen('details')
   }
   const openForm = () => {
+    setEditingBooking(null)
     setScreen('form')
+  }
+
+  const openEdit = (b: BookingRequest) => {
+    const venue = MOCK_VENUES.find(v => v.id === b.venueId)
+    if (venue) {
+      setSelectedVenue(venue)
+      setEditingBooking(b)
+      setScreen('form')
+    }
   }
 
   // Save new booking
@@ -192,6 +204,7 @@ export function DemoClientPortalPage() {
     const updated = bookings.map((b) => (b.id === id ? { ...b, purpose, attendees } : b))
     setBookings(updated)
     localStorage.setItem('demo_bookings', JSON.stringify(updated))
+    setScreen('my-bookings')
   }
 
   return (
@@ -203,12 +216,19 @@ export function DemoClientPortalPage() {
       {screen === 'form' && selectedVenue && (
         <FormScreen
           venue={selectedVenue}
-          onBack={() => setScreen('details')}
-          onSubmit={handleCreateBooking}
-          bookings={bookings} // pass bookings to check overlaps
+          onBack={() => { setScreen(editingBooking ? 'my-bookings' : 'details'); setEditingBooking(null); }}
+          onSubmit={(b) => {
+            if (editingBooking) {
+              handleEditBooking(b.id, b.purpose, b.attendees)
+            } else {
+              handleCreateBooking(b)
+            }
+          }}
+          bookings={bookings}
+          initialBooking={editingBooking}
         />
       )}
-      {screen === 'my-bookings' && <MyBookingsScreen bookings={bookings} onCancel={cancelBooking} onEdit={handleEditBooking} />}
+      {screen === 'my-bookings' && <MyBookingsScreen bookings={bookings} onCancel={cancelBooking} onEdit={openEdit} />}
 
       {/* Bottom Navigation */}
       {(screen === 'home' || screen === 'my-bookings') && (
@@ -495,12 +515,14 @@ function FormScreen({
   venue,
   onBack,
   onSubmit,
-  bookings
+  bookings,
+  initialBooking,
 }: {
   venue: Venue
   onBack: () => void
   onSubmit: (b: BookingRequest) => void
   bookings: BookingRequest[]
+  initialBooking?: BookingRequest | null
 }) {
   const getInitialTimes = () => {
     const d = new Date()
@@ -540,12 +562,12 @@ function FormScreen({
   }
 
   const [initial] = useState(() => getInitialTimes())
-  const [startDate, setStartDate] = useState(initial.startDateStr)
-  const [endDate, setEndDate] = useState(initial.endDateStr)
-  const [startTime, setStartTime] = useState(initial.startTime)
-  const [endTime, setEndTime] = useState(initial.endTime)
-  const [purpose, setPurpose] = useState('')
-  const [attendees, setAttendees] = useState(venue.capacity.toString())
+  const [startDate, setStartDate] = useState(initialBooking ? initialBooking.startDate : initial.startDateStr)
+  const [endDate, setEndDate] = useState(initialBooking ? initialBooking.endDate : initial.endDateStr)
+  const [startTime, setStartTime] = useState(initialBooking ? initialBooking.startTime : initial.startTime)
+  const [endTime, setEndTime] = useState(initialBooking ? initialBooking.endTime : initial.endTime)
+  const [purpose, setPurpose] = useState(initialBooking ? initialBooking.purpose : '')
+  const [attendees, setAttendees] = useState(initialBooking ? initialBooking.attendees.toString() : venue.capacity.toString())
   
   const now = new Date()
   const { start: currentStart, end: currentEnd } = getBookingTimes(startDate, endDate, startTime, endTime)
@@ -571,10 +593,10 @@ function FormScreen({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (isOverlap) return;
+    if (isOverlap && !initialBooking) return;
     
     onSubmit({
-      id: 'req-' + Math.random().toString(36).substr(2, 9),
+      id: initialBooking ? initialBooking.id : 'req-' + Math.random().toString(36).substr(2, 9),
       venueId: venue.id,
       venueName: venue.name,
       startDate,
@@ -582,9 +604,9 @@ function FormScreen({
       startTime,
       endTime,
       purpose,
-      attendees: parseInt(attendees, 10),
-      status: 'PENDING',
-      createdAt: new Date().toISOString(),
+      attendees: parseInt(attendees, 10) || 1,
+      status: initialBooking ? initialBooking.status : 'PENDING',
+      createdAt: initialBooking ? initialBooking.createdAt : new Date().toISOString(),
     })
   }
 
@@ -594,7 +616,7 @@ function FormScreen({
         <button onClick={onBack} className="btn btn-ghost btn-circle">
           <ChevronLeftIcon className="h-6 w-6" />
         </button>
-        <h1 className="text-lg font-bold">สร้างคำขอจอง</h1>
+        <h1 className="text-lg font-bold">{initialBooking ? 'แก้ไขคำขอจอง' : 'สร้างคำขอจอง'}</h1>
       </div>
 
       <div className="p-5">
@@ -607,22 +629,22 @@ function FormScreen({
           <div className="grid grid-cols-2 gap-4">
             <fieldset className="fieldset">
               <legend className="fieldset-legend font-semibold">วันเริ่มต้น <span className="text-error ml-1">*</span></legend>
-              <input type="date" className="input input-bordered w-full" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+              <input type="date" className="input input-bordered w-full" value={startDate} onChange={(e) => setStartDate(e.target.value)} required disabled={!!initialBooking} />
             </fieldset>
             <fieldset className="fieldset">
               <legend className="fieldset-legend font-semibold">วันสิ้นสุด <span className="text-error ml-1">*</span></legend>
-              <input type="date" className="input input-bordered w-full" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+              <input type="date" className="input input-bordered w-full" value={endDate} onChange={(e) => setEndDate(e.target.value)} required disabled={!!initialBooking} />
             </fieldset>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <fieldset className="fieldset">
               <legend className="fieldset-legend font-semibold">เวลาเริ่มต้น <span className="text-error ml-1">*</span></legend>
-              <input type="time" className="input input-bordered w-full" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+              <input type="time" className="input input-bordered w-full" value={startTime} onChange={(e) => setStartTime(e.target.value)} required disabled={!!initialBooking} />
             </fieldset>
             <fieldset className="fieldset">
               <legend className="fieldset-legend font-semibold">เวลาสิ้นสุด <span className="text-error ml-1">*</span></legend>
-              <input type="time" className="input input-bordered w-full" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+              <input type="time" className="input input-bordered w-full" value={endTime} onChange={(e) => setEndTime(e.target.value)} required disabled={!!initialBooking} />
             </fieldset>
           </div>
 
@@ -637,21 +659,21 @@ function FormScreen({
             <textarea className="textarea textarea-bordered w-full h-24" placeholder="ระบุรายละเอียด..." value={purpose} onChange={(e) => setPurpose(e.target.value)} required></textarea>
           </fieldset>
 
-          {isPast && (
+          {isPast && !initialBooking && (
             <div className="alert alert-error mt-6 text-sm">
               <XCircleIcon className="h-5 w-5 shrink-0" />
               <span>ไม่สามารถจองเวลาย้อนหลังได้</span>
             </div>
           )}
 
-          {isOverlap && !isPast && (
+          {isOverlap && !isPast && !initialBooking && (
             <div className="alert alert-error mt-6 text-sm">
               <XCircleIcon className="h-5 w-5 shrink-0" />
               <span>เวลานี้ถูกจองแล้ว โปรดเลือกเวลาอื่น</span>
             </div>
           )}
 
-          {isInvalidRange && !isPast && (
+          {isInvalidRange && !isPast && !initialBooking && (
             <div className="alert alert-error mt-6 text-sm">
               <XCircleIcon className="h-5 w-5 shrink-0" />
               <span>วัน-เวลาสิ้นสุด ต้องมากกว่า วัน-เวลาเริ่มต้น</span>
@@ -659,8 +681,8 @@ function FormScreen({
           )}
 
           <div className="pt-6">
-            <button type="submit" className="btn btn-primary w-full text-lg shadow-md" disabled={isOverlap || isPast || isInvalidRange || !purpose}>
-              ส่งคำขอจองสถานที่
+            <button type="submit" className="btn btn-primary w-full text-lg shadow-md" disabled={(!initialBooking && (isOverlap || isPast || isInvalidRange)) || !purpose}>
+              {initialBooking ? 'บันทึกการแก้ไข' : 'ส่งคำขอจองสถานที่'}
             </button>
           </div>
         </form>
@@ -669,11 +691,8 @@ function FormScreen({
   )
 }
 
-function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingRequest[], onCancel: (id: string) => void, onEdit: (id: string, purpose: string, attendees: number) => void }) {
+function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingRequest[], onCancel: (id: string) => void, onEdit: (b: BookingRequest) => void }) {
   const [tab, setTab] = useState<'ACTIVE' | 'HISTORY'>('ACTIVE')
-  const [editingBooking, setEditingBooking] = useState<BookingRequest | null>(null)
-  const [editPurpose, setEditPurpose] = useState('')
-  const [editAttendees, setEditAttendees] = useState('')
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   const toggleExpand = (id: string) => {
@@ -683,19 +702,6 @@ function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingReq
       else next.add(id)
       return next
     })
-  }
-
-  const openEdit = (b: BookingRequest) => {
-    setEditingBooking(b)
-    setEditPurpose(b.purpose)
-    setEditAttendees(b.attendees.toString())
-  }
-
-  const saveEdit = () => {
-    if (editingBooking) {
-      onEdit(editingBooking.id, editPurpose, parseInt(editAttendees, 10) || 1)
-      setEditingBooking(null)
-    }
   }
 
   const filtered = bookings.filter((b) => {
@@ -728,7 +734,18 @@ function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingReq
             <div key={b.id} className="card bg-base-100 shadow-sm border border-base-200">
               <div className="card-body p-4">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-bold text-base">{b.venueName}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-base">{b.venueName}</h3>
+                    {b.status === 'PENDING' && (
+                      <button 
+                        className="btn btn-xs btn-ghost text-primary px-1"
+                        onClick={() => onEdit(b)}
+                        title="แก้ไขคำขอจอง"
+                      >
+                        <PencilSquareIcon className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
                   <StatusBadge status={b.status} />
                 </div>
                 <div className="text-sm text-base-content/70 space-y-1">
@@ -750,21 +767,13 @@ function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingReq
                 
                 {(b.status === 'PENDING' || b.status === 'APPROVED') && (
                   <div className="card-actions justify-end mt-4 pt-4 border-t border-base-200 gap-2">
-                    {b.status === 'PENDING' && (
-                      <button 
-                        className="btn btn-sm btn-outline btn-primary"
-                        onClick={() => openEdit(b)}
-                      >
-                        แก้ไข
-                      </button>
-                    )}
                     <button 
                       className="btn btn-sm btn-outline text-error border-error hover:bg-error hover:text-white hover:border-error" 
                       onClick={() => {
                         if (confirm('คุณต้องการยกเลิกการจองนี้ใช่หรือไม่?')) onCancel(b.id)
                       }}
                     >
-                      ยกเลิก
+                      ยกเลิกการจอง
                     </button>
                   </div>
                 )}
@@ -773,29 +782,6 @@ function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingReq
           ))
         )}
       </div>
-
-      {/* Edit Modal */}
-      {editingBooking && (
-        <div className="modal modal-open">
-          <div className="modal-box">
-            <h3 className="font-bold text-lg mb-4">แก้ไขคำขอจอง</h3>
-            <div className="space-y-4">
-              <fieldset className="fieldset">
-                <legend className="fieldset-legend font-semibold">จำนวนผู้เข้าร่วม (คน) <span className="text-error">*</span></legend>
-                <input type="number" className="input input-bordered w-full" value={editAttendees} onChange={(e) => setEditAttendees(e.target.value)} required min="1" />
-              </fieldset>
-              <fieldset className="fieldset">
-                <legend className="fieldset-legend font-semibold">รายละเอียด <span className="text-error">*</span></legend>
-                <textarea className="textarea textarea-bordered w-full h-24" value={editPurpose} onChange={(e) => setEditPurpose(e.target.value)} required></textarea>
-              </fieldset>
-            </div>
-            <div className="modal-action">
-              <button className="btn btn-ghost" onClick={() => setEditingBooking(null)}>ยกเลิก</button>
-              <button className="btn btn-primary" onClick={saveEdit} disabled={!editPurpose || !editAttendees}>บันทึก</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
