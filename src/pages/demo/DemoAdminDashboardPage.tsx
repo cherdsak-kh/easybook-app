@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { CheckCircleIcon, XCircleIcon, Bars3Icon } from '@heroicons/react/24/outline'
+import { CheckCircleIcon, XCircleIcon, Bars3Icon, InformationCircleIcon } from '@heroicons/react/24/outline'
 
 type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
 
@@ -20,6 +20,7 @@ type BookingRequest = {
 export function DemoAdminDashboardPage() {
   const [bookings, setBookings] = useState<BookingRequest[]>([])
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [viewingBooking, setViewingBooking] = useState<BookingRequest | null>(null)
 
   // Polling localStorage
   useEffect(() => {
@@ -128,7 +129,7 @@ export function DemoAdminDashboardPage() {
                         <td>{b.startDate === b.endDate ? b.startDate : `${b.startDate} ถึง ${b.endDate}`}</td>
                         <td>{b.startTime} - {b.endTime}</td>
                         <td className="font-semibold">{b.venueName}</td>
-                        <td>{b.purpose}</td>
+                        <td className="max-w-[150px] truncate" title={b.purpose}>{b.purpose}</td>
                         <td>{b.attendees}</td>
                         <td className="text-right space-x-2">
                           <button
@@ -142,6 +143,13 @@ export function DemoAdminDashboardPage() {
                             onClick={() => updateStatus(b.id, 'REJECTED')}
                           >
                             <XCircleIcon className="w-4 h-4" /> ปฏิเสธ
+                          </button>
+                          <button
+                            className="btn btn-sm btn-info btn-outline"
+                            onClick={() => setViewingBooking(b)}
+                            title="ดูรายละเอียด"
+                          >
+                            <InformationCircleIcon className="w-4 h-4" /> 
                           </button>
                         </td>
                       </tr>
@@ -163,6 +171,7 @@ export function DemoAdminDashboardPage() {
                     <th>สถานะ</th>
                     <th>สถานที่</th>
                     <th>วันที่จอง</th>
+                    <th className="text-right">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -179,15 +188,47 @@ export function DemoAdminDashboardPage() {
                       </td>
                       <td>{b.venueName}</td>
                       <td>{b.startDate === b.endDate ? b.startDate : `${b.startDate} ถึง ${b.endDate}`}</td>
+                      <td className="text-right">
+                        <button
+                          className="btn btn-sm btn-info btn-ghost"
+                          onClick={() => setViewingBooking(b)}
+                          title="ดูรายละเอียด"
+                        >
+                          <InformationCircleIcon className="w-5 h-5" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {historyBookings.length === 0 && (
-                    <tr><td colSpan={3} className="text-center py-4 text-base-content/50">ยังไม่มีประวัติ</td></tr>
+                    <tr><td colSpan={4} className="text-center py-4 text-base-content/50">ยังไม่มีประวัติ</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {/* Details Modal */}
+          {viewingBooking && (
+            <div className="modal modal-open">
+              <div className="modal-box max-w-md">
+                <h3 className="font-bold text-lg mb-4">รายละเอียดคำขอจอง</h3>
+                <div className="space-y-3 text-base-content">
+                  <p><span className="font-semibold text-base-content/70">ID:</span> {viewingBooking.id}</p>
+                  <p><span className="font-semibold text-base-content/70">สถานที่:</span> {viewingBooking.venueName}</p>
+                  <p><span className="font-semibold text-base-content/70">วันที่:</span> {viewingBooking.startDate === viewingBooking.endDate ? viewingBooking.startDate : `${viewingBooking.startDate} ถึง ${viewingBooking.endDate}`}</p>
+                  <p><span className="font-semibold text-base-content/70">เวลา:</span> {viewingBooking.startTime} - {viewingBooking.endTime}</p>
+                  <p><span className="font-semibold text-base-content/70">จำนวนผู้เข้าร่วม:</span> {viewingBooking.attendees} คน</p>
+                  <div className="bg-base-200 p-3 rounded-lg mt-2">
+                    <span className="font-semibold text-base-content/70 block mb-1">รายละเอียด:</span>
+                    <p className="whitespace-pre-wrap">{viewingBooking.purpose}</p>
+                  </div>
+                </div>
+                <div className="modal-action">
+                  <button className="btn" onClick={() => setViewingBooking(null)}>ปิด</button>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
       <div className="drawer-side z-40">
