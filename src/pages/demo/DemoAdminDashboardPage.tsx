@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { CheckCircleIcon, XCircleIcon, Bars3Icon, InformationCircleIcon } from '@heroicons/react/24/outline'
 
-type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED'
 
 type BookingRequest = {
   id: string
@@ -28,11 +28,26 @@ export function DemoAdminDashboardPage() {
     const loadBookings = () => {
       const stored = localStorage.getItem('demo_bookings')
       if (stored) {
-        const parsed = JSON.parse(stored).map((b: any) => ({
-          ...b,
-          startDate: b.startDate || b.date,
-          endDate: b.endDate || b.date,
-        }))
+        let changed = false
+        const now = new Date()
+        const parsed = JSON.parse(stored).map((b: any) => {
+          const booking = {
+            ...b,
+            startDate: b.startDate || b.date,
+            endDate: b.endDate || b.date,
+          }
+          if (booking.status === 'PENDING' || booking.status === 'APPROVED') {
+            const end = new Date(`${booking.endDate}T${booking.endTime}`)
+            if (end < now) {
+              booking.status = booking.status === 'PENDING' ? 'REJECTED' : 'COMPLETED'
+              changed = true
+            }
+          }
+          return booking
+        })
+        if (changed) {
+          localStorage.setItem('demo_bookings', JSON.stringify(parsed))
+        }
         setBookings(parsed)
       }
     }
@@ -181,6 +196,8 @@ export function DemoAdminDashboardPage() {
                       <td>
                         {b.status === 'APPROVED' ? (
                           <div className="badge badge-success text-xs text-white">อนุมัติแล้ว</div>
+                        ) : b.status === 'COMPLETED' ? (
+                          <div className="badge badge-info text-xs text-white">เสร็จสิ้น</div>
                         ) : b.status === 'CANCELLED' ? (
                           <div className="badge badge-neutral text-xs text-white">ยกเลิกโดยผู้ใช้</div>
                         ) : (

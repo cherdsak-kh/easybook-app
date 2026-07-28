@@ -116,7 +116,7 @@ const MOCK_VENUES: Venue[] = [
   },
 ]
 
-export type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+export type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED'
 
 export type BookingRequest = {
   id: string
@@ -152,11 +152,26 @@ export function DemoClientPortalPage() {
     const loadBookings = () => {
       const stored = localStorage.getItem('demo_bookings')
       if (stored) {
-        const parsed = JSON.parse(stored).map((b: any) => ({
-          ...b,
-          startDate: b.startDate || b.date,
-          endDate: b.endDate || b.date,
-        }))
+        let changed = false
+        const now = new Date()
+        const parsed = JSON.parse(stored).map((b: any) => {
+          const booking = {
+            ...b,
+            startDate: b.startDate || b.date,
+            endDate: b.endDate || b.date,
+          }
+          if (booking.status === 'PENDING' || booking.status === 'APPROVED') {
+            const end = new Date(`${booking.endDate}T${booking.endTime}`)
+            if (end < now) {
+              booking.status = booking.status === 'PENDING' ? 'REJECTED' : 'COMPLETED'
+              changed = true
+            }
+          }
+          return booking
+        })
+        if (changed) {
+          localStorage.setItem('demo_bookings', JSON.stringify(parsed))
+        }
         setBookings(parsed)
       }
     }
@@ -706,12 +721,13 @@ function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingReq
 
   const filtered = bookings.filter((b) => {
     if (tab === 'ACTIVE') return b.status === 'PENDING' || b.status === 'APPROVED'
-    return b.status === 'REJECTED' || b.status === 'CANCELLED'
+    return b.status === 'REJECTED' || b.status === 'CANCELLED' || b.status === 'COMPLETED'
   })
 
   const StatusBadge = ({ status }: { status: BookingStatus }) => {
     if (status === 'PENDING') return <div className="badge badge-warning text-xs">รอตรวจสอบ</div>
     if (status === 'APPROVED') return <div className="badge badge-success text-xs text-white">อนุมัติแล้ว</div>
+    if (status === 'COMPLETED') return <div className="badge badge-info text-xs text-white">เสร็จสิ้น</div>
     if (status === 'CANCELLED') return <div className="badge badge-neutral text-xs text-white">ยกเลิกแล้ว</div>
     return <div className="badge badge-error text-xs text-white">ปฏิเสธ</div>
   }
