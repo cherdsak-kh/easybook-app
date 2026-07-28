@@ -21,6 +21,7 @@ export function DemoAdminDashboardPage() {
   const [bookings, setBookings] = useState<BookingRequest[]>([])
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [viewingBooking, setViewingBooking] = useState<BookingRequest | null>(null)
+  const [isPurposeExpanded, setIsPurposeExpanded] = useState(false)
 
   // Polling localStorage
   useEffect(() => {
@@ -146,7 +147,7 @@ export function DemoAdminDashboardPage() {
                           </button>
                           <button
                             className="btn btn-sm btn-info btn-outline"
-                            onClick={() => setViewingBooking(b)}
+                            onClick={() => { setViewingBooking(b); setIsPurposeExpanded(false); }}
                             title="ดูรายละเอียด"
                           >
                             <InformationCircleIcon className="w-4 h-4" /> 
@@ -191,7 +192,7 @@ export function DemoAdminDashboardPage() {
                       <td className="text-right">
                         <button
                           className="btn btn-sm btn-info btn-ghost"
-                          onClick={() => setViewingBooking(b)}
+                          onClick={() => { setViewingBooking(b); setIsPurposeExpanded(false); }}
                           title="ดูรายละเอียด"
                         >
                           <InformationCircleIcon className="w-5 h-5" />
@@ -220,11 +221,18 @@ export function DemoAdminDashboardPage() {
                   <p><span className="font-semibold text-base-content/70">จำนวนผู้เข้าร่วม:</span> {viewingBooking.attendees} คน</p>
                   <div className="bg-base-200 p-3 rounded-lg mt-2">
                     <span className="font-semibold text-base-content/70 block mb-1">รายละเอียด:</span>
-                    <p className="whitespace-pre-wrap">{viewingBooking.purpose}</p>
+                    <div className={`break-all whitespace-pre-wrap ${!isPurposeExpanded && viewingBooking.purpose.length > 80 ? 'line-clamp-3' : ''}`}>
+                      {viewingBooking.purpose}
+                    </div>
+                    {viewingBooking.purpose.length > 80 && (
+                      <button className="text-primary text-xs font-semibold mt-1" onClick={() => setIsPurposeExpanded(!isPurposeExpanded)}>
+                        {isPurposeExpanded ? 'ย่อข้อความ' : 'ดูเพิ่มเติม...'}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="modal-action">
-                  <button className="btn" onClick={() => setViewingBooking(null)}>ปิด</button>
+                  <button className="btn" onClick={() => { setViewingBooking(null); setIsPurposeExpanded(false); }}>ปิด</button>
                 </div>
               </div>
             </div>
