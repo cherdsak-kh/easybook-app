@@ -90,7 +90,7 @@ export function DemoAdminDashboardPage() {
             <div className="stat bg-base-100 rounded-xl shadow-sm border border-base-200">
               <div className="stat-title">อนุมัติแล้ววันนี้</div>
               <div className="stat-value text-success">
-                {historyBookings.filter(b => b.status === 'APPROVED' && b.date === new Date().toISOString().split('T')[0]).length}
+                {historyBookings.filter(b => b.status === 'APPROVED' && b.startDate <= new Date().toISOString().split('T')[0] && b.endDate >= new Date().toISOString().split('T')[0]).length}
               </div>
             </div>
             <div className="stat bg-base-100 rounded-xl shadow-sm border border-base-200">

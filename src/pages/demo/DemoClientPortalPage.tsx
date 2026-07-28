@@ -683,8 +683,8 @@ function MyBookingsScreen({ bookings, onCancel }: { bookings: BookingRequest[], 
                   <StatusBadge status={b.status} />
                 </div>
                 <div className="text-sm text-base-content/70 space-y-1">
-                  <p><span className="font-semibold">วันที่:</span> {b.date}</p>
-                  <p><span className="font-semibold">เวลา:</span> {b.startTime} - {b.endTime} น. {b.endTime <= b.startTime && <span className="text-error font-bold text-xs">(ข้ามวัน)</span>}</p>
+                  <p><span className="font-semibold">วันที่:</span> {b.startDate === b.endDate ? b.startDate : `${b.startDate} ถึง ${b.endDate}`}</p>
+                  <p><span className="font-semibold">เวลา:</span> {b.startTime} - {b.endTime} น.</p>
                   <p><span className="font-semibold">รายละเอียด:</span> {b.purpose}</p>
                 </div>
                 
