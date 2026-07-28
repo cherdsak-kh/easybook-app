@@ -9,6 +9,8 @@ import { AdminPortalLoginPage } from '@/pages/admin-portal/AdminPortalLoginPage'
 import { ThemeLayout } from '@/components/ThemeLayout'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
+import { DemoClientPortalPage } from '@/pages/demo/DemoClientPortalPage'
+import { DemoAdminDashboardPage } from '@/pages/demo/DemoAdminDashboardPage'
 import {
   ADMIN_PORTAL_ROUTES,
   ADMIN_PORTAL_SEGMENTS,
@@ -172,6 +174,10 @@ function App() {
           </Route>
         </Route>
         <Route element={<ThemeLayout portal="client" />}>
+          {/* MVP Demo Routes */}
+          <Route path="/demo/client" element={<DemoClientPortalPage />} />
+          <Route path="/demo/admin" element={<DemoAdminDashboardPage />} />
+          
           {/* The client LIFF surface. `HomePage` is route-less (it swaps screens via
               internal state, not the URL), so it matches only the INDEX (`/`); there is no
               client sub-route to catch. */}

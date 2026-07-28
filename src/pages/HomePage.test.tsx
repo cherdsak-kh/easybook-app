@@ -1,5 +1,6 @@
 import { act } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { HomePage } from '@/pages/HomePage'
 import { PHONE_COUNT } from '@/components/RegistrationForm'
 import { UI_STRINGS_CLIENT as UI } from '@/constants/ui-strings-client'
@@ -21,6 +22,19 @@ import type {
  * DTO — so they still pin the form's pass-through of the value.
  */
 const VALID_PHONE = '0'.repeat(PHONE_COUNT)
+
+/**
+ * `HomePage`'s greeting screen renders a `<Link>` to the demo portal, and any
+ * react-router primitive throws outside a router context. Every case here goes
+ * through this helper so a future `<Link>`/`useNavigate` added anywhere else in
+ * the page cannot redden an unrelated test. `MemoryRouter` matches the repo
+ * convention (see `AdminPortalLoginPage.test.tsx`); no route table is needed
+ * because nothing here asserts on navigation, only that the link renders.
+ */
+const renderHome = () =>
+  render(<HomePage />, {
+    wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter>,
+  })
 
 // Mock the LIFF wrapper AND the api-client at their import boundaries (repo
 // convention). These are the only two places @line/liff and network calls live,
@@ -180,7 +194,7 @@ afterEach(() => {
 
 describe('HomePage — splash', () => {
   it('shows the splash on mount (before the flow resolves)', () => {
-    render(<HomePage />)
+    renderHome()
     expect(screen.getByRole('status', { name: UI.splash.loading })).toBeInTheDocument()
     expect(screen.queryByText(/Hello,/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: UI.lineLogin.submit })).not.toBeInTheDocument()
@@ -188,20 +202,20 @@ describe('HomePage — splash', () => {
 
   it('uses the wordmark logo on the splash in a web browser', () => {
     mockIsInLineClient.mockReturnValue(false)
-    render(<HomePage />)
+    renderHome()
     expect(screen.getByAltText(UI.splash.logoAlt)).toHaveAttribute('src', WORDMARK_LOGO)
   })
 
   it('uses the square mark logo on the splash inside the LINE client', () => {
     mockIsInLineClient.mockReturnValue(true)
-    render(<HomePage />)
+    renderHome()
     expect(screen.getByAltText(UI.splash.logoAlt)).toHaveAttribute('src', MARK_LOGO)
   })
 })
 
 describe('HomePage — web login card', () => {
   it('web + signed out → shows the LINE login card after the splash resolves', async () => {
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     expect(screen.getByRole('button', { name: UI.lineLogin.submit })).toBeInTheDocument()
@@ -209,7 +223,7 @@ describe('HomePage — web login card', () => {
   })
 
   it('login button triggers liff.login() when a LIFF id is configured', async () => {
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fireEvent.click(screen.getByRole('button', { name: UI.lineLogin.submit }))
@@ -222,7 +236,7 @@ describe('HomePage — friendship gate (AC-F)', () => {
   it('friendFlag:false → shows the Add-Friend screen with the OA QR', async () => {
     mockInitLiff.mockResolvedValue({ displayName: 'Alice', userId: 'U1' })
     mockGetFriendship.mockResolvedValue({ friendFlag: false })
-    render(<HomePage />)
+    renderHome()
 
     await resolveSplash()
 
@@ -238,7 +252,7 @@ describe('HomePage — friendship gate (AC-F)', () => {
       .mockResolvedValueOnce({ friendFlag: false }) // initial gate
       .mockResolvedValue({ friendFlag: true }) // the re-check
     mockGetStatus.mockResolvedValue(status('ALLOWED'))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fireEvent.click(screen.getByRole('button', { name: UI.addFriend.recheck }))
@@ -256,7 +270,7 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
 
   it('UNREGISTERED → shows the registration form with option dropdowns (SC-F2)', async () => {
     mockGetStatus.mockResolvedValue(status('UNREGISTERED'))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     expect(screen.getByRole('button', { name: UI.registration.createSubmit })).toBeInTheDocument()
@@ -272,7 +286,7 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
 
   it('PENDING → shows the pending screen with an Edit affordance', async () => {
     mockGetStatus.mockResolvedValue(status('PENDING', registration()))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     expect(screen.getByText(UI.pending.title)).toBeInTheDocument()
@@ -283,7 +297,7 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
 
   it('ALLOWED → shows the greeting', async () => {
     mockGetStatus.mockResolvedValue(status('ALLOWED'))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     expect(screen.getByText(UI.hello.greeting('Alice'))).toBeInTheDocument()
@@ -291,7 +305,7 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
 
   it('BLOCKED → shows the suspended screen', async () => {
     mockGetStatus.mockResolvedValue(status('BLOCKED'))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     expect(screen.getByText(UI.blocked.title)).toBeInTheDocument()
@@ -300,7 +314,7 @@ describe('HomePage — access-status gate (AC-F1/F3/F4/F5)', () => {
 
   it('a failing status call → shows the error screen with a retry', async () => {
     mockGetStatus.mockRejectedValue(new apiClient.ApiError(500, 'boom'))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     expect(screen.getByText(UI.gateError.title)).toBeInTheDocument()
@@ -316,7 +330,7 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
 
   it('submits the id-based DTO with the bearer token and moves to Pending', async () => {
     mockRegister.mockResolvedValue(status('PENDING', registration()))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fillRegistration()
@@ -339,7 +353,7 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
   })
 
   it('blocks submit and shows field errors when required fields are empty', async () => {
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fireEvent.click(screen.getByRole('button', { name: UI.registration.createSubmit }))
@@ -357,7 +371,7 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
    */
   it('surfaces a 409 (already registered) as a non-crashing error, staying on the form', async () => {
     mockRegister.mockRejectedValue(new apiClient.ApiError(409, 'ALREADY_REGISTERED'))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fillRegistration()
@@ -378,7 +392,7 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
   it('Edit → pre-fills the form, PATCHes edited values, and returns to Pending', async () => {
     const edited = registration({ firstName: 'Somsak' })
     mockUpdate.mockResolvedValue(status('PENDING', edited))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fireEvent.click(screen.getByRole('button', { name: UI.pending.edit }))
@@ -412,7 +426,7 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
 
   it('renders a 403 (no longer PENDING) as a refresh prompt, staying on the form', async () => {
     mockUpdate.mockRejectedValue(new apiClient.ApiError(403, 'REGISTRATION_NOT_EDITABLE'))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fireEvent.click(screen.getByRole('button', { name: UI.pending.edit }))
@@ -426,7 +440,7 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
 
   it('renders a 400 (deleted/invalid option) inline on edit', async () => {
     mockUpdate.mockRejectedValue(new apiClient.ApiError(400, 'INVALID_DEPARTMENT'))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fireEvent.click(screen.getByRole('button', { name: UI.pending.edit }))
@@ -438,7 +452,7 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
   })
 
   it('Cancel returns to Pending without calling the backend', async () => {
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fireEvent.click(screen.getByRole('button', { name: UI.pending.edit }))
@@ -460,7 +474,7 @@ describe('HomePage — REJECTED (sent back for revision)', () => {
   })
 
   it('routes a REJECTED status to the Rejected screen and shows the reason prominently', async () => {
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     expect(screen.getByText(UI.rejected.title)).toBeInTheDocument()
@@ -475,14 +489,14 @@ describe('HomePage — REJECTED (sent back for revision)', () => {
 
   it('falls back to an explanation rather than a blank box when the reason is null', async () => {
     mockGetStatus.mockResolvedValue(status('REJECTED', registration(), null))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     expect(screen.getByText(UI.rejected.reasonFallback)).toBeInTheDocument()
   })
 
   it('the edit button opens the EXISTING registration form, pre-filled', async () => {
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fireEvent.click(screen.getByRole('button', { name: UI.rejected.edit }))
@@ -498,7 +512,7 @@ describe('HomePage — REJECTED (sent back for revision)', () => {
     const edited = registration({ firstName: 'Somsak' })
     // The backend flips REJECTED → PENDING and clears the reason on a resubmit.
     mockUpdate.mockResolvedValue(status('PENDING', edited, null))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fireEvent.click(screen.getByRole('button', { name: UI.rejected.edit }))
@@ -525,7 +539,7 @@ describe('HomePage — REJECTED (sent back for revision)', () => {
   })
 
   it('Cancel returns to the Rejected screen (not Pending) with the reason intact', async () => {
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fireEvent.click(screen.getByRole('button', { name: UI.rejected.edit }))
@@ -542,7 +556,7 @@ describe('HomePage — REJECTED (sent back for revision)', () => {
     // A status with no dedicated branch: proves the GENERIC fallback in
     // `messageForEdit` still renders the server message inline, non-crashing.
     mockUpdate.mockRejectedValue(new apiClient.ApiError(500, 'REGISTRATION_UPDATE_FAILED'))
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     fireEvent.click(screen.getByRole('button', { name: UI.rejected.edit }))
@@ -560,7 +574,7 @@ describe('HomePage — in-client behaviour', () => {
     mockIsInLineClient.mockReturnValue(true)
     mockIsLoggedIn.mockReturnValue(false)
     mockInitLiff.mockResolvedValue(null)
-    render(<HomePage />)
+    renderHome()
 
     await resolveSplash()
 
@@ -574,7 +588,7 @@ describe('HomePage — in-client behaviour', () => {
     mockIsLoggedIn.mockReturnValue(true)
     mockInitLiff.mockResolvedValue({ displayName: 'Bob', userId: 'U456' })
     mockGetStatus.mockResolvedValue(status('ALLOWED'))
-    render(<HomePage />)
+    renderHome()
 
     await resolveSplash()
 
@@ -589,7 +603,7 @@ describe('HomePage — local-dev mock path (no LIFF id)', () => {
     mockIsLiffConfigured.mockReturnValue(false)
     mockGetIdToken.mockReturnValue(null)
     mockInitLiff.mockResolvedValue(null)
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     // Web signed-out → login card; the dev mock login enters the gate flow.
@@ -622,7 +636,7 @@ describe('HomePage — OBS-2: configured LIFF but no ID token', () => {
     mockGetIdToken.mockReturnValue(null)
     mockInitLiff.mockResolvedValue({ displayName: 'Alice', userId: 'U1' })
     mockGetFriendship.mockResolvedValue({ friendFlag: true })
-    render(<HomePage />)
+    renderHome()
     await resolveSplash()
 
     // Loud, labelled alert with the exact support message.
