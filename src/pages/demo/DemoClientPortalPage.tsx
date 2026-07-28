@@ -508,28 +508,34 @@ function FormScreen({
       h += 1
     }
     
+    const dStart = new Date(d)
     if (h >= 24) {
       h = 0
-      d.setDate(d.getDate() + 1)
+      dStart.setDate(dStart.getDate() + 1)
     }
-    
     const startTime = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
     
     let endH = h + 1
-    if (endH >= 24) endH = 0
+    const dEnd = new Date(dStart)
+    if (endH >= 24) {
+      endH = 0
+      dEnd.setDate(dEnd.getDate() + 1)
+    }
     const endTime = `${endH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
     
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    const dateStr = `${year}-${month}-${day}`
+    const formatD = (dateObj: Date) => {
+      const year = dateObj.getFullYear()
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+      const day = String(dateObj.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
     
-    return { dateStr, startTime, endTime }
+    return { startDateStr: formatD(dStart), endDateStr: formatD(dEnd), startTime, endTime }
   }
 
   const [initial] = useState(() => getInitialTimes())
-  const [startDate, setStartDate] = useState(initial.dateStr)
-  const [endDate, setEndDate] = useState(initial.dateStr)
+  const [startDate, setStartDate] = useState(initial.startDateStr)
+  const [endDate, setEndDate] = useState(initial.endDateStr)
   const [startTime, setStartTime] = useState(initial.startTime)
   const [endTime, setEndTime] = useState(initial.endTime)
   const [purpose, setPurpose] = useState('')
@@ -539,6 +545,17 @@ function FormScreen({
   const { start: currentStart, end: currentEnd } = getBookingTimes(startDate, endDate, startTime, endTime)
   const isPast = currentStart < now
   const isInvalidRange = currentEnd <= currentStart
+  
+  useEffect(() => {
+    if (startDate && endDate && startDate === endDate && startTime && endTime && endTime < startTime) {
+      const d = new Date(startDate)
+      d.setDate(d.getDate() + 1)
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      setEndDate(`${year}-${month}-${day}`)
+    }
+  }, [startDate, endDate, startTime, endTime])
   
   const isOverlap = bookings.some((b) => {
     if (b.venueId !== venue.id || b.status === 'REJECTED' || b.status === 'CANCELLED') return false;
@@ -583,11 +600,11 @@ function FormScreen({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <fieldset className="fieldset">
-              <legend className="fieldset-legend font-semibold">วันเริ่มต้น (Check-in)</legend>
+              <legend className="fieldset-legend font-semibold">วันเริ่มต้น</legend>
               <input type="date" className="input input-bordered w-full" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
             </fieldset>
             <fieldset className="fieldset">
-              <legend className="fieldset-legend font-semibold">วันสิ้นสุด (Check-out)</legend>
+              <legend className="fieldset-legend font-semibold">วันสิ้นสุด</legend>
               <input type="date" className="input input-bordered w-full" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
             </fieldset>
           </div>
