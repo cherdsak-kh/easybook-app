@@ -121,7 +121,8 @@ export type BookingRequest = {
   id: string
   venueId: string
   venueName: string
-  date: string
+  startDate: string
+  endDate: string
   startTime: string
   endTime: string
   purpose: string
@@ -130,12 +131,9 @@ export type BookingRequest = {
   createdAt: string
 }
 
-export const getBookingTimes = (date: string, startTime: string, endTime: string) => {
-  const start = new Date(`${date}T${startTime}`)
-  const end = new Date(`${date}T${endTime}`)
-  if (end <= start) {
-    end.setDate(end.getDate() + 1)
-  }
+export const getBookingTimes = (startDate: string, endDate: string, startTime: string, endTime: string) => {
+  const start = new Date(`${startDate}T${startTime}`)
+  const end = new Date(`${endDate}T${endTime}`)
   return { start, end }
 }
 
@@ -152,7 +150,12 @@ export function DemoClientPortalPage() {
     const loadBookings = () => {
       const stored = localStorage.getItem('demo_bookings')
       if (stored) {
-        setBookings(JSON.parse(stored))
+        const parsed = JSON.parse(stored).map((b: any) => ({
+          ...b,
+          startDate: b.startDate || b.date,
+          endDate: b.endDate || b.date,
+        }))
+        setBookings(parsed)
       }
     }
     loadBookings()
@@ -317,7 +320,7 @@ function DetailsScreen({
   
   const selectedBookings = bookings.filter((b) => {
     if (b.venueId !== venue.id || b.status === 'REJECTED' || b.status === 'CANCELLED') return false;
-    const { start, end } = getBookingTimes(b.date, b.startTime, b.endTime)
+    const { start, end } = getBookingTimes(b.startDate, b.endDate, b.startTime, b.endTime)
     const dayStart = new Date(`${selectedDate}T00:00:00`)
     const dayEnd = new Date(`${selectedDate}T23:59:59`)
     return start <= dayEnd && end > dayStart
@@ -411,7 +414,7 @@ function DetailsScreen({
               
               const hasBooking = bookings.some(b => {
                 if (b.venueId !== venue.id || b.status === 'REJECTED' || b.status === 'CANCELLED') return false;
-                const { start, end } = getBookingTimes(b.date, b.startTime, b.endTime)
+                const { start, end } = getBookingTimes(b.startDate, b.endDate, b.startTime, b.endTime)
                 const dayStart = new Date(`${val}T00:00:00`)
                 const dayEnd = new Date(`${val}T23:59:59`)
                 return start <= dayEnd && end > dayStart
@@ -446,7 +449,7 @@ function DetailsScreen({
                 <div key={b.id} className="flex items-center gap-4 bg-base-100 p-4 rounded-xl shadow-sm border border-base-200 hover:border-primary/30 transition-colors">
                   <div className={`w-1.5 h-12 rounded-full ${b.status === 'APPROVED' ? 'bg-success' : 'bg-warning'}`}></div>
                   <div className="flex-1">
-                    <div className="text-sm font-bold text-base-content">{b.startTime} - {b.endTime} น. {b.endTime <= b.startTime && <span className="text-[10px] text-error">(ข้ามวัน)</span>}</div>
+                    <div className="text-sm font-bold text-base-content">{b.startDate !== b.endDate && <span className="text-xs text-primary mr-1">{b.startDate} ถึง {b.endDate} |</span>}{b.startTime} - {b.endTime} น.</div>
                     <div className="text-xs text-base-content/70 mt-1">{b.purpose}</div>
                   </div>
                   <div className="text-right">
@@ -525,19 +528,21 @@ function FormScreen({
   }
 
   const [initial] = useState(() => getInitialTimes())
-  const [date, setDate] = useState(initial.dateStr)
+  const [startDate, setStartDate] = useState(initial.dateStr)
+  const [endDate, setEndDate] = useState(initial.dateStr)
   const [startTime, setStartTime] = useState(initial.startTime)
   const [endTime, setEndTime] = useState(initial.endTime)
   const [purpose, setPurpose] = useState('')
   const [attendees, setAttendees] = useState(venue.capacity.toString())
   
   const now = new Date()
-  const { start: currentStart, end: currentEnd } = getBookingTimes(date, startTime, endTime)
+  const { start: currentStart, end: currentEnd } = getBookingTimes(startDate, endDate, startTime, endTime)
   const isPast = currentStart < now
+  const isInvalidRange = currentEnd <= currentStart
   
   const isOverlap = bookings.some((b) => {
     if (b.venueId !== venue.id || b.status === 'REJECTED' || b.status === 'CANCELLED') return false;
-    const { start: bStart, end: bEnd } = getBookingTimes(b.date, b.startTime, b.endTime)
+    const { start: bStart, end: bEnd } = getBookingTimes(b.startDate, b.endDate, b.startTime, b.endTime)
     return currentStart < bEnd && currentEnd > bStart
   })
 
@@ -549,7 +554,8 @@ function FormScreen({
       id: 'req-' + Math.random().toString(36).substr(2, 9),
       venueId: venue.id,
       venueName: venue.name,
-      date,
+      startDate,
+      endDate,
       startTime,
       endTime,
       purpose,
@@ -575,10 +581,16 @@ function FormScreen({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <fieldset className="fieldset">
-            <legend className="fieldset-legend font-semibold">วันที่ต้องการใช้งาน</legend>
-            <input type="date" className="input input-bordered w-full" value={date} onChange={(e) => setDate(e.target.value)} required />
-          </fieldset>
+          <div className="grid grid-cols-2 gap-4">
+            <fieldset className="fieldset">
+              <legend className="fieldset-legend font-semibold">วันเริ่มต้น (Check-in)</legend>
+              <input type="date" className="input input-bordered w-full" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+            </fieldset>
+            <fieldset className="fieldset">
+              <legend className="fieldset-legend font-semibold">วันสิ้นสุด (Check-out)</legend>
+              <input type="date" className="input input-bordered w-full" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+            </fieldset>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <fieldset className="fieldset">
@@ -616,8 +628,15 @@ function FormScreen({
             </div>
           )}
 
+          {isInvalidRange && !isPast && (
+            <div className="alert alert-error mt-6 text-sm">
+              <XCircleIcon className="h-5 w-5 shrink-0" />
+              <span>วัน-เวลาสิ้นสุด ต้องมากกว่า วัน-เวลาเริ่มต้น</span>
+            </div>
+          )}
+
           <div className="pt-6">
-            <button type="submit" className="btn btn-primary w-full text-lg shadow-md" disabled={isOverlap || isPast || !purpose || startTime === endTime}>
+            <button type="submit" className="btn btn-primary w-full text-lg shadow-md" disabled={isOverlap || isPast || isInvalidRange || !purpose}>
               ส่งคำขอจองสถานที่
             </button>
           </div>

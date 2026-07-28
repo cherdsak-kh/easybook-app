@@ -7,7 +7,8 @@ type BookingRequest = {
   id: string
   venueId: string
   venueName: string
-  date: string
+  startDate: string
+  endDate: string
   startTime: string
   endTime: string
   purpose: string
@@ -25,7 +26,12 @@ export function DemoAdminDashboardPage() {
     const loadBookings = () => {
       const stored = localStorage.getItem('demo_bookings')
       if (stored) {
-        setBookings(JSON.parse(stored))
+        const parsed = JSON.parse(stored).map((b: any) => ({
+          ...b,
+          startDate: b.startDate || b.date,
+          endDate: b.endDate || b.date,
+        }))
+        setBookings(parsed)
       }
     }
     loadBookings()
@@ -119,8 +125,8 @@ export function DemoAdminDashboardPage() {
                   ) : (
                     pendingBookings.map((b) => (
                       <tr key={b.id}>
-                        <td>{b.date}</td>
-                        <td>{b.startTime} - {b.endTime} {b.endTime <= b.startTime && <span className="text-xs text-error font-bold">(ข้ามวัน)</span>}</td>
+                        <td>{b.startDate === b.endDate ? b.startDate : `${b.startDate} ถึง ${b.endDate}`}</td>
+                        <td>{b.startTime} - {b.endTime}</td>
                         <td className="font-semibold">{b.venueName}</td>
                         <td>{b.purpose}</td>
                         <td>{b.attendees}</td>
@@ -172,7 +178,7 @@ export function DemoAdminDashboardPage() {
                         )}
                       </td>
                       <td>{b.venueName}</td>
-                      <td>{b.date}</td>
+                      <td>{b.startDate === b.endDate ? b.startDate : `${b.startDate} ถึง ${b.endDate}`}</td>
                     </tr>
                   ))}
                   {historyBookings.length === 0 && (
