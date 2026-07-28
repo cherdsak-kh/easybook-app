@@ -357,7 +357,11 @@ function DetailsScreen({
   onBook: () => void
   bookings: BookingRequest[]
 }) {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const getLocalDate = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  const [selectedDate, setSelectedDate] = useState(getLocalDate())
   
   const selectedBookings = bookings.filter((b) => {
     if (b.venueId !== venue.id || b.status === 'REJECTED' || b.status === 'CANCELLED') return false;
