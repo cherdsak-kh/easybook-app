@@ -11,13 +11,16 @@ import DocumentTextIcon from '@heroicons/react/24/outline/DocumentTextIcon'
 import { TitleCard } from '@/components/dashboard/TitleCard'
 
 interface AdminPortalStubPageProps {
-  /** The DashWind menu label — matches the header title from `usePageTitle`. */
+  /**
+   * The DashWind menu label. Since the navbar page title was removed (PO review), this
+   * is now the ONLY place the page's name appears — the card heading + `<h2>` below.
+   */
   readonly title: string
 }
 
 /**
  * A "coming soon" placeholder that renders inside the replica shell (so the sidebar,
- * header, page title and theme all stay live). Presentational only — no data, no auth.
+ * header and theme all stay live). Presentational only — no data, no auth.
  */
 export function AdminPortalStubPage({ title }: AdminPortalStubPageProps) {
   return (
@@ -27,8 +30,11 @@ export function AdminPortalStubPage({ title }: AdminPortalStubPageProps) {
           <div className="max-w-md">
             <DocumentTextIcon aria-hidden className="mx-auto h-24 w-24 text-accent" />
             <h2 className="mt-4 text-2xl font-bold">{title}</h2>
+            {/* The word "DashWind" was dropped from this sentence with the rebrand: it
+                was the last USER-VISIBLE occurrence of the upstream template's name
+                outside the attribution comments, which stay (THIRD_PARTY_NOTICES.md). */}
             <p className="mt-2 text-base-content/60">
-              This DashWind demo page is a placeholder — coming soon.
+              This page is a placeholder — coming soon.
             </p>
           </div>
         </div>

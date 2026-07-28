@@ -119,7 +119,7 @@ export interface paths {
         head?: never;
         /**
          * Edit your registration while PENDING (full re-submit).
-         * @description A caller whose `access` is strictly `PENDING` may update all their registration fields. `ALLOWED`/`BLOCKED`/`UNREGISTERED` → `403` (no partial write). `access` stays `PENDING` and the rich menu stays `TYPE_1`; no LINE push fires. Same validation as register (options must be non-deleted; a `staffId` taken by another registration → `409`; re-submitting your own is fine). No `lineUserId` body field.
+         * @description A caller whose `access` is strictly `PENDING` may update all their registration fields. `ALLOWED`/`BLOCKED`/`UNREGISTERED` → `403` (no partial write). `access` stays `PENDING` and the rich menu stays `TYPE_1`; no LINE push fires. Same validation as register (options must be non-deleted). No `lineUserId` body field.
          */
         patch: operations["LineRegistrationController_updateRegistration"];
         trace?: never;
@@ -179,7 +179,7 @@ export interface paths {
         head?: never;
         /**
          * Edit a LINE user's registration fields (admin).
-         * @description Full re-submit of firstName, lastName, staffId, phone, departmentId, personnelRoleId. Does NOT change `access` or the rich menu — it is orthogonal to the approve/block transition matrix. Both ADMIN and SUPER_ADMIN may edit. A system-reserved or soft-deleted option id is rejected for every actor (400). For ADMIN a soft-deleted user is 404; SUPER_ADMIN may edit one, with no LINE side-effect.
+         * @description Full re-submit of firstName, lastName, phone, departmentId, personnelRoleId. Does NOT change `access` or the rich menu — it is orthogonal to the approve/block transition matrix. Both ADMIN and SUPER_ADMIN may edit. A system-reserved or soft-deleted option id is rejected for every actor (400). For ADMIN a soft-deleted user is 404; SUPER_ADMIN may edit one, with no LINE side-effect.
          */
         patch: operations["LineUsersController_updateRegistrationByAdmin"];
         trace?: never;
@@ -355,7 +355,7 @@ export interface paths {
         head?: never;
         /**
          * Update a back-office user.
-         * @description Never the password and never the email. `role` is SUPER_ADMIN-write-only and is rejected on key presence, so an ADMIN sending any valid role value gets 403. Nobody may change their own `role` or `isActive`. An empty body is a 400.
+         * @description Never the password and never the email. `role` is SUPER_ADMIN-write-only and is rejected on key presence, so an ADMIN sending any valid role value gets 403. Nobody may change their own `role` or `isActive`. An ADMIN may patch their OWN row (department, position and profile fields); their own `role` and `isActive` remain 403, as for everyone, and a different ADMIN or a SUPER_ADMIN is still 403. An unknown OR system-reserved `departmentId`/`personnelRoleId` is the same 400 in both cases — never a 403. An empty body is a 400.
          */
         patch: operations["SystemUsersController_update"];
         trace?: never;
@@ -554,8 +554,6 @@ export interface components {
             firstName: string;
             /** @example Jaidee */
             lastName: string;
-            /** @example 6412345678 */
-            staffId: string;
             /** @example 081-234-5678 */
             phone: string;
             /**
@@ -622,11 +620,6 @@ export interface components {
             firstName: string;
             /** @example Jaidee */
             lastName: string;
-            /**
-             * @description University staff/personnel ID. Globally unique.
-             * @example 6412345678
-             */
-            staffId: string;
             /** @example 081-234-5678 */
             phone: string;
             /**
@@ -645,11 +638,6 @@ export interface components {
             firstName: string;
             /** @example Jaidee */
             lastName: string;
-            /**
-             * @description University staff/personnel ID. Globally unique.
-             * @example 6412345678
-             */
-            staffId: string;
             /** @example 081-234-5678 */
             phone: string;
             /**
@@ -668,8 +656,6 @@ export interface components {
             firstName: string;
             /** @example Jaidee */
             lastName: string;
-            /** @example 6412345678 */
-            staffId: string;
             /** @example 081-234-5678 */
             phone: string;
             /**
@@ -759,11 +745,6 @@ export interface components {
             firstName: string;
             /** @example Jaidee */
             lastName: string;
-            /**
-             * @description University staff/personnel ID. Globally unique.
-             * @example 6412345678
-             */
-            staffId: string;
             /** @example 081-234-5678 */
             phone: string;
             /**
@@ -807,6 +788,14 @@ export interface components {
              * @enum {string}
              */
             role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+        };
+        SystemUserCreatorDto: {
+            /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
+            id: string;
+            /** @example Somsri */
+            firstName: string;
+            /** @example Systemadmin */
+            lastName: string;
         };
         SystemUserOptionDto: {
             /** @example 3 */
@@ -852,6 +841,14 @@ export interface components {
             lastLoginAt: string | null;
             /** @example 2026-07-08T10:00:00.000Z */
             createdAt: string;
+            /** @description Who created this account (audit provenance). Resolved WITHOUT a `deletedAt` filter, so a soft-deleted creator still resolves, forever. Null only for the seeded first SUPER_ADMIN. Carries no email and no role, deliberately. */
+            readonly createdBy: components["schemas"]["SystemUserCreatorDto"] | null;
+            /**
+             * Format: date-time
+             * @description Last write to this row, in ISO 8601. Never null.
+             * @example 2026-07-26T20:42:00.000Z
+             */
+            readonly updatedAt: string;
         };
         UpdateOwnProfileDto: {
             /** @example Ada */
@@ -933,6 +930,14 @@ export interface components {
             lastLoginAt: string | null;
             /** @example 2026-07-08T10:00:00.000Z */
             createdAt: string;
+            /** @description Who created this account (audit provenance). Resolved WITHOUT a `deletedAt` filter, so a soft-deleted creator still resolves, forever. Null only for the seeded first SUPER_ADMIN. Carries no email and no role, deliberately. */
+            readonly createdBy: components["schemas"]["SystemUserCreatorDto"] | null;
+            /**
+             * Format: date-time
+             * @description Last write to this row, in ISO 8601. Never null.
+             * @example 2026-07-26T20:42:00.000Z
+             */
+            readonly updatedAt: string;
             /**
              * @description SHOWN EXACTLY ONCE. Not stored in plaintext, not retrievable, not logged. Deliver it out-of-band; the recipient must change it at first login.
              * @example Kp7Rn2Tq9Wx4Yb6C
@@ -1192,7 +1197,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description Already registered, or the staff ID is taken. */
+            /** @description This LINE user is already registered. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1254,15 +1259,6 @@ export interface operations {
             };
             /** @description The caller is not PENDING (ALLOWED / BLOCKED / UNREGISTERED). */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponseDto"];
-                };
-            };
-            /** @description The staff ID is taken by another registration. */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1464,15 +1460,6 @@ export interface operations {
             };
             /** @description Unknown id (both roles); a soft-deleted id for ADMIN; or the user exists but has no registration to edit. */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponseDto"];
-                };
-            };
-            /** @description The `staffId` is taken by another registration (P2002). */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };

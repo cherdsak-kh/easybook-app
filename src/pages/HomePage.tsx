@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   getFriendship,
   getIdToken,
@@ -94,7 +95,6 @@ function mockRegistrationFrom(dto: CreateLineUserRegistration): LineUserRegistra
     id: 'mock-registration',
     firstName: dto.firstName,
     lastName: dto.lastName,
-    staffId: dto.staffId,
     phone: dto.phone,
     departmentId: dto.departmentId,
     department: nameOf(MOCK_OPTIONS.departments, dto.departmentId),
@@ -116,7 +116,6 @@ function initialFrom(reg: LineUserRegistration | null): RegistrationFormValues |
   return {
     firstName: reg.firstName,
     lastName: reg.lastName,
-    staffId: reg.staffId,
     phone: reg.phone,
     departmentId: String(reg.departmentId),
     personnelRoleId: String(reg.personnelRoleId),
@@ -475,7 +474,9 @@ export function HomePage() {
 function messageForRegister(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 409) {
-      // Either already registered, or the staff ID is taken.
+      // ALREADY_REGISTERED — this LINE account already has a registration. The only
+      // remaining unique key on a registration is its 1:1 `lineUserId`, so this is
+      // now the sole cause of a 409 here.
       return err.message || UI.registration.registerError.conflict
     }
     if (err.status === 400) {
@@ -499,9 +500,8 @@ function messageForEdit(err: unknown): string {
       // No longer PENDING (an admin approved/blocked in the meantime).
       return UI.registration.editError.notEditable
     }
-    if (err.status === 409) {
-      return err.message || UI.registration.editError.conflict
-    }
+    // No 409 branch: the self-edit PATCH mutates no unique column, so the endpoint
+    // cannot conflict at all. Anything unexpected falls through to the generic path.
     if (err.status === 400) {
       // A selected option was removed, or a field is invalid.
       return err.message || UI.registration.editError.invalid
@@ -553,6 +553,13 @@ function HelloScreen({ profile }: { profile: LiffProfile | null }) {
         {UI.hello.greeting(profile?.displayName ?? UI.hello.fallbackName)}
       </h1>
       <p className="mt-3 text-base-content/60">{UI.hello.welcome}</p>
+
+      {/* MVP Demo Button */}
+      <div className="mt-8">
+        <Link to="/demo/client" className="btn btn-primary btn-wide shadow-lg">
+          เปิดระบบจองสถานที่ (Demo)
+        </Link>
+      </div>
     </main>
   )
 }
@@ -585,7 +592,6 @@ function PendingScreen({
                 label={UI.pending.summary.fullName}
                 value={`${registration.firstName} ${registration.lastName}`.trim()}
               />
-              <SummaryItem label={UI.pending.summary.staffId} value={registration.staffId} />
               <SummaryItem label={UI.pending.summary.phone} value={registration.phone} />
               <SummaryItem label={UI.pending.summary.department} value={registration.department} />
               <SummaryItem

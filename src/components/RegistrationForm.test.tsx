@@ -1,6 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import {
-  ID_COUNT,
   PHONE_COUNT,
   RegistrationForm,
   type RegistrationFormValues,
@@ -9,16 +8,10 @@ import { UI_STRINGS_CLIENT as UI } from '@/constants/ui-strings-client'
 import type { RegistrationOptions } from '@/lib/api-client'
 
 /**
- * Derived from the component's own rule, not a hardcoded 13-char literal: if
- * `ID_COUNT` changes, this fixture stays valid instead of silently failing
- * validation and blocking every submit assertion below.
- */
-const VALID_STAFF_ID = '6'.repeat(ID_COUNT)
-
-/**
- * Same reason as {@link VALID_STAFF_ID}, for the phone rule: digits-only and
- * exactly `PHONE_COUNT` long, derived rather than hardcoded so a change to the
- * required length cannot leave this fixture silently invalid.
+ * Derived from the component's own phone rule, not a hardcoded 10-char literal:
+ * digits-only and exactly `PHONE_COUNT` long, so a change to the required length
+ * cannot leave this fixture silently invalid and block every submit assertion
+ * below.
  */
 const VALID_PHONE = '0'.repeat(PHONE_COUNT)
 
@@ -38,7 +31,6 @@ const OPTIONS: RegistrationOptions = {
 const INITIAL: RegistrationFormValues = {
   firstName: 'Somchai',
   lastName: 'Jaidee',
-  staffId: VALID_STAFF_ID,
   phone: VALID_PHONE,
   departmentId: '1',
   personnelRoleId: '10',
@@ -63,7 +55,6 @@ function setup(props: Partial<React.ComponentProps<typeof RegistrationForm>> = {
 function fillIdentity() {
   fireEvent.change(screen.getByLabelText(UI.registration.firstName), { target: { value: 'Somchai' } })
   fireEvent.change(screen.getByLabelText(UI.registration.lastName), { target: { value: 'Jaidee' } })
-  fireEvent.change(screen.getByLabelText(UI.registration.staffId), { target: { value: VALID_STAFF_ID } })
   fireEvent.change(screen.getByLabelText(UI.registration.phone), { target: { value: VALID_PHONE } })
 }
 
@@ -130,7 +121,6 @@ describe('RegistrationForm — dynamic options', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       firstName: 'Somchai',
       lastName: 'Jaidee',
-      staffId: VALID_STAFF_ID,
       phone: VALID_PHONE,
       departmentId: 2,
       personnelRoleId: 11,
@@ -157,7 +147,7 @@ describe('RegistrationForm — edit mode', () => {
 
     await screen.findByLabelText(UI.registration.department)
     expect(screen.getByLabelText(UI.registration.firstName)).toHaveValue('Somchai')
-    expect(screen.getByLabelText(UI.registration.staffId)).toHaveValue(VALID_STAFF_ID)
+    expect(screen.getByLabelText(UI.registration.phone)).toHaveValue(VALID_PHONE)
     // The pre-filled numeric id ('1') keeps its option selected in the <select>.
     expect(screen.getByLabelText(UI.registration.department)).toHaveValue('1')
     expect(screen.getByRole('button', { name: UI.registration.editSubmit })).toBeInTheDocument()

@@ -203,6 +203,20 @@ export async function getMe(): Promise<SystemUser | null> {
   }
 }
 
+/**
+ * STRICT read of the signed-in user's own profile — same endpoint as {@link getMe},
+ * different contract. `getMe` is the AuthProvider's deliberately fail-soft probe: it
+ * answers `null` for BOTH "not logged in" (401) and "the request blew up", which is
+ * right for a mount gate and useless for a page that must tell session death apart
+ * from a transient failure. This one THROWS an {@link ApiError} carrying the status,
+ * so the Profile page can bounce on 401 and offer a retry on anything else.
+ */
+export async function getOwnProfile(): Promise<SystemUser> {
+  const { data, error, response } = await api.GET('/api/v1/auth/system/me')
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
 export type LoginResult =
   | { ok: true; user: LoginResponse }
   | { ok: false; status: number; message: string; retryAfter?: string | null }
@@ -387,14 +401,14 @@ export async function patchLineUserAccess(
  * Admin edit of a LINE user's registration (`PATCH /line-users/:id/registration`).
  *
  * A DIFFERENT route from `patchLineUserAccess` (`PATCH /line-users/:id`): this
- * writes the six self-submitted registration fields and has NO access/rich-menu
+ * writes the five self-submitted registration fields and has NO access/rich-menu
  * side effect (so there is no 502 path here). Cookie session + CSRF like the other
- * admin mutations. The backend stays the authority: a staffId taken by another
- * registration → **409** (`STAFF_ID_TAKEN`); a blank/invalid field or a
+ * admin mutations. The backend stays the authority: a blank/invalid field or a
  * deleted/unknown/**system-reserved** option id → **400**; a user with no
  * registration row, or an unknown/soft-deleted id → **404**; only **401** means
- * the session died. On success it returns the updated `LineUserResponseDto` so the
- * caller can patch the row in place, exactly like `patchLineUserAccess`.
+ * the session died. There is **no 409** — this route mutates no unique column.
+ * On success it returns the updated `LineUserResponseDto` so the caller can patch
+ * the row in place, exactly like `patchLineUserAccess`.
  */
 export async function patchLineUserRegistration(
   id: string,
@@ -470,9 +484,10 @@ export async function getRegistrationOptions(idToken: string): Promise<Registrat
 
 /**
  * PENDING self-edit: a PENDING user re-submits ALL their registration fields.
- * Backend rejects with 403 if they are no longer PENDING, 400 for a
- * deleted/unknown option, and 409 (`STAFF_ID_TAKEN`) for a taken staff id.
- * Returns the refreshed status view so the UI can re-render the Pending screen.
+ * Backend rejects with 403 if they are no longer PENDING and 400 for a
+ * deleted/unknown option. There is **no 409** — this route mutates no unique
+ * column. Returns the refreshed status view so the UI can re-render the Pending
+ * screen.
  */
 export async function updateLineUserRegistration(
   body: UpdateLineUserRegistration,

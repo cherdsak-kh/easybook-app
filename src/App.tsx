@@ -9,6 +9,8 @@ import { AdminPortalLoginPage } from '@/pages/admin-portal/AdminPortalLoginPage'
 import { ThemeLayout } from '@/components/ThemeLayout'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
+import { DemoClientPortalPage } from '@/pages/demo/DemoClientPortalPage'
+import { DemoAdminDashboardPage } from '@/pages/demo/DemoAdminDashboardPage'
 import {
   ADMIN_PORTAL_ROUTES,
   ADMIN_PORTAL_SEGMENTS,
@@ -38,6 +40,11 @@ const AdminPortalTeamPage = lazy(() =>
 const AdminPortalLineUsersPage = lazy(() =>
   import('@/pages/admin-portal/AdminPortalLineUsersPage').then((m) => ({
     default: m.AdminPortalLineUsersPage,
+  })),
+)
+const AdminPortalProfilePage = lazy(() =>
+  import('@/pages/admin-portal/AdminPortalProfilePage').then((m) => ({
+    default: m.AdminPortalProfilePage,
   })),
 )
 const AdminPortalStubPage = lazy(() =>
@@ -150,6 +157,11 @@ function App() {
                 data (wired via `useLineUsers` → `listLineUsers`). The URL segment is now
                 `line-users` (renamed from `leads` to match the page/label). */}
             <Route path={ADMIN_PORTAL_SEGMENTS.lineUsers} element={<AdminPortalLineUsersPage />} />
+            {/* Self-service profile. Replaces the `settings-profile` DashWind stub, which
+                was deleted along with its route constant so the sidebar has exactly one
+                "Profile" leaf. Lazy like every other in-shell page (Phase 4), so
+                `react-easy-crop` never lands in the initial LIFF chunk. */}
+            <Route path={ADMIN_PORTAL_SEGMENTS.profile} element={<AdminPortalProfilePage />} />
             {/* Phase 3.5: every other DashWind menu target is a real route rendering the
                 shared "coming soon" placeholder, so the whole sidebar is clickable. */}
             {ADMIN_PORTAL_STUB_ROUTES.map((stub) => (
@@ -162,6 +174,10 @@ function App() {
           </Route>
         </Route>
         <Route element={<ThemeLayout portal="client" />}>
+          {/* MVP Demo Routes */}
+          <Route path="/demo/client" element={<DemoClientPortalPage />} />
+          <Route path="/demo/admin" element={<DemoAdminDashboardPage />} />
+          
           {/* The client LIFF surface. `HomePage` is route-less (it swaps screens via
               internal state, not the URL), so it matches only the INDEX (`/`); there is no
               client sub-route to catch. */}

@@ -11,10 +11,44 @@ import type { AppAccess } from '@/lib/api-client'
 
 export const T = {
   title: 'ข้อมูลการลงทะเบียน',
-  searchLabel: 'ค้นหาจากชื่อที่แสดง',
+  /**
+   * Was 'ค้นหาจากชื่อที่แสดง' ("search by LINE display name"). Wrong on two counts now:
+   * the display name is no longer a column, and the field being searched is chosen by
+   * the adjacent {@link T.searchFieldLabel} dropdown rather than fixed.
+   */
+  searchLabel: 'ค้นหา',
   searchPlaceholder: 'ค้นหาผู้ใช้…',
+  /** The "search by which field" dropdown. Defaults to `all` — see `SEARCH_FIELD_LABELS`. */
+  searchFieldLabel: 'ค้นหาจาก',
+  sortLabel: 'เรียงลำดับตาม',
   accessFilterLabel: 'กรองตามสถานะ',
   accessFilterAll: 'ทุกสถานะ',
+  /** Screen-reader announcement while the fetch-all page loop runs. */
+  loading: 'กำลังโหลดข้อมูลการลงทะเบียน…',
+  /**
+   * The `MAX_PAGES` tripwire notice. The fetch-all loop is bounded so a runaway dataset
+   * degrades LOUDLY (a visible, non-blocking warning over a truncated list) instead of
+   * hanging the page — see `useLineUsers.MAX_PAGES`.
+   */
+  truncatedWarning: (shown: number) =>
+    `แสดงเฉพาะ ${shown} รายการแรก เนื่องจากข้อมูลมีจำนวนมาก โปรดใช้ตัวกรองเพื่อค้นหาข้อมูลที่ต้องการ`,
+  /**
+   * The live-channel indicator (AC F14). Three visible states, because "connecting" and
+   * "gave up" are genuinely different things to an operator deciding whether to trust the
+   * table. The fourth status (`disabled`, i.e. the `VITE_WS_ENABLED` rollback) renders NO
+   * indicator at all and so needs no copy.
+   *
+   * Wording is deliberately about the DATA, not the socket: an operator needs to know
+   * whether the list updates itself, not what a WebSocket is.
+   */
+  realtimeConnecting: 'กำลังเชื่อมต่อการอัปเดตอัตโนมัติ…',
+  realtimeLive: 'อัปเดตอัตโนมัติ',
+  realtimeOffline: 'ไม่ได้เชื่อมต่อการอัปเดตอัตโนมัติ',
+  /**
+   * The offline indicator's `title`/tooltip: the table is STALE-but-correct, not broken, and
+   * saying so is what stops an operator from assuming the page is dead.
+   */
+  realtimeOfflineHint: 'ข้อมูลที่แสดงยังใช้งานได้ตามปกติ แต่จะไม่อัปเดตเองจนกว่าจะรีเฟรชหน้า',
   colIndex: 'ลำดับ',
   colName: 'ชื่อ-สกุล',
   colDepartment: 'ฝ่าย/แผนก',
@@ -26,7 +60,7 @@ export const T = {
   unknownUser: 'ไม่ทราบชื่อ',
   notRegistered: 'ยังไม่ลงทะเบียน',
   emptyValue: '—',
-  empty: 'ไม่พบผู้ใช้ที่ตรงกับเงื่อนไข',
+  empty: 'ไม่พบข้อมูลการลงทะเบียน',
   paginationLabel: 'การแบ่งหน้า',
   paginationSummary: (page: number, totalPages: number, total: number) =>
     `หน้า ${page} จาก ${totalPages} · ทั้งหมด ${total} รายการ`,
@@ -37,7 +71,6 @@ export const T = {
   close: 'ปิด',
   closeBackdrop: 'ปิดหน้าต่าง',
   fieldRealName: 'ชื่อ-สกุล',
-  fieldStaffId: 'รหัสพนักงาน',
   fieldPhone: 'เบอร์โทรศัพท์',
   fieldDepartment: 'ฝ่าย/แผนก',
   fieldPersonnelRole: 'ตำแหน่ง',
@@ -51,7 +84,6 @@ export const T = {
   cancel: 'ยกเลิก',
   labelFirstName: 'ชื่อ',
   labelLastName: 'นามสกุล',
-  labelStaffId: 'รหัสพนักงาน',
   labelPhone: 'เบอร์โทรศัพท์',
   labelDepartment: 'ฝ่าย/แผนก',
   labelPersonnelRole: 'ตำแหน่ง',
@@ -118,4 +150,54 @@ export const MODAL_STATUS_LABELS: Record<AppAccess, string> = {
   BLOCKED: 'ระงับการใช้งาน',
   REJECTED: 'ส่งคืนแล้ว',
   UNREGISTERED: 'ยังไม่ลงทะเบียน',
+}
+
+/**
+ * Which registration field the client-side search matches against.
+ *
+ * `all` is the DEFAULT (PO decision OPEN-6): a search box that silently hides a matching
+ * row because the operator happened to have the wrong field selected is a bad
+ * experience, so the narrow options are an opt-in refinement, never a trap.
+ *
+ * The union + its ordered option list live HERE rather than in `useLineUsers` because
+ * both the option ORDER and the labels are presentation; the hook imports the type.
+ */
+export type SearchField = 'all' | 'name' | 'phone' | 'department'
+
+/** Dropdown order for {@link SearchField}. `all` leads because it is the default. */
+export const SEARCH_FIELD_OPTIONS: readonly SearchField[] = ['all', 'name', 'phone', 'department']
+
+export const SEARCH_FIELD_LABELS: Readonly<Record<SearchField, string>> = {
+  all: 'ทุกช่อง',
+  name: 'ชื่อ-สกุล',
+  phone: 'เบอร์โทรศัพท์',
+  department: 'ฝ่าย/แผนก',
+}
+
+/**
+ * Client-side sort orders. Sorting is stable and applied AFTER filtering + searching,
+ * over the whole in-memory dataset (not just the visible page).
+ */
+export type SortOption =
+  | 'registeredAtDesc'
+  | 'registeredAtAsc'
+  | 'nameAsc'
+  | 'nameDesc'
+  | 'status'
+
+/** Dropdown order for {@link SortOption}. Newest-first leads because it is the default. */
+export const SORT_OPTIONS: readonly SortOption[] = [
+  'registeredAtDesc',
+  'registeredAtAsc',
+  'nameAsc',
+  'nameDesc',
+  'status',
+]
+
+export const SORT_LABELS: Readonly<Record<SortOption, string>> = {
+  registeredAtDesc: 'วันที่ลงทะเบียนล่าสุด',
+  registeredAtAsc: 'วันที่ลงทะเบียนเก่าสุด',
+  nameAsc: 'ชื่อ ก–ฮ',
+  nameDesc: 'ชื่อ ฮ–ก',
+  status: 'สถานะ',
 }
