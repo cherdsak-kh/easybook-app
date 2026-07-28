@@ -313,11 +313,26 @@ describe('AdminPortalProfilePage — rendering', () => {
     expect(screen.queryByText(/7 \(IT Department\)/)).not.toBeInTheDocument()
   })
 
-  it('renders the initials fallback and emits no <img> when there is no avatar', async () => {
+  /**
+   * CHANGED: the no-picture avatar is now the SAME person-icon placeholder the navbar
+   * avatar uses (`AdminPortalHeader`), not a text-initials chip — one visual language for
+   * "this user has no photo". The `<img>` assertion stays: an empty `src` is still never
+   * emitted.
+   */
+  it('renders the icon placeholder (not initials) and emits no <img> when there is no avatar', async () => {
     const { container } = await renderProfile(makeSystemUser({ profilePictureUrl: null }))
 
-    expect(screen.getByText('AL')).toBeInTheDocument()
     expect(container.querySelector('img')).toBeNull()
+    expect(screen.queryByText('AL')).not.toBeInTheDocument()
+
+    // daisyUI 5 modifier (skill: components/avatar.md) — not a hand-rolled flex centre.
+    const placeholder = container.querySelector('.avatar-placeholder')!
+    expect(placeholder).not.toBeNull()
+    expect(placeholder.querySelector('svg')).not.toBeNull()
+    // The icon is decorative, so the avatar region itself carries the accessible name the
+    // initials used to provide — the same sentence a real photo carries in `alt`.
+    expect(placeholder.querySelector('svg')).toHaveAttribute('aria-hidden')
+    expect(screen.getByRole('img', { name: T.avatarAlt('Ada Lovelace') })).toBeInTheDocument()
   })
 
   it('never renders the prototypes’ developer scaffolding subtitle', async () => {

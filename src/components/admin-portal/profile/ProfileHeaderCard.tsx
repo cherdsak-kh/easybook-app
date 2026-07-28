@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import CameraIcon from '@heroicons/react/24/outline/CameraIcon'
 import CheckIcon from '@heroicons/react/24/outline/CheckIcon'
 import ClipboardDocumentIcon from '@heroicons/react/24/outline/ClipboardDocumentIcon'
+import UserIcon from '@heroicons/react/24/outline/UserIcon'
 import type { SystemUser } from '@/lib/api-client'
 import { PROFILE_STRINGS, ROLE_BADGE, ROLE_LABEL, ROLE_RING } from '@/constants/ui-strings-profile'
 
@@ -10,22 +11,26 @@ const T = PROFILE_STRINGS
 /** How long the "copied" / "failed" confirmation stays on screen. */
 const COPY_FEEDBACK_MS = 2000
 
-/** First letters of the given/family name; `?` when both are blank. */
-function initialsOf(user: SystemUser): string {
-  const letters = `${user.firstName.trim().charAt(0)}${user.lastName.trim().charAt(0)}`
-  return letters.toUpperCase() || '?'
-}
-
 /**
- * The page's identity header: 1:1 avatar (with an initials fallback — never an
+ * The page's identity header: 1:1 avatar (with a person-icon fallback — never an
  * `<img>` with an empty `src`, and never an external stock-photo host), display
  * name, account id and the role badge.
+ *
+ * The no-picture case renders the SAME `UserIcon` placeholder as the navbar avatar in
+ * `AdminPortalHeader` (`bg-base-300 text-base-content`), so the two surfaces that show
+ * "this signed-in user" agree. It replaced a text-initials chip on `bg-neutral`, which
+ * was the only place in the portal drawing an avatar that way.
  *
  * daisyUI 5 notes (skill: components/avatar.md, button.md, badge.md): the
  * image-less variant is `avatar avatar-placeholder`, which is the **v5 rename** of
  * the prototypes' v4 `avatar placeholder` — pasting the v4 spelling would silently
  * drop the placeholder styling. The camera affordance is a real `btn btn-circle`
  * with an `aria-label`, not an icon-only div.
+ *
+ * a11y: the icon is decorative (`aria-hidden`, as in the header), so the accessible
+ * name the initials used to carry moves onto the placeholder itself as
+ * `role="img" + aria-label` — the same sentence the real photo carries in `alt`. The
+ * avatar region therefore still names the user in both branches.
  */
 export function ProfileHeaderCard({
   user,
@@ -54,9 +59,11 @@ export function ProfileHeaderCard({
           ) : (
             <div className="avatar avatar-placeholder">
               <div
-                className={`h-20 w-20 rounded-full bg-neutral text-neutral-content sm:h-24 sm:w-24 ${ring}`}
+                role="img"
+                aria-label={T.avatarAlt(displayName)}
+                className={`h-20 w-20 rounded-full bg-base-300 text-base-content sm:h-24 sm:w-24 ${ring}`}
               >
-                <span className="text-2xl font-semibold sm:text-3xl">{initialsOf(user)}</span>
+                <UserIcon className="h-10 w-10 sm:h-12 sm:w-12" aria-hidden />
               </div>
             </div>
           )}

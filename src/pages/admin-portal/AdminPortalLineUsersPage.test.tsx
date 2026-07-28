@@ -280,24 +280,40 @@ describe('AdminPortalLineUsersPage — row mapping', () => {
     expect(screen.getByRole('button', { name: /ตรวจสอบข้อมูล/ })).toBeInTheDocument()
   })
 
-  it('P5: shows the not-registered fallback and em-dashes for a follower with no registration', () => {
+  /**
+   * CHANGED: the name cell of a registration-less row now shows the LINE **display name**
+   * instead of repeating "ยังไม่ลงทะเบียน". The status badge already says that, and the
+   * display name is the only identity such a row has (and the one the search box now
+   * matches on), so a second copy of the badge text told the operator nothing.
+   */
+  it('P5: shows the LINE display name and em-dashes for a follower with no registration', () => {
     mockUseLineUsers.mockReturnValue(
       hookState({ users: [makeUser({ displayName: 'Bob', access: 'UNREGISTERED', registration: null })] }),
     )
     renderPage()
     const table = screen.getByRole('table')
 
-    // The name cell's fallback + the UNREGISTERED status badge both read "ยังไม่ลงทะเบียน";
-    // pick the one that is the badge (by class) to assert the neutral badge-ghost color.
-    // The fallback SURVIVES the filter-option removal — they are different surfaces.
+    // The name cell now carries the display name…
+    const nameCell = within(table).getByText('Bob').closest('td')!
+    expect(nameCell).toHaveTextContent('Bob')
+    // …and "ยังไม่ลงทะเบียน" is left to the status badge alone (exactly one occurrence).
     const unregLabels = within(table).getAllByText(T.notRegistered)
-    expect(unregLabels.length).toBeGreaterThanOrEqual(2)
-    const badge = unregLabels.find((el) => el.className.includes('badge'))
-    expect(badge).toHaveClass('badge', 'badge-soft', 'badge-ghost')
+    expect(unregLabels).toHaveLength(1)
+    expect(unregLabels[0]).toHaveClass('badge', 'badge-soft', 'badge-ghost')
     // department + phone fall back to the em-dash.
     expect(within(table).getAllByText(T.emptyValue).length).toBeGreaterThanOrEqual(2)
-    // The LINE display name is not in the table at all any more.
-    expect(within(table).queryByText('Bob')).not.toBeInTheDocument()
+  })
+
+  it('P5b: falls back to ยังไม่ลงทะเบียน when a registration-less row has NO display name either', () => {
+    mockUseLineUsers.mockReturnValue(
+      hookState({ users: [makeUser({ displayName: null, access: 'UNREGISTERED', registration: null })] }),
+    )
+    renderPage()
+    const table = screen.getByRole('table')
+
+    // Nothing identifies this row, so the cell says so rather than rendering blank —
+    // the fallback text plus the badge make two occurrences.
+    expect(within(table).getAllByText(T.notRegistered)).toHaveLength(2)
   })
 })
 
@@ -408,6 +424,13 @@ describe('AdminPortalLineUsersPage — toolbar', () => {
       .getAllByRole('option')
       .map((o) => o.getAttribute('value'))
     expect(values).toEqual([...SEARCH_FIELD_OPTIONS])
+    // The LINE display name is a searchable field in its own right — it is the only
+    // identity an unregistered follower has, so its absence made those rows unfindable.
+    expect(SEARCH_FIELD_OPTIONS).toContain('lineDisplayName')
+    expect(values).toContain('lineDisplayName')
+    expect(
+      within(select).getByRole('option', { name: SEARCH_FIELD_LABELS.lineDisplayName }),
+    ).toBeInTheDocument()
     // "ทุกช่อง" (all fields) leads AND is the selected default — PO decision OPEN-6.
     expect(within(select).getAllByRole('option')[0]).toHaveTextContent(SEARCH_FIELD_LABELS.all)
     expect(select).toHaveValue('all')
@@ -451,7 +474,7 @@ describe('AdminPortalLineUsersPage — toolbar', () => {
     expect(setSortBy).toHaveBeenCalledWith('nameAsc')
   })
 
-  it('P7f: the status filter offers NO "ยังไม่ลงทะเบียน" (UNREGISTERED) option', () => {
+  it('P7f: the status filter OFFERS "ยังไม่ลงทะเบียน" (UNREGISTERED), last', () => {
     mockUseLineUsers.mockReturnValue(
       hookState({ users: [makeUser({ access: 'UNREGISTERED', registration: null })] }),
     )
@@ -461,15 +484,30 @@ describe('AdminPortalLineUsersPage — toolbar', () => {
     const values = within(filter)
       .getAllByRole('option')
       .map((o) => o.getAttribute('value'))
-    expect(values).toEqual(['', 'PENDING', 'ALLOWED', 'BLOCKED', 'REJECTED'])
-    expect(values).not.toContain('UNREGISTERED')
+    // Last, mirroring the `status` sort: the review queue first, the rows with nothing to
+    // review at the end.
+    expect(values).toEqual(['', 'PENDING', 'ALLOWED', 'BLOCKED', 'REJECTED', 'UNREGISTERED'])
+    expect(values).toContain('UNREGISTERED')
+    // Labelled by the same literal as the badge, so the option matches the text the
+    // operator is filtering for.
     expect(
-      within(filter).queryByRole('option', { name: STATUS_BADGE.UNREGISTERED.label }),
-    ).not.toBeInTheDocument()
-    // …but the BADGE for such a row still renders — the two are different surfaces.
+      within(filter).getByRole('option', { name: STATUS_BADGE.UNREGISTERED.label }),
+    ).toBeInTheDocument()
+    // …and the BADGE for such a row still renders — the two are different surfaces.
     expect(
       within(screen.getByRole('table')).getAllByText(STATUS_BADGE.UNREGISTERED.label).length,
     ).toBeGreaterThanOrEqual(1)
+  })
+
+  it('P7h: selecting ยังไม่ลงทะเบียน forwards UNREGISTERED to setAccessFilter', () => {
+    const setAccessFilter = vi.fn()
+    mockUseLineUsers.mockReturnValue(hookState({ users: [registered()], setAccessFilter }))
+    renderPage()
+
+    fireEvent.change(screen.getByRole('combobox', { name: T.accessFilterLabel }), {
+      target: { value: 'UNREGISTERED' },
+    })
+    expect(setAccessFilter).toHaveBeenCalledWith('UNREGISTERED')
   })
 
   it('P7g: the search label no longer claims to search the LINE display name', () => {

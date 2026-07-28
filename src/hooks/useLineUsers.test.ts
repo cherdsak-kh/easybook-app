@@ -279,11 +279,14 @@ describe('useLineUsers — race guard covers the WHOLE loop', () => {
 
 // ---------------------------------------------------------------------------
 describe('useLineUsers — client-side search (zero network)', () => {
+  // Every row's LINE display name is deliberately DIFFERENT from its registration values,
+  // so a display-name hit can never be mistaken for a name/phone/department hit.
   const ROWS = [
-    registered({ id: 'a' }, { firstName: 'สมชาย', lastName: 'ใจดี', phone: '0811111111', department: 'ฝ่ายบุคคล' }),
-    registered({ id: 'b' }, { firstName: 'Bob', lastName: 'Smith', phone: '0822222222', department: 'Computer Science' }),
-    registered({ id: 'c' }, { firstName: 'Carol', lastName: 'Jones', phone: '0899999999', department: 'Mathematics' }),
-    makeUser({ id: 'none', registration: null }),
+    registered({ id: 'a', displayName: 'Somchai LINE' }, { firstName: 'สมชาย', lastName: 'ใจดี', phone: '0811111111', department: 'ฝ่ายบุคคล' }),
+    registered({ id: 'b', displayName: 'Bobby' }, { firstName: 'Bob', lastName: 'Smith', phone: '0822222222', department: 'Computer Science' }),
+    registered({ id: 'c', displayName: 'Carol Line' }, { firstName: 'Carol', lastName: 'Jones', phone: '0899999999', department: 'Mathematics' }),
+    // The registration-less follower: a LINE display name is the ONLY identity it has.
+    makeUser({ id: 'none', displayName: 'Dave Follower', registration: null }),
   ]
 
   async function loaded() {
@@ -311,7 +314,7 @@ describe('useLineUsers — client-side search (zero network)', () => {
     expect(mockList.mock.calls.length).toBe(callsBefore)
   })
 
-  it('all: matches on name OR phone OR department', async () => {
+  it('all: matches on name OR phone OR department OR LINE display name', async () => {
     const result = await loaded()
 
     act(() => result.current.setSearch('สมชาย'))
@@ -322,6 +325,62 @@ describe('useLineUsers — client-side search (zero network)', () => {
 
     act(() => result.current.setSearch('Mathematics'))
     expect(result.current.users.map((u) => u.id)).toEqual(['c'])
+
+    // The display name is part of `all` too — 'Carol Line' is NOT this row's registration
+    // name ('Carol Jones'), so only the LINE-side value can produce this hit.
+    act(() => result.current.setSearch('Carol Line'))
+    expect(result.current.users.map((u) => u.id)).toEqual(['c'])
+  })
+
+  it('lineDisplayName: matches the LINE display name and ignores the registration fields', async () => {
+    const result = await loaded()
+    act(() => result.current.setSearchField('lineDisplayName'))
+
+    act(() => result.current.setSearch('bobby'))
+    expect(result.current.users.map((u) => u.id)).toEqual(['b'])
+
+    // A registration-name hit under the `lineDisplayName` field must NOT match.
+    act(() => result.current.setSearch('Bob Smith'))
+    expect(result.current.users).toEqual([])
+  })
+
+  it('finds an UNREGISTERED follower by its LINE display name under `all`', async () => {
+    const result = await loaded()
+
+    // The bug this fixes: `all` used to skip every registration-less row outright, so a
+    // follower who never submitted the form could not be found by ANY query.
+    act(() => result.current.setSearch('Dave Follower'))
+    expect(result.current.users.map((u) => u.id)).toEqual(['none'])
+  })
+
+  it('finds an UNREGISTERED follower by its LINE display name under `lineDisplayName`', async () => {
+    const result = await loaded()
+    act(() => result.current.setSearchField('lineDisplayName'))
+
+    act(() => result.current.setSearch('dave'))
+    expect(result.current.users.map((u) => u.id)).toEqual(['none'])
+  })
+
+  it('a NULL display name matches nothing — it never becomes the string "null"', async () => {
+    mockList.mockResolvedValue(
+      makePage([makeUser({ id: 'anon', displayName: null, registration: null })], {
+        total: 1,
+        totalPages: 1,
+      }),
+    )
+    const { result } = renderHook(() => useLineUsers())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => result.current.setSearchField('lineDisplayName'))
+    act(() => result.current.setSearch('null'))
+    expect(result.current.users).toEqual([])
+
+    act(() => result.current.setSearchField('all'))
+    expect(result.current.users).toEqual([])
+
+    // …and it is still there when the query is cleared.
+    act(() => result.current.setSearch(''))
+    expect(result.current.users.map((u) => u.id)).toEqual(['anon'])
   })
 
   it('name: matches the joined "First Last" and ignores the other fields', async () => {
@@ -365,12 +424,18 @@ describe('useLineUsers — client-side search (zero network)', () => {
     expect(result.current.users.map((u) => u.id)).toEqual(['b'])
   })
 
-  it('filters out rows with NO registration for any non-empty query, and keeps them when blank', async () => {
+  it('keeps a registration-less row out of every REGISTRATION-field query, and keeps it when blank', async () => {
     const result = await loaded()
 
-    act(() => result.current.setSearch('a'))
-    expect(result.current.users.map((u) => u.id)).not.toContain('none')
+    // A row with no registration has no name / phone / department to match, so those three
+    // fields still filter it out — only `all` and `lineDisplayName` can reach it.
+    for (const field of ['name', 'phone', 'department'] as const) {
+      act(() => result.current.setSearchField(field))
+      act(() => result.current.setSearch('a'))
+      expect(result.current.users.map((u) => u.id)).not.toContain('none')
+    }
 
+    act(() => result.current.setSearchField('all'))
     act(() => result.current.setSearch(''))
     expect(result.current.users.map((u) => u.id)).toContain('none')
   })
