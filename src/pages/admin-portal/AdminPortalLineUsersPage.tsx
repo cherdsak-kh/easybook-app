@@ -46,12 +46,18 @@ import {
 /**
  * Access-filter option order. REJECTED is filterable — it is a first-class review state.
  *
- * `UNREGISTERED` is deliberately ABSENT (PO decision): "ยังไม่ลงทะเบียน" is not a review
- * state an operator filters for on a *registration data* page. Note this is distinct from
- * the row's name-cell FALLBACK, which still reads `T.notRegistered`, and from
- * `STATUS_BADGE.UNREGISTERED`, which still renders for such rows — both stay.
+ * `UNREGISTERED` is filterable too, and sits LAST — mirroring the `status` sort's ordering
+ * (the review queue first, the rows with nothing to review at the end). It was previously
+ * omitted, which left "show me the followers who never submitted the form" as the one
+ * question this toolbar could not answer.
  */
-const ACCESS_FILTER_OPTIONS: readonly AppAccess[] = ['PENDING', 'ALLOWED', 'BLOCKED', 'REJECTED']
+const ACCESS_FILTER_OPTIONS: readonly AppAccess[] = [
+  'PENDING',
+  'ALLOWED',
+  'BLOCKED',
+  'REJECTED',
+  'UNREGISTERED',
+]
 
 /** Roles allowed to see the modal's Edit affordance (STAFF is strictly read-only). Plan §5. */
 const EDITOR_ROLES: readonly SystemRole[] = ['ADMIN', 'SUPER_ADMIN']
@@ -521,11 +527,17 @@ export function AdminPortalLineUsersPage() {
 /**
  * One LINE follower rendered as a table row.
  *
- * The **Name column shows ONLY the registration's Name-Surname** (or the not-registered
- * fallback). The LINE display name that used to sit above it as the bold primary line is
- * gone — this is a *registration data* page, and two names in one cell made the operator
- * read the wrong one. The LINE **avatar** stays (PO decision OPEN-3), and the inspect
- * modal still shows the display name; only this cell changed.
+ * The **Name column shows ONLY the registration's Name-Surname** for a registered row. The
+ * LINE display name that used to sit above it as the bold primary line is gone — this is a
+ * *registration data* page, and two names in one cell made the operator read the wrong one.
+ * The LINE **avatar** stays (PO decision OPEN-3), and the inspect modal still shows the
+ * display name.
+ *
+ * For a row with NO registration there is no real name, so the cell falls back to the LINE
+ * **display name** (the only identity that row has, and the one the search box now matches
+ * on) and only to `T.notRegistered` when that is null too. It stays visually de-emphasised
+ * either way: the status badge is what states "ยังไม่ลงทะเบียน", so the cell does not need
+ * to repeat it.
  *
  * The inspect button's accessible name follows the cell: for a registered row it is the
  * real name the operator can actually see. For an unregistered row there is no real name,
@@ -552,10 +564,16 @@ function LineUserRow({
         <div className="flex items-center gap-3">
           <UserAvatar pictureUrl={user.pictureUrl} displayName={user.displayName} />
           <div className="min-w-0">
+            {/* No registration → the LINE display name, de-emphasised (the status badge is
+                what states "ยังไม่ลงทะเบียน"). `||`, not `??`, for the same reason as
+                `rowLabel` above: a blank display name is as absent as a null one, and an
+                empty cell would say nothing at all. */}
             {realName ? (
               <div className="truncate font-bold">{realName}</div>
             ) : (
-              <div className="truncate italic opacity-60">{T.notRegistered}</div>
+              <div className="truncate italic opacity-60">
+                {user.displayName || T.notRegistered}
+              </div>
             )}
           </div>
         </div>

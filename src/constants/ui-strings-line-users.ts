@@ -153,23 +153,34 @@ export const MODAL_STATUS_LABELS: Record<AppAccess, string> = {
 }
 
 /**
- * Which registration field the client-side search matches against.
+ * Which field the client-side search matches against.
  *
  * `all` is the DEFAULT (PO decision OPEN-6): a search box that silently hides a matching
  * row because the operator happened to have the wrong field selected is a bad
  * experience, so the narrow options are an opt-in refinement, never a trap.
  *
+ * `lineDisplayName` is the one option that is NOT a registration field — it searches the
+ * LINE-side display name, which is the ONLY identity an unregistered follower has. Without
+ * it (and without it being part of `all`) such a row was unfindable by any query at all.
+ *
  * The union + its ordered option list live HERE rather than in `useLineUsers` because
  * both the option ORDER and the labels are presentation; the hook imports the type.
  */
-export type SearchField = 'all' | 'name' | 'phone' | 'department'
+export type SearchField = 'all' | 'name' | 'lineDisplayName' | 'phone' | 'department'
 
 /** Dropdown order for {@link SearchField}. `all` leads because it is the default. */
-export const SEARCH_FIELD_OPTIONS: readonly SearchField[] = ['all', 'name', 'phone', 'department']
+export const SEARCH_FIELD_OPTIONS: readonly SearchField[] = [
+  'all',
+  'name',
+  'lineDisplayName',
+  'phone',
+  'department',
+]
 
 export const SEARCH_FIELD_LABELS: Readonly<Record<SearchField, string>> = {
   all: 'ทุกช่อง',
   name: 'ชื่อ-สกุล',
+  lineDisplayName: 'ชื่อไลน์',
   phone: 'เบอร์โทรศัพท์',
   department: 'ฝ่าย/แผนก',
 }

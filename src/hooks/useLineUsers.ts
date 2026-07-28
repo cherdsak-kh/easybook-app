@@ -86,23 +86,35 @@ function followedAtOf(user: LineUser): number | null {
 }
 
 /**
- * The haystack for one row under one search field. A follower with **no registration**
- * has no searchable text at all, so it returns `[]` and any non-empty query filters that
- * row out — correct, and consistent with the Name column, which has no name to show for
- * such a row either.
+ * The haystack for one row under one search field.
+ *
+ * The LINE **display name** is searchable in its own right (`lineDisplayName`) and is part
+ * of `all`, which is what makes an UNREGISTERED follower findable: it is the only identity
+ * such a row has, and the one the Name column now shows for it. The previous
+ * `if (!reg) return []` short-circuit applied to EVERY field, so any non-empty query
+ * filtered every registration-less row out — that was the bug.
+ *
+ * The registration-only fields still return `[]` without a registration: a row with no
+ * phone must not match a phone query. `displayName` is nullable in the generated types, so
+ * it is normalised to `''` here — never `null`/`undefined` in the list — and an empty
+ * string can never match a (non-empty, trimmed) query.
  */
 function searchableValues(user: LineUser, field: SearchField): string[] {
   const reg = user.registration
-  if (!reg) return []
+  const displayName = user.displayName ?? ''
   switch (field) {
+    case 'lineDisplayName':
+      return [displayName]
     case 'name':
-      return [`${reg.firstName} ${reg.lastName}`]
+      return reg ? [`${reg.firstName} ${reg.lastName}`] : []
     case 'phone':
-      return [reg.phone]
+      return reg ? [reg.phone] : []
     case 'department':
-      return [reg.department]
+      return reg ? [reg.department] : []
     case 'all':
-      return [`${reg.firstName} ${reg.lastName}`, reg.phone, reg.department]
+      return reg
+        ? [displayName, `${reg.firstName} ${reg.lastName}`, reg.phone, reg.department]
+        : [displayName]
   }
 }
 
