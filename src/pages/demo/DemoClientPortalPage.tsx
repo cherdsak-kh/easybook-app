@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   MagnifyingGlassIcon,
   ChevronLeftIcon,
+  ChevronRightIcon,
   CheckCircleIcon,
   XCircleIcon,
   CalendarDaysIcon,
@@ -127,6 +128,15 @@ export type BookingRequest = {
   attendees: number
   status: BookingStatus
   createdAt: string
+}
+
+export const getBookingTimes = (date: string, startTime: string, endTime: string) => {
+  const start = new Date(`${date}T${startTime}`)
+  const end = new Date(`${date}T${endTime}`)
+  if (end <= start) {
+    end.setDate(end.getDate() + 1)
+  }
+  return { start, end }
 }
 
 // ==========================================
@@ -305,20 +315,39 @@ function DetailsScreen({
 }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   
-  const selectedBookings = bookings.filter(
-    (b) => b.venueId === venue.id && b.date === selectedDate && b.status !== 'REJECTED' && b.status !== 'CANCELLED'
-  )
-
-  // Generate 14 days starting from today for the calendar strip
-  const dates = Array.from({ length: 14 }).map((_, i) => {
-    const d = new Date()
-    d.setDate(d.getDate() + i)
-    return d
+  const selectedBookings = bookings.filter((b) => {
+    if (b.venueId !== venue.id || b.status === 'REJECTED' || b.status === 'CANCELLED') return false;
+    const { start, end } = getBookingTimes(b.date, b.startTime, b.endTime)
+    const dayStart = new Date(`${selectedDate}T00:00:00`)
+    const dayEnd = new Date(`${selectedDate}T23:59:59`)
+    return start <= dayEnd && end > dayStart
   })
+
+  const [currentMonth, setCurrentMonth] = useState(() => {
+     const d = new Date()
+     return new Date(d.getFullYear(), d.getMonth(), 1)
+  })
+
+  const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate()
+  const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay()
   
-  const formatDay = (d: Date) => d.toLocaleDateString('th-TH', { weekday: 'short' })
-  const formatDateNum = (d: Date) => d.getDate()
-  const formatValue = (d: Date) => d.toISOString().split('T')[0]
+  const calendarDays: (Date | null)[] = []
+  for (let i = 0; i < firstDayOfMonth; i++) calendarDays.push(null)
+  for (let i = 1; i <= daysInMonth; i++) calendarDays.push(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i))
+
+  const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
+  const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
+  
+  const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
+  const monthName = monthNames[currentMonth.getMonth()]
+  const yearStr = currentMonth.getFullYear() + 543
+
+  const formatValue = (d: Date) => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${dd}`
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-base-100 relative">
@@ -362,35 +391,52 @@ function DetailsScreen({
           <CalendarDaysIcon className="h-5 w-5 text-primary" /> ตารางการใช้งาน
         </h3>
         
-        {/* Premium Horizontal Calendar Strip */}
-        <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide -mx-5 px-5 snap-x">
-          {dates.map((d) => {
-            const val = formatValue(d)
-            const isSelected = selectedDate === val
-            const hasBooking = bookings.some(b => b.venueId === venue.id && b.date === val && b.status !== 'REJECTED' && b.status !== 'CANCELLED')
-            
-            return (
-              <button
-                key={val}
-                onClick={() => setSelectedDate(val)}
-                className={`snap-start flex-shrink-0 w-[60px] h-[76px] rounded-2xl flex flex-col items-center justify-center transition-all duration-300 ease-out ${
-                  isSelected 
-                    ? 'bg-primary text-primary-content shadow-lg shadow-primary/30 scale-105' 
-                    : 'bg-base-100 text-base-content border border-base-200 hover:bg-base-200'
-                }`}
-              >
-                <span className={`text-[11px] font-semibold ${isSelected ? 'opacity-90' : 'opacity-60'}`}>
-                  {formatDay(d)}
-                </span>
-                <span className="text-xl font-bold mt-1">{formatDateNum(d)}</span>
-                <div className="h-1.5 mt-1">
+        {/* Monthly Calendar View */}
+        <div className="bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm">
+          <div className="flex justify-between items-center mb-4">
+            <button className="btn btn-sm btn-ghost btn-circle" onClick={prevMonth}><ChevronLeftIcon className="w-5 h-5"/></button>
+            <div className="font-bold text-lg">{monthName} {yearStr}</div>
+            <button className="btn btn-sm btn-ghost btn-circle" onClick={nextMonth}><ChevronRightIcon className="w-5 h-5"/></button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center mb-2">
+            {['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map(d => <div key={d} className="text-xs font-bold text-base-content/50">{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDays.map((d, idx) => {
+              if (!d) return <div key={`empty-${idx}`} className="p-2"></div>
+              
+              const val = formatValue(d)
+              const isSelected = selectedDate === val
+              const isToday = formatValue(new Date()) === val
+              
+              const hasBooking = bookings.some(b => {
+                if (b.venueId !== venue.id || b.status === 'REJECTED' || b.status === 'CANCELLED') return false;
+                const { start, end } = getBookingTimes(b.date, b.startTime, b.endTime)
+                const dayStart = new Date(`${val}T00:00:00`)
+                const dayEnd = new Date(`${val}T23:59:59`)
+                return start <= dayEnd && end > dayStart
+              })
+
+              return (
+                <button
+                  key={val}
+                  onClick={() => setSelectedDate(val)}
+                  className={`relative flex flex-col items-center justify-center h-10 w-full rounded-lg text-sm transition-all ${
+                    isSelected
+                      ? 'bg-primary text-primary-content font-bold shadow-md'
+                      : isToday 
+                        ? 'bg-base-200 text-primary font-bold hover:bg-base-300'
+                        : 'hover:bg-base-200 text-base-content'
+                  }`}
+                >
+                  <span>{d.getDate()}</span>
                   {hasBooking && (
-                    <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-error'}`} />
+                    <div className={`w-1 h-1 rounded-full absolute bottom-1 ${isSelected ? 'bg-white' : 'bg-error'}`} />
                   )}
-                </div>
-              </button>
-            )
-          })}
+                </button>
+              )
+            })}
+          </div>
         </div>
         
         <div className="bg-base-200 rounded-2xl p-4 mt-2 shadow-inner border border-base-300/50">
@@ -400,7 +446,7 @@ function DetailsScreen({
                 <div key={b.id} className="flex items-center gap-4 bg-base-100 p-4 rounded-xl shadow-sm border border-base-200 hover:border-primary/30 transition-colors">
                   <div className={`w-1.5 h-12 rounded-full ${b.status === 'APPROVED' ? 'bg-success' : 'bg-warning'}`}></div>
                   <div className="flex-1">
-                    <div className="text-sm font-bold text-base-content">{b.startTime} - {b.endTime} น.</div>
+                    <div className="text-sm font-bold text-base-content">{b.startTime} - {b.endTime} น. {b.endTime <= b.startTime && <span className="text-[10px] text-error">(ข้ามวัน)</span>}</div>
                     <div className="text-xs text-base-content/70 mt-1">{b.purpose}</div>
                   </div>
                   <div className="text-right">
@@ -486,15 +532,13 @@ function FormScreen({
   const [attendees, setAttendees] = useState(venue.capacity.toString())
   
   const now = new Date()
-  // Create a Date object from the selected date and startTime.
-  // Note: For local timezone parsing, replacing '-' with '/' or just keeping 'YYYY-MM-DDTHH:mm' works in modern browsers.
-  // We'll use `${date}T${startTime}` which parses as local time in Vite/modern Chrome.
-  const bookingStart = new Date(`${date}T${startTime}`)
-  const isPast = bookingStart < now
+  const { start: currentStart, end: currentEnd } = getBookingTimes(date, startTime, endTime)
+  const isPast = currentStart < now
   
   const isOverlap = bookings.some((b) => {
-    if (b.venueId !== venue.id || b.date !== date || b.status === 'REJECTED' || b.status === 'CANCELLED') return false;
-    return (startTime < b.endTime && endTime > b.startTime)
+    if (b.venueId !== venue.id || b.status === 'REJECTED' || b.status === 'CANCELLED') return false;
+    const { start: bStart, end: bEnd } = getBookingTimes(b.date, b.startTime, b.endTime)
+    return currentStart < bEnd && currentEnd > bStart
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -573,7 +617,7 @@ function FormScreen({
           )}
 
           <div className="pt-6">
-            <button type="submit" className="btn btn-primary w-full text-lg shadow-md" disabled={isOverlap || isPast || !purpose || startTime >= endTime}>
+            <button type="submit" className="btn btn-primary w-full text-lg shadow-md" disabled={isOverlap || isPast || !purpose || startTime === endTime}>
               ส่งคำขอจองสถานที่
             </button>
           </div>
@@ -584,11 +628,10 @@ function FormScreen({
 }
 
 function MyBookingsScreen({ bookings, onCancel }: { bookings: BookingRequest[], onCancel: (id: string) => void }) {
-  const [tab, setTab] = useState<'PENDING' | 'APPROVED' | 'HISTORY'>('PENDING')
+  const [tab, setTab] = useState<'ACTIVE' | 'HISTORY'>('ACTIVE')
 
   const filtered = bookings.filter((b) => {
-    if (tab === 'PENDING') return b.status === 'PENDING'
-    if (tab === 'APPROVED') return b.status === 'APPROVED'
+    if (tab === 'ACTIVE') return b.status === 'PENDING' || b.status === 'APPROVED'
     return b.status === 'REJECTED' || b.status === 'CANCELLED'
   })
 
@@ -603,9 +646,8 @@ function MyBookingsScreen({ bookings, onCancel }: { bookings: BookingRequest[], 
     <div className="min-h-screen flex flex-col bg-base-200">
       <div className="bg-base-100 px-4 pt-8 pb-4 shadow-sm z-10 sticky top-0">
         <h1 className="text-xl font-bold mb-4">การจองของฉัน</h1>
-        <div className="tabs tabs-bordered w-full grid grid-cols-3">
-          <a className={`tab ${tab === 'PENDING' ? 'tab-active font-bold' : ''}`} onClick={() => setTab('PENDING')}>รอดำเนินการ</a>
-          <a className={`tab ${tab === 'APPROVED' ? 'tab-active font-bold' : ''}`} onClick={() => setTab('APPROVED')}>อนุมัติแล้ว</a>
+        <div className="tabs tabs-bordered w-full grid grid-cols-2">
+          <a className={`tab ${tab === 'ACTIVE' ? 'tab-active font-bold' : ''}`} onClick={() => setTab('ACTIVE')}>คิวปัจจุบัน</a>
           <a className={`tab ${tab === 'HISTORY' ? 'tab-active font-bold' : ''}`} onClick={() => setTab('HISTORY')}>ประวัติ</a>
         </div>
       </div>
@@ -623,7 +665,7 @@ function MyBookingsScreen({ bookings, onCancel }: { bookings: BookingRequest[], 
                 </div>
                 <div className="text-sm text-base-content/70 space-y-1">
                   <p><span className="font-semibold">วันที่:</span> {b.date}</p>
-                  <p><span className="font-semibold">เวลา:</span> {b.startTime} - {b.endTime} น.</p>
+                  <p><span className="font-semibold">เวลา:</span> {b.startTime} - {b.endTime} น. {b.endTime <= b.startTime && <span className="text-error font-bold text-xs">(ข้ามวัน)</span>}</p>
                   <p><span className="font-semibold">รายละเอียด:</span> {b.purpose}</p>
                 </div>
                 
