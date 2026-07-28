@@ -723,6 +723,20 @@ function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingReq
     })
   }
 
+  const formatDuration = (b: BookingRequest) => {
+    const { start, end } = getBookingTimes(b.startDate, b.endDate, b.startTime, b.endTime)
+    const diffMs = end.getTime() - start.getTime()
+    if (diffMs <= 0) return ''
+    const totalMins = Math.floor(diffMs / 60000)
+    const hours = Math.floor(totalMins / 60)
+    const mins = totalMins % 60
+    
+    let text = ''
+    if (hours > 0) text += `${hours} ชม. `
+    if (mins > 0) text += `${mins} นาที`
+    return `(${text.trim()})`
+  }
+
   const filtered = bookings.filter((b) => {
     if (tab === 'ACTIVE') return b.status === 'PENDING' || b.status === 'APPROVED'
     return b.status === 'REJECTED' || b.status === 'CANCELLED' || b.status === 'COMPLETED'
@@ -770,7 +784,7 @@ function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingReq
                 </div>
                 <div className="text-sm text-base-content/70 space-y-1">
                   <p><span className="font-semibold">วันที่:</span> {b.startDate === b.endDate ? b.startDate : `${b.startDate} ถึง ${b.endDate}`}</p>
-                  <p><span className="font-semibold">เวลา:</span> {b.startTime} - {b.endTime} น.</p>
+                  <p><span className="font-semibold">เวลา:</span> {b.startTime} - {b.endTime} น. <span className="text-primary font-medium text-xs ml-1">{formatDuration(b)}</span></p>
                   <p><span className="font-semibold">จำนวนคน:</span> {b.attendees}</p>
                   <div>
                     <span className="font-semibold">รายละเอียด:</span>
