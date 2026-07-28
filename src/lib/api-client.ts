@@ -401,14 +401,14 @@ export async function patchLineUserAccess(
  * Admin edit of a LINE user's registration (`PATCH /line-users/:id/registration`).
  *
  * A DIFFERENT route from `patchLineUserAccess` (`PATCH /line-users/:id`): this
- * writes the six self-submitted registration fields and has NO access/rich-menu
+ * writes the five self-submitted registration fields and has NO access/rich-menu
  * side effect (so there is no 502 path here). Cookie session + CSRF like the other
- * admin mutations. The backend stays the authority: a staffId taken by another
- * registration → **409** (`STAFF_ID_TAKEN`); a blank/invalid field or a
+ * admin mutations. The backend stays the authority: a blank/invalid field or a
  * deleted/unknown/**system-reserved** option id → **400**; a user with no
  * registration row, or an unknown/soft-deleted id → **404**; only **401** means
- * the session died. On success it returns the updated `LineUserResponseDto` so the
- * caller can patch the row in place, exactly like `patchLineUserAccess`.
+ * the session died. There is **no 409** — this route mutates no unique column.
+ * On success it returns the updated `LineUserResponseDto` so the caller can patch
+ * the row in place, exactly like `patchLineUserAccess`.
  */
 export async function patchLineUserRegistration(
   id: string,
@@ -484,9 +484,10 @@ export async function getRegistrationOptions(idToken: string): Promise<Registrat
 
 /**
  * PENDING self-edit: a PENDING user re-submits ALL their registration fields.
- * Backend rejects with 403 if they are no longer PENDING, 400 for a
- * deleted/unknown option, and 409 (`STAFF_ID_TAKEN`) for a taken staff id.
- * Returns the refreshed status view so the UI can re-render the Pending screen.
+ * Backend rejects with 403 if they are no longer PENDING and 400 for a
+ * deleted/unknown option. There is **no 409** — this route mutates no unique
+ * column. Returns the refreshed status view so the UI can re-render the Pending
+ * screen.
  */
 export async function updateLineUserRegistration(
   body: UpdateLineUserRegistration,

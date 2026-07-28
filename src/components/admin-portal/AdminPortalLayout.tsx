@@ -31,7 +31,7 @@ import { ADMIN_PORTAL_DRAWER_ID } from './nav-config'
  * shell's other landmark/control names ("Sidebar navigation", "Open menu").
  *
  * `ToastProvider` is mounted HERE, once, wrapping the whole shell: every in-shell page
- * shares one queue, one position (`toast-end toast-top`) and one design. Mounting it per
+ * shares one queue, one position (`toast-center toast-top`) and one design. Mounting it per
  * page would let two pages disagree about where a confirmation appears, which is the exact
  * inconsistency this refactor removed. It sits OUTSIDE the drawer element so a toast is
  * never clipped by the drawer's stacking context.

@@ -79,7 +79,7 @@ export function AdminPortalProfilePage() {
    * This page's hand-rolled `toast` + auto-dismiss timer + `SaveToast` component are GONE:
    * they became the shared `ToastProvider` (plan §7 / OPEN-5 — extracted, not rewritten,
    * and no toast dependency was installed). The visible change here is the position, which
-   * is now `toast-end toast-top` for every toast in the portal instead of this page's
+   * is now `toast-center toast-top` for every toast in the portal instead of this page's
    * former bottom-right.
    */
   const { show: showToast } = useToast()

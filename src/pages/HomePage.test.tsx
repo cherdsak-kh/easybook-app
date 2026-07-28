@@ -1,7 +1,7 @@
 import { act } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { HomePage } from '@/pages/HomePage'
-import { ID_COUNT, PHONE_COUNT } from '@/components/RegistrationForm'
+import { PHONE_COUNT } from '@/components/RegistrationForm'
 import { UI_STRINGS_CLIENT as UI } from '@/constants/ui-strings-client'
 import * as liffLib from '@/lib/liff'
 import * as apiClient from '@/lib/api-client'
@@ -13,19 +13,12 @@ import type {
 } from '@/lib/api-client'
 
 /**
- * Derived from `RegistrationForm`'s own rule rather than hardcoded: a 13-char
- * literal here went silently invalid when that rule last changed, blocking
- * submit and reddening the payload assertions below for unrelated-looking
- * reasons.
- */
-const VALID_STAFF_ID = '6'.repeat(ID_COUNT)
-
-/**
- * Same reason as {@link VALID_STAFF_ID}, for the phone rule: digits-only and
- * exactly `PHONE_COUNT` long, derived rather than hardcoded so a change to the
- * required length cannot leave this fixture silently invalid. Used on BOTH sides
- * of the submit assertions — typed into the form and expected in the DTO — so
- * they still pin the form's pass-through of the value.
+ * Derived from `RegistrationForm`'s own phone rule rather than hardcoded: a
+ * hardcoded literal here went silently invalid when a length rule last changed,
+ * blocking submit and reddening the payload assertions below for
+ * unrelated-looking reasons. Digits-only and exactly `PHONE_COUNT` long. Used on
+ * BOTH sides of the submit assertions — typed into the form and expected in the
+ * DTO — so they still pin the form's pass-through of the value.
  */
 const VALID_PHONE = '0'.repeat(PHONE_COUNT)
 
@@ -109,7 +102,6 @@ function registration(overrides: Partial<LineUserRegistration> = {}): LineUserRe
     id: 'reg1',
     firstName: 'Somchai',
     lastName: 'Jaidee',
-    staffId: VALID_STAFF_ID,
     phone: VALID_PHONE,
     departmentId: 1,
     department: 'Computer Science',
@@ -160,7 +152,6 @@ async function flush() {
 function fillRegistration() {
   fireEvent.change(screen.getByLabelText(UI.registration.firstName), { target: { value: 'Somchai' } })
   fireEvent.change(screen.getByLabelText(UI.registration.lastName), { target: { value: 'Jaidee' } })
-  fireEvent.change(screen.getByLabelText(UI.registration.staffId), { target: { value: VALID_STAFF_ID } })
   fireEvent.change(screen.getByLabelText(UI.registration.phone), { target: { value: VALID_PHONE } })
   // <select> values are DOM strings — the stringified integer option ids.
   fireEvent.change(screen.getByLabelText(UI.registration.department), { target: { value: '1' } })
@@ -338,7 +329,6 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
       {
         firstName: 'Somchai',
         lastName: 'Jaidee',
-        staffId: VALID_STAFF_ID,
         phone: VALID_PHONE,
         departmentId: 1,
         personnelRoleId: 10,
@@ -360,8 +350,13 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
     expect(screen.getByText(UI.registration.departmentRequired)).toBeInTheDocument()
   })
 
-  it('surfaces a 409 (staff ID taken) as a non-crashing error, staying on the form', async () => {
-    mockRegister.mockRejectedValue(new apiClient.ApiError(409, 'STAFF_ID_TAKEN'))
+  /**
+   * The SURVIVING 409 on this surface. `lineUserId` is still `@unique`, so a second
+   * registration for the same LINE account is still a conflict — this is the only
+   * remaining cause, and it must keep rendering inline rather than crashing.
+   */
+  it('surfaces a 409 (already registered) as a non-crashing error, staying on the form', async () => {
+    mockRegister.mockRejectedValue(new apiClient.ApiError(409, 'ALREADY_REGISTERED'))
     render(<HomePage />)
     await resolveSplash()
 
@@ -370,7 +365,7 @@ describe('HomePage — registration submit (AC-F2 / SC-F2)', () => {
     await flush()
 
     expect(screen.getByRole('button', { name: UI.registration.createSubmit })).toBeInTheDocument()
-    expect(screen.getByText('STAFF_ID_TAKEN')).toBeInTheDocument()
+    expect(screen.getByText('ALREADY_REGISTERED')).toBeInTheDocument()
   })
 })
 
@@ -392,7 +387,7 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
     // Pre-filled from the existing registration — the numeric option id is
     // stringified so the <select> keeps the current option selected.
     expect(screen.getByLabelText(UI.registration.firstName)).toHaveValue('Somchai')
-    expect(screen.getByLabelText(UI.registration.staffId)).toHaveValue(VALID_STAFF_ID)
+    expect(screen.getByLabelText(UI.registration.phone)).toHaveValue(VALID_PHONE)
     expect(screen.getByLabelText(UI.registration.department)).toHaveValue('1')
 
     fireEvent.change(screen.getByLabelText(UI.registration.firstName), { target: { value: 'Somsak' } })
@@ -404,7 +399,6 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
       {
         firstName: 'Somsak',
         lastName: 'Jaidee',
-        staffId: VALID_STAFF_ID,
         phone: VALID_PHONE,
         departmentId: 1,
         personnelRoleId: 10,
@@ -428,19 +422,6 @@ describe('HomePage — PENDING self-edit (SC-F3)', () => {
 
     expect(screen.getByText(UI.registration.editError.notEditable)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: UI.registration.editSubmit })).toBeInTheDocument()
-  })
-
-  it('renders a 409 (staff ID taken) inline on edit', async () => {
-    mockUpdate.mockRejectedValue(new apiClient.ApiError(409, 'STAFF_ID_TAKEN'))
-    render(<HomePage />)
-    await resolveSplash()
-
-    fireEvent.click(screen.getByRole('button', { name: UI.pending.edit }))
-    await flush()
-    fireEvent.click(screen.getByRole('button', { name: UI.registration.editSubmit }))
-    await flush()
-
-    expect(screen.getByText('STAFF_ID_TAKEN')).toBeInTheDocument()
   })
 
   it('renders a 400 (deleted/invalid option) inline on edit', async () => {
@@ -531,7 +512,6 @@ describe('HomePage — REJECTED (sent back for revision)', () => {
       {
         firstName: 'Somsak',
         lastName: 'Jaidee',
-        staffId: VALID_STAFF_ID,
         phone: VALID_PHONE,
         departmentId: 1,
         personnelRoleId: 10,
@@ -559,7 +539,9 @@ describe('HomePage — REJECTED (sent back for revision)', () => {
   })
 
   it('surfaces a failed re-submit inline, staying on the form', async () => {
-    mockUpdate.mockRejectedValue(new apiClient.ApiError(409, 'STAFF_ID_TAKEN'))
+    // A status with no dedicated branch: proves the GENERIC fallback in
+    // `messageForEdit` still renders the server message inline, non-crashing.
+    mockUpdate.mockRejectedValue(new apiClient.ApiError(500, 'REGISTRATION_UPDATE_FAILED'))
     render(<HomePage />)
     await resolveSplash()
 
@@ -568,7 +550,7 @@ describe('HomePage — REJECTED (sent back for revision)', () => {
     fireEvent.click(screen.getByRole('button', { name: UI.registration.editSubmit }))
     await flush()
 
-    expect(screen.getByText('STAFF_ID_TAKEN')).toBeInTheDocument()
+    expect(screen.getByText('REGISTRATION_UPDATE_FAILED')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: UI.registration.editSubmit })).toBeInTheDocument()
   })
 })

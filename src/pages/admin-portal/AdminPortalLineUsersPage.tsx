@@ -797,13 +797,13 @@ function RejectReasonModal({
 }
 
 /**
- * The edit form (Phase B, plan §5–§7). Renders the six registration inputs (dept/role as
+ * The edit form (Phase B, plan §5–§7). Renders the five registration inputs (dept/role as
  * `<select>`s from the lazily-fetched admin option lists) only when the user has a
  * registration row; the status `<select>` is always shown, offering strictly
  * `{ALLOWED, BLOCKED}` for BOTH roles. Save is disabled until the draft is dirty and — for a
  * registered user — the option lists have loaded (so a dept/role choice can be validated).
- * Errors surface in the modal: the staffId-taken (409) case is a per-field error with
- * `aria-invalid`/`aria-describedby`.
+ * Save errors all surface as ONE modal-level alert: the registration PATCH mutates no
+ * unique column, so there is no field-specific conflict left to place next to an input.
  */
 function LineUserEditForm({
   user,
@@ -820,7 +820,6 @@ function LineUserEditForm({
     dirty,
     saving,
     formError,
-    staffIdError,
     departments,
     personnelRoles,
     optionsLoading,
@@ -864,13 +863,6 @@ function LineUserEditForm({
             label={T.labelLastName}
             value={draft.lastName}
             onChange={(v) => setDraftField('lastName', v)}
-          />
-          <TextField
-            id="edit-staffId"
-            label={T.labelStaffId}
-            value={draft.staffId}
-            onChange={(v) => setDraftField('staffId', v)}
-            error={staffIdError}
           />
           <TextField
             id="edit-phone"
@@ -957,21 +949,22 @@ function LineUserEditForm({
   )
 }
 
-/** One labelled text input for the edit form; renders a per-field error when present. */
+/**
+ * One labelled text input for the edit form. Deliberately carries NO per-field error
+ * slot: every save failure on this surface is modal-level (`formError`), because the
+ * registration PATCH mutates no unique column and so has no field-specific conflict.
+ */
 function TextField({
   id,
   label,
   value,
   onChange,
-  error,
 }: {
   id: string
   label: string
   value: string
   onChange: (value: string) => void
-  error?: string | null
 }) {
-  const errorId = `${id}-error`
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-sm font-medium">
@@ -982,17 +975,8 @@ function TextField({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
-        className={`input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary ${
-          error ? 'input-error' : ''
-        }`}
+        className="input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary"
       />
-      {error && (
-        <p id={errorId} role="alert" className="mt-1 text-sm text-error">
-          {error}
-        </p>
-      )}
     </div>
   )
 }
@@ -1068,7 +1052,6 @@ function LineUserDetails({ user }: { user: LineUser }) {
         {reg && (
           <>
             <DetailItem label={T.fieldRealName} value={`${reg.firstName} ${reg.lastName}`.trim()} />
-            <DetailItem label={T.fieldStaffId} value={reg.staffId} />
             <DetailItem label={T.fieldPhone} value={reg.phone} />
             <DetailItem label={T.fieldDepartment} value={reg.department} />
             <DetailItem label={T.fieldPersonnelRole} value={reg.personnelRole} />

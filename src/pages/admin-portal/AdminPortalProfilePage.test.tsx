@@ -828,10 +828,10 @@ describe('AdminPortalProfilePage — save success toast', () => {
     expect(live).not.toBeNull()
     expect(live).toHaveAttribute('aria-live', 'polite')
     // daisyUI `toast` wrapper + `alert` body (skill: components/toast.md, alert.md), now
-    // from the SHARED provider and therefore pinned to the portal-wide top-right corner.
+    // from the SHARED provider and therefore pinned to the portal-wide top-center.
     const wrapper = live.closest('.toast') as HTMLElement
     expect(wrapper).not.toBeNull()
-    expect(wrapper).toHaveClass('toast-end', 'toast-top')
+    expect(wrapper).toHaveClass('toast-center', 'toast-top')
     expect(live).toHaveClass('alert', 'alert-success')
 
     // The close button's label moved to the shared toast strings module with the component.

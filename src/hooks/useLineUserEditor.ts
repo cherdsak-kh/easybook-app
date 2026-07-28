@@ -17,12 +17,11 @@ import {
  * Modal-scoped, Thai-recontextualised save/option copy for the LINE-user editor. Exported
  * (like `LEADS_MESSAGES` in `useLineUsers.ts`) so the hook and its tests read the SAME
  * literal — a message edited out-of-band while a test queried the old string is a silent
- * red (see the app CLAUDE.md note). The staffId-taken message is surfaced as a per-FIELD
- * error near the staffId input; the rest are the modal-level `formError`.
+ * red (see the app CLAUDE.md note). Every message here is a modal-level `formError`; there
+ * are no per-field errors, because the registration PATCH mutates no unique column and so
+ * has no field-specific conflict to report.
  */
 export const EDITOR_MESSAGES = {
-  /** registration 409 — the staffId is already taken by another registration. */
-  staffIdTaken: 'รหัสพนักงานนี้ถูกใช้แล้ว',
   /** registration 400 — a blank/invalid field or a deleted/unknown/system-reserved option id. */
   invalid: 'ข้อมูลไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง',
   /** 404 (either call) — the row was deleted between load and save. */
@@ -58,7 +57,7 @@ export const EDITOR_MESSAGES = {
  */
 export const REJECT_REASON_MAX_LENGTH = 500
 
-/** The exact six editable registration fields (`AdminUpdateLineUserRegistrationDto`). */
+/** The exact five editable registration fields (`AdminUpdateLineUserRegistrationDto`). */
 export type DraftRegistration = AdminUpdateLineUserRegistration
 
 export interface UseLineUserEditorInput {
@@ -71,7 +70,7 @@ export interface UseLineUserEditorInput {
 export interface UseLineUserEditor {
   mode: 'view' | 'edit'
   /**
-   * The six-field registration draft, or `null` for an UNREGISTERED follower (no
+   * The five-field registration draft, or `null` for an UNREGISTERED follower (no
    * registration row to PATCH — the registration form is not offered for such users).
    */
   draft: DraftRegistration | null
@@ -81,8 +80,6 @@ export interface UseLineUserEditor {
   saving: boolean
   /** Modal-level save error (`null` when clean). */
   formError: string | null
-  /** Per-field staffId error for the 409 (staffId-taken) case (`null` when clean). */
-  staffIdError: string | null
   /** Department options (system-reserved rows excluded), lazily fetched on first edit. */
   departments: Department[]
   /** Personnel-role options (system-reserved rows excluded), lazily fetched on first edit. */
@@ -140,14 +137,13 @@ function seedDraft(reg: LineUserRegistrationSummary): DraftRegistration {
   return {
     firstName: reg.firstName,
     lastName: reg.lastName,
-    staffId: reg.staffId,
     phone: reg.phone,
     departmentId: reg.departmentId,
     personnelRoleId: reg.personnelRoleId,
   }
 }
 
-/** True when any of the six draft fields differs from the committed registration summary. */
+/** True when any of the five draft fields differs from the committed registration summary. */
 function registrationChanged(
   draft: DraftRegistration,
   reg: LineUserRegistrationSummary | null,
@@ -156,7 +152,6 @@ function registrationChanged(
   return (
     draft.firstName !== reg.firstName ||
     draft.lastName !== reg.lastName ||
-    draft.staffId !== reg.staffId ||
     draft.phone !== reg.phone ||
     draft.departmentId !== reg.departmentId ||
     draft.personnelRoleId !== reg.personnelRoleId
@@ -194,7 +189,6 @@ export function useLineUserEditor({
   const [draftAccess, setDraftAccessState] = useState<AppAccess>(EMPTY_ACCESS)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const [staffIdError, setStaffIdError] = useState<string | null>(null)
 
   // Reject state — deliberately separate from the edit draft: the Reject action is reachable
   // straight from view mode, carries its own mandatory field, and must not be entangled with
@@ -259,7 +253,6 @@ export function useLineUserEditor({
       setDraft(user.registration ? seedDraft(user.registration) : null)
       setDraftAccessState(user.access)
       setFormError(null)
-      setStaffIdError(null)
       setMode('edit')
       // Options are only needed for the registration selects — skip the fetch entirely for
       // an UNREGISTERED follower (status-only edit), per the "lazy, once" guard (plan §6.2).
@@ -272,7 +265,6 @@ export function useLineUserEditor({
     setDraft(baseUser?.registration ? seedDraft(baseUser.registration) : null)
     setDraftAccessState(baseUser?.access ?? EMPTY_ACCESS)
     setFormError(null)
-    setStaffIdError(null)
     setMode('view')
   }, [baseUser])
 
@@ -292,7 +284,6 @@ export function useLineUserEditor({
     setDraftAccessState(EMPTY_ACCESS)
     setSaving(false)
     setFormError(null)
-    setStaffIdError(null)
     setRejectTarget(null)
     setRejectReasonState('')
     setRejecting(false)
@@ -375,7 +366,6 @@ export function useLineUserEditor({
 
     setSaving(true)
     setFormError(null)
-    setStaffIdError(null)
     let committed = baseUser
 
     // (1) Registration — stop the whole save if it fails (do NOT attempt access).
@@ -390,9 +380,9 @@ export function useLineUserEditor({
           expireSession()
           return null
         }
-        if (err instanceof ApiError && err.status === 409) {
-          setStaffIdError(EDITOR_MESSAGES.staffIdTaken)
-        } else if (err instanceof ApiError && err.status === 400) {
+        // No 409 branch: the registration PATCH mutates no unique column, so the
+        // endpoint cannot conflict. Anything unmapped falls through to `failed`.
+        if (err instanceof ApiError && err.status === 400) {
           setFormError(EDITOR_MESSAGES.invalid)
         } else if (err instanceof ApiError && err.status === 404) {
           setFormError(EDITOR_MESSAGES.rowGone)
@@ -447,7 +437,6 @@ export function useLineUserEditor({
     dirty,
     saving,
     formError,
-    staffIdError,
     departments,
     personnelRoles,
     optionsLoading,

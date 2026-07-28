@@ -24,12 +24,13 @@ import {
 } from './toast-context'
 
 /**
- * Holds the toast queue and renders the fixed corner stack.
+ * Holds the toast queue and renders the fixed top-center stack.
  *
- * Position is `toast-end toast-top` — top-right — for EVERY toast (PO decision OPEN-8).
- * Bottom-right is where the LINE-users pager and the per-row actions live, so a bottom
- * toast would cover the control the operator just clicked. This deliberately moves the
- * profile page's previous `toast-bottom` placement; that is the point of "unify".
+ * Position is `toast-center toast-top` — top-center — for EVERY toast (PO decision OPEN-8,
+ * moved here from the original top-right). The bottom of the viewport is where the
+ * LINE-users pager and the per-row actions live, so a bottom toast would cover the control
+ * the operator just clicked. This also supersedes the profile page's previous
+ * `toast-bottom` placement; that is the point of "unify".
  *
  * Mounted once, in `AdminPortalLayout`, so every in-shell page shares one queue and one
  * design.
@@ -55,7 +56,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       {toasts.length > 0 && (
-        <div className="toast toast-end toast-top z-50">
+        <div className="toast toast-center toast-top z-50">
           {toasts.map((toast) => (
             <ToastItem key={toast.id} toast={toast} onDismiss={dismiss} />
           ))}

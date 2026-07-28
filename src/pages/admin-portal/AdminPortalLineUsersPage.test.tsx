@@ -169,7 +169,6 @@ function registered(o: Partial<LineUser> = {}): LineUser {
     registration: {
       firstName: 'Alice',
       lastName: 'Wong',
-      staffId: 'STAFF-123',
       phone: '0812345678',
       departmentId: 1,
       department: 'Computer Science',
@@ -527,8 +526,8 @@ describe('AdminPortalLineUsersPage — row-mutation errors go to the shared toas
     const live = toast.closest('[role="alert"]') as HTMLElement
     expect(live).not.toBeNull()
     expect(live).toHaveClass('alert', 'alert-error')
-    // Shared provider ⇒ the portal-wide top-right position.
-    expect(live.closest('.toast')).toHaveClass('toast-end', 'toast-top')
+    // Shared provider ⇒ the portal-wide top-center position.
+    expect(live.closest('.toast')).toHaveClass('toast-center', 'toast-top')
   })
 
   it('P27: no rowError ⇒ no toast at all', () => {
@@ -568,12 +567,11 @@ describe('AdminPortalLineUsersPage — read-only inspect modal', () => {
     )
     renderPage()
 
-    // Registration-only fields (staffId + personnelRole) are NOT in the table columns, so
-    // their presence proves the modal opened with this user's data.
-    expect(screen.queryByText('STAFF-123')).not.toBeInTheDocument()
+    // The registration-only `personnelRole` is NOT a table column, so its presence proves
+    // the modal opened with this user's data.
+    expect(screen.queryByText('Teacher')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบข้อมูล: Alice Wong/ }))
 
-    expect(screen.getByText('STAFF-123')).toBeInTheDocument()
     expect(screen.getByText('Teacher')).toBeInTheDocument()
     // Real name, phone + department also render in the modal body.
     expect(screen.getAllByText('Alice Wong').length).toBeGreaterThanOrEqual(1)
@@ -587,10 +585,10 @@ describe('AdminPortalLineUsersPage — read-only inspect modal', () => {
     renderPage()
 
     fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบข้อมูล: Alice Wong/ }))
-    expect(screen.getByText('STAFF-123')).toBeInTheDocument()
+    expect(screen.getByText('Teacher')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: T.close }))
-    await waitFor(() => expect(screen.queryByText('STAFF-123')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText('Teacher')).not.toBeInTheDocument())
   })
 
   it('P10: an UNREGISTERED / no-registration user’s modal renders the not-registered state gracefully', () => {
@@ -601,13 +599,13 @@ describe('AdminPortalLineUsersPage — read-only inspect modal', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /ตรวจสอบข้อมูล: Dave/ }))
 
-    // No crash, a clear not-registered notice, and NO registration rows (staffId/role).
-    // The two field-label queries are SCOPED to the dialog now: the toolbar's new
-    // "ค้นหาด้วย…" select offers a "รหัสพนักงาน" option carrying the same literal, so an
-    // unscoped `queryByText` would match the dropdown and fail for the wrong reason.
+    // No crash, a clear not-registered notice, and NO registration rows (phone/role).
+    // The two field-label queries are SCOPED to the dialog: the toolbar's "ค้นหาด้วย…"
+    // select offers a "เบอร์โทรศัพท์" option carrying the same literal as `fieldPhone`, so
+    // an unscoped `queryByText` would match the dropdown and fail for the wrong reason.
     const modal = screen.getByRole('heading', { name: T.modalTitle }).closest('dialog')!
     expect(screen.getByText(T.notRegisteredNotice)).toBeInTheDocument()
-    expect(within(modal).queryByText(T.fieldStaffId)).not.toBeInTheDocument()
+    expect(within(modal).queryByText(T.fieldPhone)).not.toBeInTheDocument()
     expect(within(modal).queryByText(T.fieldPersonnelRole)).not.toBeInTheDocument()
     // The LINE-side status badge still renders inside the modal.
     expect(screen.getAllByText(STATUS_BADGE.UNREGISTERED.label).length).toBeGreaterThanOrEqual(1)
@@ -624,7 +622,7 @@ describe('AdminPortalLineUsersPage — Edit button RBAC (Phase B)', () => {
 
   it('P11: STAFF sees NO Edit button (read-only modal)', () => {
     openModalAs('STAFF')
-    expect(screen.getByText('STAFF-123')).toBeInTheDocument() // modal is open (read-only)
+    expect(screen.getByText('Teacher')).toBeInTheDocument() // modal is open (read-only)
     expect(screen.queryByRole('button', { name: T.edit })).not.toBeInTheDocument()
   })
 
@@ -640,12 +638,11 @@ describe('AdminPortalLineUsersPage — Edit button RBAC (Phase B)', () => {
 })
 
 describe('AdminPortalLineUsersPage — edit form + option lists (Phase B)', () => {
-  it('P14: clicking Edit renders the six registration inputs + the status select', async () => {
+  it('P14: clicking Edit renders the five registration inputs + the status select', async () => {
     await openEditor(registered())
 
     expect(screen.getByLabelText(T.labelFirstName)).toBeInTheDocument()
     expect(screen.getByLabelText(T.labelLastName)).toBeInTheDocument()
-    expect(screen.getByLabelText(T.labelStaffId)).toBeInTheDocument()
     expect(screen.getByLabelText(T.labelPhone)).toBeInTheDocument()
     expect(screen.getByLabelText(T.labelDepartment)).toBeInTheDocument()
     expect(screen.getByLabelText(T.labelPersonnelRole)).toBeInTheDocument()
@@ -802,7 +799,7 @@ describe('AdminPortalLineUsersPage — save wiring (Phase B)', () => {
     expect(mockPatchReg).not.toHaveBeenCalled()
   })
 
-  it('P21: a registration 409 surfaces the staffId-taken error near the staffId field and keeps the modal open', async () => {
+  it('P21: a registration save failure surfaces as a modal-level error and keeps the modal open', async () => {
     authAs('ADMIN')
     mockUseLineUsers.mockReturnValue(hookState({ users: [registered()] }))
     renderPage()
@@ -810,14 +807,13 @@ describe('AdminPortalLineUsersPage — save wiring (Phase B)', () => {
     fireEvent.click(screen.getByRole('button', { name: T.edit }))
     await screen.findByRole('option', { name: 'Computer Science' })
 
-    fireEvent.change(screen.getByLabelText(T.labelStaffId), { target: { value: 'DUPE' } })
-    mockPatchReg.mockRejectedValue(new apiClient.ApiError(409, 'taken'))
+    fireEvent.change(screen.getByLabelText(T.labelFirstName), { target: { value: 'Alicia' } })
+    mockPatchReg.mockRejectedValue(new apiClient.ApiError(400, 'invalid'))
     fireEvent.click(screen.getByRole('button', { name: T.save }))
 
-    expect(await screen.findByText(EDITOR_MESSAGES.staffIdTaken)).toBeInTheDocument()
-    // Still in edit mode (staffId input present) and flagged invalid for a11y.
-    const staffId = screen.getByLabelText(T.labelStaffId)
-    expect(staffId).toHaveAttribute('aria-invalid', 'true')
+    expect(await screen.findByText(EDITOR_MESSAGES.invalid)).toBeInTheDocument()
+    // Still in edit mode — the form is intact so the operator can correct and retry.
+    expect(screen.getByLabelText(T.labelFirstName)).toBeInTheDocument()
   })
 
   it('P22: Cancel resets the draft and returns to view without any PATCH', async () => {
@@ -861,7 +857,7 @@ describe('AdminPortalLineUsersPage — Reject action (ส่งคืนเพ�
 
   it('R2: STAFF sees NO Reject button (read-only surface)', () => {
     inspectAs(registered({ access: 'PENDING' }), 'STAFF')
-    expect(screen.getByText('STAFF-123')).toBeInTheDocument() // the modal IS open, read-only
+    expect(screen.getByText('Teacher')).toBeInTheDocument() // the modal IS open, read-only
     expect(screen.queryByRole('button', { name: T.reject })).not.toBeInTheDocument()
   })
 
@@ -1046,7 +1042,7 @@ describe('AdminPortalLineUsersPage — a deleted row cannot leave a modal bound 
     expect(screen.queryByRole('dialog', { name: T.modalTitle })).not.toBeInTheDocument()
     // …and the native `close` event reset the selection, so nothing is left bound to the
     // vanished row (an operator must never be able to save an edit to a deleted user).
-    expect(screen.queryByText('STAFF-123')).not.toBeInTheDocument()
+    expect(screen.queryByText('Teacher')).not.toBeInTheDocument()
   })
 
   it('P33: leaves the modal open when a DIFFERENT row is deleted', () => {
@@ -1065,6 +1061,6 @@ describe('AdminPortalLineUsersPage — a deleted row cannot leave a modal bound 
     )
 
     expect(screen.getByRole('dialog', { name: T.modalTitle })).toHaveAttribute('open')
-    expect(screen.getByText('STAFF-123')).toBeInTheDocument()
+    expect(screen.getByText('Teacher')).toBeInTheDocument()
   })
 })

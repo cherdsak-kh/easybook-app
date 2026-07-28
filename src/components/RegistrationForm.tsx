@@ -6,26 +6,18 @@ import { UI_STRINGS_CLIENT } from '@/constants/ui-strings-client'
 const UI = UI_STRINGS_CLIENT.registration
 
 /**
- * Required length of a staff/personnel ID. Exported so tests derive their
- * fixtures from it (`'1'.repeat(ID_COUNT)`) rather than hardcoding a 13-char
- * literal: when this rule last changed out-of-band, the hardcoded fixtures went
- * silently invalid and blocked submission, cascading into unrelated payload
- * assertions. A string dictionary cannot catch that class of drift; this can.
- */
-export const ID_COUNT = 13
-
-/**
- * Required length of a phone number. Exported for the same reason as
- * {@link ID_COUNT}: tests derive their fixtures from it (`'0'.repeat(PHONE_COUNT)`)
- * and the copy interpolates it (`UI.phoneLength(PHONE_COUNT)`), so the rule, the
- * message and the fixtures cannot drift apart when this number changes.
+ * Required length of a phone number. Exported so tests derive their fixtures
+ * from it (`'0'.repeat(PHONE_COUNT)`) rather than hardcoding a 10-char literal,
+ * and so the copy interpolates it (`UI.phoneLength(PHONE_COUNT)`): when a length
+ * rule last changed out-of-band, the hardcoded fixtures went silently invalid
+ * and blocked submission, cascading into unrelated payload assertions. A string
+ * dictionary cannot catch that class of drift; this can.
  */
 export const PHONE_COUNT = 10
 
 export interface RegistrationFormValues {
   firstName: string
   lastName: string
-  staffId: string
   phone: string
   departmentId: string
   personnelRoleId: string
@@ -34,7 +26,6 @@ export interface RegistrationFormValues {
 const EMPTY: RegistrationFormValues = {
   firstName: '',
   lastName: '',
-  staffId: '',
   phone: '',
   departmentId: '',
   personnelRoleId: '',
@@ -48,9 +39,6 @@ function validate(f: RegistrationFormValues): Errors {
   else if (/\d/.test(f.firstName)) e.firstName = UI.firstNameNoDigits
   if (!f.lastName.trim()) e.lastName = UI.lastNameRequired
   else if (/\d/.test(f.lastName)) e.lastName = UI.lastNameNoDigits
-  if (!f.staffId.trim()) e.staffId = UI.staffIdRequired
-  else if (!/^[0-9]+$/.test(f.staffId.trim())) e.staffId = UI.staffIdDigitsOnly
-  else if (f.staffId.trim().length !== ID_COUNT) e.staffId = UI.staffIdLength(ID_COUNT)
   if (!f.phone.trim()) e.phone = UI.phoneRequired
   else if (!/^[0-9]+$/.test(f.phone.trim())) e.phone = UI.phoneDigitsOnly
   else if (f.phone.trim().length !== PHONE_COUNT) e.phone = UI.phoneLength(PHONE_COUNT)
@@ -83,13 +71,13 @@ export interface RegistrationFormProps {
  * The Client-Portal registration form. Shown to `UNREGISTERED` users (create) and
  * re-used by `PENDING` users to edit their submission (edit). Department and role
  * are **dynamic dropdowns** populated from the admin-curated option tables via
- * {@link loadOptions} — non-deleted options only. The identity field is the
- * staff/personnel `staffId` (these users are educational personnel/staff, not
- * students).
+ * {@link loadOptions} — non-deleted options only. Identity is name + phone: these
+ * users are educational personnel/staff, not students, and carry no ID number.
  *
  * Validates client-side (required + loose phone format) before calling
  * {@link onSubmit} with the id-based DTO; `serverError` surfaces a non-crashing
- * backend failure (e.g. 409 STAFF_ID_TAKEN, 400 invalid option, 403 not editable).
+ * backend failure (e.g. 409 ALREADY_REGISTERED on create, 400 invalid option,
+ * 403 not editable).
  */
 export function RegistrationForm({
   mode,
@@ -152,7 +140,6 @@ export function RegistrationForm({
     onSubmit({
       firstName: fields.firstName.trim(),
       lastName: fields.lastName.trim(),
-      staffId: fields.staffId.trim(),
       phone: fields.phone.trim(),
       // <select> values are always DOM strings; the backend now types the option
       // ids as integers (`@IsInt()`), so coerce before submitting. `validate`
@@ -241,16 +228,6 @@ export function RegistrationForm({
                 </div>
 
                 <Field
-                  id={`${uid}-id`}
-                  label={UI.staffId}
-                  value={fields.staffId}
-                  onChange={(v) => set('staffId', v)}
-                  error={errors.staffId}
-                  inputMode="text"
-                  disabled={submitting}
-                />
-
-                <Field
                   id={`${uid}-phone`}
                   label={UI.phone}
                   value={fields.phone}
@@ -320,7 +297,6 @@ function Field({
   error,
   type = 'text',
   autoComplete,
-  inputMode,
   disabled,
 }: {
   id: string
@@ -330,7 +306,6 @@ function Field({
   error?: string
   type?: string
   autoComplete?: string
-  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
   disabled?: boolean
 }) {
   const errorId = `${id}-error`
@@ -345,7 +320,6 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
-        inputMode={inputMode}
         disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}

@@ -59,7 +59,6 @@ function registered(o: Partial<LineUser> = {}, reg: Partial<NonNullable<LineUser
     registration: {
       firstName: 'Alice',
       lastName: 'Wong',
-      staffId: 'STAFF-123',
       phone: '0812345678',
       departmentId: 1,
       department: 'Computer Science',
@@ -281,9 +280,9 @@ describe('useLineUsers — race guard covers the WHOLE loop', () => {
 // ---------------------------------------------------------------------------
 describe('useLineUsers — client-side search (zero network)', () => {
   const ROWS = [
-    registered({ id: 'a' }, { firstName: 'สมชาย', lastName: 'ใจดี', staffId: 'EMP-001', phone: '0811111111', department: 'ฝ่ายบุคคล' }),
-    registered({ id: 'b' }, { firstName: 'Bob', lastName: 'Smith', staffId: 'EMP-002', phone: '0822222222', department: 'Computer Science' }),
-    registered({ id: 'c' }, { firstName: 'Carol', lastName: 'Jones', staffId: 'ZZZ-999', phone: '0899999999', department: 'Mathematics' }),
+    registered({ id: 'a' }, { firstName: 'สมชาย', lastName: 'ใจดี', phone: '0811111111', department: 'ฝ่ายบุคคล' }),
+    registered({ id: 'b' }, { firstName: 'Bob', lastName: 'Smith', phone: '0822222222', department: 'Computer Science' }),
+    registered({ id: 'c' }, { firstName: 'Carol', lastName: 'Jones', phone: '0899999999', department: 'Mathematics' }),
     makeUser({ id: 'none', registration: null }),
   ]
 
@@ -303,8 +302,8 @@ describe('useLineUsers — client-side search (zero network)', () => {
     const result = await loaded()
     const callsBefore = mockList.mock.calls.length
 
-    act(() => result.current.setSearch('EMP'))
-    act(() => result.current.setSearchField('staffId'))
+    act(() => result.current.setSearch('081'))
+    act(() => result.current.setSearchField('phone'))
     act(() => result.current.setSortBy('nameAsc'))
     act(() => result.current.setAccessFilter('PENDING'))
     act(() => result.current.setPage(1))
@@ -312,14 +311,11 @@ describe('useLineUsers — client-side search (zero network)', () => {
     expect(mockList.mock.calls.length).toBe(callsBefore)
   })
 
-  it('all: matches on name OR staffId OR phone OR department', async () => {
+  it('all: matches on name OR phone OR department', async () => {
     const result = await loaded()
 
     act(() => result.current.setSearch('สมชาย'))
     expect(result.current.users.map((u) => u.id)).toEqual(['a'])
-
-    act(() => result.current.setSearch('ZZZ-999'))
-    expect(result.current.users.map((u) => u.id)).toEqual(['c'])
 
     act(() => result.current.setSearch('0822222222'))
     expect(result.current.users.map((u) => u.id)).toEqual(['b'])
@@ -335,19 +331,8 @@ describe('useLineUsers — client-side search (zero network)', () => {
     act(() => result.current.setSearch('Bob Smith'))
     expect(result.current.users.map((u) => u.id)).toEqual(['b'])
 
-    // A staffId hit under the `name` field must NOT match.
-    act(() => result.current.setSearch('EMP-002'))
-    expect(result.current.users).toEqual([])
-  })
-
-  it('staffId: matches only the staff id', async () => {
-    const result = await loaded()
-    act(() => result.current.setSearchField('staffId'))
-
-    act(() => result.current.setSearch('emp-00'))
-    expect(result.current.users.map((u) => u.id)).toEqual(['a', 'b'])
-
-    act(() => result.current.setSearch('Carol'))
+    // A phone hit under the `name` field must NOT match.
+    act(() => result.current.setSearch('0822222222'))
     expect(result.current.users).toEqual([])
   })
 
@@ -369,7 +354,7 @@ describe('useLineUsers — client-side search (zero network)', () => {
     act(() => result.current.setSearch('ฝ่ายบุคคล'))
     expect(result.current.users.map((u) => u.id)).toEqual(['a'])
 
-    act(() => result.current.setSearch('EMP-001'))
+    act(() => result.current.setSearch('0811111111'))
     expect(result.current.users).toEqual([])
   })
 
@@ -393,8 +378,8 @@ describe('useLineUsers — client-side search (zero network)', () => {
   it('recomputes immediately when the FIELD is switched under an active query', async () => {
     const result = await loaded()
 
-    act(() => result.current.setSearch('EMP-001'))
-    expect(result.current.users.map((u) => u.id)).toEqual(['a']) // matched via `all`
+    act(() => result.current.setSearch('ฝ่ายบุคคล'))
+    expect(result.current.users.map((u) => u.id)).toEqual(['a']) // matched via `all` (department)
 
     act(() => result.current.setSearchField('phone'))
     expect(result.current.users).toEqual([]) // no stale list
@@ -552,7 +537,7 @@ describe('useLineUsers — client-side status filter + pagination', () => {
 
   it('clamps a now-out-of-range page instead of stranding the operator on a blank one', async () => {
     const rows = Array.from({ length: 45 }, (_, i) =>
-      registered({ id: `r${i}` }, { staffId: i === 0 ? 'ONLY-ONE' : `EMP-${i}` }),
+      registered({ id: `r${i}` }, { phone: i === 0 ? '0800000000' : `081${String(i).padStart(7, '0')}` }),
     )
     mockList.mockResolvedValue(makePage(rows, { total: 45, totalPages: 1 }))
     const { result } = renderHook(() => useLineUsers())
@@ -562,8 +547,8 @@ describe('useLineUsers — client-side status filter + pagination', () => {
     expect(result.current.page).toBe(3)
 
     // A filter that leaves one row would otherwise leave `page` at 3 of 1.
-    act(() => result.current.setSearchField('staffId'))
-    act(() => result.current.setSearch('ONLY-ONE'))
+    act(() => result.current.setSearchField('phone'))
+    act(() => result.current.setSearch('0800000000'))
     expect(result.current.page).toBe(1)
     expect(result.current.users.map((u) => u.id)).toEqual(['r0'])
   })
@@ -847,7 +832,7 @@ describe('useLineUsers — an event must not disturb the operator view', () => {
   it('preserves search text, search field, sort, status filter AND page position', async () => {
     // 45 ALLOWED rows so page 2 exists under the active filter+search.
     const rows = Array.from({ length: 45 }, (_, i) =>
-      registered({ id: `r${i}`, access: 'ALLOWED' }, { staffId: `EMP-${String(i).padStart(3, '0')}` }),
+      registered({ id: `r${i}`, access: 'ALLOWED' }, { phone: `081${String(i).padStart(7, '0')}` }),
     )
     mockList.mockResolvedValue(makePage(rows, { total: rows.length, totalPages: 1 }))
     const { result } = renderHook(() => useLineUsers())
@@ -855,8 +840,8 @@ describe('useLineUsers — an event must not disturb the operator view', () => {
     act(() => latestFakeSocket().server('connect'))
 
     act(() => result.current.setAccessFilter('ALLOWED'))
-    act(() => result.current.setSearchField('staffId'))
-    act(() => result.current.setSearch('EMP-'))
+    act(() => result.current.setSearchField('phone'))
+    act(() => result.current.setSearch('081'))
     act(() => result.current.setSortBy('nameAsc'))
     act(() => result.current.setPage(2))
     const visibleBefore = result.current.users.map((u) => u.id)
@@ -864,14 +849,14 @@ describe('useLineUsers — an event must not disturb the operator view', () => {
     act(() =>
       latestFakeSocket().server(
         REALTIME_EVENTS.lineUserUpdated,
-        registered({ id: 'r0', access: 'ALLOWED' }, { staffId: 'EMP-000', phone: '0999999999' }),
+        registered({ id: 'r0', access: 'ALLOWED' }, { phone: '0810000000', department: 'Mathematics' }),
       ),
     )
 
     // Every control the operator set is exactly where they left it…
     expect(result.current.accessFilter).toBe('ALLOWED')
-    expect(result.current.searchField).toBe('staffId')
-    expect(result.current.search).toBe('EMP-')
+    expect(result.current.searchField).toBe('phone')
+    expect(result.current.search).toBe('081')
     expect(result.current.sortBy).toBe('nameAsc')
     // …including the page: an incoming event must never yank them back to page 1.
     expect(result.current.page).toBe(2)

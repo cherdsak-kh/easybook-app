@@ -34,7 +34,6 @@ function makeUser(o: Partial<LineUser> = {}): LineUser {
     registration: {
       firstName: 'Alice',
       lastName: 'Wong',
-      staffId: 'STAFF-123',
       phone: '0812345678',
       departmentId: 1,
       department: 'Computer Science',
@@ -81,7 +80,7 @@ beforeEach(() => {
 })
 
 describe('useLineUserEditor — edit lifecycle', () => {
-  it('startEdit seeds the six-field draft + access from the user, in edit mode', () => {
+  it('startEdit seeds the five-field draft + access from the user, in edit mode', () => {
     const { result } = setup()
     act(() => result.current.startEdit(makeUser()))
 
@@ -89,7 +88,6 @@ describe('useLineUserEditor — edit lifecycle', () => {
     expect(result.current.draft).toEqual({
       firstName: 'Alice',
       lastName: 'Wong',
-      staffId: 'STAFF-123',
       phone: '0812345678',
       departmentId: 1,
       personnelRoleId: 1,
@@ -177,7 +175,6 @@ describe('useLineUserEditor — save orchestration (§7)', () => {
     expect(mockPatchReg).toHaveBeenCalledWith('lu1', {
       firstName: 'Bob',
       lastName: 'Wong',
-      staffId: 'STAFF-123',
       phone: '0812345678',
       departmentId: 1,
       personnelRoleId: 1,
@@ -236,10 +233,10 @@ describe('useLineUserEditor — save orchestration (§7)', () => {
   it('registration failure ABORTS access (access is never attempted) and keeps the modal in edit mode', async () => {
     const { result, updateUserInPlace } = setup()
     act(() => result.current.startEdit(makeUser()))
-    act(() => result.current.setDraftField('staffId', 'DUPE'))
+    act(() => result.current.setDraftField('lastName', 'Ng'))
     act(() => result.current.setDraftAccess('ALLOWED'))
 
-    mockPatchReg.mockRejectedValue(new ApiError(409, 'taken'))
+    mockPatchReg.mockRejectedValue(new ApiError(400, 'invalid'))
 
     let returned: LineUser | null = makeUser()
     await act(async () => {
@@ -250,7 +247,7 @@ describe('useLineUserEditor — save orchestration (§7)', () => {
     expect(updateUserInPlace).not.toHaveBeenCalled()
     expect(returned).toBeNull()
     expect(result.current.mode).toBe('edit')
-    expect(result.current.staffIdError).toBe(EDITOR_MESSAGES.staffIdTaken)
+    expect(result.current.formError).toBe(EDITOR_MESSAGES.invalid)
   })
 
   it('partial success (registration ok, access fails): commits + syncs registration, retains draftAccess, drops registrationDirty', async () => {
@@ -314,12 +311,6 @@ describe('useLineUserEditor — error mapping (§7)', () => {
     })
     return { result, expireSession }
   }
-
-  it('registration 409 → the per-field staffId-taken error (not a modal error)', async () => {
-    const { result } = await saveWith(409, 'reg')
-    expect(result.current.staffIdError).toBe(EDITOR_MESSAGES.staffIdTaken)
-    expect(result.current.formError).toBeNull()
-  })
 
   it('registration 400 → the invalid-data message', async () => {
     const { result } = await saveWith(400, 'reg')

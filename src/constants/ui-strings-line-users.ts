@@ -71,7 +71,6 @@ export const T = {
   close: 'ปิด',
   closeBackdrop: 'ปิดหน้าต่าง',
   fieldRealName: 'ชื่อ-สกุล',
-  fieldStaffId: 'รหัสพนักงาน',
   fieldPhone: 'เบอร์โทรศัพท์',
   fieldDepartment: 'ฝ่าย/แผนก',
   fieldPersonnelRole: 'ตำแหน่ง',
@@ -85,7 +84,6 @@ export const T = {
   cancel: 'ยกเลิก',
   labelFirstName: 'ชื่อ',
   labelLastName: 'นามสกุล',
-  labelStaffId: 'รหัสพนักงาน',
   labelPhone: 'เบอร์โทรศัพท์',
   labelDepartment: 'ฝ่าย/แผนก',
   labelPersonnelRole: 'ตำแหน่ง',
@@ -164,21 +162,14 @@ export const MODAL_STATUS_LABELS: Record<AppAccess, string> = {
  * The union + its ordered option list live HERE rather than in `useLineUsers` because
  * both the option ORDER and the labels are presentation; the hook imports the type.
  */
-export type SearchField = 'all' | 'name' | 'staffId' | 'phone' | 'department'
+export type SearchField = 'all' | 'name' | 'phone' | 'department'
 
 /** Dropdown order for {@link SearchField}. `all` leads because it is the default. */
-export const SEARCH_FIELD_OPTIONS: readonly SearchField[] = [
-  'all',
-  'name',
-  'staffId',
-  'phone',
-  'department',
-]
+export const SEARCH_FIELD_OPTIONS: readonly SearchField[] = ['all', 'name', 'phone', 'department']
 
 export const SEARCH_FIELD_LABELS: Readonly<Record<SearchField, string>> = {
   all: 'ทุกช่อง',
   name: 'ชื่อ-สกุล',
-  staffId: 'รหัสพนักงาน',
   phone: 'เบอร์โทรศัพท์',
   department: 'ฝ่าย/แผนก',
 }

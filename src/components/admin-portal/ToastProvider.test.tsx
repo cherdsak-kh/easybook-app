@@ -51,17 +51,19 @@ describe('ToastProvider — daisyUI structure and position', () => {
     expect(wrapper).toContainElement(alert as HTMLElement)
   })
 
-  it('pins EVERY toast to the top-right corner (PO decision OPEN-8)', () => {
+  it('pins EVERY toast to the top-center (PO decision OPEN-8)', () => {
     const { container } = renderHarness([['a'], ['b', 'error']])
     fire(0)
     fire(1)
 
-    // ONE container, `toast-end toast-top`, and never the old bottom placement.
+    // ONE container, `toast-center toast-top`, and never the old bottom placement.
     const wrappers = container.querySelectorAll('.toast')
     expect(wrappers).toHaveLength(1)
-    expect(wrappers[0]).toHaveClass('toast', 'toast-end', 'toast-top')
+    expect(wrappers[0]).toHaveClass('toast', 'toast-center', 'toast-top')
     expect(wrappers[0]).not.toHaveClass('toast-bottom')
     expect(wrappers[0]).not.toHaveClass('toast-start')
+    // Guards the top-right → top-center move from silently regressing.
+    expect(wrappers[0]).not.toHaveClass('toast-end')
   })
 
   it.each([

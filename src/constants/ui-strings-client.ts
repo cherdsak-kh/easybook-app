@@ -50,7 +50,7 @@
  *    diagnostic that `RegistrationForm` catches and replaces with
  *    {@link UI_STRINGS_CLIENT.registration.optionsError}; it never reaches a
  *    screen.
- *  - Backend-supplied `err.message` values (e.g. `STAFF_ID_TAKEN`) — server
+ *  - Backend-supplied `err.message` values (e.g. `ALREADY_REGISTERED`) — server
  *    data rendered as-is, not our copy.
  *
  * It is a UI-label store: never import it into `api-client.ts` or any
@@ -145,7 +145,6 @@ export const UI_STRINGS_CLIENT = {
 
     firstName: 'ชื่อจริง',
     lastName: 'นามสกุล',
-    staffId: 'รหัสบุคลากร',
     phone: 'เบอร์โทรศัพท์',
     department: 'ฝ่าย/แผนก',
     departmentPlaceholder: 'เลือกฝ่าย/แผนก',
@@ -163,19 +162,11 @@ export const UI_STRINGS_CLIENT = {
     firstNameNoDigits: 'ชื่อจริงจะต้องไม่มีตัวเลข',
     lastNameRequired: 'โปรดระบุนามสกุล',
     lastNameNoDigits: 'นามสกุลจะต้องไม่มีตัวเลข',
-    staffIdRequired: 'โปรดระบุรหัสบุคลากร',
-    staffIdDigitsOnly: 'รหัสบุคลากรต้องเป็นตัวเลขเท่านั้น',
-    /**
-     * `count` comes from `RegistrationForm`'s exported `ID_COUNT` at the call
-     * site — passing it keeps the message and the rule from drifting apart.
-     */
-    staffIdLength: (count: number) => `รหัสบุคลากรจะต้องมี ${count} ตัว`,
     phoneRequired: 'โปรดระบุเบอร์โทรศัพท์',
     phoneDigitsOnly: 'เบอร์โทรศัพท์ต้องเป็นตัวเลขเท่านั้น',
     /**
      * `count` comes from `RegistrationForm`'s exported `PHONE_COUNT` at the call
-     * site — passing it keeps the message and the rule from drifting apart, the
-     * same way `staffIdLength`/`ID_COUNT` are linked.
+     * site — passing it keeps the message and the rule from drifting apart.
      */
     phoneLength: (count: number) => `เบอร์โทรศัพท์ต้องมี ${count} หลัก`,
     departmentRequired: 'โปรดเลือกฝ่าย/แผนก',
@@ -193,8 +184,13 @@ export const UI_STRINGS_CLIENT = {
      * lives in `HomePage`.
      */
     registerError: {
-      /** 409 — already registered, or the staff ID is taken. */
-      conflict: 'รหัสบุคลากรนี้ถูกใช้งานแล้ว กรุณาตรวจสอบข้อมูลอีกครั้ง',
+      /**
+       * 409 `ALREADY_REGISTERED` — this LINE account already has a registration.
+       * The ONLY surviving 409 on this surface: the sole remaining unique key on
+       * a registration is its 1:1 `lineUserId`, so a conflict can now only mean
+       * "this LINE account, again".
+       */
+      conflict: 'บัญชี LINE นี้ได้ลงทะเบียนไว้แล้ว กรุณาเปิดแอปพลิเคชันอีกครั้ง',
       /** 400 */
       invalid: 'โปรดตรวจสอบข้อมูลในแบบฟอร์ม และลองใหม่อีกครั้ง',
       /** 401 */
@@ -208,8 +204,11 @@ export const UI_STRINGS_CLIENT = {
       /** 403 — no longer PENDING (an admin approved/blocked in the meantime). */
       notEditable:
         'Your registration can no longer be edited — please reopen the app to refresh your status.',
-      /** 409 */
-      conflict: 'That staff ID is already in use. Please check your details.',
+      /**
+       * NOTE: there is deliberately NO `conflict` (409) entry. The self-edit PATCH
+       * mutates no unique column, so the endpoint cannot 409 at all any more; a
+       * 409 message here would be dead copy pointing at an unreachable branch.
+       */
       /** 400 — a selected option was removed, or a field is invalid. */
       invalid: 'Please review your selections and try again.',
       /** 401 */
@@ -237,7 +236,6 @@ export const UI_STRINGS_CLIENT = {
     /** The read-only echo of what was submitted. */
     summary: {
       fullName: 'ชื่อ-นามสกุล',
-      staffId: 'รหัสบุคลากร',
       phone: 'เบอร์โทรศัพท์',
       department: 'ฝ่าย/แผนก',
       personnelRole: 'ตำแหน่ง',

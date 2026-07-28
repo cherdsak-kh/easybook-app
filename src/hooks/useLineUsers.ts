@@ -97,14 +97,12 @@ function searchableValues(user: LineUser, field: SearchField): string[] {
   switch (field) {
     case 'name':
       return [`${reg.firstName} ${reg.lastName}`]
-    case 'staffId':
-      return [reg.staffId]
     case 'phone':
       return [reg.phone]
     case 'department':
       return [reg.department]
     case 'all':
-      return [`${reg.firstName} ${reg.lastName}`, reg.staffId, reg.phone, reg.department]
+      return [`${reg.firstName} ${reg.lastName}`, reg.phone, reg.department]
   }
 }
 
