@@ -120,7 +120,7 @@ export function DemoAdminDashboardPage() {
                     pendingBookings.map((b) => (
                       <tr key={b.id}>
                         <td>{b.date}</td>
-                        <td>{b.startTime} - {b.endTime}</td>
+                        <td>{b.startTime} - {b.endTime} {b.endTime <= b.startTime && <span className="text-xs text-error font-bold">(ข้ามวัน)</span>}</td>
                         <td className="font-semibold">{b.venueName}</td>
                         <td>{b.purpose}</td>
                         <td>{b.attendees}</td>
