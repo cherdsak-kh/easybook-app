@@ -22,7 +22,7 @@ export type Venue = {
   facilities: string[]
 }
 
-export const MOCK_VENUES: Venue[] = [
+const MOCK_VENUES: Venue[] = [
   {
     id: 'v1',
     name: 'หอประชุมวารณ',
@@ -131,7 +131,7 @@ export type BookingRequest = {
   createdAt: string
 }
 
-export const getBookingTimes = (startDate: string, endDate: string, startTime: string, endTime: string) => {
+const getBookingTimes = (startDate: string, endDate: string, startTime: string, endTime: string) => {
   const start = new Date(`${startDate}T${startTime}`)
   const end = new Date(`${endDate}T${endTime}`)
   return { start, end }
@@ -674,6 +674,16 @@ function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingReq
   const [editingBooking, setEditingBooking] = useState<BookingRequest | null>(null)
   const [editPurpose, setEditPurpose] = useState('')
   const [editAttendees, setEditAttendees] = useState('')
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const openEdit = (b: BookingRequest) => {
     setEditingBooking(b)
@@ -725,7 +735,17 @@ function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingReq
                   <p><span className="font-semibold">วันที่:</span> {b.startDate === b.endDate ? b.startDate : `${b.startDate} ถึง ${b.endDate}`}</p>
                   <p><span className="font-semibold">เวลา:</span> {b.startTime} - {b.endTime} น.</p>
                   <p><span className="font-semibold">จำนวนคน:</span> {b.attendees}</p>
-                  <p><span className="font-semibold">รายละเอียด:</span> {b.purpose}</p>
+                  <div>
+                    <span className="font-semibold">รายละเอียด:</span>
+                    <div className={`break-all whitespace-pre-wrap ${!expandedIds.has(b.id) && b.purpose.length > 80 ? 'line-clamp-2' : ''}`}>
+                      {b.purpose}
+                    </div>
+                    {b.purpose.length > 80 && (
+                      <button className="text-primary text-xs font-semibold mt-1" onClick={() => toggleExpand(b.id)}>
+                        {expandedIds.has(b.id) ? 'ย่อข้อความ' : 'ดูเพิ่มเติม...'}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 
                 {(b.status === 'PENDING' || b.status === 'APPROVED') && (
