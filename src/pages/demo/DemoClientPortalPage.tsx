@@ -188,6 +188,12 @@ export function DemoClientPortalPage() {
     localStorage.setItem('demo_bookings', JSON.stringify(updated))
   }
 
+  const handleEditBooking = (id: string, purpose: string, attendees: number) => {
+    const updated = bookings.map((b) => (b.id === id ? { ...b, purpose, attendees } : b))
+    setBookings(updated)
+    localStorage.setItem('demo_bookings', JSON.stringify(updated))
+  }
+
   return (
     <div className="mx-auto min-h-screen max-w-md bg-base-200 pb-20 shadow-2xl relative">
       {screen === 'home' && <HomeScreen onSelect={openDetails} />}
@@ -202,7 +208,7 @@ export function DemoClientPortalPage() {
           bookings={bookings} // pass bookings to check overlaps
         />
       )}
-      {screen === 'my-bookings' && <MyBookingsScreen bookings={bookings} onCancel={cancelBooking} />}
+      {screen === 'my-bookings' && <MyBookingsScreen bookings={bookings} onCancel={cancelBooking} onEdit={handleEditBooking} />}
 
       {/* Bottom Navigation */}
       {(screen === 'home' || screen === 'my-bookings') && (
@@ -663,8 +669,24 @@ function FormScreen({
   )
 }
 
-function MyBookingsScreen({ bookings, onCancel }: { bookings: BookingRequest[], onCancel: (id: string) => void }) {
+function MyBookingsScreen({ bookings, onCancel, onEdit }: { bookings: BookingRequest[], onCancel: (id: string) => void, onEdit: (id: string, purpose: string, attendees: number) => void }) {
   const [tab, setTab] = useState<'ACTIVE' | 'HISTORY'>('ACTIVE')
+  const [editingBooking, setEditingBooking] = useState<BookingRequest | null>(null)
+  const [editPurpose, setEditPurpose] = useState('')
+  const [editAttendees, setEditAttendees] = useState('')
+
+  const openEdit = (b: BookingRequest) => {
+    setEditingBooking(b)
+    setEditPurpose(b.purpose)
+    setEditAttendees(b.attendees.toString())
+  }
+
+  const saveEdit = () => {
+    if (editingBooking) {
+      onEdit(editingBooking.id, editPurpose, parseInt(editAttendees, 10) || 1)
+      setEditingBooking(null)
+    }
+  }
 
   const filtered = bookings.filter((b) => {
     if (tab === 'ACTIVE') return b.status === 'PENDING' || b.status === 'APPROVED'
@@ -702,18 +724,27 @@ function MyBookingsScreen({ bookings, onCancel }: { bookings: BookingRequest[], 
                 <div className="text-sm text-base-content/70 space-y-1">
                   <p><span className="font-semibold">วันที่:</span> {b.startDate === b.endDate ? b.startDate : `${b.startDate} ถึง ${b.endDate}`}</p>
                   <p><span className="font-semibold">เวลา:</span> {b.startTime} - {b.endTime} น.</p>
+                  <p><span className="font-semibold">จำนวนคน:</span> {b.attendees}</p>
                   <p><span className="font-semibold">รายละเอียด:</span> {b.purpose}</p>
                 </div>
                 
                 {(b.status === 'PENDING' || b.status === 'APPROVED') && (
-                  <div className="card-actions justify-end mt-4 pt-4 border-t border-base-200">
+                  <div className="card-actions justify-end mt-4 pt-4 border-t border-base-200 gap-2">
+                    {b.status === 'PENDING' && (
+                      <button 
+                        className="btn btn-sm btn-outline btn-primary"
+                        onClick={() => openEdit(b)}
+                      >
+                        แก้ไข
+                      </button>
+                    )}
                     <button 
                       className="btn btn-sm btn-outline text-error border-error hover:bg-error hover:text-white hover:border-error" 
                       onClick={() => {
                         if (confirm('คุณต้องการยกเลิกการจองนี้ใช่หรือไม่?')) onCancel(b.id)
                       }}
                     >
-                      ยกเลิกคำขอจอง
+                      ยกเลิก
                     </button>
                   </div>
                 )}
@@ -722,6 +753,29 @@ function MyBookingsScreen({ bookings, onCancel }: { bookings: BookingRequest[], 
           ))
         )}
       </div>
+
+      {/* Edit Modal */}
+      {editingBooking && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg mb-4">แก้ไขคำขอจอง</h3>
+            <div className="space-y-4">
+              <fieldset className="fieldset">
+                <legend className="fieldset-legend font-semibold">จำนวนผู้เข้าร่วม (คน) <span className="text-error">*</span></legend>
+                <input type="number" className="input input-bordered w-full" value={editAttendees} onChange={(e) => setEditAttendees(e.target.value)} required min="1" />
+              </fieldset>
+              <fieldset className="fieldset">
+                <legend className="fieldset-legend font-semibold">รายละเอียด <span className="text-error">*</span></legend>
+                <textarea className="textarea textarea-bordered w-full h-24" value={editPurpose} onChange={(e) => setEditPurpose(e.target.value)} required></textarea>
+              </fieldset>
+            </div>
+            <div className="modal-action">
+              <button className="btn btn-ghost" onClick={() => setEditingBooking(null)}>ยกเลิก</button>
+              <button className="btn btn-primary" onClick={saveEdit} disabled={!editPurpose || !editAttendees}>บันทึก</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
