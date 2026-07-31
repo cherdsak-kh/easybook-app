@@ -25,12 +25,23 @@ services:
     restart: unless-stopped
     ports:
       # Host port 2200 matches the app's conceptual dev port (see CLAUDE.md) and does NOT clash
-      # with the backend's 3300. The staging box's outer Nginx (same one documented in
+      # with the backend's 3300. The outer Nginx (documented in
       # easybook-service/docs/staging-runbook.md §1, external to this repo — no config for it
-      # lives here) is expected to reverse-proxy the public frontend hostname/path to
-      # 127.0.0.1:2200, the same way it proxies the API hostname/path to 127.0.0.1:3300. Both
-      # containers listen on 127.0.0.1 only via the host's own Docker port publishing; the
-      # container's internal nginx still listens on :80.
+      # lives here) reverse-proxies the public frontend hostname to this port, the same way it
+      # proxies the API hostname to 3300.
+      #
+      # CORRECTION — an earlier version of this comment claimed the outer Nginx proxies to
+      # `127.0.0.1:2200` and that "both containers listen on 127.0.0.1 only". BOTH claims were
+      # false. That Nginx runs on a SEPARATE VM, so it cannot reach a loopback-bound port here;
+      # `'2200:80'` publishes on 0.0.0.0 — every interface this VM has, public ones included.
+      # The old wording read as a security guarantee that was never in effect.
+      #
+      # Prefer pinning the bind address to the private interface the Nginx VM uses
+      # (`'<APP_VM_PRIVATE_IP>:2200:80'`) so the SPA is not also served from a public address
+      # directly, bypassing Cloudflare. Docker's published ports bypass ufw's INPUT rules (DNAT
+      # in `nat PREROUTING`, filtering in Docker's own `DOCKER-USER` chain), so a host firewall
+      # does not compensate for a too-broad bind address here. The container's internal nginx
+      # still listens on :80 regardless.
       - '2200:80'
     # Sensible ceilings for a single small static-file server, not a production capacity plan —
     # revisit if/when real staging traffic numbers exist. Lighter than the backend's since nginx

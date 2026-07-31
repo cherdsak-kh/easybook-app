@@ -84,13 +84,48 @@ store an actual secret (a real credential, a private key, etc.) under these Infi
 expecting it to stay hidden from end users; if that need ever arises, it belongs on the backend,
 not compiled into this SPA.
 
-- If `INFISICAL_TOKEN`/`INFISICAL_PROJECT_ID`/`INFISICAL_ENV` are **missing or invalid** at
-  container start (bad/absent token, wrong project id, no network access to Infisical),
-  `docker-entrypoint.sh` fails loudly and the container never serves traffic — see the fail-loud
-  behavior documented in `Dockerfile`/`docker-entrypoint.sh`/`docker-substitute-and-serve.sh`
-  (missing env vars abort immediately via `${VAR:?message}`; a placeholder surviving substitution
-  also aborts startup rather than serving broken JS). The CD health gate (`GET /` on `:2200`) will
-  then correctly fail the deploy instead of reporting a false "up" on a broken container.
+- If `INFISICAL_TOKEN`/`INFISICAL_PROJECT_ID`/`INFISICAL_ENV` are **missing or empty** at container
+  start, `docker-entrypoint.sh` aborts immediately via `${VAR:?message}` and the container never
+  serves traffic. That is a deploy defect, so it stays fatal unconditionally. The CD health gate
+  (`GET /` on `:2200`) then correctly fails the deploy instead of reporting a false "up".
+- If Infisical is **unreachable or rejects the token** (network failure, TLS interception, expired
+  credential), behavior depends on whether this container ever served successfully — see
+  "Degraded start" below. This changed after the 2026-07-30/31 incident; it used to be fatal in
+  every case.
+
+### Degraded start: Infisical unreachable
+
+`docker-entrypoint.sh` probes Infisical with `infisical run -- true` before the real invocation.
+When that probe fails it does **not** give up, because the substitution rewrites the asset files
+**in place on the container's own writable layer** — and `restart: unless-stopped` brings back the
+**same** container, not a new one. After any successful first start, the real values are already
+written into `/usr/share/nginx/html` and Infisical has nothing left to contribute.
+
+The pre-existing placeholder guard in `docker-substitute-and-serve.sh` decides the outcome:
+
+| Container state | Infisical reachable | Result |
+|---|---|---|
+| Assets already substituted (restart of a working container) | ❌ | **Serves**, with `WARNING:` lines in `docker logs` |
+| Fresh image, first-ever start | ❌ | **Aborts** — no configuration exists to serve |
+| Any | ✅ | Normal path: re-resolves and re-substitutes |
+
+So a network blip can no longer take down a frontend that was working, while a **new deploy**
+during an Infisical outage still fails loud and still trips the CD health gate. There is
+deliberately **no cache file and no volume**: the substituted asset tree *is* the cache, so there
+is no second copy of the config to drift or expire.
+
+**Operational consequence:** a degraded container serves the configuration from its last
+successful start. If you change `VITE_API_URL`/`VITE_LIFF_ID` in Infisical while a container is in
+this state, the change is not picked up — redeploy once connectivity is restored. Check for it
+with:
+
+```bash
+docker logs easybook-app 2>&1 | grep "WARNING:"
+```
+
+**This is a fallback, not a fix.** A container in degraded mode means egress to Infisical is
+broken; diagnose that (the 2026-07-30/31 case was `x509: certificate is not valid for any names`
+against `app.infisical.com` — TLS interception on the host's network path, not a bad token).
 - If the **individual keys** `VITE_API_URL`/`VITE_LIFF_ID` simply do not exist yet in the Infisical
   project/environment (token and project ARE valid), `infisical run` does not fail — it just does
   not inject them, and the entrypoint's own checks then decide: an unresolved `VITE_API_URL` is
@@ -114,12 +149,15 @@ not compiled into this SPA.
 
 ## 1. Reverse-proxy routing (hard prerequisite, external to this repo)
 
-The frontend nginx container publishes `2200:80` on the staging host (see
-`docker-compose.staging.yml`) — the SAME box the backend publishes `3300:3300` on. There is no
-Nginx/Cloudflare config in this repo (same as the backend's staging-runbook §1 disclaimer) — the
-outer reverse proxy (documented, not owned, by `easybook-service/docs/staging-runbook.md` §1: the
-Cloudflare → Nginx chain in front of the backend) is expected to also route the public frontend
-hostname/path to `127.0.0.1:2200` on this box, e.g.:
+The frontend nginx container publishes `2200:80` on the app VM (see `docker-compose.staging.yml`)
+— the SAME VM the backend publishes `3300:3300` on. There is no Nginx/Cloudflare config in this
+repo (same as the backend's staging-runbook §1 disclaimer).
+
+**The outer Nginx runs on a DIFFERENT VM than these containers.** An earlier version of this
+section said it proxies to `127.0.0.1:2200` "on this box" — that was wrong, and the same error is
+corrected in `easybook-service/docs/staging-runbook.md` §1. It must target the app VM's private
+address, which also means port 2200 has to be reachable across that network rather than bound to
+loopback:
 
 ```nginx
 server {
@@ -127,13 +165,20 @@ server {
     server_name staging.example.com;  # the SPA's public hostname — replace
 
     location / {
-        proxy_pass http://127.0.0.1:2200;
+        # NOT 127.0.0.1 — this Nginx is on a different VM than the container.
+        proxy_pass http://<APP_VM_PRIVATE_IP>:2200;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 }
 ```
+
+Consequence worth stating explicitly, because the split VM makes it easy to miss: the CD health
+gate in `cd.yml` curls `http://localhost:2200/` **over SSH on the app VM**. It proves the
+container answers; it proves nothing about the Nginx VM → app VM path. A deploy can go green while
+the public hostname is down. An external uptime check against the public URL is the only thing
+that covers that hop.
 
 If the frontend and backend are meant to share a single public origin (e.g. `staging.example.com/`
 for the SPA and `staging.example.com/api/` for the backend, avoiding CORS entirely), that routing
@@ -171,7 +216,7 @@ is deliberately absent), so a failure anywhere fails the whole workflow loudly.
 | `docker login` (GHCR) fails | Old frontend container still running untouched | Check `GHCR_PULL_TOKEN` expiry — same credential/rotation as the backend, see `easybook-service/docs/staging-runbook.md` §3 | Rotate `GHCR_PULL_TOKEN` (in both repos' secret stores if rotated), re-run. |
 | `docker pull` fails | Old frontend container still running untouched | Check network/GHCR status and package visibility (see repo settings above), retry | Re-run once the pull succeeds. |
 | `docker compose up -d` fails | Frontend container may be stopped/absent — **possible downtime window for the SPA only**, backend unaffected (separate container, no shared network) | `docker ps`, `docker compose -f docker-compose.staging.yml ps` | Fix whatever `up -d` reported (image pull, resource limit, port 2200 conflict) and re-run `up -d`. There is no migration step to worry about re-running — this is a stateless static server. |
-| Post-deploy `GET /` poll times out | New frontend container exited or never reached nginx — as of this refactor, this can now ALSO be `docker-entrypoint.sh` failing loudly: missing/invalid `INFISICAL_TOKEN`/`INFISICAL_PROJECT_ID`/`INFISICAL_ENV`, an Infisical auth/network failure, an unresolved `VITE_API_URL`, or a placeholder surviving substitution (all deliberate fail-loud exits — see `docker-entrypoint.sh` / `docker-substitute-and-serve.sh`) — in addition to the older causes (nginx misconfiguration, corrupted image, resource limit hit) | `docker logs easybook-app`, hit `curl -s localhost:2200/` on the server directly | Check `docker logs` first: an entrypoint failure prints an explicit `ERROR:`/`must be set` message naming the missing var or the unsubstituted file, which is different from an nginx startup error — fix the underlying Infisical secret/config, or nginx.conf/image if it truly is nginx. |
+| Post-deploy `GET /` poll times out | New frontend container exited or never reached nginx — this can be `docker-entrypoint.sh` failing loudly: missing/empty `INFISICAL_TOKEN`/`INFISICAL_PROJECT_ID`/`INFISICAL_ENV`, an unresolved `VITE_API_URL`, or a placeholder surviving substitution — in addition to the older causes (nginx misconfiguration, corrupted image, resource limit hit). **An Infisical network/auth failure counts here too, but only because CD recreates the container from a freshly pulled image**: its assets have never been substituted, so the degraded path (see "Degraded start" above) has nothing to fall back on and correctly aborts. The same failure on a plain restart of an already-working container would NOT reach this row. | `docker logs easybook-app`, hit `curl -s localhost:2200/` on the app VM directly | Check `docker logs` first: an entrypoint failure prints an explicit `ERROR:`/`must be set` message naming the missing var or the unsubstituted file, which is different from an nginx startup error — fix the underlying Infisical secret/config, or nginx.conf/image if it truly is nginx. |
 
 ## 4. Image retention / disk hygiene
 
