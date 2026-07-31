@@ -40,6 +40,11 @@
 #               plain runtime env vars, never baked into a layer), which resolves the real
 #               VITE_API_URL/VITE_LIFF_ID and substitutes them into the built assets in place,
 #               THEN execs nginx. No devDependencies, no source, no test files ship here either.
+#               Because that substitution writes to the container's own writable layer, a RESTART
+#               of an already-working container needs nothing from Infisical -- the entrypoint
+#               probes first and, if Infisical is unreachable, serves the previously substituted
+#               assets rather than crash-looping. A fresh image whose first start cannot reach
+#               Infisical still aborts. See docker-entrypoint.sh and docs/staging-runbook.md.
 #
 # Secrets: NOTHING is baked into any layer of this image — same guarantee as the backend. The
 # `build` stage never sees an Infisical token because it never runs `infisical` at all. The
