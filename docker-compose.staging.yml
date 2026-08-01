@@ -31,17 +31,20 @@ services:
       # proxies the API hostname to 3300.
       #
       # CORRECTION — an earlier version of this comment claimed the outer Nginx proxies to
-      # `127.0.0.1:2200` and that "both containers listen on 127.0.0.1 only". BOTH claims were
-      # false. That Nginx runs on a SEPARATE VM, so it cannot reach a loopback-bound port here;
-      # `'2200:80'` publishes on 0.0.0.0 — every interface this VM has, public ones included.
-      # The old wording read as a security guarantee that was never in effect.
+      # `127.0.0.1:2200` and that "both containers listen on 127.0.0.1 only". Both were false.
+      # Nginx Proxy Manager runs on a SEPARATE VM (192.168.10.251) and proxies to this VM's LAN
+      # address (192.168.10.5:2200), so it could never reach a loopback-bound port here, and
+      # `'2200:80'` publishes on 0.0.0.0 rather than loopback.
       #
-      # Prefer pinning the bind address to the private interface the Nginx VM uses
-      # (`'<APP_VM_PRIVATE_IP>:2200:80'`) so the SPA is not also served from a public address
-      # directly, bypassing Cloudflare. Docker's published ports bypass ufw's INPUT rules (DNAT
-      # in `nat PREROUTING`, filtering in Docker's own `DOCKER-USER` chain), so a host firewall
-      # does not compensate for a too-broad bind address here. The container's internal nginx
-      # still listens on :80 regardless.
+      # That 0.0.0.0 is not a public exposure, though: every interface on this VM is RFC1918,
+      # and port 2200 is NOT forwarded at the router (verified 2026-07-31 — it does not answer
+      # from the public internet). The only path in is Cloudflare -> cloudflared -> NPM, which
+      # is the point. Narrowing the bind to 192.168.10.5 is defence in depth, not a fix.
+      #
+      # Worth knowing if that ever changes: Docker's published ports bypass ufw's INPUT rules
+      # (DNAT in `nat PREROUTING`, filtering in Docker's own `DOCKER-USER` chain), so a host
+      # firewall is not a substitute for the bind address or the router's forwarding rules. The
+      # container's internal nginx still listens on :80 regardless.
       - '2200:80'
     # Sensible ceilings for a single small static-file server, not a production capacity plan —
     # revisit if/when real staging traffic numbers exist. Lighter than the backend's since nginx
