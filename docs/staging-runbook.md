@@ -153,20 +153,27 @@ The frontend nginx container publishes `2200:80` on the app VM (see `docker-comp
 — the SAME VM the backend publishes `3300:3300` on. There is no Nginx/Cloudflare config in this
 repo (same as the backend's staging-runbook §1 disclaimer).
 
-**The outer Nginx runs on a DIFFERENT VM than these containers.** An earlier version of this
-section said it proxies to `127.0.0.1:2200` "on this box" — that was wrong, and the same error is
-corrected in `easybook-service/docs/staging-runbook.md` §1. It must target the app VM's private
-address, which also means port 2200 has to be reachable across that network rather than bound to
-loopback:
+**The reverse proxy is Nginx Proxy Manager on a DIFFERENT VM than these containers.** An earlier
+version of this section said it proxies to `127.0.0.1:2200` "on this box" — that was wrong, and the
+same error is corrected in `easybook-service/docs/staging-runbook.md` §1, which carries the full
+chain diagram. In short:
+
+```
+client → Cloudflare → cloudflared 192.168.10.250 → NPM 192.168.10.251 → 192.168.10.5:2200
+```
+
+NPM must target the Docker VM's LAN address, which also means port 2200 has to be reachable across
+that LAN rather than bound to loopback. It is deliberately **not** forwarded at the router, so the
+origin cannot be reached from the public internet directly:
 
 ```nginx
 server {
     listen 443 ssl;
-    server_name staging.example.com;  # the SPA's public hostname — replace
+    server_name easybook-app-dev.659606595.xyz;  # the SPA's public hostname
 
     location / {
-        # NOT 127.0.0.1 — this Nginx is on a different VM than the container.
-        proxy_pass http://<APP_VM_PRIVATE_IP>:2200;
+        # NOT 127.0.0.1 — NPM is on a different VM (.251) than the container (.5).
+        proxy_pass http://192.168.10.5:2200;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
