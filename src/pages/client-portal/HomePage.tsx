@@ -22,7 +22,7 @@ import {
   type LineUserStatus,
   type RegistrationOptions,
 } from '@/lib/api-client'
-import { RegistrationForm, type RegistrationFormValues } from '@/components/RegistrationForm'
+import { RegistrationForm, type RegistrationFormValues } from '@/components/client-portal/RegistrationForm'
 import { FullPageSpinner } from '@/components/Spinner'
 import { UI_STRINGS_CLIENT } from '@/constants/ui-strings-client'
 

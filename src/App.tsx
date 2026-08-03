@@ -4,7 +4,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 // screen must paint without waiting on a lazy chunk, so they stay statically imported.
 // Neither pulls in `chart.js`, so keeping them eager does not reintroduce the heavy
 // dependency into the initial download (Phase 4 design §4).
-import { HomePage } from '@/pages/HomePage'
+import { HomePage } from '@/pages/client-portal/HomePage'
 import { AdminPortalLoginPage } from '@/pages/admin-portal/AdminPortalLoginPage'
 import { ThemeLayout } from '@/components/ThemeLayout'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'

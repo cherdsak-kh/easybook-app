@@ -3,7 +3,7 @@ import {
   PHONE_COUNT,
   RegistrationForm,
   type RegistrationFormValues,
-} from '@/components/RegistrationForm'
+} from '@/components/client-portal/RegistrationForm'
 import { UI_STRINGS_CLIENT as UI } from '@/constants/ui-strings-client'
 import type { RegistrationOptions } from '@/lib/api-client'
 
