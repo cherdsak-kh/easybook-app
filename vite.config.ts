@@ -9,13 +9,18 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@tests': fileURLToPath(new URL('./tests', import.meta.url)),
     },
   },
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./src/test/setup.ts'],
+    setupFiles: ['./tests/setup.ts'],
     css: true,
+    // Tests live outside `src/` so the source tree stays production-only.
+    // `tests/helpers/` and `tests/setup.ts` are infrastructure, not suites —
+    // the globs below match only real spec files so they aren't collected.
+    include: ['tests/unit/**/*.test.{ts,tsx}', 'tests/e2e/**/*.e2e.{ts,tsx}'],
   },
   server: {
     port: 2200,

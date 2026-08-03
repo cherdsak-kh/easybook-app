@@ -3,7 +3,7 @@ import * as apiClient from '@/lib/api-client'
 import { ApiError, type Department, type PersonnelRole, type SystemUser } from '@/lib/api-client'
 import { useProfileEditor, type UseProfileEditorInput } from '@/hooks/useProfileEditor'
 import { PROFILE_STRINGS } from '@/constants/ui-strings-profile'
-import { makeSystemUser } from '@/test/system-user-factory'
+import { makeSystemUser } from '@tests/helpers/system-user-factory'
 
 // Mock ONLY the network helpers at the api-client boundary (repo convention); `ApiError`
 // and the types stay real so the hook's `instanceof ApiError` branches actually fire.

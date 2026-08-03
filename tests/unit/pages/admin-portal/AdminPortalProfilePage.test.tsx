@@ -22,7 +22,7 @@ import {
   type SystemRole,
   type SystemUser,
 } from '@/lib/api-client'
-import { makeSystemUser } from '@/test/system-user-factory'
+import { makeSystemUser } from '@tests/helpers/system-user-factory'
 
 const T = PROFILE_STRINGS
 

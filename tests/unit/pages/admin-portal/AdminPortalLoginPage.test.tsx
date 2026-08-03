@@ -6,7 +6,7 @@ import { ADMIN_PORTAL_ROUTES } from '@/components/admin-portal/routes'
 import { AUTH_STRINGS } from '@/constants/ui-strings-auth'
 import * as apiClient from '@/lib/api-client'
 import type { LoginResponse, LoginResult } from '@/lib/api-client'
-import { makeSystemUser } from '@/test/system-user-factory'
+import { makeSystemUser } from '@tests/helpers/system-user-factory'
 
 const UI = AUTH_STRINGS.login
 

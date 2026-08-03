@@ -4,7 +4,7 @@ import { AuthProvider } from '@/auth/AuthProvider'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { ADMIN_PORTAL_ROUTES } from '@/components/admin-portal/routes'
 import * as apiClient from '@/lib/api-client'
-import { makeSystemUser } from '@/test/system-user-factory'
+import { makeSystemUser } from '@tests/helpers/system-user-factory'
 
 // Phase 5 — proves the guard used on the (now sole) `/admin-portal` branch: an
 // unauthenticated visitor lands on `/admin-portal/login` via the REQUIRED `loginPath`

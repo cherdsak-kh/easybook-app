@@ -5,7 +5,7 @@ import {
   latestFakeSocket,
   resetFakeSockets,
   type FakeRealtimeSocket,
-} from '@/test/fake-socket'
+} from '@tests/helpers/fake-socket'
 import { REALTIME_EVENTS } from '@/lib/realtime'
 import {
   useLineUsersRealtime,
@@ -18,7 +18,7 @@ import type { LineUser } from '@/lib/api-client'
 // predicate rather than a copy of it. Nothing here touches the network.
 vi.mock('@/lib/realtime', async (importActual) => {
   const actual = await importActual<typeof import('@/lib/realtime')>()
-  const { createFakeRealtimeSocket } = await import('@/test/fake-socket')
+  const { createFakeRealtimeSocket } = await import('@tests/helpers/fake-socket')
   return { ...actual, createRealtimeSocket: vi.fn(() => createFakeRealtimeSocket()) }
 })
 

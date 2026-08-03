@@ -9,7 +9,7 @@ import {
   useLineUsers,
 } from '@/hooks/useLineUsers'
 import { REALTIME_EVENTS } from '@/lib/realtime'
-import { latestFakeSocket, resetFakeSockets } from '@/test/fake-socket'
+import { latestFakeSocket, resetFakeSockets } from '@tests/helpers/fake-socket'
 
 // The hook depends on `useAuth().expireSession` (401s) and `.status` (the socket opens only
 // once the session probe reports authenticated — AC F7). Stub both via a hoisted mock so
@@ -31,7 +31,7 @@ vi.mock('@/lib/api-client', async (importActual) => {
 // the event-name constants stay real.
 vi.mock('@/lib/realtime', async (importActual) => {
   const actual = await importActual<typeof import('@/lib/realtime')>()
-  const { createFakeRealtimeSocket } = await import('@/test/fake-socket')
+  const { createFakeRealtimeSocket } = await import('@tests/helpers/fake-socket')
   return { ...actual, createRealtimeSocket: vi.fn(() => createFakeRealtimeSocket()) }
 })
 

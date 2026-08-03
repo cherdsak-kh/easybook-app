@@ -127,8 +127,14 @@ locale, no `t()` lookup. Don't grow any into a locale system without a plan that
 ### Testing
 
 Vitest + Testing Library + jsdom, configured in `vite.config.ts` (`test` block) with globals enabled
-(no need to import `describe`/`it`/`vi`). `src/test/setup.ts` registers `@testing-library/jest-dom`
+(no need to import `describe`/`it`/`vi`). `tests/setup.ts` registers `@testing-library/jest-dom`
 matchers.
+
+Tests live **outside** `src/`, mirroring the source hierarchy: unit specs in `tests/unit/**` (e.g.
+`src/components/HealthStatus.tsx` -> `tests/unit/components/HealthStatus.test.tsx`), e2e specs in
+`tests/e2e/**`, and shared fixtures/factories in `tests/helpers/` (imported via the `@tests/*`
+alias). `src/` holds production code only. Vitest collects `tests/unit/**/*.test.{ts,tsx}` and
+`tests/e2e/**/*.e2e.{ts,tsx}`, so files under `tests/helpers/` are never picked up as suites.
 
 Convention used throughout: mock dependency modules at the import boundary with `vi.mock('@/lib/...')`
 rather than mocking `fetch`/network calls directly — see `HealthStatus.test.tsx` and
