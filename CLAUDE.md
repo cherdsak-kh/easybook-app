@@ -7,10 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `easybook-app` is the frontend for EasyBook. It is **one Vite SPA serving two different portals**
 with two different audiences, split by URL:
 
-- **Client portal** (`/*` → `HomePage`, `RegistrationForm`) — the public LINE **LIFF** surface end
-  users see inside the LINE app. Anonymous, fail-soft, mixed Thai/English copy.
-- **Backend portal** (`/backend/*`) — the internal back-office for staff: cookie-session login,
-  forced password change, and a dashboard shell (`line-users` / `options` / `staff` / `profile`).
+- **Client portal** (index `/` → `HomePage`, `RegistrationForm`) — the public LINE **LIFF** surface
+  end users see inside the LINE app. Anonymous, fail-soft, mixed Thai/English copy.
+- **Admin portal** (`/admin-portal/*`) — the internal back-office for staff: cookie-session login
+  plus a guarded shell with `dashboard`, `line-users`, `team`, `profile` and 8 inert "coming soon"
+  stub routes. Only `line-users` and `profile` are wired to the real API; `dashboard` and `team`
+  still render DashWind mock data. There is no Staff-management or Options page (deleted with the
+  legacy `/backend` portal, not yet rebuilt).
 
 It talks to the backend (`easybook-service`, a separate NestJS repo) over `/api/v1`. It runs on port
 **2200**; the backend runs on port **3300**.
@@ -34,8 +37,8 @@ There is **no `typecheck` script** — `tsc -b` (via `npm run build`, or `tsc -b
 real type gate. The IDE may bundle an older TypeScript than the installed one (6.x); verify a
 compiler-option warning against `node_modules/typescript` before "fixing" a tsconfig to silence it.
 
-To run a single test file: `npx vitest run src/pages/admin/LineUsersPage.test.tsx`.
-To run tests matching a name: `npx vitest run -t "renders the ok status"`.
+To run a single test file: `npx vitest run tests/unit/pages/admin-portal/AdminPortalLineUsersPage.test.tsx`.
+To run tests matching a name: `npx vitest run -t "renders a healthy status"`.
 
 A husky pre-commit hook runs `lint-staged`: for staged `*.{ts,tsx}` it runs oxlint, then
 `vitest related --run` — i.e. only the tests **related to the staged files**, not the full suite, so
@@ -61,18 +64,21 @@ elsewhere.
 
 ### Two portals, one router
 
-`App.tsx` mounts the backend portal branch first and the client portal `/*` catch-all **last**, so
-React Router's specificity ranking lets the portal win and `/*` only catches non-portal paths.
+`App.tsx` mounts the `/admin-portal` branch first and the client branch **last** (index `/` →
+`HomePage`, then the app's single global `path="*"` → `NotFoundPage`), so React Router's specificity
+ranking lets the portal win and the splat only catches genuinely unmatched URLs.
 
-`src/constants/routes.ts` is the single source of the portal's **URL** paths: `PORTAL_BASE = '/backend'`
-and everything derives from it, so rebasing the whole back-office is a one-line edit. **These are
-`react-router` paths, not API paths** — never import `routes.ts` into `api-client.ts`. The backend's
-admin surface lives at `/auth/system/*` and `/api/v1/system-users` ("system", never "admin"); the two
-namespaces are unrelated and coupling them breaks auth.
+`src/components/admin-portal/routes.ts` is the single source of the portal's **URL** paths:
+`ADMIN_PORTAL_ROUTES` (absolute paths, all derived from one `BASE = '/admin-portal'`, so rebasing the
+back-office is a one-line edit), `ADMIN_PORTAL_SEGMENTS` (relative child segments for the bespoke
+pages) and `ADMIN_PORTAL_STUB_ROUTES` (the stub menu targets — that array *is* the route
+registration). **These are `react-router` paths, not API paths** — never import them into
+`api-client.ts`. The backend's admin surface lives at `/auth/system/*` and `/api/v1/system-users`
+("system", never "admin"); the two namespaces are unrelated and coupling them breaks auth.
 
 ### Back-office auth: cookie session + CSRF (client portal is anonymous)
 
-The backend portal authenticates with an **httpOnly cookie session** issued by the backend — the
+The admin portal authenticates with an **httpOnly cookie session** issued by the backend — the
 frontend never reads or stores a token. This is wired in three places that must stay consistent:
 
 - `api-client.ts` sets `credentials: 'include'` and installs a **CSRF middleware**: it fetches
@@ -84,8 +90,11 @@ frontend never reads or stores a token. This is wired in three places that must 
   (a 401 there is a normal "unauthenticated" outcome, not an error). `ProtectedRoute` gates the portal;
   `useAuth` exposes `{ status, user, login, logout, refresh, expireSession }`.
 - `mustChangePassword` is authoritative **only** from `/me`, never from the login body — a user logging
-  in with a temp password is re-probed via `/me` (which is exempt from the server-side force-reset gate)
-  and routed to `ForcePasswordChangePage`. The frontend redirect is UX; the server gate is the control.
+  in with a temp password is re-probed via `/me` (which is exempt from the server-side force-reset gate).
+  There is **no** force-reset screen: `App.tsx` passes `forcePasswordChangePath={null}`, so
+  `ProtectedRoute` admits such a user into the shell and the server-side gate is the only control —
+  every unsafe route 403s ("a password change is required") until they change it via the profile
+  page's `ChangePasswordModal`. Accepted gap: a user who cannot reach that modal is locked out.
 
 The **client portal is unauthenticated** and shares no session with the back-office. `src/lib/access-policy.ts`
 mirrors the backend's ADMIN access-transition matrix purely so an ADMIN never *sees* a button that would
@@ -111,8 +120,18 @@ if changed). Use `@/...` imports rather than relative `../../` paths.
 out-of-band while tests queried the old string, silently reddening the suite). Each exports named
 objects; some values are template *formatters* (`(name) => string`) for interpolation.
 
+Six modules today:
+
 - `ui-strings-auth.ts` — `AUTH_STRINGS`: the admin-portal login screen and the session-probe gate.
-- `ui-strings-line-users.ts` — `T` / `STATUS_BADGE`: the admin-portal LINE-users page.
+- `ui-strings-line-users.ts` — `T` / `STATUS_BADGE` (+ search & sort labels): the admin-portal
+  LINE-users page.
+- `ui-strings-profile.ts` — `PROFILE_STRINGS` / `ROLE_*`: the admin-portal self-service Profile page.
+  Its `{ th, en }` pairs render *simultaneously* — a bilingual label, not a locale switch.
+- `ui-strings-toast.ts` — `TOAST_STRINGS`: only the shared admin-portal toast's own chrome; each
+  caller passes its own message from its own feature module.
+- `ui-strings-brand.ts` — `BRAND`: product name, logo asset and alt text. Deliberately
+  **dependency-free** — it is imported by the eager login screen, so anything it pulls in lands in
+  the initial chunk the LIFF client downloads.
 - `ui-strings-client.ts` — `UI_STRINGS_CLIENT`: client/LIFF copy (`HomePage`, `RegistrationForm`),
   deliberately mixed Thai/English (product's current state, not drift).
 

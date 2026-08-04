@@ -1,15 +1,14 @@
 // Route constants adapted from DashWind (daisyui-admin-dashboard-template),
 // https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Local path constants for the isolated `/admin-portal`
-// replica ONLY — deliberately does NOT touch the shared `src/constants/routes.ts`
-// (which bases the REAL portal at `/backend`). Mirrors the template's
-// `routes/index.js` + `routes/sidebar.js` paths, rebased under `/admin-portal`.
+// See THIRD_PARTY_NOTICES.md. This file is the single source of the admin portal's URL
+// paths, all based at `/admin-portal` — the app's one and only back-office. Mirrors the
+// template's `routes/index.js` + `routes/sidebar.js` paths, rebased under `/admin-portal`.
 
-/** Base of the isolated replica branch. Distinct from the real portal's `/backend`. */
+/** Base of every admin-portal path — rebasing the back-office is a one-line edit here. */
 const BASE = '/admin-portal'
 
 /**
- * Absolute react-router paths for the replica (used by NavLink / Navigate). Every
+ * Absolute react-router paths (used by NavLink / Navigate). Every
  * DashWind menu target has a real route now (Phase 3.5 made the whole sidebar
  * clickable): `dashboard`, `team`, `line-users` + `profile` have bespoke pages; the rest
  * render the shared `AdminPortalStubPage` (see `ADMIN_PORTAL_STUB_ROUTES`). The segment
@@ -64,7 +63,7 @@ export interface AdminPortalStubRoute {
 }
 
 /**
- * The DashWind menu targets that have no bespoke replica page — each renders the
+ * The DashWind menu targets that have no bespoke page — each renders the
  * shared `AdminPortalStubPage` ("coming soon" placeholder), parameterised by `title`,
  * so clicking any sidebar item produces a real route transition without hand-writing
  * ~13 near-identical files. `dashboard`, `team`, `line-users` + `profile` have real pages
