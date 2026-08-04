@@ -1,8 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `features/dashboard/components/DoughnutChart.js`.
-// Chart.js registration is centralised in `./charts`; data is fixed literals in
-// `dashboard-mock-data`; the legend label colour follows the daisyUI theme.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// Chart.js registration is centralised in `./charts` (do not re-register here); data is
+// fixed literals in `dashboard-mock-data`.
 import { useRef } from 'react'
 import type { ChartOptions } from 'chart.js'
 import { Doughnut } from 'react-chartjs-2'

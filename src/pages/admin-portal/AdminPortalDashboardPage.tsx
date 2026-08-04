@@ -1,10 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `features/dashboard/index.js` as a pure
-// presentational composition that REUSES the Phase-2 `src/components/dashboard/*`
-// components UNMODIFIED (they restyle to the DashWind palette automatically under the
-// `dashwind-*` `data-theme`). No Redux, no `setPageTitle`, no network — section order
-// mirrors the template dashboard (and the live `/backend` overview).
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// Pure presentational composition that REUSES `@/components/dashboard/*` UNMODIFIED — those
+// components are shared, so restyle via the `data-theme` here, never by editing them.
 import { DashboardTopBar } from '@/components/dashboard/DashboardTopBar'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { LineChart } from '@/components/dashboard/LineChart'

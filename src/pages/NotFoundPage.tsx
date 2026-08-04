@@ -1,9 +1,4 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `pages/protected/404.js` as a typed `.tsx`. Redux is
-// stripped entirely (the original `useDispatch(setPageTitle(''))` effect): the replica
-// has no store. daisyUI semantic tokens only (zero `dark:` variants) so the page renders
-// correctly under whichever `data-theme` the surrounding theme layout stamps.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
 import FaceFrownIcon from '@heroicons/react/24/solid/FaceFrownIcon'
 
 /**

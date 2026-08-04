@@ -1,8 +1,4 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `features/dashboard/components/UserChannels.js`
-// ("User Signup Source") — the dashboard's actual table. Rows are demo literals
-// from `dashboard-mock-data`. daisyUI `table` is structurally unchanged v4→v5.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
 import { TitleCard } from './TitleCard'
 import { USER_SOURCE_ROWS } from './dashboard-mock-data'
 

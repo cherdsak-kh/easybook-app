@@ -1,9 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `features/dashboard/components/DashboardStats.js`.
-// The template's `dark:` utilities and dynamic `text-${COLORS[...]}` (COLORS was
-// ["primary","primary"] → always primary) are replaced by daisyUI semantic tokens:
-// figure/value use `text-primary`; the ↗︎/↙ deltas use `text-success`/`text-error`.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// The template's `dark:` utilities and dynamic `text-${COLORS[i]}` are deliberately
+// replaced by daisyUI semantic tokens — do not reintroduce either.
 import type { StatCardData } from './dashboard-mock-data'
 
 /**

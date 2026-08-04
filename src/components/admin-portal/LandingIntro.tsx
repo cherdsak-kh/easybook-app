@@ -1,9 +1,4 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `features/user/LandingIntro.js` as the login-screen
-// left panel. Phase 4 reworks it to EasyBook branding: the DashWind placeholder mark +
-// hero box + starter-kit bullet list are replaced by the real EasyBook logo and a
-// title/description. Pure presentational, semantic tokens only (adopts `dashwind-*`).
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
 
 // The three brand literals used to be declared inline here, on the argument that they
 // were "too few to warrant a constants file". That held only while ONE surface rendered

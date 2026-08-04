@@ -1,10 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `features/dashboard/components/DashboardTopBar.js`.
-// The `react-tailwindcss-datepicker` (whose only behaviour was a Redux
-// `showNotification` on change — stripped) is DROPPED and replaced by a static,
-// read-only daisyUI input. The Refresh/Share/⋮ controls are kept for parity as
-// static, no-op buttons. `menu-compact` → `menu-sm` (the one v4→v5 rename in scope).
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// The template's `react-tailwindcss-datepicker` is deliberately DROPPED for a static
+// read-only input; Refresh/Share/⋮ are static no-ops. `menu-compact` → `menu-sm` (v4→v5).
 import ArrowPathIcon from '@heroicons/react/24/outline/ArrowPathIcon'
 import ShareIcon from '@heroicons/react/24/outline/ShareIcon'
 import EllipsisVerticalIcon from '@heroicons/react/24/outline/EllipsisVerticalIcon'

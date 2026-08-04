@@ -1,10 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `containers/SidebarSubmenu.js`: typed, keeps the
-// local `useState(isExpanded)` + `useLocation` auto-expand (no Redux — there was
-// none). `menu-compact` → `menu-sm` (the one daisyUI v4→v5 rename). Phase 3.5: every
-// submenu leaf is now a LIVE `NavLink` (the whole sidebar is clickable), and the rows
-// use the same taller `py-2.5` spacing as the top-level menu.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// Auto-expand is local `useState` + `useLocation` (no Redux — there was none upstream either).
+// `menu-compact` → `menu-sm` is the one daisyUI v4→v5 rename; `py-2.5` matches the top-level menu.
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import ChevronDownIcon from '@heroicons/react/24/outline/ChevronDownIcon'

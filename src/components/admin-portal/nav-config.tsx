@@ -1,12 +1,6 @@
-// Sidebar config adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `routes/sidebar.js` — the VERBATIM DashWind menu
-// labels/icons (built with the already-installed `@heroicons/react`) — as a local
-// data list. Redux is irrelevant here (there was none). Phase 3.5: EVERY entry now
-// carries a `to` and is a real React Router `NavLink` (the sidebar is fully
-// clickable). `Dashboard` + `Team Members` navigate to bespoke pages; `Login` opens
-// the replica login screen; every other target renders the shared `AdminPortalStubPage`
-// placeholder — so no menu item is a dead end.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// EVERY entry must carry a `to`: targets without a bespoke page render the shared
+// `AdminPortalStubPage`, so no menu item is ever a dead end.
 import type { ReactNode } from 'react'
 import BoltIcon from '@heroicons/react/24/outline/BoltIcon'
 import CalendarDaysIcon from '@heroicons/react/24/outline/CalendarDaysIcon'
@@ -38,8 +32,8 @@ export const ADMIN_PORTAL_DRAWER_ID = 'admin-portal-drawer'
  * declared here so the login screen (`LandingIntro`) and the shell cannot disagree.
  *
  * It used to be the literal `'DashWind'` — the upstream template's name. Only the
- * USER-VISIBLE wordmark changed: the DashWind attribution comments in this file and in
- * `THIRD_PARTY_NOTICES.md` are a licence obligation and stay exactly as they are.
+ * USER-VISIBLE wordmark changed: DashWind attribution is still a licence obligation —
+ * compressed to a one-line pointer per file, never removed; full notice in `THIRD_PARTY_NOTICES.md`.
  */
 export const BRAND_NAME = BRAND.name
 

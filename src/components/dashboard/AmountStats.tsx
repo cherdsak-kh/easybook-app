@@ -1,8 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `features/dashboard/components/AmountStats.js`.
-// The `btn` actions were demo controls; kept for visual parity as static, no-op
-// buttons. Values are placeholder demo metrics (local literals, not chrome copy).
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// The `btn` actions are intentionally static no-ops (visual parity); values are placeholder
+// demo metrics — local literals on purpose, not chrome copy for `ui-strings-*`.
 
 /** Two-cell `stats` block: amount to be collected + cash in hand. */
 export function AmountStats() {

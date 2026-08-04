@@ -1,16 +1,7 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `containers/Header.js` (navbar) + the notification
-// list from `features/common/components/NotificationBodyRightDrawer.js`. Stripped:
-// `theme-change`/`themeChange()`, Redux (`useSelector`/`useDispatch`), the right-drawer
-// slice and the `localStorage.clear()` logout. The template's `pageTitle` <h1> has since
-// been dropped entirely (see below).
-//
-// Phase 3.5 makes the chrome interactive WITHOUT Redux/theme-change:
-//  - Sun/Moon toggle → drives `AdminPortalThemeLayout`'s local theme via context.
-//  - Bell → a CSS-only daisyUI dropdown panel of mock notifications (focus-driven
-//    open/close, click-away + Esc handled by the browser — no document listeners).
-//  - Profile menu → real interactive items (cursor-pointer, hover, close-on-select).
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// Interactive WITHOUT Redux/`theme-change`: the Sun/Moon toggle drives `AdminPortalThemeLayout`'s
+// theme via context, and the bell panel is a CSS-only daisyUI dropdown (focus-driven open/close,
+// click-away + Esc handled by the browser — deliberately no document listeners).
 import { Link, useNavigate } from 'react-router-dom'
 import Bars3Icon from '@heroicons/react/24/outline/Bars3Icon'
 import BellIcon from '@heroicons/react/24/outline/BellIcon'

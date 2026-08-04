@@ -1,8 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `components/Cards/TitleCard.js` and folds in
-// `components/Typography/Subtitle.js` (one `text-xl font-semibold` div — no
-// standalone file needed). daisyUI `card`/`divider` classes are unchanged v4→v5.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// Ports `components/Cards/TitleCard.js` and folds in `components/Typography/Subtitle.js`
+// (the heading div — no standalone file); daisyUI `card`/`divider` are unchanged v4→v5.
 import type { ReactNode } from 'react'
 
 interface TitleCardProps {

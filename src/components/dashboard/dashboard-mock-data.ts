@@ -1,12 +1,7 @@
-// Demo data adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Reproduces the template dashboard's `statsData`,
-// chart datasets and `userSourceData` VERBATIM, typed and FROZEN: the template
-// generated the Line/Bar series with `Math.random()` in the component body, which
-// reshuffled on every render. Here those series are fixed literal arrays so the
-// charts render deterministically (and are testable). These are placeholder demo
-// metrics — they get replaced wholesale when real metrics are wired, which is why
-// they live as local data rather than in a `src/constants/ui-strings-*.ts` module.
+// Demo data from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// The Line/Bar series are DELIBERATELY frozen literal arrays: the template generated them with
+// `Math.random()` in the component body, so they reshuffled on every render. Do not "restore" that.
+// Placeholder metrics, replaced wholesale when real ones are wired — hence local data, not `ui-strings-*`.
 import type { ChartData } from 'chart.js'
 import UserGroupIcon from '@heroicons/react/24/outline/UserGroupIcon'
 import CreditCardIcon from '@heroicons/react/24/outline/CreditCardIcon'

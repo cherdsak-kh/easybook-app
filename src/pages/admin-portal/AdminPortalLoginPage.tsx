@@ -1,19 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `features/user/Login.js` as the two-panel DashWind
-// shell (card / grid / LandingIntro left panel), but — unlike the earlier visual-only
-// mock — the form now performs REAL cookie-session auth. The auth behavior is
-// re-implemented INLINE from the protected `src/pages/admin/AdminLoginPage.tsx` (which
-// is isolation-frozen and cannot be imported or refactored into a shared helper — see
-// Phase 4 design §1): same `EMAIL_RE` + presence validation, same `loginErrorMessage`
-// 401/429/503/generic mapping over the shared `AUTH_STRINGS.login`, same
-// already-authenticated redirect. The ONLY adaptation is the redirect target: this
-// replica stays in its own namespace and lands on `ADMIN_PORTAL_ROUTES.dashboard`
-// (`/admin-portal/dashboard`), never the real `/backend`. There is no `ProtectedRoute`
-// in this branch, so there is no `location.state.from` return path to honor. The CSRF
-// 403 retry is handled transparently inside `api-client` — not re-implemented here. The
-// carried-over DashWind "Forgot Password?" / "Register" template links have been removed
-// (Phase 5.1.1 UI polish): the V2 has no such routes.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// The template shell now performs REAL cookie-session auth. The CSRF 403 retry is handled
+// transparently inside `api-client` — do not re-implement it here.
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import EyeIcon from '@heroicons/react/24/outline/EyeIcon'

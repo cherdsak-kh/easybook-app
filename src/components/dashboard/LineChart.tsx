@@ -1,8 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `features/dashboard/components/LineChart.js`.
-// Chart.js registration is centralised in `./charts`; the random series is frozen
-// in `dashboard-mock-data`; legend/tick/grid colours follow the daisyUI theme.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// Chart.js registration is centralised in `./charts` (do not re-register here); the
+// template's random series is frozen to literals in `dashboard-mock-data`.
 import { useRef } from 'react'
 import type { ChartOptions } from 'chart.js'
 import { Line } from 'react-chartjs-2'

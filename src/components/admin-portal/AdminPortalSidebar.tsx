@@ -1,11 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `containers/LeftSidebar.js` (drawer-side + menu).
-// Stripped: `useDispatch` (unused) and the template `routes/sidebar` import — the menu
-// is driven by the local `NAV_ITEMS`. Phase 3.5: EVERY top-level entry is now a real
-// `NavLink` (the sidebar is fully clickable) and the rows use DashWind's breathable
-// spacing (`gap-1` between rows + taller `py-3` rows to match the daisyUI-4 template,
-// which daisyUI-5 compacts by default). Close-drawer clicks target `ADMIN_PORTAL_DRAWER_ID`.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// The explicit `gap-1` + `py-3` row spacing is load-bearing: it restores the daisyUI-4
+// template's breathable menu, which daisyUI-5 compacts by default.
 import { NavLink, useLocation } from 'react-router-dom'
 import XMarkIcon from '@heroicons/react/24/outline/XMarkIcon'
 import { BRAND } from '@/constants/ui-strings-brand'

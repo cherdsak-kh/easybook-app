@@ -1,11 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `pages/protected/Team.js` + `features/settings/team`
-// (the members table). Stripped: Redux (`useDispatch`, `showNotification`,
-// `setPageTitle`) and `moment` — the "Invite New" button is inert visual-only, and
-// the template's `moment(new Date()).add(-5*n,'days')` join dates are FROZEN to fixed
-// literals (same treatment as the dashboard mock's random series) so the table is
-// deterministic. Reuses the presentational `TitleCard` from `@/components/dashboard/*`.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// The "Invite New" button is intentionally inert (visual-only), and the template's
+// `moment().add(-5*n,'days')` join dates are FROZEN to literals so the table is deterministic.
 import { useState } from 'react'
 import { TitleCard } from '@/components/dashboard/TitleCard'
 import { ADMIN_PORTAL_AVATARS } from '@/components/admin-portal/avatars'

@@ -1,8 +1,5 @@
-// Route constants adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. This file is the single source of the admin portal's URL
-// paths, all based at `/admin-portal` — the app's one and only back-office. Mirrors the
-// template's `routes/index.js` + `routes/sidebar.js` paths, rebased under `/admin-portal`.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// Single source of the admin portal's react-router URL paths — NOT API paths.
 
 /** Base of every admin-portal path — rebasing the back-office is a one-line edit here. */
 const BASE = '/admin-portal'

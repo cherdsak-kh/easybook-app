@@ -1,10 +1,6 @@
-// Layout/structure adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Folds the template's `containers/Layout.js` +
-// `containers/PageContent.js`. Stripped: Redux (`useDispatch`/`useSelector`),
-// `react-notifications` (NotificationContainer/Manager), `RightSidebar`,
-// `ModalLayout`, `Suspense`/`lazy`/`SuspenseContent`, and the nested `<Routes>` +
-// `routes` map — the app router owns routing, so the page renders via `<Outlet/>`.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// The template's nested `<Routes>` + `routes` map are deliberately dropped: the app router
+// owns routing, so the page renders through `<Outlet/>`.
 import { useEffect, useRef } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { AdminPortalHeader } from './AdminPortalHeader'

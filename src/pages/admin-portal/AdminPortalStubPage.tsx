@@ -1,12 +1,6 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. A single parameterised placeholder page in the spirit of
-// the template's `pages/protected/Blank.js` / `404.js` — used for every DashWind menu
-// target that has no bespoke replica page (Leads, Transactions, Analytics, Integration,
-// Calendar, Register, Forgot Password, Blank Page, 404, Profile, Billing, Getting
-// Started, Features, Components). Parameterising by `title` avoids ~14 near-identical
-// files while keeping every sidebar item a real, navigable route (Phase 3.5). Reuses
-// the presentational `TitleCard` from `@/components/dashboard/*` (unmodified).
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// One placeholder parameterised by `title` backs ~14 menu targets that have no bespoke page —
+// that is what keeps every sidebar item a real, navigable route without ~14 near-identical files.
 import DocumentTextIcon from '@heroicons/react/24/outline/DocumentTextIcon'
 import { TitleCard } from '@/components/dashboard/TitleCard'
 

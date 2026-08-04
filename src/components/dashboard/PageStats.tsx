@@ -1,7 +1,5 @@
-// Adapted from DashWind (daisyui-admin-dashboard-template),
-// https://github.com/robbins23/daisyui-admin-dashboard-template — MIT (c) 2022 Dashwind.
-// See THIRD_PARTY_NOTICES.md. Ports `features/dashboard/components/PageStats.js`.
-// Values are placeholder demo metrics (local literals, not chrome copy).
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// Values are placeholder demo metrics — local literals on purpose, not chrome copy for `ui-strings-*`.
 import HeartIcon from '@heroicons/react/24/outline/HeartIcon'
 import BoltIcon from '@heroicons/react/24/outline/BoltIcon'
 

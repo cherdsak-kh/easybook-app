@@ -1,11 +1,7 @@
-// Chart theming helper for the DashWind-derived dashboard charts
-// (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See
-// THIRD_PARTY_NOTICES.md. This is OUR addition (not template code): the template
-// dashboard was light-only, but this portal flips light/dark via `ThemeLayout`'s
-// `data-theme`. Chart.js draws to <canvas> and cannot read CSS classes, so legend
-// / tick / grid colours must be passed as options. This hook reads the resolved
-// daisyUI tokens off the themed DOM so the chart CHROME tracks the active theme,
-// while dataset (series) colours stay fixed brand literals for exact parity.
+// Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
+// OUR addition, not template code (the template dashboard was light-only): Chart.js draws to
+// <canvas> and cannot read CSS classes, so theme-tracking chrome colours must be read off the
+// themed DOM and passed as options. Dataset (series) colours stay fixed brand literals.
 import { useLayoutEffect, useState, type RefObject } from 'react'
 import { useResolvedTheme } from '@/hooks/useResolvedTheme'
 
