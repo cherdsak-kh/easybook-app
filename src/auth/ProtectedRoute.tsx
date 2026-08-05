@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { FullPageSpinner } from '@/components/Spinner'
+import { FullPageSpinner } from '@/components/shared/Spinner'
 import { AUTH_STRINGS } from '@/constants/ui-strings-auth'
 import { useAuth } from './useAuth'
 

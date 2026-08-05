@@ -2,7 +2,7 @@
 // The "Invite New" button is intentionally inert (visual-only), and the template's
 // `moment().add(-5*n,'days')` join dates are FROZEN to literals so the table is deterministic.
 import { useState } from 'react'
-import { TitleCard } from '@/components/dashboard/TitleCard'
+import { TitleCard } from '@/components/admin-portal/TitleCard'
 import { ADMIN_PORTAL_AVATARS } from '@/components/admin-portal/avatars'
 
 interface TeamMember {

@@ -4,8 +4,8 @@ import { AuthProvider } from '@/auth/AuthProvider'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { AdminPortalLayout } from '@/components/admin-portal/AdminPortalLayout'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
-import { ThemeLayout } from '@/components/ThemeLayout'
-import { ADMIN_PORTAL_ROUTES, ADMIN_PORTAL_SEGMENTS } from '@/components/admin-portal/routes'
+import { ThemeLayout } from '@/components/client-portal/ThemeLayout'
+import { ADMIN_PORTAL_ROUTES, ADMIN_PORTAL_STUB_ROUTES } from '@/components/admin-portal/routes'
 import * as apiClient from '@/lib/api-client'
 
 // Mock the api-client boundary (never the network) — the same convention as
@@ -18,6 +18,14 @@ vi.mock('@/lib/api-client', () => ({
 }))
 
 const mockGetMe = vi.mocked(apiClient.getMe)
+
+/**
+ * The dashboard's relative child segment. It used to come from `ADMIN_PORTAL_SEGMENTS`
+ * (the bespoke-page map), but the mock-data dashboard page was deleted, so `dashboard` is
+ * now one of the shared "coming soon" stubs. The AC-5 test below asserts that invariant
+ * against `ADMIN_PORTAL_STUB_ROUTES` rather than trusting this literal.
+ */
+const DASHBOARD_SEGMENT = 'dashboard'
 
 // jsdom lacks Element.prototype.scrollTo, which the shell's scroll-reset effect calls on
 // navigation. Shim it so the bare-base→dashboard render (which mounts the real shell) does
@@ -52,7 +60,7 @@ function renderAt(path: string, { withAuth = false }: { withAuth?: boolean } = {
       <Route element={<AdminPortalThemeLayout />}>
         <Route path={ADMIN_PORTAL_ROUTES.base} element={<AdminPortalLayout />}>
           <Route index element={<Navigate to={ADMIN_PORTAL_ROUTES.dashboard} replace />} />
-          <Route path={ADMIN_PORTAL_SEGMENTS.dashboard} element={<div>DASHBOARD REACHED</div>} />
+          <Route path={DASHBOARD_SEGMENT} element={<div>DASHBOARD REACHED</div>} />
         </Route>
       </Route>
       <Route element={<ThemeLayout portal="client" />}>
@@ -105,6 +113,12 @@ describe('NotFoundPage', () => {
   })
 
   it('resolves the bare admin base to the dashboard — index beats the global splat (AC-5)', () => {
+    // The stand-in leaf above is only valid if `dashboard` is still a REGISTERED segment.
+    // It is now registered as a stub (the mock-data page was deleted), and the absolute
+    // route the `index` redirects to must still end in that segment.
+    expect(ADMIN_PORTAL_STUB_ROUTES.map((stub) => stub.segment)).toContain(DASHBOARD_SEGMENT)
+    expect(ADMIN_PORTAL_ROUTES.dashboard).toBe(`${ADMIN_PORTAL_ROUTES.base}/${DASHBOARD_SEGMENT}`)
+
     renderAt(ADMIN_PORTAL_ROUTES.base, { withAuth: true })
 
     expect(screen.getByText('DASHBOARD REACHED')).toBeInTheDocument()

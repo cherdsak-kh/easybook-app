@@ -10,10 +10,12 @@ with two different audiences, split by URL:
 - **Client portal** (index `/` → `HomePage`, `RegistrationForm`) — the public LINE **LIFF** surface
   end users see inside the LINE app. Anonymous, fail-soft, mixed Thai/English copy.
 - **Admin portal** (`/admin-portal/*`) — the internal back-office for staff: cookie-session login
-  plus a guarded shell with `dashboard`, `line-users`, `team`, `profile` and 8 inert "coming soon"
-  stub routes. Only `line-users` and `profile` are wired to the real API; `dashboard` and `team`
-  still render DashWind mock data. There is no Staff-management or Options page (deleted with the
-  legacy `/backend` portal, not yet rebuilt).
+  plus a guarded shell with `line-users`, `team`, `profile` and 9 inert "coming soon" stub routes.
+  Only `line-users` and `profile` are wired to the real API; `team` still renders DashWind mock
+  data. `dashboard` is now one of the stubs — its mock-data page and every component under the old
+  `src/components/dashboard/` were deleted rather than left showing invented numbers to an
+  operator. There is no Staff-management or Options page (deleted with the legacy `/backend`
+  portal, not yet rebuilt).
 
 It talks to the backend (`easybook-service`, a separate NestJS repo) over `/api/v1`. It runs on port
 **2200**; the backend runs on port **3300**.
@@ -75,6 +77,17 @@ pages) and `ADMIN_PORTAL_STUB_ROUTES` (the stub menu targets — that array *is*
 registration). **These are `react-router` paths, not API paths** — never import them into
 `api-client.ts`. The backend's admin surface lives at `/auth/system/*` and `/api/v1/system-users`
 ("system", never "admin"); the two namespaces are unrelated and coupling them breaks auth.
+
+### Components live in their portal's folder — HARD RULE
+
+**Components used strictly by one portal belong in `src/components/<portal>/`. Genuinely shared
+primitives belong in `src/components/shared/`.** PO mandate, not a preference. So: a
+client-portal-only component lives in `src/components/client-portal/`, an admin-portal-only one in
+`src/components/admin-portal/`, and only a component that is genuinely portal-agnostic goes in
+`src/components/shared/`. Those three folders are the whole set — do **not** open a new top-level
+`src/components/<feature>/` bucket. If you touch a component sitting in the wrong folder, move it
+and update its importers in the same change. Pages mirror the same portal split under
+`src/pages/client-portal/` and `src/pages/admin-portal/`.
 
 ### Back-office auth: cookie session + CSRF (client portal is anonymous)
 
@@ -150,7 +163,7 @@ Vitest + Testing Library + jsdom, configured in `vite.config.ts` (`test` block) 
 matchers.
 
 Tests live **outside** `src/`, mirroring the source hierarchy: unit specs in `tests/unit/**` (e.g.
-`src/components/HealthStatus.tsx` -> `tests/unit/components/HealthStatus.test.tsx`), e2e specs in
+`src/components/shared/HealthStatus.tsx` -> `tests/unit/components/shared/HealthStatus.test.tsx`), e2e specs in
 `tests/e2e/**`, and shared fixtures/factories in `tests/helpers/` (imported via the `@tests/*`
 alias). `src/` holds production code only. Vitest collects `tests/unit/**/*.test.{ts,tsx}` and
 `tests/e2e/**/*.e2e.{ts,tsx}`, so files under `tests/helpers/` are never picked up as suites.

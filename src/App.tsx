@@ -2,11 +2,11 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 // Eager (initial chunk): the anonymous LIFF client (`/*` → HomePage) and the admin login
 // screen must paint without waiting on a lazy chunk, so they stay statically imported.
-// Neither pulls in `chart.js`, so keeping them eager does not reintroduce the heavy
-// dependency into the initial download (Phase 4 design §4).
+// Both are dependency-light, so keeping them eager does not bloat the initial download
+// the LIFF client pays for (Phase 4 design §4).
 import { HomePage } from '@/pages/client-portal/HomePage'
 import { AdminPortalLoginPage } from '@/pages/admin-portal/AdminPortalLoginPage'
-import { ThemeLayout } from '@/components/ThemeLayout'
+import { ThemeLayout } from '@/components/client-portal/ThemeLayout'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { DemoClientPortalPage } from '@/pages/demo/DemoClientPortalPage'
@@ -17,19 +17,14 @@ import {
   ADMIN_PORTAL_STUB_ROUTES,
 } from '@/components/admin-portal/routes'
 
-// Lazy (route-split async chunks): every chart-bearing / heroicon-heavy page in the
-// `/admin-portal` branch is dynamically imported so `chart.js` + `react-chartjs-2` +
-// `components/dashboard/*` are evicted from the initial chunk the LIFF client downloads
-// (Phase 4 design §4). Each source uses a NAMED export, so the `.then(m => ({ default:
-// m.X }))` adaptation is required — `React.lazy` resolves a module's `default`.
+// Lazy (route-split async chunks): every heroicon-heavy / dependency-heavy page in the
+// `/admin-portal` branch is dynamically imported so the back-office never lands in the
+// initial chunk the anonymous LIFF client downloads (Phase 4 design §4). Each source
+// uses a NAMED export, so the `.then(m => ({ default: m.X }))` adaptation is required —
+// `React.lazy` resolves a module's `default`.
 const AdminPortalLayout = lazy(() =>
   import('@/components/admin-portal/AdminPortalLayout').then((m) => ({
     default: m.AdminPortalLayout,
-  })),
-)
-const AdminPortalDashboardPage = lazy(() =>
-  import('@/pages/admin-portal/AdminPortalDashboardPage').then((m) => ({
-    default: m.AdminPortalDashboardPage,
   })),
 )
 const AdminPortalTeamPage = lazy(() =>
@@ -62,7 +57,7 @@ const NotFoundPage = lazy(() =>
  * The single Suspense fallback for every lazily-loaded route chunk. A centered daisyUI
  * spinner. Because `HomePage` and the admin login page stay eager, this never flashes on
  * a first-paint-critical screen (`/`, `/admin-portal/login`) — only while a
- * dashboard/inner page chunk is fetched.
+ * back-office inner-page chunk is fetched.
  */
 function RouteFallback() {
   return (
@@ -84,8 +79,8 @@ function RouteFallback() {
  * `AdminPortalLoginPage` (`/admin-portal/login`) is now the app's only admin login.
  *
  *  - `/admin-portal/login`  → the admin login form (eager, outside the guard).
- *  - `/admin-portal`        → protected shell (sidebar + header) with the dashboard,
- *    (+ known sub-paths)      team, wired Leads, and stub pages. Valid routes stay behind
+ *  - `/admin-portal`        → protected shell (sidebar + header) with team, wired Leads
+ *    (+ known sub-paths)      and stub pages (`dashboard` is one of them). Valid routes stay behind
  *                             `ProtectedRoute`, so an unauthenticated visit redirects to
  *                             the admin login — NOT the 404.
  *  - `/`                     → the client LIFF surface (`HomePage`). Matched at the INDEX
@@ -112,10 +107,10 @@ function RouteFallback() {
  * `data-theme` onto the subtree. These wrappers are presentational only — they add no path
  * segment, so route specificity is unchanged.
  *
- * Phase 4: the chart-bearing `/admin-portal` pages are code-split (`React.lazy`) behind a
- * single top-level `<Suspense>`, so the anonymous LIFF client never eagerly downloads
- * `chart.js`/`react-chartjs-2`. The trade-off (accepted, PO sign-off): the dashboard shows a
- * brief `RouteFallback` spinner on its first paint after login while its chunk loads.
+ * Phase 4: the in-shell `/admin-portal` pages are code-split (`React.lazy`) behind a
+ * single top-level `<Suspense>`, so the anonymous LIFF client never eagerly downloads the
+ * back-office. The trade-off (accepted, PO sign-off): the first in-shell page after login
+ * shows a brief `RouteFallback` spinner while its chunk loads.
  */
 function App() {
   return (
@@ -151,7 +146,6 @@ function App() {
             }
           >
             <Route index element={<Navigate to={ADMIN_PORTAL_ROUTES.dashboard} replace />} />
-            <Route path={ADMIN_PORTAL_SEGMENTS.dashboard} element={<AdminPortalDashboardPage />} />
             <Route path={ADMIN_PORTAL_SEGMENTS.team} element={<AdminPortalTeamPage />} />
             {/* The (re-contextualised) LINE-user registration page renders REAL LINE-user
                 data (wired via `useLineUsers` → `listLineUsers`). The URL segment is now
@@ -163,7 +157,10 @@ function App() {
                 `react-easy-crop` never lands in the initial LIFF chunk. */}
             <Route path={ADMIN_PORTAL_SEGMENTS.profile} element={<AdminPortalProfilePage />} />
             {/* Phase 3.5: every other DashWind menu target is a real route rendering the
-                shared "coming soon" placeholder, so the whole sidebar is clickable. */}
+                shared "coming soon" placeholder, so the whole sidebar is clickable. This
+                now INCLUDES `dashboard`: its mock-data page was deleted, so it is just
+                another entry in `ADMIN_PORTAL_STUB_ROUTES` — there is no bespoke lazy
+                import or `<Route>` for it here any more. */}
             {ADMIN_PORTAL_STUB_ROUTES.map((stub) => (
               <Route
                 key={stub.segment}

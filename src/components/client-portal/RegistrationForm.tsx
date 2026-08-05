@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import type { CreateLineUserRegistration, RegistrationOptions } from '@/lib/api-client'
-import { Spinner } from '@/components/Spinner'
+import { Spinner } from '@/components/shared/Spinner'
 import { UI_STRINGS_CLIENT } from '@/constants/ui-strings-client'
 
 const UI = UI_STRINGS_CLIENT.registration

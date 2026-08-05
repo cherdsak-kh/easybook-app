@@ -15,8 +15,12 @@ function downDependencies(data: HealthResponse): string[] {
 }
 
 /**
- * Probes GET /api/v1/health and renders the result — the live proof that the
- * decoupled frontend and backend agree on the shared REST contract.
+ * Probes GET /api/v1/health and renders the result — proof that the decoupled
+ * frontend and backend agree on the shared REST contract.
+ *
+ * NOT CURRENTLY MOUNTED: no page or component under `src/` imports this; only its
+ * test does. It lives in `shared/` because it is portal-agnostic (either portal
+ * could mount it), not because both portals use it today.
  *
  * The endpoint is a *readiness* gate, so there are three meaningful outcomes:
  *  - 200 `status: 'ok'`    → healthy (Postgres and Redis both reachable)

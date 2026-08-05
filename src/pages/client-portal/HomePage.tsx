@@ -23,7 +23,7 @@ import {
   type RegistrationOptions,
 } from '@/lib/api-client'
 import { RegistrationForm, type RegistrationFormValues } from '@/components/client-portal/RegistrationForm'
-import { FullPageSpinner } from '@/components/Spinner'
+import { FullPageSpinner } from '@/components/shared/Spinner'
 import { UI_STRINGS_CLIENT } from '@/constants/ui-strings-client'
 
 /** Client-portal copy. This page renders several screens, so it aliases the whole dictionary. */

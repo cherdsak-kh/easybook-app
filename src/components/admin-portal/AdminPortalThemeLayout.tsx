@@ -1,5 +1,5 @@
-// Isolated theme wrapper for the DashWind replica. Our own analog of the shared
-// `src/components/ThemeLayout.tsx` — it deliberately COPIES (does NOT import) the tiny
+// Isolated theme wrapper for the DashWind replica. Our own analog of the client portal's
+// `src/components/client-portal/ThemeLayout.tsx` — it deliberately COPIES (does NOT import) the tiny
 // `prefers-color-scheme` resolver so the shared `ThemeLayout`/`useResolvedTheme` stay
 // the single authority for the REAL portals and are provably unmodified.
 //
@@ -9,15 +9,13 @@
 // authority (in-memory, no localStorage) — there is deliberately NO live OS listener,
 // so a manual choice always sticks instead of being clobbered on the next OS change.
 //
-// The chart re-render trap (why this needed care): the reused
-// `src/components/dashboard/*` charts read their chrome colours off the themed DOM in
-// `useChartThemeColors`, but that hook keys its recompute on `useResolvedTheme('admin')`
-// (system preference) — NOT on this local toggle, and it is off-limits to edit. So a
-// flip here alone would leave chart legend/tick/grid colours stale. The dashboard page
-// fixes that from INSIDE this namespace by remounting each chart with a React `key`
-// that includes `theme` (see `AdminPortalDashboardPage`): a fresh mount re-runs the
-// chart's `useLayoutEffect`, which re-reads the now-updated `--color-*` values off the
-// DOM. Nothing under `components/dashboard/*` or the shared hook is touched.
+// Every surface under this wrapper now restyles purely through daisyUI semantic tokens
+// (CSS), so flipping `data-theme` here is enough — no descendant has to be remounted to
+// pick the new theme up. (The DashWind mock dashboard used to be the exception: its
+// Chart.js canvases read chrome colours off the themed DOM once at mount, so the page
+// remounted each chart with a `theme`-keyed React `key`. That page and its whole
+// mock-component directory were deleted along with the mock data, and the caveat went
+// with them.)
 import { useCallback, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import {
@@ -36,7 +34,7 @@ const matchDark = () =>
 /**
  * Owns the replica's theme and stamps `data-theme="dashwind-light" | "dashwind-dark"`
  * on a wrapping `<div>` around its `<Outlet/>`, so the whole replica subtree (login,
- * LandingIntro, shell, dashboard, team) adopts the pinned `dashwind-*` daisyUI theme.
+ * LandingIntro, shell, team, stub pages) adopts the pinned `dashwind-*` daisyUI theme.
  * The theme + `toggleTheme` are shared with descendants via `AdminPortalThemeContext`.
  */
 export function AdminPortalThemeLayout() {

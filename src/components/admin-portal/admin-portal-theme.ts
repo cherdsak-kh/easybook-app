@@ -1,10 +1,9 @@
 // Local light/dark theme state for the isolated `/admin-portal` DashWind replica
 // (Phase 3.5 — interactivity polish). This is a SELF-CONTAINED React context: it
-// imports nothing from the shared `src/components/ThemeLayout.tsx` /
-// `src/hooks/useResolvedTheme.ts`, which stay the single authority for the REAL
+// imports nothing from the client portal's `src/components/client-portal/ThemeLayout.tsx`
+// / `src/hooks/useResolvedTheme.ts`, which stay the single authority for the REAL
 // portals and are provably unmodified. `AdminPortalThemeLayout` owns the state and
-// provides it here; the header's Sun/Moon toggle consumes `toggleTheme`, and the
-// dashboard page reads `theme` to remount the reused charts on a flip (design note in
+// provides it here; the header's Sun/Moon toggle consumes `toggleTheme` (design note in
 // `AdminPortalThemeLayout.tsx`). No Redux, no `theme-change`.
 import { createContext, useContext } from 'react'
 

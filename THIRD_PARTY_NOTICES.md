@@ -10,16 +10,17 @@ licenses and copyright notices are reproduced below, as required.
 - **Project:** DashWind (daisyui-admin-dashboard-template)
 - **Source:** https://github.com/robbins23/daisyui-admin-dashboard-template
 - **License:** MIT — Copyright (c) 2022 Dashwind
-- **Derived files:** `src/components/admin-portal/*`, `src/components/dashboard/*`,
-  `src/pages/admin-portal/*`, `src/pages/NotFoundPage.tsx`, and the `dashwind-light` /
-  `dashwind-dark` daisyUI themes in `src/index.css`.
+- **Derived files:** `src/components/admin-portal/*`, `src/pages/admin-portal/*`,
+  `src/pages/NotFoundPage.tsx`, and the `dashwind-light` / `dashwind-dark` daisyUI themes
+  in `src/index.css`.
 
 Every derived source file carries a one-line attribution comment at the top pointing back
 to this file.
 
-Chart.js (`chart.js`), `react-chartjs-2` and `@heroicons/react` are separate npm
-dependencies under their own MIT licenses (covered by their package metadata), not copied
-source, and so are not transcribed here.
+The derived `src/components/dashboard/*` chart components were deleted along with the mock
+dashboard page, and the `chart.js` / `react-chartjs-2` dependencies they used were removed
+with them. `@heroicons/react` remains a separate npm dependency under its own MIT license
+(covered by its package metadata), not copied source, and so is not transcribed here.
 
 ```
 MIT License

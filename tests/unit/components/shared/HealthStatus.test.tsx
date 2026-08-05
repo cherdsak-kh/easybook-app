@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { HealthStatus } from '@/components/HealthStatus'
+import { HealthStatus } from '@/components/shared/HealthStatus'
 import * as apiClient from '@/lib/api-client'
 import type { HealthResponse } from '@/lib/api-client'
 

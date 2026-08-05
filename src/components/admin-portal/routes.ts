@@ -7,9 +7,10 @@ const BASE = '/admin-portal'
 /**
  * Absolute react-router paths (used by NavLink / Navigate). Every
  * DashWind menu target has a real route now (Phase 3.5 made the whole sidebar
- * clickable): `dashboard`, `team`, `line-users` + `profile` have bespoke pages; the rest
- * render the shared `AdminPortalStubPage` (see `ADMIN_PORTAL_STUB_ROUTES`). The segment
- * tail of each path matches the corresponding `ADMIN_PORTAL_STUB_ROUTES.segment`.
+ * clickable): `team`, `line-users` + `profile` have bespoke pages; the rest — including
+ * `dashboard` — render the shared `AdminPortalStubPage` (see `ADMIN_PORTAL_STUB_ROUTES`).
+ * The segment tail of each path matches the corresponding
+ * `ADMIN_PORTAL_STUB_ROUTES.segment`.
  */
 export const ADMIN_PORTAL_ROUTES = {
   base: BASE,
@@ -42,10 +43,14 @@ export const ADMIN_PORTAL_ROUTES = {
 /**
  * Relative child segments under the shell mounted at `base`, for the pages with a
  * bespoke component. React Router resolves these against the `AdminPortalLayout`
- * parent (`/admin-portal`), so `dashboard` -> `/admin-portal/dashboard`.
+ * parent (`/admin-portal`), so `team` -> `/admin-portal/team`.
+ *
+ * NOTE: `dashboard` is NOT here. Its DashWind mock-data page was deleted and the route
+ * is now generated from `ADMIN_PORTAL_STUB_ROUTES` like every other placeholder. The
+ * absolute `ADMIN_PORTAL_ROUTES.dashboard` STAYS — the sidebar leaf and the shell's
+ * `index` redirect still target it.
  */
 export const ADMIN_PORTAL_SEGMENTS = {
-  dashboard: 'dashboard',
   team: 'team',
   lineUsers: 'line-users',
   profile: 'profile',
@@ -63,12 +68,18 @@ export interface AdminPortalStubRoute {
  * The DashWind menu targets that have no bespoke page — each renders the
  * shared `AdminPortalStubPage` ("coming soon" placeholder), parameterised by `title`,
  * so clicking any sidebar item produces a real route transition without hand-writing
- * ~13 near-identical files. `dashboard`, `team`, `line-users` + `profile` have real pages
- * and are NOT here; `login` is a full-screen sibling route (outside the shell) and is NOT here
+ * ~13 near-identical files. `team`, `line-users` + `profile` have real pages and are NOT
+ * here; `login` is a full-screen sibling route (outside the shell) and is NOT here
  * either. Titles mirror the sidebar labels in `nav-config.tsx` so the header title
  * never drifts.
  */
 export const ADMIN_PORTAL_STUB_ROUTES: readonly AdminPortalStubRoute[] = [
+  // `dashboard` renders the SHARED stub like the rest: its bespoke page composed
+  // DashWind mock data (fake stat cards + Chart.js canvases) that showed invented
+  // numbers to a real operator, so the page and its whole mock-component directory were
+  // deleted. Keeping the segment here preserves the sidebar leaf and the shell's `index`
+  // redirect — only the body became inert.
+  { segment: 'dashboard', title: 'Dashboard' },
   { segment: 'transactions', title: 'Transactions' },
   { segment: 'charts', title: 'Analytics' },
   { segment: 'integration', title: 'Integration' },

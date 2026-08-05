@@ -2,7 +2,7 @@
 // One placeholder parameterised by `title` backs ~14 menu targets that have no bespoke page —
 // that is what keeps every sidebar item a real, navigable route without ~14 near-identical files.
 import DocumentTextIcon from '@heroicons/react/24/outline/DocumentTextIcon'
-import { TitleCard } from '@/components/dashboard/TitleCard'
+import { TitleCard } from '@/components/admin-portal/TitleCard'
 
 interface AdminPortalStubPageProps {
   /**

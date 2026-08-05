@@ -277,6 +277,40 @@ describe('AdminPortal replica — stub pages (Phase 3.5)', () => {
     expect(screen.getByText(/coming soon/i)).toBeInTheDocument()
   })
 
+  it('registers `dashboard` as a stub titled "Dashboard", still reachable from the sidebar', () => {
+    // The DashWind mock-data dashboard (fake stat cards + Chart.js canvases) was deleted;
+    // `dashboard` is now an ordinary entry in `ADMIN_PORTAL_STUB_ROUTES`, which IS the
+    // route registration in `App.tsx`. The sidebar leaf and its title must survive that.
+    const dashboard = ADMIN_PORTAL_STUB_ROUTES.find((stub) => stub.segment === 'dashboard')
+    expect(dashboard).toEqual({ segment: 'dashboard', title: 'Dashboard' })
+
+    const leaves = NAV_ITEMS.flatMap((e) => (isSubmenu(e) ? e.submenu : [e]))
+    expect(leaves.some((leaf) => leaf.to === ADMIN_PORTAL_ROUTES.dashboard)).toBe(true)
+  })
+
+  it('renders the inert placeholder — not mock data — at the dashboard route', () => {
+    render(
+      <MemoryRouter initialEntries={[ADMIN_PORTAL_ROUTES.dashboard]}>
+        <AuthProvider>
+          <Routes>
+            <Route element={<AdminPortalThemeLayout />}>
+              <Route path={ADMIN_PORTAL_ROUTES.base} element={<AdminPortalLayout />}>
+                <Route path="dashboard" element={<AdminPortalStubPage title="Dashboard" />} />
+              </Route>
+            </Route>
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>,
+    )
+
+    const main = screen.getByRole('main')
+    expect(within(main).getAllByText('Dashboard').length).toBeGreaterThan(0)
+    expect(within(main).getByText(/coming soon/i)).toBeInTheDocument()
+    // No Chart.js canvas and none of the deleted mock figures survive.
+    expect(main.querySelector('canvas')).toBeNull()
+    expect(within(main).queryByText('New Users')).not.toBeInTheDocument()
+  })
+
   it('renders NO navbar page title, at any breakpoint, and keeps <main> named', () => {
     renderStubInShell()
 

@@ -14,7 +14,8 @@ interface TitleCardProps {
 }
 
 /**
- * Shared card wrapper for the dashboard's charts and table. Surface is
+ * Shared card wrapper for the admin portal's page sections — used by
+ * `AdminPortalStubPage`, `AdminPortalLineUsersPage` and `TeamMembers`. Surface is
  * `bg-base-100` (semantic token, no `dark:`) so it follows the active daisyUI
  * theme automatically.
  */
