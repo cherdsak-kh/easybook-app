@@ -9,9 +9,22 @@
       lets migrated and un-migrated screens coexist during the rollout. */
 @custom-variant dark (&:where([data-theme$="-dark"], [data-theme$="-dark"] *));
 
-/* 3. Enable daisyUI (CSS-first — no tailwind.config.js). No built-in themes are
-      requested, so only the four EasyBook themes below ship. */
-@plugin "daisyui";
+/* 3. Enable daisyUI (CSS-first — no tailwind.config.js).
+      `light --default, dark --prefersdark` is daisyUI 5's OWN implicit default when the
+      plugin is given no config, and it is spelled out here verbatim so that adding a
+      theme to the list does not silently drop those two. The one ADDITION is `cupcake`:
+      the admin portal's light theme (a warm pastel with real separation between
+      base-100/200/300 and a genuinely dark base-content — `pastel` was rejected because
+      its surfaces sit within a few percent lightness of each other, which is exactly the
+      discrimination an older user loses first).
+
+      `cupcake` carries NO `--default` flag, so it only ever applies via
+      `data-theme="cupcake"`. `easybook-client` (below) keeps `default: true` and stays the
+      `:root` theme. The `@plugin "daisyui/theme"` blocks below are untouched — the
+      convention is that theme blocks are additive and never edited. */
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark, cupcake;
+}
 
 /* 4. The four EasyBook themes: two portal identities x light/dark.
       Everything structural is shared (base slate scale, status hues, radius) so

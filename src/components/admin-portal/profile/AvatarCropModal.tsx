@@ -175,7 +175,7 @@ export function AvatarCropModal({
           onClick={onRequestClose}
           disabled={uploading}
           aria-label={T.actions.close}
-          className="btn btn-circle btn-ghost btn-sm absolute top-2 right-2 focus-visible:ring-2 focus-visible:ring-primary"
+          className="btn btn-circle btn-ghost btn-sm absolute top-2 right-2 focus-visible:ring-2 focus-visible:ring-base-content"
         >
           ✕
         </button>
@@ -195,7 +195,11 @@ export function AvatarCropModal({
             className={`relative h-64 w-full overflow-hidden rounded-lg bg-base-200 transition-colors sm:h-72 ${
               imageSrc
                 ? ''
-                : `border-2 border-dashed ${dragging ? 'border-primary bg-base-300' : 'border-base-300'}`
+                // `border-primary` used to mark the drag-over state; on `cupcake` that is
+                // oklch(85% 0.138 181) over a `base-300` of oklch(91.586%) = 1.16:1, i.e.
+                // the drop zone stopped visibly reacting. `base-content` is 13.21:1 there
+                // and 7.83:1 on `dashwind-dark`.
+                : `border-2 border-dashed ${dragging ? 'border-base-content bg-base-300' : 'border-base-300'}`
             }`}
           >
             {imageSrc ? (
@@ -237,7 +241,7 @@ export function AvatarCropModal({
                 const file = e.target.files?.[0]
                 if (file) acceptFile(file)
               }}
-              className="file-input file-input-sm w-full focus-visible:ring-2 focus-visible:ring-primary"
+              className="file-input file-input-sm w-full focus-visible:ring-2 focus-visible:ring-base-content"
             />
           </div>
 
@@ -282,7 +286,7 @@ export function AvatarCropModal({
             onClick={() => void submit()}
             disabled={uploading || !imageSrc || !croppedArea}
             aria-busy={uploading}
-            className="btn btn-primary w-full sm:w-auto focus-visible:ring-2 focus-visible:ring-primary"
+            className="btn btn-primary w-full sm:w-auto focus-visible:ring-2 focus-visible:ring-base-content"
           >
             {uploading && <span className="loading loading-spinner loading-xs" aria-hidden />}
             {uploading ? T.avatar.submitting : T.avatar.submit}

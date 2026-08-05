@@ -15,9 +15,10 @@ interface TitleCardProps {
 
 /**
  * Shared card wrapper for the admin portal's page sections — used by
- * `AdminPortalStubPage`, `AdminPortalLineUsersPage` and `TeamMembers`. Surface is
- * `bg-base-100` (semantic token, no `dark:`) so it follows the active daisyUI
- * theme automatically.
+ * `AdminPortalStubPage` (all 29 placeholder routes) and `AdminPortalLineUsersPage`.
+ * (`TeamMembers` was the third consumer until it was deleted with the DashWind mock
+ * data in the side-menu overhaul.) Surface is `bg-base-100` (semantic token, no
+ * `dark:`) so it follows the active daisyUI theme automatically.
  */
 export function TitleCard({ title, children, topMargin, topSideButtons }: TitleCardProps) {
   return (

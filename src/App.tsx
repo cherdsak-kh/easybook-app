@@ -27,11 +27,10 @@ const AdminPortalLayout = lazy(() =>
     default: m.AdminPortalLayout,
   })),
 )
-const AdminPortalTeamPage = lazy(() =>
-  import('@/pages/admin-portal/AdminPortalTeamPage').then((m) => ({
-    default: m.AdminPortalTeamPage,
-  })),
-)
+// REMOVED with the side-menu overhaul: `AdminPortalTeamPage`. It rendered DashWind MOCK
+// members (fake names, emails and join dates) to a real operator — the same reason the mock
+// dashboard was deleted. Its successor is the `staff` placeholder, where the outstanding
+// staff-management rebuild will land.
 const AdminPortalLineUsersPage = lazy(() =>
   import('@/pages/admin-portal/AdminPortalLineUsersPage').then((m) => ({
     default: m.AdminPortalLineUsersPage,
@@ -79,10 +78,14 @@ function RouteFallback() {
  * `AdminPortalLoginPage` (`/admin-portal/login`) is now the app's only admin login.
  *
  *  - `/admin-portal/login`  → the admin login form (eager, outside the guard).
- *  - `/admin-portal`        → protected shell (sidebar + header) with team, wired Leads
- *    (+ known sub-paths)      and stub pages (`dashboard` is one of them). Valid routes stay behind
- *                             `ProtectedRoute`, so an unauthenticated visit redirects to
- *                             the admin login — NOT the 404.
+ *  - `/admin-portal`        → protected shell (sidebar + header) with the two bespoke pages
+ *    (+ known sub-paths)      (`line-users`, `profile`) plus the 29 placeholder routes generated
+ *                             from `ADMIN_PORTAL_STUB_ROUTES` (`dashboard` is one of them; the
+ *                             DashWind `team` page was deleted with the side-menu overhaul).
+ *                             Stub segments may be MULTI-PART (`reports/analytics`,
+ *                             `settings/roles`, …) — legal as one `<Route path>` string. Valid
+ *                             routes stay behind `ProtectedRoute`, so an unauthenticated visit
+ *                             redirects to the admin login — NOT the 404.
  *  - `/`                     → the client LIFF surface (`HomePage`). Matched at the INDEX
  *                             only — `HomePage` is route-less (it swaps screens via internal
  *                             state, not the URL), so the client portal has exactly one real
@@ -146,7 +149,6 @@ function App() {
             }
           >
             <Route index element={<Navigate to={ADMIN_PORTAL_ROUTES.dashboard} replace />} />
-            <Route path={ADMIN_PORTAL_SEGMENTS.team} element={<AdminPortalTeamPage />} />
             {/* The (re-contextualised) LINE-user registration page renders REAL LINE-user
                 data (wired via `useLineUsers` → `listLineUsers`). The URL segment is now
                 `line-users` (renamed from `leads` to match the page/label). */}
@@ -156,11 +158,12 @@ function App() {
                 "Profile" leaf. Lazy like every other in-shell page (Phase 4), so
                 `react-easy-crop` never lands in the initial LIFF chunk. */}
             <Route path={ADMIN_PORTAL_SEGMENTS.profile} element={<AdminPortalProfilePage />} />
-            {/* Phase 3.5: every other DashWind menu target is a real route rendering the
-                shared "coming soon" placeholder, so the whole sidebar is clickable. This
-                now INCLUDES `dashboard`: its mock-data page was deleted, so it is just
-                another entry in `ADMIN_PORTAL_STUB_ROUTES` — there is no bespoke lazy
-                import or `<Route>` for it here any more. */}
+            {/* Every other menu target is a real route rendering the shared "coming soon"
+                placeholder, so all 31 sidebar leaves are clickable and none 404s. This
+                INCLUDES `dashboard` (its mock-data page was deleted). Segments here may be
+                MULTI-part (`reports/analytics`, `settings/roles`, …) — that is a legal
+                single `<Route path>` string, so this `.map()` needs no nested-route
+                refactor to serve them. */}
             {ADMIN_PORTAL_STUB_ROUTES.map((stub) => (
               <Route
                 key={stub.segment}

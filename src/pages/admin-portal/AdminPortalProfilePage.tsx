@@ -163,7 +163,7 @@ export function AdminPortalProfilePage() {
           <button
             type="button"
             onClick={() => setReloadTick((t) => t + 1)}
-            className="btn btn-sm focus-visible:ring-2 focus-visible:ring-primary"
+            className="btn btn-sm focus-visible:ring-2 focus-visible:ring-base-content"
           >
             {T.retry}
           </button>
@@ -178,9 +178,13 @@ export function AdminPortalProfilePage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 sm:space-y-6">
       <div className="text-center sm:text-left">
-        {/* Exactly `ข้อมูลผู้ใช้งาน (User Profile)` — no role badge (PO review). The role
-            already appears on the header card and in the account card; a third copy here
-            also made this page's <h1>, and therefore its accessible name, differ per role. */}
+        {/* Exactly `โปรไฟล์ (User Profile)` — no role badge (PO review). The role already
+            appears on the header card and in the account card; a third copy here also made
+            this page's <h1>, and therefore its accessible name, differ per role.
+            The Thai half matches `PROFILE_STRINGS.navLabel`, i.e. the menu item and the
+            navbar avatar dropdown that reach this page, on purpose — a heading that differs
+            from the item just clicked reads as the wrong page. Both halves render at once;
+            this is a bilingual label, not a locale switch. */}
         <h1 className="text-2xl font-bold sm:text-3xl">
           {T.heading.th}{' '}
           <span className="text-base font-normal opacity-70 sm:text-lg">({T.heading.en})</span>
@@ -242,7 +246,7 @@ export function AdminPortalProfilePage() {
             type="button"
             onClick={editing ? handleRequestSave : editor.startEdit}
             disabled={saving}
-            className={`btn w-full shadow-md transition-colors sm:w-auto focus-visible:ring-2 focus-visible:ring-primary ${
+            className={`btn w-full shadow-md transition-colors sm:w-auto focus-visible:ring-2 focus-visible:ring-base-content ${
               editing ? 'btn-success' : 'btn-primary'
             }`}
           >

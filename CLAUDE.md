@@ -10,12 +10,16 @@ with two different audiences, split by URL:
 - **Client portal** (index `/` → `HomePage`, `RegistrationForm`) — the public LINE **LIFF** surface
   end users see inside the LINE app. Anonymous, fail-soft, mixed Thai/English copy.
 - **Admin portal** (`/admin-portal/*`) — the internal back-office for staff: cookie-session login
-  plus a guarded shell with `line-users`, `team`, `profile` and 9 inert "coming soon" stub routes.
-  Only `line-users` and `profile` are wired to the real API; `team` still renders DashWind mock
-  data. `dashboard` is now one of the stubs — its mock-data page and every component under the old
-  `src/components/dashboard/` were deleted rather than left showing invented numbers to an
-  operator. There is no Staff-management or Options page (deleted with the legacy `/backend`
-  portal, not yet rebuilt).
+  plus a guarded shell with `line-users`, `profile` and **29** inert "coming soon" stub routes.
+  Exactly those two bespoke pages are wired to the real API; every other sidebar leaf renders the
+  shared `AdminPortalStubPage`. `dashboard` is one of the stubs — its mock-data page and every
+  component under the old `src/components/dashboard/` were deleted rather than left showing invented
+  numbers to an operator, and the DashWind `team` page (`TeamMembers`, mock members) was deleted the
+  same way in the side-menu overhaul. Its successor is the `staff` placeholder: there is still no
+  real Staff-management or Options page (deleted with the legacy `/backend` portal, not yet rebuilt).
+  The sidebar's information architecture lives in `src/components/admin-portal/nav-config.tsx`
+  (`NAV_SECTIONS`: 5 sections, 31 leaves, 2 collapsible submenus), with its Thai copy in
+  `src/constants/ui-strings-admin-nav.ts`.
 
 It talks to the backend (`easybook-service`, a separate NestJS repo) over `/api/v1`. It runs on port
 **2200**; the backend runs on port **3300**.
@@ -188,11 +192,21 @@ bind on top of it.
 
 - **Semantic tokens only.** Style with daisyUI semantic classes/tokens (`bg-base-100`,
   `text-base-content`, `border-base-300`, `btn-primary`, `badge-success`, …), never hard-coded colors.
-- **Theming is `data-theme`, NOT `dark:`.** Light/dark and per-portal identity come from the daisyUI
-  themes declared in `index.css` (`easybook-client(-dark)`, `easybook-admin(-dark)`, `dashwind(-light|
-  -dark)`), applied via a `data-theme` wrapper and the `@custom-variant dark` rule. **Ship zero `dark:`
-  utilities in new code.** New/adjusted themes are additive `@plugin "daisyui/theme"` blocks appended
-  to `index.css` — never edit the existing blocks or add a `tailwind.config.js`.
+- **Theming is `data-theme`, NOT `dark:`.** Light/dark and per-portal identity come from the themes
+  available in `index.css`, applied via a `data-theme` wrapper and the `@custom-variant dark` rule:
+  six are declared locally as `@plugin "daisyui/theme"` blocks (`easybook-client(-dark)`,
+  `easybook-admin(-dark)`, `dashwind(-light|-dark)`), and daisyUI **built-ins** are opted into by name
+  on the `@plugin "daisyui" { themes: … }` invocation — currently `light --default`,
+  `dark --prefersdark` and **`cupcake`**. The admin portal runs `cupcake` (light) paired with
+  `dashwind-dark` (dark); `dashwind-light` is no longer used by it but its block stays, since theme
+  blocks are additive. **Ship zero `dark:` utilities in new code.** New/adjusted themes are additive
+  `@plugin "daisyui/theme"` blocks appended to `index.css` — never edit the existing blocks or add a
+  `tailwind.config.js`.
+  - **`@custom-variant dark` is `[data-theme$="-dark"]`** (`index.css:10`), so any dark theme must be
+    named with a `-dark` suffix or the variant silently stops matching.
+  - A theme's `primary` is **not** guaranteed readable as text/border on its own `base-100` —
+    `cupcake`'s measures 1.40:1. For focus rings, outline buttons and state borders use
+    `base-content`, which is by definition the readable foreground for `base-100` in any theme.
 - **Accessibility still applies:** semantic HTML, sufficient contrast in every theme, visible focus,
   `aria-*` where daisyUI markup alone is insufficient.
 

@@ -7,12 +7,13 @@ import { AdminPortalHeader } from '@/components/admin-portal/AdminPortalHeader'
 import { AdminPortalLayout } from '@/components/admin-portal/AdminPortalLayout'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
 import { LandingIntro } from '@/components/admin-portal/LandingIntro'
-import { TeamMembers } from '@/components/admin-portal/TeamMembers'
-import { NAV_ITEMS, isSubmenu } from '@/components/admin-portal/nav-config'
+import { NAV_SECTIONS, allNavLeaves } from '@/components/admin-portal/nav-config'
 import {
   ADMIN_PORTAL_ROUTES,
+  ADMIN_PORTAL_SEGMENTS,
   ADMIN_PORTAL_STUB_ROUTES,
 } from '@/components/admin-portal/routes'
+import { ADMIN_NAV_STRINGS } from '@/constants/ui-strings-admin-nav'
 import { BRAND } from '@/constants/ui-strings-brand'
 import { PROFILE_STRINGS } from '@/constants/ui-strings-profile'
 import * as apiClient from '@/lib/api-client'
@@ -30,15 +31,18 @@ vi.mock('@/lib/api-client', () => ({
 const mockGetMe = vi.mocked(apiClient.getMe)
 
 /**
- * Smoke coverage for the isolated `/admin-portal` replica: the mock surfaces (Team,
- * sidebar, header, stub pages) render with NO backend and NO Redux. These prove the
- * frozen (deterministic) Team table, the fully-clickable sidebar, and the Phase-3.5
- * interactivity (working theme toggle, notification panel, navigable stub pages). The
- * login is now REAL cookie-session auth (Phase 4) — its behavior is covered separately
- * in `AdminPortalLoginPage.test.tsx` (with `AuthProvider` + a mocked api-client), and
- * the 404 in `AdminPortalNotFoundPage.test.tsx`. The former "Leads" table is now the
+ * Smoke coverage for the `/admin-portal` shell chrome: the sidebar, header and stub pages
+ * render with NO backend and NO Redux. These prove the fully-clickable 31-leaf sidebar and
+ * the interactivity (working theme toggle, notification panel, navigable stub pages). The
+ * login is REAL cookie-session auth — its behavior is covered separately in
+ * `AdminPortalLoginPage.test.tsx` (with `AuthProvider` + a mocked api-client), and the 404
+ * in `AdminPortalNotFoundPage.test.tsx`. The former "Leads" table is now the
  * re-contextualised LINE-user registration page wired to REAL data — its coverage lives in
  * `AdminPortalLineUsersPage.test.tsx`, so the old frozen-mock assertions were removed here.
+ *
+ * The DashWind "Team members" cases are GONE with the component: that table rendered mock
+ * members (fake names/emails/join dates) to a real operator and was deleted in the
+ * side-menu overhaul, together with `AdminPortalTeamPage` and the `team` route.
  */
 
 // jsdom doesn't implement Element.prototype.scrollTo; the shell's scroll-reset effect
@@ -55,115 +59,174 @@ beforeEach(() => {
   mockGetMe.mockResolvedValue(null) // unauthenticated mount probe — chrome renders regardless
 })
 
-describe('AdminPortal replica — Team members table (frozen mock)', () => {
-  it('renders the verbatim members with frozen join dates and role badges', () => {
-    render(<TeamMembers />)
-
-    expect(screen.getByText('Active Members')).toBeInTheDocument()
-    const table = screen.getByRole('table')
-
-    // Verbatim member data.
-    expect(within(table).getByText('alex@dashwind.com')).toBeInTheDocument()
-    expect(within(table).getByText('miya@dashwind.com')).toBeInTheDocument()
-    // Frozen (deterministic) join date — was a live `moment()` in the template.
-    expect(within(table).getByText('26 Jun 2024')).toBeInTheDocument()
-    // Role badge parity.
-    expect(within(table).getByText('Owner')).toBeInTheDocument()
-    expect(within(table).getAllByText('Support')).toHaveLength(2)
-  })
-
-  it('renders each row avatar from a LOCAL asset (dead reqres image host removed)', () => {
-    render(<TeamMembers />)
-    const table = screen.getByRole('table')
-
-    // Avatar carries the member name as its alt (a11y) and a real, non-empty src that
-    // is NOT the dead `reqres.in` image host — it now points at a bundled local SVG.
-    const avatar = within(table).getByAltText('Alex')
-    expect(avatar.tagName).toBe('IMG')
-    expect(avatar.getAttribute('src')).toBeTruthy()
-    expect(avatar.getAttribute('src')).not.toMatch(/reqres/)
-    expect(avatar).toHaveAttribute('loading', 'lazy')
-  })
-})
-
-describe('AdminPortal replica — sidebar is fully navigable (Phase 3.5)', () => {
-  function renderSidebar() {
+describe('AdminPortal — sidebar information architecture (5 sections / 31 leaves)', () => {
+  function renderSidebar(path = '/admin-portal/dashboard') {
     return render(
-      <MemoryRouter initialEntries={['/admin-portal/dashboard']}>
+      <MemoryRouter initialEntries={[path]}>
         <AdminPortalSidebar />
       </MemoryRouter>,
     )
   }
 
-  /**
-   * CHANGED: the `Pages` submenu assertion is INVERTED, not deleted. The whole `Pages`
-   * group (Login / Register / Forgot Password / Blank Page) was removed along with the
-   * three placeholder routes behind it, so "there is no Pages button" is now the
-   * requirement — see the "Pages menu removed" block below.
-   */
-  it('renders every top-level entry as a real link, and submenu parents as toggles', () => {
-    renderSidebar()
+  it('renders exactly 5 sections, 4 visible Thai category headers and 31 leaves', () => {
+    expect(NAV_SECTIONS).toHaveLength(5)
+    // Section 0 is deliberately unlabelled; the other four carry a header.
+    expect(NAV_SECTIONS.filter((s) => s.title !== undefined).map((s) => s.title)).toEqual([
+      ADMIN_NAV_STRINGS.sections.management,
+      ADMIN_NAV_STRINGS.sections.reports,
+      ADMIN_NAV_STRINGS.sections.settings,
+      ADMIN_NAV_STRINGS.sections.support,
+    ])
+    expect(allNavLeaves()).toHaveLength(31)
 
-    // Previously-inert entries are now live links (no visual-only buttons remain). The
-    // former "Leads" leaf was re-contextualised to the LINE-user registration data page
-    // (label → 'ข้อมูลการลงทะเบียน'); the route target is unchanged.
-    expect(screen.getByRole('link', { name: /Dashboard/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /ข้อมูลการลงทะเบียน/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Transactions/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Calendar/ })).toBeInTheDocument()
-    // The two surviving submenu parents expand rather than navigate, so they stay buttons.
-    expect(screen.getByRole('button', { name: /Settings/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Documentation/ })).toBeInTheDocument()
+    renderSidebar()
+    for (const title of Object.values(ADMIN_NAV_STRINGS.sections)) {
+      const header = screen.getByText(title)
+      // A header is a label, never a link and never a button.
+      expect(header.tagName).toBe('LI')
+      expect(header).toHaveClass('menu-title')
+    }
   })
 
-  describe('Pages menu removed (+ its dead routes)', () => {
-    it('has NO "Pages" entry and none of its four submenu leaves', () => {
-      renderSidebar()
+  it('renders every leaf as a real link and both submenu parents as toggles', () => {
+    renderSidebar()
 
-      expect(screen.queryByRole('button', { name: /Pages/ })).not.toBeInTheDocument()
-      for (const label of ['Login', 'Register', 'Forgot Password', 'Blank Page']) {
-        expect(screen.queryByText(label)).not.toBeInTheDocument()
-        expect(screen.queryByRole('link', { name: new RegExp(label) })).not.toBeInTheDocument()
-      }
-    })
+    // A sample across all four labelled sections + the unlabelled one.
+    for (const label of [
+      ADMIN_NAV_STRINGS.items.dashboard,
+      ADMIN_NAV_STRINGS.items.bookingCalendar,
+      ADMIN_NAV_STRINGS.items.lineUsers,
+      ADMIN_NAV_STRINGS.items.staff,
+      ADMIN_NAV_STRINGS.items.reportsErrorLogs,
+      ADMIN_NAV_STRINGS.items.helpVersion,
+    ]) {
+      expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
+    }
 
-    it('drops the register / forgot-password / blank ROUTE constants and stub routes', () => {
-      // The routes are generated from `ADMIN_PORTAL_STUB_ROUTES`, so an absent entry IS an
-      // absent `<Route>`: those paths now fall through to the single global 404.
-      const segments = ADMIN_PORTAL_STUB_ROUTES.map((s) => s.segment)
-      expect(segments).not.toContain('register')
-      expect(segments).not.toContain('forgot-password')
-      expect(segments).not.toContain('blank')
+    // The two submenu parents expand rather than navigate, so they stay buttons.
+    for (const label of Object.values(ADMIN_NAV_STRINGS.groups)) {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
+    }
+  })
 
-      // No nav leaf points at any of them either.
-      const leaves = NAV_ITEMS.flatMap((e) => (isSubmenu(e) ? e.submenu : [e]))
-      for (const to of leaves.map((l) => l.to)) {
-        expect(to).not.toMatch(/\/(register|forgot-password|blank)$/)
-      }
+  it('gives all 31 leaves a live route — bespoke or generated stub, never a 404', () => {
+    const stubPaths = new Set(
+      ADMIN_PORTAL_STUB_ROUTES.map((stub) => `${ADMIN_PORTAL_ROUTES.base}/${stub.segment}`),
+    )
+    const bespokePaths = new Set<string>([
+      ADMIN_PORTAL_ROUTES.lineUsers,
+      ADMIN_PORTAL_ROUTES.profile,
+    ])
 
-      // The route constants themselves are gone from the object.
-      const routeKeys = Object.keys(ADMIN_PORTAL_ROUTES)
-      expect(routeKeys).not.toContain('register')
-      expect(routeKeys).not.toContain('forgotPassword')
-      expect(routeKeys).not.toContain('blank')
-    })
+    for (const leaf of allNavLeaves()) {
+      expect(stubPaths.has(leaf.to) || bespokePaths.has(leaf.to)).toBe(true)
+    }
+    // 31 leaves = 2 bespoke + 29 generated placeholders.
+    expect(ADMIN_PORTAL_STUB_ROUTES).toHaveLength(29)
+  })
 
-    it('KEEPS the real login route reachable — it is simply no longer a sidebar entry', () => {
-      // `/admin-portal/login` is the working login page and stays registered in `App.tsx`
-      // (outside `ProtectedRoute`); only the DashWind "Pages → Login" shortcut is gone.
-      expect(ADMIN_PORTAL_ROUTES.login).toBe('/admin-portal/login')
-      // …and it is NOT a stub route, so it never renders the "coming soon" placeholder.
-      expect(ADMIN_PORTAL_STUB_ROUTES.map((s) => s.segment)).not.toContain('login')
-    })
+  it('titles every stub page with the SAME literal as its sidebar label', () => {
+    const labelByPath = new Map(allNavLeaves().map((leaf) => [leaf.to, leaf.label]))
 
-    it('KEEPS AdminPortalStubPage — eight other menu targets still render it', () => {
-      // Grep-verified outcome (plan §7 asked for exactly this check): the three deleted
-      // routes had NO bespoke components; they all rendered the SHARED stub page, which
-      // Transactions / Analytics / Integration / Calendar / Billing / Getting Started /
-      // Features / Components still use. Deleting it would break eight live routes.
-      expect(ADMIN_PORTAL_STUB_ROUTES.length).toBeGreaterThan(0)
-      expect(typeof AdminPortalStubPage).toBe('function')
-    })
+    for (const stub of ADMIN_PORTAL_STUB_ROUTES) {
+      expect(stub.title).toBe(labelByPath.get(`${ADMIN_PORTAL_ROUTES.base}/${stub.segment}`))
+      // No English leftovers: every stub title is the Thai menu label.
+      expect(stub.title).not.toMatch(/^[\x20-\x7E]+$/)
+    }
+  })
+
+  it('drops every DashWind leftover route, constant and nav leaf', () => {
+    const dead = [
+      'transactions',
+      'charts',
+      'integration',
+      'calendar',
+      'settings-billing',
+      'getting-started',
+      'features',
+      'components',
+      'team',
+    ]
+    const segments = ADMIN_PORTAL_STUB_ROUTES.map((s) => s.segment)
+    const routeValues = Object.values(ADMIN_PORTAL_ROUTES)
+    const leafPaths = allNavLeaves().map((l) => l.to)
+
+    for (const segment of dead) {
+      expect(segments).not.toContain(segment)
+      expect(routeValues).not.toContain(`${ADMIN_PORTAL_ROUTES.base}/${segment}`)
+      expect(leafPaths).not.toContain(`${ADMIN_PORTAL_ROUTES.base}/${segment}`)
+    }
+    // The old DashWind auth-screen placeholders stay gone too.
+    for (const to of leafPaths) {
+      expect(to).not.toMatch(/\/(register|forgot-password|blank)$/)
+    }
+    // `ADMIN_PORTAL_SEGMENTS` is exactly the two bespoke pages.
+    expect(Object.keys(ADMIN_PORTAL_SEGMENTS).sort()).toEqual(['lineUsers', 'profile'])
+  })
+
+  it('KEEPS the real login route reachable — it is simply not a sidebar entry', () => {
+    // `/admin-portal/login` is the working login page and stays registered in `App.tsx`
+    // (outside `ProtectedRoute`); the sidebar only renders inside the authenticated shell.
+    expect(ADMIN_PORTAL_ROUTES.login).toBe('/admin-portal/login')
+    expect(ADMIN_PORTAL_STUB_ROUTES.map((s) => s.segment)).not.toContain('login')
+    expect(allNavLeaves().map((l) => l.to)).not.toContain(ADMIN_PORTAL_ROUTES.login)
+  })
+
+  it('KEEPS AdminPortalStubPage — 29 menu targets render it', () => {
+    expect(ADMIN_PORTAL_STUB_ROUTES).toHaveLength(29)
+    expect(typeof AdminPortalStubPage).toBe('function')
+  })
+
+  it('keeps both submenus collapsed by default, and toggles on click', () => {
+    renderSidebar()
+
+    for (const label of Object.values(ADMIN_NAV_STRINGS.groups)) {
+      expect(screen.getByRole('button', { name: label })).toHaveAttribute('aria-expanded', 'false')
+    }
+
+    const toggle = screen.getByRole('button', { name: ADMIN_NAV_STRINGS.groups.system })
+    // `aria-controls` must resolve — the visibility itself is daisyUI CSS
+    // (`li > .menu-dropdown:not(.menu-dropdown-show) { display: none }`), which jsdom does
+    // not evaluate, so the CLASS is what is asserted here rather than computed visibility.
+    const list = document.getElementById(toggle.getAttribute('aria-controls') as string)
+    expect(list).not.toBeNull()
+    expect(list).toHaveClass('menu-dropdown')
+    expect(list).not.toHaveClass('menu-dropdown-show')
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle).toHaveClass('menu-dropdown-show')
+    expect(list).toHaveClass('menu-dropdown-show')
+    expect(
+      screen.getByRole('link', { name: ADMIN_NAV_STRINGS.items.settingsRoles }),
+    ).toBeInTheDocument()
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(list).not.toHaveClass('menu-dropdown-show')
+  })
+
+  it('auto-expands the submenu owning the route on a DIRECT deep link', () => {
+    renderSidebar(ADMIN_PORTAL_ROUTES.settingsRoles)
+
+    expect(
+      screen.getByRole('button', { name: ADMIN_NAV_STRINGS.groups.system }),
+    ).toHaveAttribute('aria-expanded', 'true')
+    // …and the sibling submenu stays shut.
+    expect(
+      screen.getByRole('button', { name: ADMIN_NAV_STRINGS.groups.account }),
+    ).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('marks only the exact path active — a nested sibling never lights up', () => {
+    renderSidebar(ADMIN_PORTAL_ROUTES.reportsAnalytics)
+
+    expect(
+      screen.getByRole('link', { name: ADMIN_NAV_STRINGS.items.reportsAnalytics }),
+    ).toHaveAttribute('aria-current', 'page')
+    expect(
+      screen.getByRole('link', { name: ADMIN_NAV_STRINGS.items.reportsBookingRequests }),
+    ).not.toHaveAttribute('aria-current')
   })
 })
 
@@ -220,19 +283,22 @@ function renderHeaderAt(path: string) {
   )
 }
 
-describe('AdminPortal replica — theme toggle (Phase 3.5)', () => {
-  it('flips the wrapper data-theme between dashwind-light and dashwind-dark', () => {
+describe('AdminPortal — theme toggle', () => {
+  it('flips the wrapper data-theme between cupcake and dashwind-dark', () => {
     const { container } = renderHeaderAt('/admin-portal/dashboard')
     const wrapper = container.querySelector('[data-theme]')
 
-    // jsdom has no matchMedia → initialises to light.
-    expect(wrapper).toHaveAttribute('data-theme', 'dashwind-light')
+    // jsdom has no matchMedia → initialises to light, which is now `cupcake` (the pastel
+    // light theme adopted for the WHOLE portal, not just the sidebar).
+    expect(wrapper).toHaveAttribute('data-theme', 'cupcake')
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle light and dark theme' }))
+    // The dark branch is still `dashwind-dark`: `cupcake` is light-only, and the `-dark`
+    // SUFFIX is load-bearing for `index.css`'s `@custom-variant dark` selector.
     expect(wrapper).toHaveAttribute('data-theme', 'dashwind-dark')
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle light and dark theme' }))
-    expect(wrapper).toHaveAttribute('data-theme', 'dashwind-light')
+    expect(wrapper).toHaveAttribute('data-theme', 'cupcake')
   })
 })
 
@@ -277,15 +343,16 @@ describe('AdminPortal replica — stub pages (Phase 3.5)', () => {
     expect(screen.getByText(/coming soon/i)).toBeInTheDocument()
   })
 
-  it('registers `dashboard` as a stub titled "Dashboard", still reachable from the sidebar', () => {
-    // The DashWind mock-data dashboard (fake stat cards + Chart.js canvases) was deleted;
-    // `dashboard` is now an ordinary entry in `ADMIN_PORTAL_STUB_ROUTES`, which IS the
-    // route registration in `App.tsx`. The sidebar leaf and its title must survive that.
+  it('keeps `dashboard` as the segment, relabelled to ภาพรวมระบบ and still in the sidebar', () => {
+    // The segment is REUSED rather than renamed to `overview`, because it is the shell's
+    // `index` redirect target — reusing it means the redirect needs no change.
     const dashboard = ADMIN_PORTAL_STUB_ROUTES.find((stub) => stub.segment === 'dashboard')
-    expect(dashboard).toEqual({ segment: 'dashboard', title: 'Dashboard' })
+    expect(dashboard).toEqual({
+      segment: 'dashboard',
+      title: ADMIN_NAV_STRINGS.items.dashboard,
+    })
 
-    const leaves = NAV_ITEMS.flatMap((e) => (isSubmenu(e) ? e.submenu : [e]))
-    expect(leaves.some((leaf) => leaf.to === ADMIN_PORTAL_ROUTES.dashboard)).toBe(true)
+    expect(allNavLeaves().some((leaf) => leaf.to === ADMIN_PORTAL_ROUTES.dashboard)).toBe(true)
   })
 
   it('renders the inert placeholder — not mock data — at the dashboard route', () => {
@@ -295,7 +362,10 @@ describe('AdminPortal replica — stub pages (Phase 3.5)', () => {
           <Routes>
             <Route element={<AdminPortalThemeLayout />}>
               <Route path={ADMIN_PORTAL_ROUTES.base} element={<AdminPortalLayout />}>
-                <Route path="dashboard" element={<AdminPortalStubPage title="Dashboard" />} />
+                <Route
+                  path="dashboard"
+                  element={<AdminPortalStubPage title={ADMIN_NAV_STRINGS.items.dashboard} />}
+                />
               </Route>
             </Route>
           </Routes>
@@ -304,7 +374,7 @@ describe('AdminPortal replica — stub pages (Phase 3.5)', () => {
     )
 
     const main = screen.getByRole('main')
-    expect(within(main).getAllByText('Dashboard').length).toBeGreaterThan(0)
+    expect(within(main).getAllByText(ADMIN_NAV_STRINGS.items.dashboard).length).toBeGreaterThan(0)
     expect(within(main).getByText(/coming soon/i)).toBeInTheDocument()
     // No Chart.js canvas and none of the deleted mock figures survive.
     expect(main.querySelector('canvas')).toBeNull()

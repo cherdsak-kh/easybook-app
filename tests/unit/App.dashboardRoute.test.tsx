@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import App from '@/App'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { ADMIN_PORTAL_ROUTES } from '@/components/admin-portal/routes'
+import { ADMIN_NAV_STRINGS } from '@/constants/ui-strings-admin-nav'
 import { makeSystemUser } from '@tests/helpers/system-user-factory'
 import * as apiClient from '@/lib/api-client'
 
@@ -41,7 +42,7 @@ beforeEach(() => {
  * placeholders — there is no bespoke lazy import for it any more.
  */
 describe('App — /admin-portal/dashboard is an inert stub', () => {
-  it('renders the shared "coming soon" placeholder titled "Dashboard", with no console error', async () => {
+  it('renders the shared "coming soon" placeholder titled ภาพรวมระบบ, with no console error', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     render(
@@ -56,7 +57,9 @@ describe('App — /admin-portal/dashboard is an inert stub', () => {
     expect(await screen.findByText(/coming soon/i)).toBeInTheDocument()
 
     const main = screen.getByRole('main')
-    expect(within(main).getAllByText('Dashboard').length).toBeGreaterThan(0)
+    // The segment is still `dashboard` (it is the shell's `index` redirect target); only
+    // the LABEL changed, to the Thai `ภาพรวมระบบ` shared with the sidebar leaf.
+    expect(within(main).getAllByText(ADMIN_NAV_STRINGS.items.dashboard).length).toBeGreaterThan(0)
     // The 404 never wins: the leaf is registered, so the global splat is not reached.
     expect(screen.queryByRole('heading', { name: '404 - Not Found' })).not.toBeInTheDocument()
     // Nothing renders mock data any more — no Chart.js canvas, no invented figures.

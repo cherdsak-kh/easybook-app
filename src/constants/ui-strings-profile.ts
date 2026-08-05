@@ -25,19 +25,26 @@ export interface BilingualLabel {
 
 export const PROFILE_STRINGS = {
   /**
-   * Page heading. Renders as exactly `ข้อมูลผู้ใช้งาน (User Profile)` — the role badge
-   * that used to sit beside it was removed (PO review): the role is already stated on
-   * the header card and in the account card, and a third copy in the `<h1>` made the
-   * page's accessible name role-dependent.
+   * Page heading. Renders as exactly `โปรไฟล์ (User Profile)` — the role badge that used
+   * to sit beside it was removed (PO review): the role is already stated on the header
+   * card and in the account card, and a third copy in the `<h1>` made the page's
+   * accessible name role-dependent.
+   *
+   * It reads `โปรไฟล์`, matching `navLabel` below, because a page heading that differs
+   * from the menu item the user just clicked reads as the wrong page. Only the COPY
+   * changed here — no file, directory or route segment was renamed; they all already say
+   * `profile`.
    */
-  heading: { th: 'ข้อมูลผู้ใช้งาน', en: 'User Profile' },
+  heading: { th: 'โปรไฟล์', en: 'User Profile' },
 
   /**
-   * The label this page is known by in the SHELL — the sidebar's Settings → Profile
-   * leaf and the navbar avatar dropdown. Both read this one literal so the two entry
-   * points into `/admin-portal/profile` can never drift apart (or from the tests).
+   * The label this page is known by in the SHELL — the sidebar's
+   * `การตั้งค่า → บัญชีผู้ใช้งาน → โปรไฟล์` leaf and the navbar avatar dropdown. Both read
+   * this one literal so the two entry points into `/admin-portal/profile` can never drift
+   * apart (or from the tests). The dropdown following this rename is INTENDED — do not
+   * fork it into two constants.
    */
-  navLabel: 'ข้อมูลผู้ใช้งาน',
+  navLabel: 'โปรไฟล์',
 
   /** Rendered wherever a nullable value is absent (`—`, never "Invalid Date"). */
   emptyValue: '—',

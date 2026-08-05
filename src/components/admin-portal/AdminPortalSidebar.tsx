@@ -1,23 +1,20 @@
 // Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
-// The explicit `gap-1` + `py-3` row spacing is load-bearing: it restores the daisyUI-4
-// template's breathable menu, which daisyUI-5 compacts by default.
-import { NavLink, useLocation } from 'react-router-dom'
+// ~31 rows do not fit one viewport, so the sidebar is a fixed-height flex column: a brand
+// header that never scrolls away, and a nav body that scrolls on its own. The explicit
+// `gap-1` row spacing is load-bearing: it restores the daisyUI-4 template's breathable
+// menu, which daisyUI-5 compacts by default.
+import { useLocation } from 'react-router-dom'
 import XMarkIcon from '@heroicons/react/24/outline/XMarkIcon'
 import { BRAND } from '@/constants/ui-strings-brand'
 import { SidebarSubmenu } from './SidebarSubmenu'
+import { SidebarLeafLink } from './sidebar-row'
 import {
   ADMIN_PORTAL_DRAWER_ID,
   BRAND_NAME,
-  NAV_ITEMS,
+  NAV_SECTIONS,
   isSubmenu,
   type NavSubmenu,
 } from './nav-config'
-
-const linkClass = ({ isActive }: { isActive: boolean }) =>
-  [
-    'relative flex items-center gap-2 py-3',
-    isActive ? 'font-semibold bg-base-200' : 'font-normal',
-  ].join(' ')
 
 /** Does any LIVE leaf of this submenu match the current path? Drives auto-expand. */
 function submenuHasActiveChild(entry: NavSubmenu, pathname: string): boolean {
@@ -25,11 +22,19 @@ function submenuHasActiveChild(entry: NavSubmenu, pathname: string): boolean {
 }
 
 /**
- * The replica sidebar, rendered as daisyUI's `drawer-side`. On `lg+` it is
+ * The admin-portal sidebar, rendered as daisyUI's `drawer-side`. On `lg+` it is
  * persistent; on mobile it slides in over a `drawer-overlay` scrim. Both the scrim
- * `<label>` and the ✕ button point at the drawer checkbox so tapping either closes
- * it, and each live `NavLink`'s `onClick` closes it too. The brand row carries the real
- * EasyBook mark and wordmark (it used to be an inline-SVG placeholder + "DashWind").
+ * `<label>` and the ✕ button point at the drawer checkbox so tapping either closes it, and
+ * each `NavLink`'s `onClick` closes it too.
+ *
+ * Layout: `.drawer-side` is `height: 100dvh` in both modes, so the `<nav>` is pinned to
+ * `h-dvh` and split into a `shrink-0` brand header and a `flex-1 overflow-y-auto` body.
+ * That is what keeps the wordmark on screen through a 31-item scroll; `overscroll-contain`
+ * stops that scroll chaining into the page content behind it.
+ *
+ * Structure: one `<ul class="menu">` per section, each headed by a non-interactive
+ * `<li class="menu-title">` that also names the list via `aria-labelledby`, so a screen
+ * reader announces the category before its leaves instead of reading 31 orphaned links.
  */
 export function AdminPortalSidebar() {
   const { pathname } = useLocation()
@@ -46,75 +51,88 @@ export function AdminPortalSidebar() {
 
       <nav
         aria-label="Sidebar navigation"
-        className="relative min-h-full w-80 bg-base-100 pt-2 text-base-content"
+        className="flex h-dvh w-80 flex-col bg-base-100 text-base-content"
       >
-        {/* Mobile-only close affordance (keyboard-reachable, unlike the scrim). */}
-        <button
-          type="button"
-          onClick={closeDrawer}
-          aria-label="Close menu"
-          className="btn btn-ghost btn-circle bg-base-300 absolute right-2 top-4 z-50 lg:hidden"
-        >
-          <XMarkIcon aria-hidden className="h-5 w-5" />
-        </button>
+        {/* Brand row: the real EasyBook mark + wordmark, both from the shared `BRAND`
+            module so this row and the login screen's `LandingIntro` cannot drift apart.
+            The mark is served from `public/` at its runtime URL, not imported as a module.
+            `sticky top-0` is belt-and-braces on top of the flex pinning; the opaque
+            `bg-base-100` keeps scrolled rows from showing through it. The ✕ moved INTO
+            this row (it used to be `absolute`, so it scrolled off the top of a long menu). */}
+        <div className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-base-300 bg-base-100 px-4 py-3">
+          <img
+            src={BRAND.logoSrc}
+            alt={BRAND.logoAlt}
+            width={40}
+            height={40}
+            className="h-10 w-10 object-contain"
+          />
+          <span className="text-xl font-semibold">{BRAND_NAME}</span>
+          {/* Mobile-only close affordance (keyboard-reachable, unlike the scrim). */}
+          <button
+            type="button"
+            onClick={closeDrawer}
+            aria-label="Close menu"
+            className="btn btn-ghost btn-circle ml-auto lg:hidden"
+          >
+            <XMarkIcon aria-hidden className="h-6 w-6" />
+          </button>
+        </div>
 
-        {/* `gap-1` widens the space between rows; `py-3` on each row (below) makes
-            them taller — together they restore DashWind's breathable daisyUI-4 menu
-            spacing that daisyUI-5 compacts by default. */}
-        <ul className="menu w-full gap-1">
-          {/* Brand row: the real EasyBook mark + the "EasyBook" wordmark. Both come from
-              the shared `BRAND` module, so this row and the login screen's `LandingIntro`
-              cannot drift apart. The mark is served from `public/` at its runtime URL
-              (`/logo/…svg`), not imported as a module.
+        <div className="flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pb-8">
+          {NAV_SECTIONS.map((section, index) => {
+            const titleId = section.title
+              ? `${ADMIN_PORTAL_DRAWER_ID}-section-${index}`
+              : undefined
 
-              The `h-10 w-10` box is the exact size of the inline-SVG placeholder it
-              replaced, so the sidebar header height is unchanged. `object-contain` keeps a
-              non-square asset from stretching. */}
-          <li className="mb-2 text-xl font-semibold">
-            <div className="pointer-events-none flex items-center gap-2">
-              <img
-                src={BRAND.logoSrc}
-                alt={BRAND.logoAlt}
-                width={40}
-                height={40}
-                className="h-10 w-10 object-contain"
-              />
-              <span>{BRAND_NAME}</span>
-            </div>
-          </li>
-
-          {NAV_ITEMS.map((entry) => {
-            if (isSubmenu(entry)) {
-              return (
-                <li key={entry.label}>
-                  <SidebarSubmenu
-                    entry={entry}
-                    onNavigate={closeDrawer}
-                    hasActiveChild={submenuHasActiveChild(entry, pathname)}
-                  />
-                </li>
-              )
-            }
             return (
-              <li key={entry.label}>
-                <NavLink to={entry.to} end onClick={closeDrawer} className={linkClass}>
-                  {({ isActive }) => (
-                    <>
-                      {entry.icon}
-                      <span>{entry.label}</span>
-                      {isActive && (
-                        <span
-                          aria-hidden
-                          className="absolute inset-y-0 left-0 w-1 rounded-br-md rounded-tr-md bg-primary"
+              <ul
+                key={section.title ?? `section-${index}`}
+                aria-labelledby={titleId}
+                className={[
+                  'menu w-full gap-1',
+                  // A rule above every LABELLED section visually separates the groups; the
+                  // unlabelled section 0 sits flush at the top with no leading rule.
+                  section.title ? 'border-t border-base-300' : '',
+                ].join(' ')}
+              >
+                {section.title && (
+                  // Non-interactive, non-focusable, never a link. daisyUI's stock
+                  // `menu-title` colour is `base-content` at 40% — 1.60:1 on `cupcake`,
+                  // which is unreadable — so it is pinned to /90 (6.39:1 / 6.42:1) and
+                  // distinguished from leaves by SIZE + WEIGHT + tracking, not by colour.
+                  <li
+                    id={titleId}
+                    className="menu-title text-sm font-bold tracking-wide text-base-content/90"
+                  >
+                    {section.title}
+                  </li>
+                )}
+
+                {section.items.map((entry) => {
+                  if (isSubmenu(entry)) {
+                    return (
+                      <li key={entry.label}>
+                        <SidebarSubmenu
+                          entry={entry}
+                          onNavigate={closeDrawer}
+                          hasActiveChild={submenuHasActiveChild(entry, pathname)}
                         />
-                      )}
-                    </>
-                  )}
-                </NavLink>
-              </li>
+                      </li>
+                    )
+                  }
+                  return (
+                    <li key={entry.label}>
+                      {/* Same component the nested submenu leaves use, so a top-level row
+                          and a submenu row cannot drift apart. */}
+                      <SidebarLeafLink leaf={entry} onNavigate={closeDrawer} />
+                    </li>
+                  )
+                })}
+              </ul>
             )
           })}
-        </ul>
+        </div>
       </nav>
     </div>
   )

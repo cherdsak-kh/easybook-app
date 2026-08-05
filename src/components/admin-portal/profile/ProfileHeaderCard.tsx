@@ -72,7 +72,7 @@ export function ProfileHeaderCard({
             onClick={onChangeAvatar}
             aria-label={T.actions.changeAvatar}
             title={T.actions.changeAvatar}
-            className="btn btn-circle btn-neutral btn-xs absolute right-0 bottom-0 shadow-sm transition-transform motion-safe:hover:scale-110 focus-visible:ring-2 focus-visible:ring-primary"
+            className="btn btn-circle btn-neutral btn-xs absolute right-0 bottom-0 shadow-sm transition-transform motion-safe:hover:scale-110 focus-visible:ring-2 focus-visible:ring-base-content"
           >
             <CameraIcon className="size-3.5" aria-hidden />
           </button>
@@ -142,7 +142,7 @@ function CuidRow({ id }: { readonly id: string }) {
         onClick={() => void copy()}
         aria-label={T.actions.copyId}
         title={T.actions.copyId}
-        className="btn btn-ghost btn-circle btn-xs shrink-0 text-base-content/60 transition-colors hover:text-base-content focus-visible:ring-2 focus-visible:ring-primary"
+        className="btn btn-ghost btn-circle btn-xs shrink-0 text-base-content/60 transition-colors hover:text-base-content focus-visible:ring-2 focus-visible:ring-base-content"
       >
         {status === 'copied' ? (
           <CheckIcon className="size-4 text-success" aria-hidden />

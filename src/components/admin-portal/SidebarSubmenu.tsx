@@ -1,17 +1,12 @@
 // Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
 // Auto-expand is local `useState` + `useLocation` (no Redux — there was none upstream either).
-// `menu-compact` → `menu-sm` is the one daisyUI v4→v5 rename; `py-2.5` matches the top-level menu.
+// Markup is daisyUI's JS-driven submenu pattern (`menu-dropdown-toggle` / `menu-dropdown` /
+// `menu-dropdown-show`), NOT `<details>`: `<summary>` cannot carry `aria-expanded` +
+// `aria-controls`, and those are a hard requirement here.
 import { useEffect, useState } from 'react'
-import { NavLink } from 'react-router-dom'
-import ChevronDownIcon from '@heroicons/react/24/outline/ChevronDownIcon'
 import type { NavSubmenu } from './nav-config'
 import { ADMIN_PORTAL_DRAWER_ID } from './nav-config'
-
-const leafClass = ({ isActive }: { isActive: boolean }) =>
-  [
-    'flex items-center gap-2 py-2.5',
-    isActive ? 'font-semibold bg-base-200' : 'font-normal',
-  ].join(' ')
+import { SidebarLeafLink, SidebarSubmenuToggle } from './sidebar-row'
 
 interface SidebarSubmenuProps {
   readonly entry: NavSubmenu
@@ -21,10 +16,22 @@ interface SidebarSubmenuProps {
   readonly hasActiveChild: boolean
 }
 
+/**
+ * A collapsible group. Renders a FRAGMENT (toggle + list) rather than a wrapper `<div>`,
+ * because daisyUI's dropdown selectors are direct-child ones — `li > .menu-dropdown-toggle`
+ * for the chevron and `li > .menu-dropdown:not(.menu-dropdown-show)` for the hide — so a
+ * wrapper element in between would silently disable both. The caller supplies the `<li>`.
+ *
+ * Collapsed by default; auto-expands when it contains the active route, including on a
+ * direct URL load of a nested path such as `/admin-portal/settings/roles`. Navigating away
+ * deliberately does NOT re-collapse it (prior behaviour, preserved).
+ */
 export function SidebarSubmenu({ entry, onNavigate, hasActiveChild }: SidebarSubmenuProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+  // Seeded from `hasActiveChild` so a direct deep link paints expanded on the FIRST frame
+  // instead of flashing collapsed for one commit.
+  const [isExpanded, setIsExpanded] = useState(hasActiveChild)
 
-  // Open the submenu on mount if it contains the active route (direct-load case).
+  // Re-open if the active route moves INTO this submenu after mount.
   useEffect(() => {
     if (hasActiveChild) setIsExpanded(true)
   }, [hasActiveChild])
@@ -32,34 +39,30 @@ export function SidebarSubmenu({ entry, onNavigate, hasActiveChild }: SidebarSub
   const submenuId = `${ADMIN_PORTAL_DRAWER_ID}-submenu-${entry.label.replace(/\s+/g, '-').toLowerCase()}`
 
   return (
-    <div className="flex flex-col">
-      <button
-        type="button"
-        onClick={() => setIsExpanded((v) => !v)}
-        aria-expanded={isExpanded}
-        aria-controls={submenuId}
-        className="flex w-full items-center gap-2 py-3"
-      >
-        {entry.icon}
-        <span className="flex-1 text-left">{entry.label}</span>
-        <ChevronDownIcon
-          aria-hidden
-          className={`h-5 w-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-        />
-      </button>
+    <>
+      <SidebarSubmenuToggle
+        entry={entry}
+        isExpanded={isExpanded}
+        submenuId={submenuId}
+        onToggle={() => setIsExpanded((v) => !v)}
+      />
 
-      <div id={submenuId} className={`w-full ${isExpanded ? '' : 'hidden'}`}>
-        <ul className="menu menu-sm gap-1">
-          {entry.submenu.map((leaf) => (
-            <li key={leaf.label}>
-              <NavLink to={leaf.to} end onClick={onNavigate} className={leafClass}>
-                {leaf.icon}
-                <span>{leaf.label}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
+      {/* `whitespace-normal` overrides daisyUI's `white-space: nowrap` on nested lists —
+          without it the long Thai labels overflow a 320px drawer and are then clipped by
+          the drawer's `overflow-x: hidden`. */}
+      <ul
+        id={submenuId}
+        className={[
+          'menu-dropdown gap-1 whitespace-normal',
+          isExpanded ? 'menu-dropdown-show' : '',
+        ].join(' ')}
+      >
+        {entry.submenu.map((leaf) => (
+          <li key={leaf.label}>
+            <SidebarLeafLink leaf={leaf} onNavigate={onNavigate} />
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }

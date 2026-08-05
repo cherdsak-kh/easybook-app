@@ -194,7 +194,7 @@ function TextField({
       onChange={(e) => onChange(e.target.value)}
       className={`input input-sm w-full transition-colors ${
         editing
-          ? 'focus-visible:ring-2 focus-visible:ring-primary'
+          ? 'focus-visible:ring-2 focus-visible:ring-base-content'
           : 'input-ghost px-0 focus:outline-none'
       }`}
     />
@@ -259,7 +259,7 @@ function OptionSelect({
       onChange={(e) => onChange(Number(e.target.value))}
       className={`select select-sm w-full transition-colors ${
         editing
-          ? 'focus-visible:ring-2 focus-visible:ring-primary'
+          ? 'focus-visible:ring-2 focus-visible:ring-base-content'
           : // Plain-text view mode, to match `TextField`. `select-ghost` drops the
             // border/fill; `bg-none` drops daisyUI's chevron (it is painted with two
             // `linear-gradient` background-images, not a pseudo-element); and the three

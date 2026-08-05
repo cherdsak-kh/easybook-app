@@ -74,7 +74,7 @@ export function AdminPortalHeader() {
             (context) — the crossfade tracks the real `data-theme`, and the visually
             hidden checkbox stays keyboard-operable (Space) with a visible focus ring. */}
         <label
-          className="btn btn-ghost btn-circle swap swap-rotate focus-within:ring-2 focus-within:ring-primary"
+          className="btn btn-ghost btn-circle swap swap-rotate focus-within:ring-2 focus-within:ring-base-content"
           title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
         >
           <input

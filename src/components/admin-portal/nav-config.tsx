@@ -1,20 +1,41 @@
 // Ported from DashWind (daisyui-admin-dashboard-template) — MIT (c) 2022 Dashwind. See THIRD_PARTY_NOTICES.md
-// EVERY entry must carry a `to`: targets without a bespoke page render the shared
+// EVERY leaf must carry a `to`: targets without a bespoke page render the shared
 // `AdminPortalStubPage`, so no menu item is ever a dead end.
 import type { ReactNode } from 'react'
+import AdjustmentsHorizontalIcon from '@heroicons/react/24/outline/AdjustmentsHorizontalIcon'
+import BellIcon from '@heroicons/react/24/outline/BellIcon'
 import BoltIcon from '@heroicons/react/24/outline/BoltIcon'
+import BookOpenIcon from '@heroicons/react/24/outline/BookOpenIcon'
+import BriefcaseIcon from '@heroicons/react/24/outline/BriefcaseIcon'
+import BuildingLibraryIcon from '@heroicons/react/24/outline/BuildingLibraryIcon'
+import BuildingOffice2Icon from '@heroicons/react/24/outline/BuildingOffice2Icon'
+import BuildingOfficeIcon from '@heroicons/react/24/outline/BuildingOfficeIcon'
 import CalendarDaysIcon from '@heroicons/react/24/outline/CalendarDaysIcon'
+import CalendarIcon from '@heroicons/react/24/outline/CalendarIcon'
 import ChartBarIcon from '@heroicons/react/24/outline/ChartBarIcon'
-import CodeBracketSquareIcon from '@heroicons/react/24/outline/CodeBracketSquareIcon'
+import ChatBubbleBottomCenterTextIcon from '@heroicons/react/24/outline/ChatBubbleBottomCenterTextIcon'
+import ChatBubbleLeftEllipsisIcon from '@heroicons/react/24/outline/ChatBubbleLeftEllipsisIcon'
+import ChatBubbleLeftRightIcon from '@heroicons/react/24/outline/ChatBubbleLeftRightIcon'
+import ClipboardDocumentCheckIcon from '@heroicons/react/24/outline/ClipboardDocumentCheckIcon'
+import ClipboardDocumentListIcon from '@heroicons/react/24/outline/ClipboardDocumentListIcon'
+import ClockIcon from '@heroicons/react/24/outline/ClockIcon'
 import Cog6ToothIcon from '@heroicons/react/24/outline/Cog6ToothIcon'
-import CurrencyDollarIcon from '@heroicons/react/24/outline/CurrencyDollarIcon'
-import DocumentTextIcon from '@heroicons/react/24/outline/DocumentTextIcon'
+import ExclamationTriangleIcon from '@heroicons/react/24/outline/ExclamationTriangleIcon'
 import IdentificationIcon from '@heroicons/react/24/outline/IdentificationIcon'
+import InformationCircleIcon from '@heroicons/react/24/outline/InformationCircleIcon'
+import KeyIcon from '@heroicons/react/24/outline/KeyIcon'
+import LifebuoyIcon from '@heroicons/react/24/outline/LifebuoyIcon'
+import LockClosedIcon from '@heroicons/react/24/outline/LockClosedIcon'
+import MegaphoneIcon from '@heroicons/react/24/outline/MegaphoneIcon'
+import PresentationChartLineIcon from '@heroicons/react/24/outline/PresentationChartLineIcon'
+import ShieldCheckIcon from '@heroicons/react/24/outline/ShieldCheckIcon'
 import Squares2X2Icon from '@heroicons/react/24/outline/Squares2X2Icon'
-import TableCellsIcon from '@heroicons/react/24/outline/TableCellsIcon'
+import TagIcon from '@heroicons/react/24/outline/TagIcon'
+import UserCircleIcon from '@heroicons/react/24/outline/UserCircleIcon'
+import UserGroupIcon from '@heroicons/react/24/outline/UserGroupIcon'
 import UserIcon from '@heroicons/react/24/outline/UserIcon'
-import UsersIcon from '@heroicons/react/24/outline/UsersIcon'
-import WalletIcon from '@heroicons/react/24/outline/WalletIcon'
+import UserPlusIcon from '@heroicons/react/24/outline/UserPlusIcon'
+import { ADMIN_NAV_STRINGS } from '@/constants/ui-strings-admin-nav'
 import { BRAND } from '@/constants/ui-strings-brand'
 import { PROFILE_STRINGS } from '@/constants/ui-strings-profile'
 import { ADMIN_PORTAL_ROUTES } from './routes'
@@ -37,8 +58,16 @@ export const ADMIN_PORTAL_DRAWER_ID = 'admin-portal-drawer'
  */
 export const BRAND_NAME = BRAND.name
 
-const ICON = 'h-6 w-6'
-const SUBMENU_ICON = 'h-5 w-5'
+/**
+ * ONE icon size for the whole menu. Nested submenu icons used to be `h-5 w-5`; they are
+ * now the same `h-6 w-6` as the top level — a 20px glyph is the first thing an older
+ * user loses at arm's length, and the PO asked for prominent icons.
+ *
+ * `shrink-0` keeps the glyph square when a long Thai label wraps onto a second line.
+ * Every icon is `aria-hidden`: the text label always ships beside it, so the icon is
+ * never the sole carrier of meaning.
+ */
+const ICON = 'h-6 w-6 shrink-0'
 
 /** A single (leaf) nav entry. Every leaf is a LIVE route (`to` is required). */
 export interface NavLeaf {
@@ -47,7 +76,7 @@ export interface NavLeaf {
   readonly to: string
 }
 
-/** A collapsible submenu group (its own items are leaves). */
+/** A collapsible submenu group (its own items are leaves). Has no route of its own. */
 export interface NavSubmenu {
   readonly label: string
   readonly icon: ReactNode
@@ -62,59 +91,251 @@ export function isSubmenu(entry: NavEntry): entry is NavSubmenu {
 }
 
 /**
- * The DashWind sidebar, verbatim in labels + icon choices (`routes/sidebar.js`).
- * Every leaf carries a real `to`: Leads + Team Members reach bespoke pages, Login opens
- * the replica login screen, and every other target — Dashboard now included — reaches the
- * shared `AdminPortalStubPage`, so the whole menu navigates (Phase 3.5 / 3.6).
+ * A category of the menu. Sections WRAP entries, they do not replace them — a
+ * {@link NavSubmenu} nests one level deeper, inside a section.
+ *
+ * The header is rendered as a daisyUI `<li class="menu-title">`: non-interactive and
+ * non-focusable. A section header is never a link and never collapses its section.
  */
-export const NAV_ITEMS: readonly NavEntry[] = [
-  { label: 'Dashboard', icon: <Squares2X2Icon className={ICON} />, to: ADMIN_PORTAL_ROUTES.dashboard },
-  { label: 'ข้อมูลการลงทะเบียน', icon: <IdentificationIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.lineUsers },
-  { label: 'Transactions', icon: <CurrencyDollarIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.transactions },
-  { label: 'Analytics', icon: <ChartBarIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.charts },
-  { label: 'Integration', icon: <BoltIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.integration },
-  { label: 'Calendar', icon: <CalendarDaysIcon className={ICON} />, to: ADMIN_PORTAL_ROUTES.calendar },
-  // REMOVED: the DashWind `Pages` submenu (Login / Register / Forgot Password / Blank
-  // Page). Three of its four leaves pointed at "coming soon" placeholders for auth screens
-  // this product does not have and will not grow here — self-service registration and
-  // password recovery are deliberately NOT features of an invite-only back office — so the
-  // routes were deleted with the menu rather than left as reachable dead ends.
-  //
-  // `/admin-portal/login` is untouched and still the app's real, working login page; it is
-  // simply not a SIDEBAR entry, because the sidebar only renders inside the authenticated
-  // shell, where "go to the login page" is not a thing anyone needs.
+export interface NavSection {
+  /** Thai category header. `undefined` = an unlabelled top group (section 0). */
+  readonly title?: string
+  readonly items: readonly NavEntry[]
+}
+
+/**
+ * The admin portal's real information architecture: 5 sections, 31 leaves, 2 collapsible
+ * submenus. Labels come from `ADMIN_NAV_STRINGS` — the same literals `routes.ts` uses for
+ * the stub page titles — so a placeholder page can never be headed differently from the
+ * menu item that reached it.
+ *
+ * This replaced the DashWind-verbatim menu wholesale. Its leftovers (Transactions,
+ * Analytics/`charts`, Integration, Calendar, Billing and the whole Documentation submenu)
+ * and the mock-data Team Members page were deleted rather than relabelled — see
+ * `routes.ts`.
+ */
+export const NAV_SECTIONS: readonly NavSection[] = [
+  // --- Section 0 — no category header -------------------------------------
   {
-    label: 'Settings',
-    icon: <Cog6ToothIcon className={ICON} />,
-    submenu: [
-      // The REAL self-service profile page. This leaf used to point at the
-      // `settings-profile` DashWind stub; the stub (and its route constant) were
-      // removed with it, so the sidebar carries exactly ONE profile entry. The label
-      // is the SHARED `PROFILE_STRINGS.navLabel` — the navbar avatar dropdown renders
-      // the same constant, so the two ways into this page cannot be worded differently.
+    items: [
       {
-        label: PROFILE_STRINGS.navLabel,
-        icon: <UserIcon className={SUBMENU_ICON} />,
-        to: ADMIN_PORTAL_ROUTES.profile,
+        label: ADMIN_NAV_STRINGS.items.dashboard,
+        icon: <Squares2X2Icon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.dashboard,
       },
-      { label: 'Billing', icon: <WalletIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.settingsBilling },
-      // The ported Team members table (PO scope addition) — a bespoke page.
-      { label: 'Team Members', icon: <UsersIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.team },
     ],
   },
+
+  // --- Section 1 — การบริหารจัดการ -------------------------------------------
   {
-    label: 'Documentation',
-    icon: <DocumentTextIcon className={ICON} />,
-    submenu: [
-      { label: 'Getting Started', icon: <DocumentTextIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.gettingStarted },
-      { label: 'Features', icon: <TableCellsIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.features },
-      { label: 'Components', icon: <CodeBracketSquareIcon className={SUBMENU_ICON} />, to: ADMIN_PORTAL_ROUTES.components },
+    title: ADMIN_NAV_STRINGS.sections.management,
+    items: [
+      {
+        label: ADMIN_NAV_STRINGS.items.bookingCalendar,
+        icon: <CalendarDaysIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.bookingCalendar,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.bookingRequests,
+        icon: <ClipboardDocumentListIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.bookingRequests,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.announcements,
+        icon: <MegaphoneIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.announcements,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.venues,
+        icon: <BuildingOffice2Icon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.venues,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.holidays,
+        icon: <CalendarIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.holidays,
+      },
+      // The REAL LINE-user registration page — bespoke, wired to live data. Untouched
+      // by this overhaul apart from its new parent section.
+      {
+        label: ADMIN_NAV_STRINGS.items.lineUsers,
+        icon: <IdentificationIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.lineUsers,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.feedback,
+        icon: <ChatBubbleLeftRightIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.feedback,
+      },
+      // Successor to the deleted DashWind "Team Members" mock table: where the
+      // still-outstanding staff-management rebuild will land. A placeholder for now.
+      {
+        label: ADMIN_NAV_STRINGS.items.staff,
+        icon: <UserGroupIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.staff,
+      },
+    ],
+  },
+
+  // --- Section 2 — รายงานและสถิติ ---------------------------------------------
+  {
+    title: ADMIN_NAV_STRINGS.sections.reports,
+    items: [
+      {
+        label: ADMIN_NAV_STRINGS.items.reportsAnalytics,
+        icon: <ChartBarIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.reportsAnalytics,
+      },
+      // Distinct icon from the `booking-requests` DATA page above, so the two
+      // similarly-worded entries never read as duplicates.
+      {
+        label: ADMIN_NAV_STRINGS.items.reportsBookingRequests,
+        icon: <ClipboardDocumentCheckIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.reportsBookingRequests,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.reportsVenueUsage,
+        icon: <BuildingLibraryIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.reportsVenueUsage,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.reportsRegistrations,
+        icon: <UserPlusIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.reportsRegistrations,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.reportsFeedback,
+        icon: <ChatBubbleBottomCenterTextIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.reportsFeedback,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.reportsSystemUsage,
+        icon: <PresentationChartLineIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.reportsSystemUsage,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.reportsErrorLogs,
+        icon: <ExclamationTriangleIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.reportsErrorLogs,
+      },
+    ],
+  },
+
+  // --- Section 3 — การตั้งค่า (two collapsible submenus) ----------------------
+  {
+    title: ADMIN_NAV_STRINGS.sections.settings,
+    items: [
+      {
+        label: ADMIN_NAV_STRINGS.groups.account,
+        icon: <UserCircleIcon aria-hidden className={ICON} />,
+        submenu: [
+          // The REAL self-service profile page. The label is the SHARED
+          // `PROFILE_STRINGS.navLabel` — the navbar avatar dropdown renders the same
+          // constant, so the two ways into this page cannot be worded differently.
+          {
+            label: PROFILE_STRINGS.navLabel,
+            icon: <UserIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.profile,
+          },
+          // Coexists (for now) with the profile page's `ChangePasswordModal` — plan
+          // assumption #2; consolidating the two is a later decision.
+          {
+            label: ADMIN_NAV_STRINGS.items.accountPassword,
+            icon: <KeyIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.accountPassword,
+          },
+          {
+            label: ADMIN_NAV_STRINGS.items.accountNotifications,
+            icon: <BellIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.accountNotifications,
+          },
+          {
+            label: ADMIN_NAV_STRINGS.items.accountPrivacy,
+            icon: <LockClosedIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.accountPrivacy,
+          },
+          {
+            label: ADMIN_NAV_STRINGS.items.accountLoginHistory,
+            icon: <ClockIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.accountLoginHistory,
+          },
+        ],
+      },
+      {
+        label: ADMIN_NAV_STRINGS.groups.system,
+        icon: <Cog6ToothIcon aria-hidden className={ICON} />,
+        submenu: [
+          {
+            label: ADMIN_NAV_STRINGS.items.settingsBooking,
+            icon: <AdjustmentsHorizontalIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.settingsBooking,
+          },
+          {
+            label: ADMIN_NAV_STRINGS.items.settingsVenueTypes,
+            icon: <TagIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.settingsVenueTypes,
+          },
+          {
+            label: ADMIN_NAV_STRINGS.items.settingsRoles,
+            icon: <ShieldCheckIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.settingsRoles,
+          },
+          {
+            label: ADMIN_NAV_STRINGS.items.settingsDepartments,
+            icon: <BuildingOfficeIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.settingsDepartments,
+          },
+          {
+            label: ADMIN_NAV_STRINGS.items.settingsPersonnelRoles,
+            icon: <BriefcaseIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.settingsPersonnelRoles,
+          },
+          {
+            label: ADMIN_NAV_STRINGS.items.settingsMessageTemplates,
+            icon: <ChatBubbleLeftEllipsisIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.settingsMessageTemplates,
+          },
+          {
+            label: ADMIN_NAV_STRINGS.items.settingsIntegrations,
+            icon: <BoltIcon aria-hidden className={ICON} />,
+            to: ADMIN_PORTAL_ROUTES.settingsIntegrations,
+          },
+        ],
+      },
+    ],
+  },
+
+  // --- Section 4 — ข้อมูลเพิ่มเติมและการสนับสนุน --------------------------------
+  {
+    title: ADMIN_NAV_STRINGS.sections.support,
+    items: [
+      {
+        label: ADMIN_NAV_STRINGS.items.helpUserGuide,
+        icon: <BookOpenIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.helpUserGuide,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.helpContactSupport,
+        icon: <LifebuoyIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.helpContactSupport,
+      },
+      {
+        label: ADMIN_NAV_STRINGS.items.helpVersion,
+        icon: <InformationCircleIcon aria-hidden className={ICON} />,
+        to: ADMIN_PORTAL_ROUTES.helpVersion,
+      },
     ],
   },
 ]
 
-// REMOVED (PO review): `TITLE_BY_PATH` + `usePageTitle(pathname)`. They existed only to
-// feed the navbar's `<h1>{pageTitle}</h1>`, which is gone from `AdminPortalHeader` for
-// every page at every breakpoint (on mobile the hamburger overlapped it). Nothing else
-// imported either symbol — grep-verified — so they are deleted rather than left as dead
-// code. `BRAND_NAME` survives: the sidebar's wordmark still uses it.
+/**
+ * Every LIVE destination in the menu, flattened across sections and submenus, in render
+ * order. Callers (and tests) use this instead of re-deriving a `flatMap` over the section
+ * tree — the nesting is now two levels deep, so hand-rolled flattening silently misses
+ * the submenu leaves.
+ */
+export function allNavLeaves(): readonly NavLeaf[] {
+  return NAV_SECTIONS.flatMap((section) =>
+    section.items.flatMap((entry) => (isSubmenu(entry) ? entry.submenu : [entry])),
+  )
+}

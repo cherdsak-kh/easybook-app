@@ -345,7 +345,7 @@ export function AdminPortalLineUsersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={T.searchPlaceholder}
-            className="input w-full focus-visible:ring-2 focus-visible:ring-primary"
+            className="input w-full focus-visible:ring-2 focus-visible:ring-base-content"
           />
         </div>
         <div>
@@ -357,7 +357,7 @@ export function AdminPortalLineUsersPage() {
             aria-label={T.searchFieldLabel}
             value={searchField}
             onChange={(e) => setSearchField(e.target.value as SearchField)}
-            className="select w-full focus-visible:ring-2 focus-visible:ring-primary"
+            className="select w-full focus-visible:ring-2 focus-visible:ring-base-content"
           >
             {SEARCH_FIELD_OPTIONS.map((f) => (
               <option key={f} value={f}>
@@ -375,7 +375,7 @@ export function AdminPortalLineUsersPage() {
             aria-label={T.sortLabel}
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortOption)}
-            className="select w-full focus-visible:ring-2 focus-visible:ring-primary"
+            className="select w-full focus-visible:ring-2 focus-visible:ring-base-content"
           >
             {SORT_OPTIONS.map((s) => (
               <option key={s} value={s}>
@@ -393,7 +393,7 @@ export function AdminPortalLineUsersPage() {
             aria-label={T.accessFilterLabel}
             value={accessFilter}
             onChange={(e) => setAccessFilter(e.target.value as AppAccess | '')}
-            className="select w-full focus-visible:ring-2 focus-visible:ring-primary"
+            className="select w-full focus-visible:ring-2 focus-visible:ring-base-content"
           >
             <option value="">{T.accessFilterAll}</option>
             {ACCESS_FILTER_OPTIONS.map((a) => (
@@ -485,7 +485,7 @@ export function AdminPortalLineUsersPage() {
               type="button"
               onClick={() => setPage(Math.max(1, page - 1))}
               disabled={page <= 1 || loading}
-              className="btn btn-outline btn-sm join-item focus-visible:ring-2 focus-visible:ring-primary"
+              className="btn btn-outline btn-sm join-item focus-visible:ring-2 focus-visible:ring-base-content"
             >
               {T.previous}
             </button>
@@ -493,7 +493,7 @@ export function AdminPortalLineUsersPage() {
               type="button"
               onClick={() => setPage(page + 1)}
               disabled={page >= totalPages || loading}
-              className="btn btn-outline btn-sm join-item focus-visible:ring-2 focus-visible:ring-primary"
+              className="btn btn-outline btn-sm join-item focus-visible:ring-2 focus-visible:ring-base-content"
             >
               {T.next}
             </button>
@@ -642,7 +642,7 @@ function LineUserInspectModal({
           type="button"
           onClick={onRequestClose}
           aria-label={T.close}
-          className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 focus-visible:ring-2 focus-visible:ring-primary"
+          className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 focus-visible:ring-2 focus-visible:ring-base-content"
         >
           ✕
         </button>
@@ -668,7 +668,7 @@ function LineUserInspectModal({
                 <button
                   type="button"
                   onClick={() => editor.startEdit(user)}
-                  className="btn btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-primary"
+                  className="btn btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-base-content"
                 >
                   <PencilSquareIcon className="size-[1.2em]" aria-hidden />
                   {T.edit}
@@ -725,7 +725,7 @@ function RejectReasonModal({
           type="button"
           onClick={onRequestClose}
           aria-label={T.close}
-          className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 focus-visible:ring-2 focus-visible:ring-primary"
+          className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 focus-visible:ring-2 focus-visible:ring-base-content"
         >
           ✕
         </button>
@@ -792,7 +792,7 @@ function RejectReasonModal({
               type="button"
               onClick={onRequestClose}
               disabled={rejecting}
-              className="btn btn-ghost btn-sm focus-visible:ring-2 focus-visible:ring-primary"
+              className="btn btn-ghost btn-sm focus-visible:ring-2 focus-visible:ring-base-content"
             >
               {T.cancel}
             </button>
@@ -918,7 +918,7 @@ function LineUserEditForm({
           value={currentIsTarget ? draftAccess : ''}
           onChange={(e) => setDraftAccess(e.target.value as AppAccess)}
           disabled={statusLocked}
-          className="select select-bordered w-full focus-visible:ring-2 focus-visible:ring-primary"
+          className="select select-bordered w-full focus-visible:ring-2 focus-visible:ring-base-content"
         >
           {!currentIsTarget && (
             <option value="" disabled>
@@ -950,14 +950,14 @@ function LineUserEditForm({
           type="button"
           onClick={cancel}
           disabled={saving}
-          className="btn btn-ghost btn-sm focus-visible:ring-2 focus-visible:ring-primary"
+          className="btn btn-ghost btn-sm focus-visible:ring-2 focus-visible:ring-base-content"
         >
           {T.cancel}
         </button>
         <button
           type="submit"
           disabled={saveDisabled}
-          className="btn btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-primary"
+          className="btn btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-base-content"
         >
           {saving && <span className="loading loading-spinner loading-xs" aria-hidden />}
           {saving ? T.saving : T.save}
@@ -993,7 +993,7 @@ function TextField({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary"
+        className="input input-bordered w-full focus-visible:ring-2 focus-visible:ring-base-content"
       />
     </div>
   )
@@ -1031,7 +1031,7 @@ function OptionSelect({
         value={loaded ? value : ''}
         disabled={!loaded}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="select select-bordered w-full focus-visible:ring-2 focus-visible:ring-primary"
+        className="select select-bordered w-full focus-visible:ring-2 focus-visible:ring-base-content"
       >
         {!loaded && <option value="">{loading ? T.optionsLoading : T.selectPlaceholder}</option>}
         {options.map((o) => (

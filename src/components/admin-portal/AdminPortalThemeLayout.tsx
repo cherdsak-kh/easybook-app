@@ -32,18 +32,19 @@ const matchDark = () =>
   window.matchMedia(DARK_QUERY).matches
 
 /**
- * Owns the replica's theme and stamps `data-theme="dashwind-light" | "dashwind-dark"`
- * on a wrapping `<div>` around its `<Outlet/>`, so the whole replica subtree (login,
- * LandingIntro, shell, team, stub pages) adopts the pinned `dashwind-*` daisyUI theme.
+ * Owns the portal's theme and stamps `data-theme="cupcake" | "dashwind-dark"` on a
+ * wrapping `<div>` around its `<Outlet/>`, so the WHOLE admin subtree (login,
+ * LandingIntro, shell, profile, stub pages) adopts one daisyUI theme — see
+ * `AdminPortalTheme` for why light is `cupcake` and dark is still `dashwind-dark`.
  * The theme + `toggleTheme` are shared with descendants via `AdminPortalThemeContext`.
  */
 export function AdminPortalThemeLayout() {
   const [theme, setTheme] = useState<AdminPortalTheme>(() =>
-    matchDark() ? 'dashwind-dark' : 'dashwind-light',
+    matchDark() ? 'dashwind-dark' : 'cupcake',
   )
 
   const toggleTheme = useCallback(() => {
-    setTheme((current) => (current === 'dashwind-dark' ? 'dashwind-light' : 'dashwind-dark'))
+    setTheme((current) => (current === 'dashwind-dark' ? 'cupcake' : 'dashwind-dark'))
   }, [])
 
   const value = useMemo<AdminPortalThemeContextValue>(

@@ -177,7 +177,7 @@ export function AdminPortalLoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     aria-invalid={emailError != null}
                     aria-describedby={emailError ? 'admin-portal-email-error' : undefined}
-                    className={`input input-bordered w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100${emailError ? ' input-error' : ''}`}
+                    className={`input input-bordered w-full focus-visible:ring-2 focus-visible:ring-base-content focus-visible:ring-offset-2 focus-visible:ring-offset-base-100${emailError ? ' input-error' : ''}`}
                     placeholder={UI.emailPlaceholder}
                   />
                   {emailError && (
@@ -208,14 +208,14 @@ export function AdminPortalLoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       aria-invalid={passwordError != null}
                       aria-describedby={passwordError ? 'admin-portal-password-error' : undefined}
-                      className={`input input-bordered w-full pr-10 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100${passwordError ? ' input-error' : ''}`}
+                      className={`input input-bordered w-full pr-10 focus-visible:ring-2 focus-visible:ring-base-content focus-visible:ring-offset-2 focus-visible:ring-offset-base-100${passwordError ? ' input-error' : ''}`}
                       placeholder={UI.passwordPlaceholder}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? UI.hidePassword : UI.showPassword}
-                      className="btn btn-ghost btn-sm btn-square absolute right-1 top-1/2 -translate-y-1/2 text-base-content/60 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
+                      className="btn btn-ghost btn-sm btn-square absolute right-1 top-1/2 -translate-y-1/2 text-base-content/60 focus-visible:ring-2 focus-visible:ring-base-content focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
                     >
                       {showPassword ? (
                         <EyeSlashIcon className="h-5 w-5" aria-hidden="true" />
@@ -240,7 +240,7 @@ export function AdminPortalLoginPage() {
                 type="submit"
                 disabled={submitting}
                 aria-busy={submitting}
-                className="btn btn-primary mt-2 w-full focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
+                className="btn btn-primary mt-2 w-full focus-visible:ring-2 focus-visible:ring-base-content focus-visible:ring-offset-2 focus-visible:ring-offset-base-100"
               >
                 {submitting ? (
                   <>

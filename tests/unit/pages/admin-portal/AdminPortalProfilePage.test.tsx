@@ -174,9 +174,12 @@ describe('AdminPortalProfilePage — sidebar wiring', () => {
     const { ADMIN_PORTAL_ROUTES, ADMIN_PORTAL_STUB_ROUTES } = await import(
       '@/components/admin-portal/routes'
     )
-    const { NAV_ITEMS, isSubmenu } = await import('@/components/admin-portal/nav-config')
+    const { allNavLeaves } = await import('@/components/admin-portal/nav-config')
 
-    const leaves = NAV_ITEMS.flatMap((e) => (isSubmenu(e) ? e.submenu : [e]))
+    // `allNavLeaves()` flattens sections -> entries -> submenu leaves. The menu is two
+    // levels deep now (a submenu nests INSIDE a section), so a hand-rolled `flatMap` over
+    // the top level silently misses every submenu leaf — including this one.
+    const leaves = allNavLeaves()
     const profileLeaves = leaves.filter((l) => l.to === ADMIN_PORTAL_ROUTES.profile)
 
     expect(profileLeaves).toHaveLength(1)
@@ -276,7 +279,7 @@ describe('AdminPortalProfilePage — rendering', () => {
     expect(screen.getAllByText(ROLE_LABEL.ADMIN).length).toBeGreaterThan(0)
   })
 
-  it('titles the page EXACTLY "ข้อมูลผู้ใช้งาน (User Profile)" — the role badge is not in the h1', async () => {
+  it('titles the page EXACTLY "โปรไฟล์ (User Profile)" — the role badge is not in the h1', async () => {
     await renderProfile(forRole('SUPER_ADMIN'))
 
     const h1 = screen.getByRole('heading', { level: 1 })
@@ -427,15 +430,21 @@ describe('AdminPortalProfilePage — read-only fields read as plain text', () =>
 
 // ---------------------------------------------------------------------------
 describe('AdminPortalProfilePage — change-password button contrast', () => {
-  it('uses the primary outline variant (readable in BOTH dashwind themes), not neutral', async () => {
+  it('uses UNCOLOURED btn-outline, so it cannot fail in any theme', async () => {
     await renderProfile()
 
     const button = screen.getByRole('button', { name: T.actions.changePassword })
     // `btn-outline` paints text + border with `--btn-color`, so the colour class IS the
-    // contrast. `btn-neutral` measured 1.22:1 on `dashwind-dark`'s base-100; `btn-primary`
-    // measures 4.71:1 there and 7.68:1 on `dashwind-light`.
+    // contrast — and two colour classes have already failed on this exact control:
+    //   `btn-neutral` = 1.22:1 on `dashwind-dark`'s base-100
+    //   `btn-primary` = 1.40:1 on `cupcake`'s base-100 (it passed on the retired
+    //                   `dashwind-light`, which is what makes it a trap)
+    // With NO colour class, `--btn-color` falls back to `--color-base-content`: 15.91:1 on
+    // `cupcake` and 7.03:1 on `dashwind-dark`, and by definition it cannot fail in a future
+    // theme either. This control is the only route to `ChangePasswordModal`, whose
+    // unreachability is a documented lockout — so the assertion is pinned deliberately.
     expect(button).toHaveClass('btn-outline')
-    expect(button).toHaveClass('btn-primary')
+    expect(button).not.toHaveClass('btn-primary')
     expect(button).not.toHaveClass('btn-neutral')
     // Fixed with a theme-resolved token, NOT a `dark:` utility.
     expect(button.className).not.toMatch(/\bdark:/)

@@ -110,7 +110,7 @@ function ToastItem({
         type="button"
         onClick={() => onDismiss(toast.id)}
         aria-label={TOAST_STRINGS.dismiss}
-        className="btn btn-ghost btn-circle btn-xs transition-colors focus-visible:ring-2 focus-visible:ring-primary"
+        className="btn btn-ghost btn-circle btn-xs transition-colors focus-visible:ring-2 focus-visible:ring-base-content"
       >
         ✕
       </button>

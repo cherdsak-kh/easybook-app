@@ -120,7 +120,7 @@ export function ChangePasswordModal({
           onClick={onRequestClose}
           disabled={submitting}
           aria-label={T.actions.close}
-          className="btn btn-circle btn-ghost btn-sm absolute top-2 right-2 focus-visible:ring-2 focus-visible:ring-primary"
+          className="btn btn-circle btn-ghost btn-sm absolute top-2 right-2 focus-visible:ring-2 focus-visible:ring-base-content"
         >
           ✕
         </button>
@@ -191,7 +191,7 @@ export function ChangePasswordModal({
               type="submit"
               disabled={submitting}
               aria-busy={submitting}
-              className="btn btn-primary w-full sm:w-auto focus-visible:ring-2 focus-visible:ring-primary"
+              className="btn btn-primary w-full sm:w-auto focus-visible:ring-2 focus-visible:ring-base-content"
             >
               {submitting && <span className="loading loading-spinner loading-xs" aria-hidden />}
               {submitting ? T.password.submitting : T.password.submit}
@@ -262,7 +262,7 @@ function PasswordField({
           disabled={disabled}
           aria-describedby={describedBy}
           onChange={(e) => onChange(e.target.value)}
-          className="input input-sm w-full pr-9 focus-visible:ring-2 focus-visible:ring-primary"
+          className="input input-sm w-full pr-9 focus-visible:ring-2 focus-visible:ring-base-content"
         />
         {/* `btn-xs` (24px), not the login screen's `btn-sm` (32px): this modal's boxes
             are `input-sm`, which is itself 32px tall, so a 32px toggle would fill the
@@ -273,7 +273,7 @@ function PasswordField({
           disabled={disabled}
           aria-label={visible ? T.password.hide(label) : T.password.show(label)}
           aria-pressed={visible}
-          className="btn btn-ghost btn-xs btn-square absolute top-1/2 right-1 -translate-y-1/2 text-base-content/60 focus-visible:ring-2 focus-visible:ring-primary"
+          className="btn btn-ghost btn-xs btn-square absolute top-1/2 right-1 -translate-y-1/2 text-base-content/60 focus-visible:ring-2 focus-visible:ring-base-content"
         >
           {visible ? (
             <EyeSlashIcon className="h-4 w-4" aria-hidden="true" />

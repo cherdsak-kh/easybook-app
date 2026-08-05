@@ -40,21 +40,29 @@ export function AccountInfoCard({
       </ProfileFieldRow>
 
       <ProfileFieldRow label={T.fields.password}>
-        {/* CONTRAST FIX (PO review), and why THIS variant. `btn-outline` paints both the
+        {/* CONTRAST FIX, and why NO colour class at all. `btn-outline` paints both the
             text and the border with `--btn-color` (daisyUI 5: `.btn-outline { color:
-            var(--btn-color); --btn-border: var(--btn-color) }`), so the colour class is
-            the whole contrast story. The previous `btn-neutral` resolved to
-            `--color-neutral`, which in `dashwind-dark` is oklch(0.3138) sitting on a
-            `base-100` of oklch(0.2533) — a measured **1.22:1**, i.e. invisible. Measured
-            against the real tokens in `index.css`, `btn-primary` is the variant that
-            clears AA in BOTH admin-portal themes:
-              dashwind-dark   primary on base-100 = 4.71:1  (hover fill: 5.99:1)
-              dashwind-light  primary on base-100 = 7.68:1  (hover fill: 5.59:1)
-            No `dark:` utility is involved — one class, resolved per `data-theme`. */}
+            var(--btn-rest-fg, var(--btn-color, var(--color-base-content))); --btn-border:
+            var(--btn-color, var(--color-base-content)) }`), so the colour class IS the
+            whole contrast story here. Two variants have already failed on this control:
+              `btn-neutral` — `--color-neutral` on `dashwind-dark` is oklch(0.3138) over a
+                              `base-100` of oklch(0.2533) = **1.22:1**, invisible.
+              `btn-primary` — passed while light was `dashwind-light` (7.68:1), but light is
+                              now `cupcake`, whose `--color-primary` is oklch(85% 0.138 181)
+                              over a `base-100` of oklch(97.788%) = **1.40:1**, invisible.
+            Dropping the colour class lets `--btn-color` fall back to `--color-base-content`,
+            which is BY DEFINITION the readable foreground for `base-100` and so cannot fail
+            in ANY theme — including a future one:
+              cupcake        base-content on base-100 = 15.91:1  (hover fill: 11.59:1)
+              dashwind-dark  base-content on base-100 =  7.03:1  (hover fill:  7.74:1)
+            This control is the ONLY route to `ChangePasswordModal`, and a user who cannot
+            reach it is locked out of every unsafe route (see easybook-app/CLAUDE.md), so it
+            must not stay theme-fragile. No `dark:` utility is involved — one class,
+            resolved per `data-theme`. */}
         <button
           type="button"
           onClick={onChangePassword}
-          className="btn btn-outline btn-primary btn-xs transition-colors focus-visible:ring-2 focus-visible:ring-primary"
+          className="btn btn-outline btn-xs transition-colors focus-visible:ring-2 focus-visible:ring-base-content"
         >
           <KeyIcon className="size-[1.2em]" aria-hidden />
           {T.actions.changePassword}
