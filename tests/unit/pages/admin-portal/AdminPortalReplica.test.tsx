@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { AdminPortalStubPage } from '@/pages/admin-portal/AdminPortalStubPage'
@@ -7,13 +7,15 @@ import { AdminPortalHeader } from '@/components/admin-portal/AdminPortalHeader'
 import { AdminPortalLayout } from '@/components/admin-portal/AdminPortalLayout'
 import { AdminPortalThemeLayout } from '@/components/admin-portal/AdminPortalThemeLayout'
 import { LandingIntro } from '@/components/admin-portal/LandingIntro'
-import { NAV_SECTIONS, allNavLeaves } from '@/components/admin-portal/nav-config'
+import { ADMIN_PORTAL_DRAWER_ID, NAV_SECTIONS, allNavLeaves } from '@/components/admin-portal/nav-config'
+import { ADMIN_PORTAL_THEME_STORAGE_KEY } from '@/components/admin-portal/admin-portal-theme'
 import {
   ADMIN_PORTAL_ROUTES,
   ADMIN_PORTAL_SEGMENTS,
   ADMIN_PORTAL_STUB_ROUTES,
 } from '@/components/admin-portal/routes'
 import { ADMIN_NAV_STRINGS } from '@/constants/ui-strings-admin-nav'
+import { ADMIN_THEME_STRINGS } from '@/constants/ui-strings-admin-theme'
 import { BRAND } from '@/constants/ui-strings-brand'
 import { PROFILE_STRINGS } from '@/constants/ui-strings-profile'
 import * as apiClient from '@/lib/api-client'
@@ -57,6 +59,14 @@ beforeAll(() => {
 beforeEach(() => {
   vi.clearAllMocks()
   mockGetMe.mockResolvedValue(null) // unauthenticated mount probe — chrome renders regardless
+  // The theme wrapper reads a PERSISTED preference at mount, so every render in this file
+  // starts from a clean browser profile unless a test seeds the key itself.
+  window.localStorage.clear()
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals() // drops any `matchMedia` stub a theme test installed
+  vi.restoreAllMocks()
 })
 
 describe('AdminPortal — sidebar information architecture (5 sections / 31 leaves)', () => {
@@ -283,22 +293,300 @@ function renderHeaderAt(path: string) {
   )
 }
 
-describe('AdminPortal — theme toggle', () => {
-  it('flips the wrapper data-theme between cupcake and dashwind-dark', () => {
+/**
+ * REWRITTEN from the old binary `swap` toggle block: the navbar control is now a 3-option
+ * daisyUI dropdown backed by a persisted `light | dark | system` PREFERENCE, so the old
+ * `getByRole('checkbox', { name: 'Toggle light and dark theme' })` has no counterpart.
+ */
+
+/**
+ * Accessible name of an option row — the bare Thai label (icons are `aria-hidden`).
+ * The parenthesised English gloss was dropped by PO review; `noEnglishGloss` below is the
+ * regression guard that keeps it from creeping back.
+ */
+function optionName(option: 'light' | 'dark' | 'system'): string {
+  return ADMIN_THEME_STRINGS.options[option]
+}
+
+/**
+ * jsdom implements NO `matchMedia`, so `system` mode has nothing to read. This is the
+ * smallest stand-in that still exercises the real code path: it hands back one
+ * `MediaQueryList`-shaped object, records the listeners the layout attaches, and lets a
+ * test flip the OS scheme the way devtools' "Emulate prefers-color-scheme" does.
+ */
+function stubPrefersColorScheme(initialDark: boolean) {
+  const listeners = new Set<(event: MediaQueryListEvent) => void>()
+  const mediaQueryList = {
+    matches: initialDark,
+    media: '(prefers-color-scheme: dark)',
+    addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener)
+    },
+    removeEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener)
+    },
+  }
+  vi.stubGlobal('matchMedia', vi.fn(() => mediaQueryList))
+
+  return {
+    /** How many live subscriptions the wrapper currently holds (leak detector). */
+    get listenerCount() {
+      return listeners.size
+    },
+    /** Emulate the OS flipping scheme while the page stays open. */
+    emit(dark: boolean) {
+      mediaQueryList.matches = dark
+      act(() => {
+        for (const listener of [...listeners]) listener({ matches: dark } as MediaQueryListEvent)
+      })
+    },
+  }
+}
+
+/** The `d` of the first `<path>` in an element's icon — identifies WHICH heroicon it is. */
+function iconPathOf(element: HTMLElement): string | null {
+  return element.querySelector('svg path')?.getAttribute('d') ?? null
+}
+
+function openThemeMenu() {
+  const trigger = screen.getByRole('button', { name: ADMIN_THEME_STRINGS.triggerLabel })
+  fireEvent.click(trigger)
+  return trigger
+}
+
+function selectTheme(option: 'light' | 'dark' | 'system') {
+  openThemeMenu()
+  fireEvent.click(screen.getByRole('menuitemradio', { name: optionName(option) }))
+}
+
+describe('AdminPortal — theme preference dropdown (structure)', () => {
+  it('renders exactly three options, in the PO order สว่าง · มืด · ตามระบบ', () => {
+    renderHeaderAt('/admin-portal/dashboard')
+    openThemeMenu()
+
+    expect(screen.getAllByRole('menuitemradio').map((item) => item.textContent?.trim())).toEqual([
+      optionName('light'),
+      optionName('dark'),
+      optionName('system'),
+    ])
+  })
+
+  it('labels the options in Thai ONLY — no parenthesised English gloss', () => {
+    renderHeaderAt('/admin-portal/dashboard')
+    openThemeMenu()
+
+    expect(Object.values(ADMIN_THEME_STRINGS.options)).toEqual(['สว่าง', 'มืด', 'ตามระบบ'])
+    for (const item of screen.getAllByRole('menuitemradio')) {
+      // No Latin letters and no parentheses anywhere in the VISIBLE row text.
+      expect(item.textContent).not.toMatch(/[A-Za-z()]/)
+    }
+    // The two aria-labels stay bilingual on purpose — they are never rendered as text.
+    expect(screen.getByRole('button', { name: ADMIN_THEME_STRINGS.triggerLabel }).textContent).toBe('')
+  })
+
+  it('centres each row on the cross axis instead of packing it to the top', () => {
+    renderHeaderAt('/admin-portal/dashboard')
+    openThemeMenu()
+
+    for (const item of screen.getAllByRole('menuitemradio')) {
+      // daisyUI's menu row is `display:grid` with `align-content:flex-start`, so `min-h-11`
+      // pushed the whole icon/label/check block 4px above centre. jsdom evaluates no CSS,
+      // so the CLASS is the assertable surface here; the painted geometry is measured in
+      // the browser pass (see 03_implement_log.md).
+      expect(item).toHaveClass('min-h-11', 'content-center', 'items-center')
+      // daisyUI forces `outline-style:none` on a focused menu row, so the visible keyboard
+      // indicator has to be a box-shadow ring — on EVERY row, selected included.
+      expect(item).toHaveClass('focus-visible:ring-2', 'focus-visible:ring-base-content')
+    }
+  })
+
+  it('marks the active option programmatically, not by colour alone', () => {
+    renderHeaderAt('/admin-portal/dashboard')
+    openThemeMenu()
+
+    const light = screen.getByRole('menuitemradio', { name: optionName('light') })
+    const dark = screen.getByRole('menuitemradio', { name: optionName('dark') })
+
+    expect(light).toHaveAttribute('aria-checked', 'true')
+    expect(light).toHaveClass('menu-active')
+    expect(dark).toHaveAttribute('aria-checked', 'false')
+    expect(dark).not.toHaveClass('menu-active')
+  })
+
+  it('is a ghost trigger with a >=44px tap floor — never a bright primary fill', () => {
+    renderHeaderAt('/admin-portal/dashboard')
+
+    const trigger = screen.getByRole('button', { name: ADMIN_THEME_STRINGS.triggerLabel })
+    expect(trigger).toHaveClass('btn', 'btn-ghost', 'btn-square', 'btn-md', 'min-h-11', 'min-w-11')
+    expect(trigger).not.toHaveClass('btn-primary')
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
+  })
+
+  it('opens on click, closes on Esc, and hands focus BACK to the trigger', () => {
+    const { container } = renderHeaderAt('/admin-portal/dashboard')
+    const trigger = screen.getByRole('button', { name: ADMIN_THEME_STRINGS.triggerLabel })
+    const dropdown = trigger.parentElement as HTMLElement
+
+    // Visibility itself is daisyUI CSS, which jsdom does not evaluate — so the CLASS and
+    // `aria-expanded` are what is asserted (same convention as the sidebar submenu test).
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(dropdown).toHaveClass('dropdown-close')
+
+    fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(dropdown).toHaveClass('dropdown-open')
+
+    fireEvent.keyDown(dropdown, { key: 'Escape' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(dropdown).toHaveClass('dropdown-close')
+    // The point of the controlled dropdown: focus never lands on <body>.
+    expect(document.activeElement).toBe(trigger)
+    expect(document.activeElement).not.toBe(container.ownerDocument.body)
+  })
+
+  it('closes on selection and on click-away, keeping focus on the trigger', () => {
+    renderHeaderAt('/admin-portal/dashboard')
+    const trigger = screen.getByRole('button', { name: ADMIN_THEME_STRINGS.triggerLabel })
+    const dropdown = trigger.parentElement as HTMLElement
+
+    selectTheme('dark')
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(document.activeElement).toBe(trigger)
+
+    fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    // Click-away = focus leaving the dropdown subtree; no document listener is involved.
+    fireEvent.focusOut(dropdown, { relatedTarget: document.body })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('shows a Sun for a light resolved theme and a Moon for a dark one', () => {
+    renderHeaderAt('/admin-portal/dashboard')
+    const trigger = screen.getByRole('button', { name: ADMIN_THEME_STRINGS.triggerLabel })
+    openThemeMenu()
+
+    // Compare against the icons the options themselves render, so the assertion never
+    // hard-codes heroicon path data.
+    const sun = iconPathOf(screen.getByRole('menuitemradio', { name: optionName('light') }))
+    const moon = iconPathOf(screen.getByRole('menuitemradio', { name: optionName('dark') }))
+    expect(sun).not.toBe(moon)
+
+    expect(iconPathOf(trigger)).toBe(sun)
+    selectTheme('dark')
+    expect(iconPathOf(trigger)).toBe(moon)
+  })
+})
+
+describe('AdminPortal — theme preference dropdown (behaviour)', () => {
+  it('defaults to cupcake with no stored preference, EVEN on a dark-mode OS', () => {
+    stubPrefersColorScheme(true)
+
+    const { container } = renderHeaderAt('/admin-portal/dashboard')
+
+    // Deliberate change from the old init-once behaviour: a first-time visitor on a dark
+    // OS now lands in the pastel light theme until they pick ตามระบบ themselves.
+    expect(container.querySelector('[data-theme]')).toHaveAttribute('data-theme', 'cupcake')
+    expect(window.localStorage.getItem(ADMIN_PORTAL_THEME_STORAGE_KEY)).toBeNull()
+  })
+
+  it('stamps dashwind-dark on มืด and cupcake on สว่าง, persisting each choice', () => {
     const { container } = renderHeaderAt('/admin-portal/dashboard')
     const wrapper = container.querySelector('[data-theme]')
 
-    // jsdom has no matchMedia → initialises to light, which is now `cupcake` (the pastel
-    // light theme adopted for the WHOLE portal, not just the sidebar).
-    expect(wrapper).toHaveAttribute('data-theme', 'cupcake')
-
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle light and dark theme' }))
+    selectTheme('dark')
     // The dark branch is still `dashwind-dark`: `cupcake` is light-only, and the `-dark`
     // SUFFIX is load-bearing for `index.css`'s `@custom-variant dark` selector.
     expect(wrapper).toHaveAttribute('data-theme', 'dashwind-dark')
+    expect(window.localStorage.getItem(ADMIN_PORTAL_THEME_STORAGE_KEY)).toBe('dark')
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle light and dark theme' }))
+    selectTheme('light')
     expect(wrapper).toHaveAttribute('data-theme', 'cupcake')
+    expect(window.localStorage.getItem(ADMIN_PORTAL_THEME_STORAGE_KEY)).toBe('light')
+  })
+
+  it('restores a persisted preference at mount (the reload case)', () => {
+    window.localStorage.setItem(ADMIN_PORTAL_THEME_STORAGE_KEY, 'dark')
+
+    const { container } = renderHeaderAt('/admin-portal/dashboard')
+
+    expect(container.querySelector('[data-theme]')).toHaveAttribute('data-theme', 'dashwind-dark')
+    expect(
+      screen.getByRole('menuitemradio', { name: optionName('dark') }),
+    ).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('treats a corrupt stored value as "no preference" and falls back to light', () => {
+    window.localStorage.setItem(ADMIN_PORTAL_THEME_STORAGE_KEY, 'cupcake') // hand-edited junk
+
+    const { container } = renderHeaderAt('/admin-portal/dashboard')
+
+    expect(container.querySelector('[data-theme]')).toHaveAttribute('data-theme', 'cupcake')
+    expect(
+      screen.getByRole('menuitemradio', { name: optionName('light') }),
+    ).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('follows the OS LIVE while ตามระบบ is selected, with no reload and no remount', () => {
+    const os = stubPrefersColorScheme(true)
+    window.localStorage.setItem(ADMIN_PORTAL_THEME_STORAGE_KEY, 'system')
+
+    const { container } = renderHeaderAt('/admin-portal/dashboard')
+    const wrapper = container.querySelector('[data-theme]')
+
+    expect(wrapper).toHaveAttribute('data-theme', 'dashwind-dark')
+    expect(os.listenerCount).toBe(1)
+
+    os.emit(false)
+    expect(wrapper).toHaveAttribute('data-theme', 'cupcake')
+    os.emit(true)
+    expect(wrapper).toHaveAttribute('data-theme', 'dashwind-dark')
+    // Same DOM node throughout — the theme is state-driven, not a remount.
+    expect(container.querySelector('[data-theme]')).toBe(wrapper)
+  })
+
+  it('never lets an OS change clobber an explicit light/dark choice', () => {
+    const os = stubPrefersColorScheme(false)
+    renderHeaderAt('/admin-portal/dashboard')
+    const wrapper = document.querySelector('[data-theme]')
+
+    selectTheme('dark')
+    expect(wrapper).toHaveAttribute('data-theme', 'dashwind-dark')
+    // No subscription exists at all while the preference is explicit.
+    expect(os.listenerCount).toBe(0)
+
+    os.emit(true)
+    os.emit(false)
+    expect(wrapper).toHaveAttribute('data-theme', 'dashwind-dark')
+  })
+
+  it('subscribes exactly once for ตามระบบ and unsubscribes when it is left', () => {
+    const os = stubPrefersColorScheme(false)
+    renderHeaderAt('/admin-portal/dashboard')
+
+    selectTheme('system')
+    expect(os.listenerCount).toBe(1)
+
+    // Re-selecting the SAME option is idempotent — no second subscription.
+    selectTheme('system')
+    expect(os.listenerCount).toBe(1)
+
+    selectTheme('light')
+    expect(os.listenerCount).toBe(0)
+  })
+
+  it('still renders and still switches when localStorage throws (LINE webview case)', () => {
+    const denied = () => {
+      throw new DOMException('The operation is insecure.', 'SecurityError')
+    }
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(denied)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(denied)
+
+    const { container } = renderHeaderAt('/admin-portal/dashboard')
+    const wrapper = container.querySelector('[data-theme]')
+
+    expect(wrapper).toHaveAttribute('data-theme', 'cupcake')
+    expect(() => selectTheme('dark')).not.toThrow()
+    expect(wrapper).toHaveAttribute('data-theme', 'dashwind-dark')
   })
 })
 
@@ -391,10 +679,74 @@ describe('AdminPortal replica — stub pages (Phase 3.5)', () => {
     expect(screen.getByRole('main')).toHaveAccessibleName('Main content')
 
     // The hamburger is the only thing left in the navbar's leading slot, so nothing can
-    // overlap it. (`Open menu` is the label on the drawer <label>.)
+    // overlap it. It is a <label htmlFor> (not a <button>) because it drives the drawer
+    // checkbox, so `aria-label` is the only handle on it — hence `getByLabelText`.
     const hamburger = screen.getByLabelText('Open menu')
+    expect(hamburger.tagName).toBe('LABEL')
     const navbar = hamburger.closest('.navbar') as HTMLElement
     expect(within(navbar).queryAllByRole('heading')).toHaveLength(0)
+  })
+})
+
+describe('AdminPortal — navbar icon controls (ghost, age-inclusive tap targets)', () => {
+  /** The full shell, so the drawer checkbox the hamburger points at really exists. */
+  function renderHamburger() {
+    render(
+      <MemoryRouter initialEntries={['/admin-portal/line-users']}>
+        <AuthProvider>
+          <Routes>
+            <Route element={<AdminPortalThemeLayout />}>
+              <Route path="/admin-portal" element={<AdminPortalLayout />}>
+                <Route path="line-users" element={<AdminPortalStubPage title="Leads" />} />
+              </Route>
+            </Route>
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>,
+    )
+    return screen.getByLabelText('Open menu')
+  }
+
+  it('is a ghost square button, never the bright btn-primary the PO flagged', () => {
+    const hamburger = renderHamburger()
+
+    expect(hamburger).toHaveClass('btn', 'btn-ghost', 'btn-square', 'btn-md')
+    expect(hamburger).not.toHaveClass('btn-primary')
+    // No bright hover fill may be smuggled back in as a utility either.
+    expect(hamburger.className).not.toMatch(/hover:(bg|btn)-(primary|secondary|accent)/)
+  })
+
+  it('keeps the 44px tap floor, the drawer wiring and the mobile-only visibility', () => {
+    const hamburger = renderHamburger()
+
+    // `btn-md` alone renders 40x40 (`--size-field * 10`); the min-* pair is the 44px floor.
+    expect(hamburger).toHaveClass('min-h-11', 'min-w-11')
+    expect(hamburger).toHaveClass('drawer-button', 'lg:hidden')
+    expect(hamburger).toHaveAttribute('for', ADMIN_PORTAL_DRAWER_ID)
+    expect(document.getElementById(ADMIN_PORTAL_DRAWER_ID)).not.toBeNull()
+  })
+
+  it('renders the Bars3 glyph at h-6 w-6 (24px) with a visible focus ring', () => {
+    const hamburger = renderHamburger()
+
+    expect(hamburger.querySelector('svg')).toHaveClass('h-6', 'w-6')
+    expect(hamburger.className).toMatch(/focus-visible:outline-base-content/)
+  })
+
+  it('lifts the bell and profile triggers to the same 44px floor, unrestyled', () => {
+    renderHamburger()
+
+    const bell = screen.getByRole('button', { name: /Notifications, 2 unread/ })
+    const profile = screen.getByRole('button', { name: 'Profile menu' })
+
+    for (const control of [bell, profile]) {
+      // Tap target ONLY — `btn-circle` (40x40) is KEPT, never swapped for ghost/square.
+      expect(control).toHaveClass('btn', 'btn-ghost', 'btn-circle', 'min-h-11', 'min-w-11')
+      expect(control).not.toHaveClass('btn-square')
+    }
+    // …and their contents are untouched: badge, avatar placeholder, menu items.
+    expect(within(bell).getByText('2')).toBeInTheDocument()
+    expect(profile.querySelector('svg')).not.toBeNull()
   })
 })
 

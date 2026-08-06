@@ -3,53 +3,72 @@
 // `prefers-color-scheme` resolver so the shared `ThemeLayout`/`useResolvedTheme` stay
 // the single authority for the REAL portals and are provably unmodified.
 //
-// Phase 3.5: this wrapper now OWNS the replica's light/dark state (Phase 3 left the
-// header swap inert) so the header's Sun/Moon toggle can flip it. The state is
-// INITIALISED once from `prefers-color-scheme`, then the local toggle is the sole
-// authority (in-memory, no localStorage) — there is deliberately NO live OS listener,
-// so a manual choice always sticks instead of being clobbered on the next OS change.
+// This wrapper is the SINGLE owner of the portal's `data-theme`. It holds a tri-state
+// PREFERENCE (`light | dark | system`), persists it to one namespaced `localStorage` key,
+// and resolves it to the theme actually stamped. It REPLACES the previous "init once from
+// `prefers-color-scheme`, then never listen again" mechanism — the OS is now consulted
+// continuously, but ONLY while the preference is `system`, so a manual light/dark choice
+// is still never clobbered by an OS change (the property the old code protected).
 //
-// Every surface under this wrapper now restyles purely through daisyUI semantic tokens
-// (CSS), so flipping `data-theme` here is enough — no descendant has to be remounted to
-// pick the new theme up. (The DashWind mock dashboard used to be the exception: its
-// Chart.js canvases read chrome colours off the themed DOM once at mount, so the page
-// remounted each chart with a `theme`-keyed React `key`. That page and its whole
-// mock-component directory were deleted along with the mock data, and the caveat went
-// with them.)
-import { useCallback, useMemo, useState } from 'react'
+// The `matchMedia` listener is mounted/torn down by preference, so exactly zero listeners
+// exist while the preference is `light` or `dark`, and exactly one while it is `system`.
+//
+// Every surface under this wrapper restyles purely through daisyUI semantic tokens (CSS),
+// so flipping `data-theme` here is enough — no descendant has to be remounted to pick the
+// new theme up, and nothing ever needs a page reload.
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import {
   AdminPortalThemeContext,
-  type AdminPortalTheme,
+  DARK_COLOR_SCHEME_QUERY,
+  prefersDarkColorScheme,
+  readStoredThemePreference,
+  resolveAdminPortalTheme,
+  writeStoredThemePreference,
   type AdminPortalThemeContextValue,
+  type AdminPortalThemePreference,
 } from './admin-portal-theme'
-
-const DARK_QUERY = '(prefers-color-scheme: dark)'
-
-const matchDark = () =>
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia(DARK_QUERY).matches
 
 /**
  * Owns the portal's theme and stamps `data-theme="cupcake" | "dashwind-dark"` on a
  * wrapping `<div>` around its `<Outlet/>`, so the WHOLE admin subtree (login,
  * LandingIntro, shell, profile, stub pages) adopts one daisyUI theme — see
  * `AdminPortalTheme` for why light is `cupcake` and dark is still `dashwind-dark`.
- * The theme + `toggleTheme` are shared with descendants via `AdminPortalThemeContext`.
+ * `{ preference, setPreference, theme }` is shared with descendants via
+ * `AdminPortalThemeContext`.
  */
 export function AdminPortalThemeLayout() {
-  const [theme, setTheme] = useState<AdminPortalTheme>(() =>
-    matchDark() ? 'dashwind-dark' : 'cupcake',
-  )
+  const [preference, setStoredPreference] =
+    useState<AdminPortalThemePreference>(readStoredThemePreference)
+  const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(prefersDarkColorScheme)
 
-  const toggleTheme = useCallback(() => {
-    setTheme((current) => (current === 'dashwind-dark' ? 'cupcake' : 'dashwind-dark'))
+  // Live OS tracking, mounted ONLY while the preference is `system`. Re-reading
+  // `mql.matches` on subscribe closes the gap between first render and effect, and covers
+  // a scheme change that happened while the tab was backgrounded.
+  useEffect(() => {
+    if (preference !== 'system') return
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+
+    const mediaQuery = window.matchMedia(DARK_COLOR_SCHEME_QUERY)
+    const onChange = (event: MediaQueryListEvent) => setSystemPrefersDark(event.matches)
+    setSystemPrefersDark(mediaQuery.matches)
+    mediaQuery.addEventListener('change', onChange)
+    return () => mediaQuery.removeEventListener('change', onChange)
+  }, [preference])
+
+  const setPreference = useCallback((next: AdminPortalThemePreference) => {
+    // Re-read the OS synchronously when switching TO `system` so the first painted frame
+    // is already correct, rather than flashing the previous theme until the effect runs.
+    if (next === 'system') setSystemPrefersDark(prefersDarkColorScheme())
+    setStoredPreference(next)
+    writeStoredThemePreference(next)
   }, [])
 
+  const theme = resolveAdminPortalTheme(preference, systemPrefersDark)
+
   const value = useMemo<AdminPortalThemeContextValue>(
-    () => ({ theme, toggleTheme }),
-    [theme, toggleTheme],
+    () => ({ preference, setPreference, theme }),
+    [preference, setPreference, theme],
   )
 
   return (
