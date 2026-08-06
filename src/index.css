@@ -9,6 +9,19 @@
       lets migrated and un-migrated screens coexist during the rollout. */
 @custom-variant dark (&:where([data-theme$="-dark"], [data-theme$="-dark"] *));
 
+/* 2b. Global type family. Tailwind v4's CSS-first token, so ONE declaration drives
+      Preflight's html/body default, every `font-sans` utility, and every daisyUI
+      component at once — a `body { font-family }` rule would lose to any explicit
+      `font-sans` utility and leave the two out of sync. The faces themselves are
+      self-hosted and imported in `src/main.tsx` (@fontsource/kanit).
+      Fallbacks, in order: Kanit → Noto Sans Thai (Thai-capable, pre-installed on
+      Android/most Thai devices, so a font-load failure still renders Thai sanely)
+      → the system sans stack. Font is NOT a daisyUI theme token — the theme blocks
+      below stay untouched. */
+@theme {
+  --font-sans: 'Kanit', 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
+}
+
 /* 3. Enable daisyUI (CSS-first — no tailwind.config.js).
       `light --default, dark --prefersdark` is daisyUI 5's OWN implicit default when the
       plugin is given no config, and it is spelled out here verbatim so that adding a

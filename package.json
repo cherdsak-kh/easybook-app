@@ -23,6 +23,7 @@
     ]
   },
   "dependencies": {
+    "@fontsource/kanit": "^5.3.0",
     "@heroicons/react": "^2.1.5",
     "@line/liff": "^2.29.1",
     "openapi-fetch": "^0.13.0",
