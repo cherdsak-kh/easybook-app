@@ -12,6 +12,18 @@ const NotFoundPage = lazy(() =>
   })),
 )
 
+/**
+ * P1 SCAFFOLDING — the component showcase, and the only way Phase 1's components get
+ * verified at all: the PO's ruling for this phase is "measure in the browser, write no new
+ * unit tests". It is lazy so it never enters the client's initial chunk, and it hangs off
+ * this branch only until P2 brings the real `/backend` router, which replaces it.
+ */
+const ShowcasePage = lazy(() =>
+  import('@/admin-portal/pages/showcase/ShowcasePage').then((m) => ({
+    default: m.ShowcasePage,
+  })),
+)
+
 /** The single Suspense fallback for a lazily-loaded route chunk. */
 function RouteFallback() {
   return (
@@ -57,6 +69,11 @@ function App() {
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
+        {/* OUTSIDE the client ThemeLayout on purpose: the showcase stamps its own
+            `data-theme` so it can flip between the two admin themes in place, which is how
+            the contrast sweep gets run twice without a reload. */}
+        <Route path="/admin-portal/_showcase" element={<ShowcasePage />} />
+
         <Route element={<ThemeLayout portal="client" />}>
           {/* The client LIFF surface. `HomePage` is route-less (it swaps screens via
               internal state, not the URL), so it matches only the INDEX (`/`); there is no

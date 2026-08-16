@@ -180,12 +180,9 @@
      the whole job: ALLOWED→success, PENDING→warning, REJECTED→info,
      BLOCKED→error, UNREGISTERED→neutral. daisyUI's four semantic hues plus
      `neutral` cover all five exactly. */
-  .badge         { @apply inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-medium whitespace-nowrap; }
-  .badge-emerald { @apply bg-success/10 text-success; }      /* ALLOWED      */
-  .badge-amber   { @apply bg-warning/10 text-warning; }      /* PENDING      */
-  .badge-sky     { @apply bg-info/10 text-info; }            /* REJECTED     */
-  .badge-rose    { @apply bg-error/10 text-error; }          /* BLOCKED      */
-  .badge-slate   { @apply bg-base-content/10 text-base-content/80; } /* UNREGISTERED */
+  /* ⚠️ THE SIX BADGE RULES MOVED OUT OF THIS LAYER — see "Badges" in the plain-CSS block
+     at the bottom of this file. They are the one place the prototype's class names collide
+     with daisyUI 5, and `@layer components` is exactly where they lose. */
 
   /* ── Role chip — `SystemRole`, on เจ้าหน้าที่ระบบ only ──────────────
      OUTLINED, where every `.badge` above is FILLED, and that difference is the
@@ -917,6 +914,33 @@
 /* `translate`, not `transform` — same reason as the drawer above. */
 @keyframes toast-in  { from { opacity: 0; translate: 0 -14px; } to { opacity: 1; translate: 0 0; } }
 @keyframes toast-out { from { opacity: 1; } to { opacity: 0; translate: 0 -10px; } }
+
+/* ═══ Badges — moved here out of `@layer components`, and this is the only reason ═══
+   `badge` is ALSO a daisyUI 5 component class. The prototype never met it: it ran on raw
+   `@tailwindcss/browser` with no daisyUI, so `.badge` was a free name there. Here daisyUI
+   emits its own `.badge` into a LATER layer, and layer order beats specificity — measured,
+   in that order:
+     · `<span class="badge badge-amber">` → slate-200 on slate-900. Wrong.
+     · `badge-amber` ALONE                → amber-400 on its own 10% wash. Correct.
+       So the tone classes were fine; the base class was being overruled.
+     · adding `[data-theme^="easybook-admin"] .badge` for specificity → STILL wrong,
+       which is what proves it is the layer and not the selector.
+   An UNLAYERED rule beats every layer regardless of specificity, which is the escape the
+   plain-CSS block at the top of this section already exists for. All six move together:
+   daisyUI's `.badge` sets `color` too, so leaving the tone classes behind would have left
+   them losing the same argument one property later.
+
+   ⚠️ Renaming was the other option and was rejected: the prototype's markup ports across
+   unchanged this way, and `class="badge"` never half-works. Note the prototype author hit
+   this collision once already — it is why the buttons are `.btn-primary2`, not
+   `.btn-primary`. `badge` is the only name that slipped through; the full list of ported
+   classes was checked against daisyUI 5's component names and this is the sole overlap. */
+.badge         { @apply inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-medium whitespace-nowrap; }
+.badge-emerald { @apply bg-success/10 text-success; }      /* ALLOWED      */
+.badge-amber   { @apply bg-warning/10 text-warning; }      /* PENDING      */
+.badge-sky     { @apply bg-info/10 text-info; }            /* REJECTED     */
+.badge-rose    { @apply bg-error/10 text-error; }          /* BLOCKED      */
+.badge-slate   { @apply bg-base-content/10 text-base-content/80; } /* UNREGISTERED */
 
 /* Scoped for the same reason as `dialog` above — a bare element selector in an app
    that also serves the LIFF client. */
