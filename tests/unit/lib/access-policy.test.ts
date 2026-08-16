@@ -108,7 +108,7 @@ describe('canReject', () => {
 
   it('is false for STAFF and for a missing role (read-only / unauthenticated)', () => {
     for (const from of ALL) {
-      expect(canReject(from, 'STAFF')).toBe(false)
+      expect(canReject(from, 'VIEWER')).toBe(false)
       expect(canReject(from, undefined)).toBe(false)
     }
   })

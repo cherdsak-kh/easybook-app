@@ -30,6 +30,7 @@ function dept(o: Partial<Department> = {}): Department {
     isSystemReserved: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    holderCount: 0,
     ...o,
   }
 }
@@ -41,6 +42,7 @@ function personnelRole(o: Partial<PersonnelRole> = {}): PersonnelRole {
     isSystemReserved: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    holderCount: 0,
     ...o,
   }
 }
@@ -145,7 +147,7 @@ describe('useProfileEditor — state machine', () => {
 describe('useProfileEditor — payload correctness', () => {
   it('sends EXACTLY the changed field and nothing else', async () => {
     const updated = makeSystemUser({ firstName: 'Grace' })
-    mockUpdateOwnProfile.mockResolvedValue(updated)
+    mockPatchSystemUser.mockResolvedValue(updated)
     const { result, onCommitted } = setup()
 
     act(() => result.current.startEdit())
@@ -154,18 +156,19 @@ describe('useProfileEditor — payload correctness', () => {
       await result.current.confirmSave()
     })
 
-    expect(mockUpdateOwnProfile).toHaveBeenCalledTimes(1)
-    expect(mockUpdateOwnProfile).toHaveBeenCalledWith({ firstName: 'Grace' })
+    expect(mockPatchSystemUser).toHaveBeenCalledTimes(1)
+    expect(mockPatchSystemUser).toHaveBeenCalledWith('u1', { firstName: 'Grace' })
     // No lastName, no phoneNumber, and none of the forbidden keys.
-    const body = mockUpdateOwnProfile.mock.calls[0][0]
+    const body = mockPatchSystemUser.mock.calls[0][1]
     expect(Object.keys(body)).toEqual(['firstName'])
-    expect(mockPatchSystemUser).not.toHaveBeenCalled()
+    // /auth/system/me no longer accepts identity fields at all — see the hook's header.
+    expect(mockUpdateOwnProfile).not.toHaveBeenCalled()
     expect(onCommitted).toHaveBeenCalledWith(updated)
     expect(result.current.mode).toBe('view')
   })
 
   it('clearing the phone sends null, never an empty string', async () => {
-    mockUpdateOwnProfile.mockResolvedValue(makeSystemUser({ phoneNumber: null }))
+    mockPatchSystemUser.mockResolvedValue(makeSystemUser({ phoneNumber: null }))
     const { result } = setup({ user: makeSystemUser({ phoneNumber: '0812345678' }) })
 
     act(() => result.current.startEdit())
@@ -174,7 +177,7 @@ describe('useProfileEditor — payload correctness', () => {
       await result.current.confirmSave()
     })
 
-    expect(mockUpdateOwnProfile).toHaveBeenCalledWith({ phoneNumber: null })
+    expect(mockPatchSystemUser).toHaveBeenCalledWith('u1', { phoneNumber: null })
   })
 
   it('saving with NO changes calls neither endpoint (an empty body would be a 400)', async () => {
@@ -192,7 +195,11 @@ describe('useProfileEditor — payload correctness', () => {
   })
 })
 
-describe('useProfileEditor — the two-endpoint split (by FIELD, not by role)', () => {
+// The split collapsed on 2026-08-16: identity fields joined the assignment fields on
+// PATCH /system-users/:id because UpdateOwnProfileDto no longer accepts them. These tests kept
+// their scenarios and changed their expectations, so the history of what this hook used to do
+// stays legible next to what it does now.
+describe('useProfileEditor — one endpoint, all editable fields', () => {
   it('routes department/position to PATCH /system-users/:id on the OWN id, not to /auth/system/me', async () => {
     const updated = makeSystemUser({ department: { id: 3, name: 'Maths' } })
     mockPatchSystemUser.mockResolvedValue(updated)
@@ -210,14 +217,12 @@ describe('useProfileEditor — the two-endpoint split (by FIELD, not by role)', 
     expect(mockPatchSystemUser).toHaveBeenCalledWith('me-1', { departmentId: 3 })
   })
 
-  it('a save touching BOTH groups fires two sequential calls, profile first', async () => {
-    const afterProfile = makeSystemUser({ firstName: 'Grace' })
-    const afterAssignment = makeSystemUser({
+  it('a save touching BOTH groups now fires ONE call', async () => {
+    const saved = makeSystemUser({
       firstName: 'Grace',
       personnelRole: { id: 4, name: 'Manager' },
     })
-    mockUpdateOwnProfile.mockResolvedValue(afterProfile)
-    mockPatchSystemUser.mockResolvedValue(afterAssignment)
+    mockPatchSystemUser.mockResolvedValue(saved)
     const { result, onCommitted } = setup()
 
     act(() => result.current.startEdit())
@@ -228,18 +233,20 @@ describe('useProfileEditor — the two-endpoint split (by FIELD, not by role)', 
       await result.current.confirmSave()
     })
 
-    expect(mockUpdateOwnProfile).toHaveBeenCalledWith({ firstName: 'Grace' })
-    expect(mockPatchSystemUser).toHaveBeenCalledWith('u1', { personnelRoleId: 4 })
-    // Ordering: /auth/system/me strictly before /system-users/:id.
-    expect(mockUpdateOwnProfile.mock.invocationCallOrder[0]).toBeLessThan(
-      mockPatchSystemUser.mock.invocationCallOrder[0],
-    )
-    expect(onCommitted).toHaveBeenCalledTimes(2)
-    expect(onCommitted).toHaveBeenLastCalledWith(afterAssignment)
+    // ONE request carrying both halves — so there is no longer a partial-save state to reason
+    // about, which is the one thing this change made simpler rather than harder.
+    expect(mockPatchSystemUser).toHaveBeenCalledTimes(1)
+    expect(mockPatchSystemUser).toHaveBeenCalledWith('u1', {
+      firstName: 'Grace',
+      personnelRoleId: 4,
+    })
+    expect(mockUpdateOwnProfile).not.toHaveBeenCalled()
+    expect(onCommitted).toHaveBeenCalledTimes(1)
+    expect(onCommitted).toHaveBeenLastCalledWith(saved)
   })
 
-  it('STOPS on the first failure — a failed profile PATCH never attempts the assignment PATCH', async () => {
-    mockUpdateOwnProfile.mockRejectedValue(new ApiError(400, 'bad'))
+  it('a failed save applies NOTHING and keeps the draft for a retry', async () => {
+    mockPatchSystemUser.mockRejectedValue(new ApiError(400, 'bad'))
     const { result } = setup()
 
     act(() => result.current.startEdit())
@@ -250,18 +257,19 @@ describe('useProfileEditor — the two-endpoint split (by FIELD, not by role)', 
       await result.current.confirmSave()
     })
 
-    expect(mockUpdateOwnProfile).toHaveBeenCalledTimes(1)
-    expect(mockPatchSystemUser).not.toHaveBeenCalled()
-    // Stays in edit with the draft preserved so the user can retry.
+    // One request means one outcome: previously a failure here could land the name and drop the
+    // department, and the retry had to know which half was already committed.
+    expect(mockPatchSystemUser).toHaveBeenCalledTimes(1)
+    expect(mockUpdateOwnProfile).not.toHaveBeenCalled()
     expect(result.current.mode).toBe('edit')
     expect(result.current.draft?.firstName).toBe('Grace')
     expect(result.current.error).toBe(PROFILE_STRINGS.save.invalid)
   })
 
-  it('never sends department/position when the actor may not patch their own row (STAFF)', async () => {
-    mockUpdateOwnProfile.mockResolvedValue(makeSystemUser({ firstName: 'Grace' }))
+  it('never sends department/position when the actor may not patch their own row (VIEWER)', async () => {
+    mockPatchSystemUser.mockResolvedValue(makeSystemUser({ firstName: 'Grace' }))
     const { result } = setup({
-      user: makeSystemUser({ role: 'STAFF' }),
+      user: makeSystemUser({ role: 'VIEWER' }),
       canEditAssignment: false,
     })
 
@@ -272,15 +280,17 @@ describe('useProfileEditor — the two-endpoint split (by FIELD, not by role)', 
       await result.current.confirmSave()
     })
 
-    expect(mockPatchSystemUser).not.toHaveBeenCalled()
-    expect(mockUpdateOwnProfile).toHaveBeenCalledWith({ firstName: 'Grace' })
-    // STAFF never needs the option lists either.
+    // The name still goes, WITHOUT the option ids — `canEditAssignment` gates those only.
+    expect(mockPatchSystemUser).toHaveBeenCalledWith('u1', { firstName: 'Grace' })
+    expect(mockUpdateOwnProfile).not.toHaveBeenCalled()
+    // ⚠️ A VIEWER now gets a 403 from this endpoint's @Roles(SUPER_ADMIN, ADMIN) where they used
+    // to get a 200. That is the v2 padlock arriving early, not a regression — and a truthful 403
+    // beats dropping the field silently under a success message.
+    // A VIEWER never needs the option lists either.
     expect(mockListDepartments).not.toHaveBeenCalled()
   })
 
-  it('after a PARTIAL save the baseline advances, so a retry re-sends only the failed half', async () => {
-    const afterProfile = makeSystemUser({ firstName: 'Grace' })
-    mockUpdateOwnProfile.mockResolvedValue(afterProfile)
+  it('a retry re-sends the WHOLE body, because nothing was committed', async () => {
     mockPatchSystemUser.mockRejectedValueOnce(new ApiError(400, 'bad option'))
     const { result } = setup()
 
@@ -292,24 +302,28 @@ describe('useProfileEditor — the two-endpoint split (by FIELD, not by role)', 
       await result.current.confirmSave()
     })
 
-    expect(mockUpdateOwnProfile).toHaveBeenCalledTimes(1)
     expect(mockPatchSystemUser).toHaveBeenCalledTimes(1)
 
-    // Retry: the profile half is already committed, so only the assignment is re-sent.
-    mockPatchSystemUser.mockResolvedValue(makeSystemUser({ department: { id: 3, name: 'Maths' } }))
+    mockPatchSystemUser.mockResolvedValue(
+      makeSystemUser({ firstName: 'Grace', department: { id: 3, name: 'Maths' } }),
+    )
     await act(async () => {
       await result.current.confirmSave()
     })
 
-    expect(mockUpdateOwnProfile).toHaveBeenCalledTimes(1)
+    // The old shape advanced a baseline between the two requests so a retry sent only the failed
+    // half. With one request the baseline cannot advance mid-save, so the retry is the same body.
     expect(mockPatchSystemUser).toHaveBeenCalledTimes(2)
-    expect(mockPatchSystemUser).toHaveBeenLastCalledWith('u1', { departmentId: 3 })
+    expect(mockPatchSystemUser).toHaveBeenLastCalledWith('u1', {
+      firstName: 'Grace',
+      departmentId: 3,
+    })
   })
 })
 
 describe('useProfileEditor — error mapping', () => {
   it('401 expires the session and renders no inline error', async () => {
-    mockUpdateOwnProfile.mockRejectedValue(new ApiError(401, 'dead'))
+    mockPatchSystemUser.mockRejectedValue(new ApiError(401, 'dead'))
     const { result, expireSession } = setup()
 
     act(() => result.current.startEdit())
@@ -323,7 +337,7 @@ describe('useProfileEditor — error mapping', () => {
   })
 
   it('403 is an INLINE error, never a logout', async () => {
-    mockUpdateOwnProfile.mockRejectedValue(new ApiError(403, 'forbidden'))
+    mockPatchSystemUser.mockRejectedValue(new ApiError(403, 'forbidden'))
     const { result, expireSession } = setup()
 
     act(() => result.current.startEdit())
@@ -337,7 +351,7 @@ describe('useProfileEditor — error mapping', () => {
   })
 
   it('404 and unknown failures each map to their own copy', async () => {
-    mockUpdateOwnProfile.mockRejectedValueOnce(new ApiError(404, 'gone'))
+    mockPatchSystemUser.mockRejectedValueOnce(new ApiError(404, 'gone'))
     const { result } = setup()
 
     act(() => result.current.startEdit())
@@ -347,7 +361,7 @@ describe('useProfileEditor — error mapping', () => {
     })
     expect(result.current.error).toBe(PROFILE_STRINGS.save.notFound)
 
-    mockUpdateOwnProfile.mockRejectedValueOnce(new Error('offline'))
+    mockPatchSystemUser.mockRejectedValueOnce(new Error('offline'))
     await act(async () => {
       await result.current.confirmSave()
     })

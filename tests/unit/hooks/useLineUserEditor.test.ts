@@ -31,6 +31,7 @@ function makeUser(o: Partial<LineUser> = {}): LineUser {
     richMenuType: 'TYPE_1',
     access: 'PENDING',
     followedAt: '2026-07-07T10:00:00.000Z',
+    registeredAt: null,
     registration: {
       firstName: 'Alice',
       lastName: 'Wong',
@@ -51,6 +52,7 @@ function dept(o: Partial<Department> = {}): Department {
     isSystemReserved: false,
     createdAt: '2026-07-14T10:00:00.000Z',
     updatedAt: '2026-07-14T10:00:00.000Z',
+    holderCount: 0,
     ...o,
   }
 }
@@ -62,6 +64,7 @@ function role(o: Partial<PersonnelRole> = {}): PersonnelRole {
     isSystemReserved: false,
     createdAt: '2026-07-14T10:00:00.000Z',
     updatedAt: '2026-07-14T10:00:00.000Z',
+    holderCount: 0,
     ...o,
   }
 }

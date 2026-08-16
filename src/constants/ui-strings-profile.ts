@@ -208,8 +208,11 @@ export const PROFILE_STRINGS = {
  */
 export const ROLE_LABEL: Readonly<Record<SystemRole, string>> = {
   SUPER_ADMIN: 'ผู้ดูแลระบบสูงสุด',
-  ADMIN: 'ผู้ดูแลระบบ',
-  STAFF: 'เจ้าหน้าที่',
+  ADMIN: 'เจ้าหน้าที่ดูแลระบบ',
+  // NOT 'เจ้าหน้าที่'. That word is what the portal calls EVERY operator in it, so using it for
+  // one of the three roles is the exact confusion the 2026-08-16 rename removed at the enum level;
+  // leaving it on the label would have kept the confusion where people actually read it.
+  VIEWER: 'ผู้ดูข้อมูล',
 }
 
 /**
@@ -221,12 +224,12 @@ export const ROLE_LABEL: Readonly<Record<SystemRole, string>> = {
 export const ROLE_BADGE: Readonly<Record<SystemRole, string>> = {
   SUPER_ADMIN: 'badge-secondary',
   ADMIN: 'badge-error',
-  STAFF: 'badge-success',
+  VIEWER: 'badge-success',
 }
 
 /** Role → avatar ring colour, mirroring {@link ROLE_BADGE}. */
 export const ROLE_RING: Readonly<Record<SystemRole, string>> = {
   SUPER_ADMIN: 'ring-secondary',
   ADMIN: 'ring-error',
-  STAFF: 'ring-success',
+  VIEWER: 'ring-success',
 }

@@ -11,7 +11,7 @@ import type { SystemUser } from '@/lib/api-client'
  * one-line fix here instead of an N-file hunt.
  *
  * Defaults describe an ordinary ADMIN with a creator, no phone, no avatar and no
- * LINE link. Override anything per test — `makeSystemUser({ role: 'STAFF' })`.
+ * LINE link. Override anything per test — `makeSystemUser({ role: 'VIEWER' })`.
  */
 export function makeSystemUser(overrides: Partial<SystemUser> = {}): SystemUser {
   return {

@@ -109,6 +109,7 @@ function dept(o: Partial<Department> = {}): Department {
     isSystemReserved: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    holderCount: 0,
     ...o,
   }
 }
@@ -120,6 +121,7 @@ function personnelRole(o: Partial<PersonnelRole> = {}): PersonnelRole {
     isSystemReserved: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    holderCount: 0,
     ...o,
   }
 }
@@ -290,7 +292,7 @@ describe('AdminPortalProfilePage — rendering', () => {
     expect(h1.querySelector('.badge')).toBeNull()
   })
 
-  it.each<[SystemRole]>([['SUPER_ADMIN'], ['ADMIN'], ['STAFF']])(
+  it.each<[SystemRole]>([['SUPER_ADMIN'], ['ADMIN'], ['VIEWER']])(
     'renders %s as its Thai label, never the raw enum token',
     async (role) => {
       const { container } = await renderProfile(forRole(role))
@@ -579,7 +581,7 @@ describe('AdminPortalProfilePage — role matrix', () => {
   )
 
   it('STAFF gets no edit button, no cancel, no audit card and NO editable input at all', async () => {
-    await renderProfile(forRole('STAFF', { phoneNumber: '0812345678' }))
+    await renderProfile(forRole('VIEWER', { phoneNumber: '0812345678' }))
 
     expect(screen.queryByRole('button', { name: T.actions.edit })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: T.actions.cancel })).not.toBeInTheDocument()
@@ -594,13 +596,13 @@ describe('AdminPortalProfilePage — role matrix', () => {
   })
 
   it('STAFF KEEPS the change-password button (this app has no force-reset screen)', async () => {
-    await renderProfile(forRole('STAFF'))
+    await renderProfile(forRole('VIEWER'))
 
     expect(screen.getByRole('button', { name: T.actions.changePassword })).toBeInTheDocument()
   })
 
   it('STAFF can still change their avatar', async () => {
-    await renderProfile(forRole('STAFF'))
+    await renderProfile(forRole('VIEWER'))
 
     expect(screen.getByRole('button', { name: T.actions.changeAvatar })).toBeInTheDocument()
   })
@@ -657,7 +659,7 @@ describe('AdminPortalProfilePage — edit mode', () => {
   it('confirming saves once, re-renders from the RESPONSE body, and re-probes the session', async () => {
     await renderProfile()
     const getMeCallsBefore = mockGetMe.mock.calls.length
-    mockUpdateOwnProfile.mockResolvedValue(makeSystemUser({ firstName: 'Grace' }))
+    mockPatchSystemUser.mockResolvedValue(makeSystemUser({ firstName: 'Grace' }))
 
     await enterEdit()
     fireEvent.change(screen.getByLabelText(labelOf(T.fields.firstName)), {
@@ -668,7 +670,7 @@ describe('AdminPortalProfilePage — edit mode', () => {
       fireEvent.click(screen.getByRole('button', { name: T.actions.confirm }))
     })
 
-    expect(mockUpdateOwnProfile).toHaveBeenCalledTimes(1)
+    expect(mockPatchSystemUser).toHaveBeenCalledTimes(1)
     expect(await screen.findByRole('heading', { name: 'Grace Lovelace' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: T.actions.edit })).toBeInTheDocument()
     // `refresh()` re-probes /auth/system/me so the shell header follows.
@@ -710,7 +712,7 @@ describe('AdminPortalProfilePage — edit mode', () => {
 
   it('a failed save keeps the draft and shows the error inline', async () => {
     await renderProfile()
-    mockUpdateOwnProfile.mockRejectedValue(new ApiError(400, 'bad'))
+    mockPatchSystemUser.mockRejectedValue(new ApiError(400, 'bad'))
 
     await enterEdit()
     fireEvent.change(screen.getByLabelText(labelOf(T.fields.firstName)), {
@@ -835,7 +837,7 @@ describe('AdminPortalProfilePage — change password', () => {
 describe('AdminPortalProfilePage — save success toast', () => {
   it('announces a successful save and can be dismissed', async () => {
     await renderProfile()
-    mockUpdateOwnProfile.mockResolvedValue(makeSystemUser({ firstName: 'Grace' }))
+    mockPatchSystemUser.mockResolvedValue(makeSystemUser({ firstName: 'Grace' }))
 
     await enterEdit()
     fireEvent.change(screen.getByLabelText(labelOf(T.fields.firstName)), {
@@ -889,7 +891,7 @@ describe('AdminPortalProfilePage — save success toast', () => {
 
   it('shows NO toast when the save FAILS', async () => {
     await renderProfile()
-    mockUpdateOwnProfile.mockRejectedValue(new ApiError(400, 'bad'))
+    mockPatchSystemUser.mockRejectedValue(new ApiError(400, 'bad'))
 
     await enterEdit()
     fireEvent.change(screen.getByLabelText(labelOf(T.fields.firstName)), {

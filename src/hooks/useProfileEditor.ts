@@ -4,11 +4,9 @@ import {
   listDepartments,
   listPersonnelRoles,
   patchSystemUser,
-  updateOwnProfile,
   type Department,
   type PersonnelRole,
   type SystemUser,
-  type UpdateOwnProfileBody,
   type UpdateSystemUserBody,
 } from '@/lib/api-client'
 import { PROFILE_STRINGS } from '@/constants/ui-strings-profile'
@@ -107,13 +105,21 @@ function draftDiffers(draft: ProfileDraft, user: SystemUser): boolean {
  * boundary. It deliberately mirrors `useLineUserEditor`'s sequential stop-on-failure
  * shape rather than inventing a second pattern.
  *
- * The split is by field, never by role:
- *  - `firstName` / `lastName` / `phoneNumber` → `PATCH /auth/system/me`
- *    (`updateOwnProfile`) — these are absent from `UpdateSystemUserDto`'s intent and
- *    this endpoint's DTO already has the null-clearing semantics the phone needs.
- *  - `departmentId` / `personnelRoleId` → `PATCH /system-users/:id` on the actor's OWN
- *    id (`patchSystemUser`) — they are simply not in `UpdateOwnProfileDto`, so sending
- *    one there is a guaranteed 400 (`forbidNonWhitelisted`).
+ * ⚠️ THE SPLIT COLLAPSED ON 2026-08-16 AND THIS HOOK IS ON ITS WAY OUT.
+ *
+ * `UpdateOwnProfileDto` was cut down to `profilePictureUrl` alone: v2 renders name,
+ * position, department and phone behind a padlock because an administrator maintains
+ * them, and an endpoint that still accepted them would have made that padlock
+ * decorative. So `firstName` / `lastName` / `phoneNumber` no longer have a
+ * `PATCH /auth/system/me` to go to, and they now travel with the assignment fields to
+ * `PATCH /system-users/:id` on the actor's OWN id — which `canPatch` permits for a
+ * SUPER_ADMIN or an ADMIN editing themselves.
+ *
+ * A VIEWER therefore gets a 403 from `@Roles(SUPER_ADMIN, ADMIN)` where they used to
+ * get a 200. That is the new design arriving early rather than a regression, and a
+ * truthful 403 is better than the alternative available here — dropping the fields
+ * silently, so the operator's edit vanishes with a success message. This portal is
+ * deleted at the switch; v2 renders the padlock instead of offering the edit at all.
  *
  * Order is profile-first, assignment-last, **stop-on-failure**: if the profile PATCH
  * fails the assignment PATCH is never attempted. Each success advances the committed
@@ -240,13 +246,16 @@ export function useProfileEditor({
     if (!draft || !baseUser) return null
 
     // --- Build the two payloads: CHANGED fields only, split by field ---
-    const profileBody: UpdateOwnProfileBody = {}
-    if (draft.firstName !== baseUser.firstName) profileBody.firstName = draft.firstName
-    if (draft.lastName !== baseUser.lastName) profileBody.lastName = draft.lastName
-    const phone = normalisePhone(draft.phoneNumber)
-    if (phone !== (baseUser.phoneNumber ?? null)) profileBody.phoneNumber = phone
-
+    // `UpdateOwnProfileDto` is down to the avatar, so identity fields ride with the
+    // assignment ones. NOT gated on `canEditAssignment`: that flag is about the
+    // department/position selects, and gating a name edit behind it would drop the
+    // change silently instead of letting the API answer.
     const assignmentBody: UpdateSystemUserBody = {}
+    if (draft.firstName !== baseUser.firstName) assignmentBody.firstName = draft.firstName
+    if (draft.lastName !== baseUser.lastName) assignmentBody.lastName = draft.lastName
+    const phone = normalisePhone(draft.phoneNumber)
+    if (phone !== (baseUser.phoneNumber ?? null)) assignmentBody.phoneNumber = phone
+
     if (canEditAssignment) {
       if (draft.departmentId !== null && draft.departmentId !== (baseUser.department?.id ?? null)) {
         assignmentBody.departmentId = draft.departmentId
@@ -259,10 +268,9 @@ export function useProfileEditor({
       }
     }
 
-    const profileDirty = Object.keys(profileBody).length > 0
     const assignmentDirty = Object.keys(assignmentBody).length > 0
 
-    if (!profileDirty && !assignmentDirty) {
+    if (!assignmentDirty) {
       // Send NOTHING: an empty body is a 400 on both endpoints.
       setMode('view')
       setDraft(null)
@@ -274,21 +282,8 @@ export function useProfileEditor({
     setError(null)
     let committed = baseUser
 
-    // (1) Name / phone → PATCH /auth/system/me.
-    if (profileDirty) {
-      try {
-        committed = await updateOwnProfile(profileBody)
-        setBaseUser(committed)
-        onCommitted(committed)
-      } catch (err: unknown) {
-        // Stop the whole save — the assignment PATCH is NOT attempted.
-        setMode('edit')
-        setError(mapError(err))
-        return null
-      }
-    }
-
-    // (2) Department / position → PATCH /system-users/:id on the actor's own id.
+    // ONE request now: name, phone, department and position all go to
+    // PATCH /system-users/:id on the actor's own id.
     if (assignmentDirty) {
       try {
         committed = await patchSystemUser(baseUser.id, assignmentBody)
@@ -297,10 +292,12 @@ export function useProfileEditor({
       } catch (err: unknown) {
         setMode('edit')
         setError(mapError(err))
-        // The profile half (if any) is already committed and pushed upward; the
-        // advanced baseline means a retry re-sends only this half.
-        setDraft((prev) => (prev ? { ...prev, ...pickCommitted(committed) } : prev))
-        return committed
+        // ⚠️ The draft is left EXACTLY as the operator typed it, and it used to be reconciled
+        // against the committed baseline here. That reconciliation existed for the partial save
+        // the old two-request shape could produce; with one request nothing is committed when
+        // this runs, so merging the baseline back in would silently revert what they just typed
+        // and then show them an error about it. Caught by the existing test, not by reading.
+        return null
       }
     }
 
@@ -332,11 +329,3 @@ export function useProfileEditor({
   }
 }
 
-/** Re-seed the already-committed half of the draft after a partial save. */
-function pickCommitted(user: SystemUser): Pick<ProfileDraft, 'firstName' | 'lastName' | 'phoneNumber'> {
-  return {
-    firstName: user.firstName,
-    lastName: user.lastName,
-    phoneNumber: user.phoneNumber ?? '',
-  }
-}

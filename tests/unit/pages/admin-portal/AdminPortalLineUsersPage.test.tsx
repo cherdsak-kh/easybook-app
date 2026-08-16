@@ -79,6 +79,7 @@ function makeDept(o: Partial<Department> = {}): Department {
     isSystemReserved: false,
     createdAt: '2026-07-14T10:00:00.000Z',
     updatedAt: '2026-07-14T10:00:00.000Z',
+    holderCount: 0,
     ...o,
   }
 }
@@ -90,6 +91,7 @@ function makeRole(o: Partial<PersonnelRole> = {}): PersonnelRole {
     isSystemReserved: false,
     createdAt: '2026-07-14T10:00:00.000Z',
     updatedAt: '2026-07-14T10:00:00.000Z',
+    holderCount: 0,
     ...o,
   }
 }
@@ -159,6 +161,7 @@ function makeUser(o: Partial<LineUser> = {}): LineUser {
     richMenuType: 'TYPE_1',
     access: 'PENDING',
     followedAt: '2026-07-07T10:00:00.000Z',
+    registeredAt: null,
     registration: null,
     ...o,
   }
@@ -659,7 +662,7 @@ describe('AdminPortalLineUsersPage — Edit button RBAC (Phase B)', () => {
   }
 
   it('P11: STAFF sees NO Edit button (read-only modal)', () => {
-    openModalAs('STAFF')
+    openModalAs('VIEWER')
     expect(screen.getByText('Teacher')).toBeInTheDocument() // modal is open (read-only)
     expect(screen.queryByRole('button', { name: T.edit })).not.toBeInTheDocument()
   })
@@ -894,7 +897,7 @@ describe('AdminPortalLineUsersPage — Reject action (ส่งคืนเพ�
   })
 
   it('R2: STAFF sees NO Reject button (read-only surface)', () => {
-    inspectAs(registered({ access: 'PENDING' }), 'STAFF')
+    inspectAs(registered({ access: 'PENDING' }), 'VIEWER')
     expect(screen.getByText('Teacher')).toBeInTheDocument() // the modal IS open, read-only
     expect(screen.queryByRole('button', { name: T.reject })).not.toBeInTheDocument()
   })

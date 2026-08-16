@@ -48,6 +48,7 @@ function makeUser(o: Partial<LineUser> = {}): LineUser {
     richMenuType: 'TYPE_1',
     access: 'PENDING',
     followedAt: '2026-07-07T10:00:00.000Z',
+    registeredAt: null,
     registration: null,
     ...o,
   }

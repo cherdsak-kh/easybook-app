@@ -263,7 +263,7 @@ export interface paths {
         head?: never;
         /**
          * Update your own profile.
-         * @description Self-service. Accepts EXACTLY `firstName`, `lastName`, `phoneNumber`, `profilePictureUrl`. `role`, `isActive`, `departmentId`, `personnelRoleId`, `email`, `password` and `lineUserId` are absent from the DTO, so any attempt to set one is a 400 — a SUPER_ADMIN manages those via PATCH /system-users/:id. An empty body is a 400. `phoneNumber`/`profilePictureUrl` accept an explicit null to clear them.
+         * @description Self-service. Accepts EXACTLY `profilePictureUrl` — your avatar is the only part of your own profile you maintain. `firstName`, `lastName` and `phoneNumber` were removed on 2026-08-16: an administrator maintains them via PATCH /system-users/:id, which is what the padlock on the profile screen means. They join `role`, `isActive`, `departmentId`, `personnelRoleId`, `email`, `password` and `lineUserId` in being absent from the DTO, so any attempt to set one is a 400. An explicit null clears the avatar; an empty body is a 200 that changes nothing.
          */
         patch: operations["AuthSystemController_updateOwnProfile"];
         trace?: never;
@@ -279,7 +279,7 @@ export interface paths {
         put?: never;
         /**
          * Change your own password (forced or voluntary).
-         * @description Requires `currentPassword`: without it a hijacked session becomes a permanent account takeover in one request. A WRONG current password is a 400, never a 401 — the session is valid, only the re-auth failed, and a 401 would log you out for a typo. The new password must be >= 12 chars and differ from the current one. On success `mustChangePassword` clears and the very NEXT request to any previously-gated route succeeds on the same cookie — no re-login, because SessionGuard re-reads the user every request. The session is deliberately NOT destroyed.
+         * @description Requires `currentPassword`: without it a hijacked session becomes a permanent account takeover in one request. A WRONG current password is a 400, never a 401 — the session is valid, only the re-auth failed, and a 401 would log you out for a typo. The new password must be >= 8 chars, contain an uppercase letter, a lowercase letter, a digit and a special character, and differ from the current one — the same five rules the portal shows as a live checklist. On success `mustChangePassword` clears and the very NEXT request to any previously-gated route succeeds on the same cookie — no re-login, because SessionGuard re-reads the user every request. The session is deliberately NOT destroyed.
          */
         post: operations["AuthSystemController_changePassword"];
         delete?: never;
@@ -317,7 +317,7 @@ export interface paths {
         };
         /**
          * List back-office users, paginated.
-         * @description Soft-deleted rows are excluded from `data` and from `meta.total`. Ordered `createdAt DESC, id DESC`. A page beyond the last one is a 200 with an empty `data`, not a 404.
+         * @description Search matches the first name, last name or email, case-insensitively. `role` and `status` narrow further; `status` is derived (`deleted` > `suspended` > `pending` > `active`), matching the badge the screen shows. Soft-deleted rows are excluded from `data` and from `meta.total` unless `status=deleted`, which is SUPER_ADMIN-only and is the only way to obtain the id a restore needs. Ordered `createdAt DESC, id DESC`. A page beyond the last one is a 200 with an empty `data`, not a 404.
          */
         get: operations["SystemUsersController_list"];
         put?: never;
@@ -494,6 +494,26 @@ export interface paths {
          * @description An unknown or soft-deleted id is a 404; an active-name collision is a 409. System-reserved options are not editable and answer 404.
          */
         patch: operations["PersonnelRolesController_update"];
+        trace?: never;
+    };
+    "/api/v1/system/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The deployed build of this service.
+         * @description Behind the session guard on purpose — it is deliberately NOT on the public /health probe, because publishing an exact build to the open internet is how a scanner matches a CVE to a deployment. Every role gets the identical answer: the version screen shows the same thing to everyone and carries no per-user data.
+         */
+        get: operations["SystemController_version"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -704,6 +724,11 @@ export interface components {
             access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED" | "REJECTED";
             /** @example 2026-07-07T10:00:00.000Z */
             followedAt: string;
+            /**
+             * @description Registration submission date, or null for a follower who never registered. NOT followedAt.
+             * @example 2026-07-09T04:30:00.000Z
+             */
+            registeredAt: string | null;
             /** @description The user's registration summary, or null for a follower who never submitted the form. */
             registration: components["schemas"]["LineUserRegistrationSummaryDto"] | null;
         };
@@ -787,7 +812,7 @@ export interface components {
              * @example ADMIN
              * @enum {string}
              */
-            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            role: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
         };
         SystemUserCreatorDto: {
             /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
@@ -814,10 +839,10 @@ export interface components {
             lastName: string;
             /**
              * @description Back-office RBAC. The ONLY field that grants privilege — never `personnelRole`.
-             * @example STAFF
+             * @example VIEWER
              * @enum {string}
              */
-            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            role: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
             department: components["schemas"]["SystemUserOptionDto"];
             /** @description Job title. NOT `role` — grants zero privilege. */
             personnelRole: components["schemas"]["SystemUserOptionDto"];
@@ -851,12 +876,6 @@ export interface components {
             readonly updatedAt: string;
         };
         UpdateOwnProfileDto: {
-            /** @example Ada */
-            firstName?: string;
-            /** @example Lovelace */
-            lastName?: string;
-            /** @example 02-123-4567 ext. 101 */
-            phoneNumber?: string | null;
             profilePictureUrl?: string | null;
         };
         ChangePasswordDto: {
@@ -873,10 +892,10 @@ export interface components {
             /** @example Lovelace */
             lastName: string;
             /**
-             * @default STAFF
+             * @default VIEWER
              * @enum {string}
              */
-            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            role: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
             /**
              * @description Department option id. Must reference an ACTIVE (non-soft-deleted) option — otherwise 400.
              * @example 3
@@ -887,7 +906,7 @@ export interface components {
              * @example 5
              */
             personnelRoleId: number;
-            /** @example 02-123-4567 ext. 101 */
+            /** @example 02-123-4567 ต่อ 101 */
             phoneNumber?: string;
             /** @example https://cdn.example.com/avatars/ada.jpg */
             profilePictureUrl?: string;
@@ -903,10 +922,10 @@ export interface components {
             lastName: string;
             /**
              * @description Back-office RBAC. The ONLY field that grants privilege — never `personnelRole`.
-             * @example STAFF
+             * @example VIEWER
              * @enum {string}
              */
-            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            role: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
             department: components["schemas"]["SystemUserOptionDto"];
             /** @description Job title. NOT `role` — grants zero privilege. */
             personnelRole: components["schemas"]["SystemUserOptionDto"];
@@ -967,7 +986,7 @@ export interface components {
             phoneNumber?: string | null;
             profilePictureUrl?: string | null;
             /** @enum {string} */
-            role?: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            role?: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
             /** @example false */
             isActive?: boolean;
         };
@@ -988,6 +1007,11 @@ export interface components {
             createdAt: string;
             /** @example 2026-07-14T10:00:00.000Z */
             updatedAt: string;
+            /**
+             * @description Holders of this option (staff + registrations), excluding soft-deleted ones.
+             * @example 12
+             */
+            holderCount: number;
         };
         CreateDepartmentDto: {
             /** @example Computer Science */
@@ -1014,6 +1038,11 @@ export interface components {
             createdAt: string;
             /** @example 2026-07-14T10:00:00.000Z */
             updatedAt: string;
+            /**
+             * @description Holders of this option (staff + registrations), excluding soft-deleted ones.
+             * @example 12
+             */
+            holderCount: number;
         };
         CreatePersonnelRoleDto: {
             /** @example Teacher */
@@ -1022,6 +1051,23 @@ export interface components {
         UpdatePersonnelRoleDto: {
             /** @example Senior Lecturer */
             name: string;
+        };
+        VersionResponseDto: {
+            /**
+             * @description The release train both repositories share. `0.x.y` while in development; `1.0.0` on the day the school starts using it.
+             * @example 0.1.0
+             */
+            version: string;
+            /**
+             * @description Short commit of the running build, or `unknown` when the deploy did not stamp one.
+             * @example 5b90ee4
+             */
+            build: string;
+            /**
+             * @description When this build was produced, or null when the deploy did not stamp it.
+             * @example 2026-08-12T02:00:00.000Z
+             */
+            releasedAt: string | null;
         };
     };
     responses: never;
@@ -1283,10 +1329,12 @@ export interface operations {
                 /** @description 1-based page number. */
                 page?: number;
                 limit?: number;
-                /** @description Case-insensitive substring match on `displayName`. Trimmed; empty/absent → no name filter. */
+                /** @description Case-insensitive substring match across the LINE display name, the registered first and last name, the resolved position and department names, and the phone number. A query of three or more digits also matches the phone with its separators removed, so "0812345678" finds "081-234-5678". Trimmed; empty/absent → no search filter. */
                 search?: string;
-                /** @description Narrows the list to a single access state. An invalid value is a 400. */
+                /** @description Narrows the list to a single access state. An invalid value is a 400. `UNREGISTERED` is the "ยังไม่ลงทะเบียน" filter — a real state, not the absence of one. */
                 access?: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED" | "REJECTED";
+                /** @description Sort order: `new` (newest registration first — the default), `old` (oldest first), or `name` (by registered name, Thai collation). Rows with no registration sort LAST in every mode, including `old`: having no date is not the same as being the oldest. */
+                sort?: "new" | "old" | "name";
             };
             header?: never;
             path?: never;
@@ -1312,7 +1360,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF has no access to this collection. */
+            /** @description VIEWER has no access to this collection. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1376,7 +1424,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF; CSRF failure; or an access transition not permitted for ADMIN. */
+            /** @description VIEWER; CSRF failure; or an access transition not permitted for ADMIN. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1449,7 +1497,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or a CSRF failure. */
+            /** @description VIEWER, or a CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1675,7 +1723,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemUserResponseDto"];
                 };
             };
-            /** @description Empty body, a forbidden key, or a bad value. */
+            /** @description A forbidden key, or a bad value. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1861,6 +1909,12 @@ export interface operations {
                 /** @description 1-based page number. */
                 page?: number;
                 limit?: number;
+                /** @description Case-insensitive substring match on the first name, last name or email. Trimmed; empty/absent → no search filter. */
+                search?: string;
+                /** @description Narrows to a single role. An invalid value is a 400. */
+                role?: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
+                /** @description Derived status filter. `deleted` requires SUPER_ADMIN — any other role asking for it is a 403, because hiding the option on screen is UX and never the boundary. */
+                status?: "active" | "pending" | "suspended" | "deleted";
             };
             header?: never;
             path?: never;
@@ -1886,7 +1940,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF has no access to this collection. */
+            /** @description VIEWER has no access to this collection; or `status=deleted` asked by a non-SUPER_ADMIN. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2006,7 +2060,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF has no access to this collection. */
+            /** @description VIEWER has no access to this collection. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2137,7 +2191,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF; CSRF failure; a self-mutation rule; or a policy denial. */
+            /** @description VIEWER; CSRF failure; a self-mutation rule; or a policy denial. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2331,7 +2385,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF has no access. */
+            /** @description VIEWER has no access. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2384,7 +2438,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2442,7 +2496,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2506,7 +2560,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2571,7 +2625,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF has no access. */
+            /** @description VIEWER has no access. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2624,7 +2678,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2682,7 +2736,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2746,7 +2800,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2766,6 +2820,53 @@ export interface operations {
             };
             /** @description An active option with this name already exists. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SystemController_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Build metadata. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure, or a password change is required. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
