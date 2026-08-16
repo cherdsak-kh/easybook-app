@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import {
   getFriendship,
   getIdToken,
@@ -553,13 +552,6 @@ function HelloScreen({ profile }: { profile: LiffProfile | null }) {
         {UI.hello.greeting(profile?.displayName ?? UI.hello.fallbackName)}
       </h1>
       <p className="mt-3 text-base-content/60">{UI.hello.welcome}</p>
-
-      {/* MVP Demo Button */}
-      <div className="mt-8">
-        <Link to="/demo/client" className="btn btn-primary btn-wide shadow-lg">
-          เปิดระบบจองสถานที่ (Demo)
-        </Link>
-      </div>
     </main>
   )
 }

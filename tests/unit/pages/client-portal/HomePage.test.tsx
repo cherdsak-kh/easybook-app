@@ -24,12 +24,13 @@ import type {
 const VALID_PHONE = '0'.repeat(PHONE_COUNT)
 
 /**
- * `HomePage`'s greeting screen renders a `<Link>` to the demo portal, and any
- * react-router primitive throws outside a router context. Every case here goes
- * through this helper so a future `<Link>`/`useNavigate` added anywhere else in
- * the page cannot redden an unrelated test. `MemoryRouter` matches the repo
- * convention; no route table is needed
- * because nothing here asserts on navigation, only that the link renders.
+ * `HomePage` no longer uses a react-router primitive itself — the `<Link>` to
+ * the demo portal went with `/demo/*` on 2026-08-16. The wrapper stays because
+ * in production this page always renders INSIDE the router (`main.tsx` →
+ * `BrowserRouter` → the index `<Route>`), so matching that here keeps a future
+ * `<Link>`/`useNavigate` from throwing "outside a router context" and reddening
+ * a test that has nothing to do with navigation. No route table is needed;
+ * nothing here asserts on navigation.
  */
 const renderHome = () =>
   render(<HomePage />, {

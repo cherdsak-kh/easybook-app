@@ -32,9 +32,14 @@ portal already scheduled for deletion.
   the generated types, cost nothing to hold, and v2 needs the same calls. Most are unreferenced
   until it arrives; that is expected, not dead code to prune.
 - `src/lib/api-types.ts` — generated, and the reason the above stays honest.
-- `src/pages/demo/*` — two self-contained mockups (`/demo/client`, `/demo/admin`) with no API, no
-  session and no shared components. `/demo/admin` mocks the BOOKING domain, which does not exist
-  yet, so it is not part of the deleted portal.
+
+**The `/demo/*` mockups went too, in a second pass the same day.** They were self-contained (no
+API, no session, no shared components), so they cost nothing to run — but they *did* cost
+something to read: 1,107 lines of invented booking UI, with mock approvals and a fake
+`[LINE Notify]` toast, sitting in `src/` for a domain that has no Prisma model, no endpoint and no
+prototype design. Anyone porting the booking screens later would have found them first and treated
+them as the spec. They were a scripted pitch for a thesis defence that has already happened; git
+holds them (`src/pages/demo/`, before the deletion commit) if that script is ever needed again.
 
 It talks to the backend (`easybook-service`, a separate NestJS repo) over `/api/v1`. It runs on port
 **2200**; the backend runs on port **3300**.
@@ -83,11 +88,12 @@ elsewhere.
   needed locally).
 - Prod: `VITE_API_URL` is set to the backend origin.
 
-### One router, one branch
+### One router, two routes
 
-`App.tsx` holds a single pathless `ThemeLayout portal="client"` wrapper containing the two demo
-routes, the client index (`/` → `HomePage`) and the app's global `path="*"` → `NotFoundPage`, kept
-LAST so it only catches genuinely unmatched URLs.
+`App.tsx` holds a single pathless `ThemeLayout portal="client"` wrapper containing exactly two
+routes: the client index (`/` → `HomePage`) and the app's global `path="*"` → `NotFoundPage`, kept
+LAST so it only catches genuinely unmatched URLs. `HomePage` is route-less — it swaps screens via
+internal state, not the URL — so `/` is an `index` route with no children.
 
 When v2 adds its branch back, one rule from the deleted version is worth carrying over: the route
 constants are **`react-router` paths, not API paths** — never import them into `api-client.ts`. The

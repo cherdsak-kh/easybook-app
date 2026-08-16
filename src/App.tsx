@@ -5,8 +5,6 @@ import { Route, Routes } from 'react-router-dom'
 // initial download.
 import { HomePage } from '@/pages/client-portal/HomePage'
 import { ThemeLayout } from '@/components/client-portal/ThemeLayout'
-import { DemoClientPortalPage } from '@/pages/demo/DemoClientPortalPage'
-import { DemoAdminDashboardPage } from '@/pages/demo/DemoAdminDashboardPage'
 
 const NotFoundPage = lazy(() =>
   import('@/pages/NotFoundPage').then((m) => ({
@@ -42,11 +40,14 @@ function RouteFallback() {
  * it does, this app serves the LIFF client only, and an `/admin-portal/*` URL is a 404 like
  * any other unknown path — which is honest: there is no back-office to be logged out of.
  *
- * Routes:
+ * The `/demo/*` mockups went the same way (2026-08-16). They were a scripted MVP pitch for a
+ * booking domain that has no schema, no endpoints and no prototype design, so every day they
+ * stayed they read as a spec for a feature nobody had agreed to. Their record lives in git.
+ *
+ * Routes — there are now exactly two:
  *  - `/`        → the client LIFF surface (`HomePage`). Matched at the INDEX only —
  *                 `HomePage` is route-less (it swaps screens via internal state, not the
  *                 URL), so the client portal has exactly one real route.
- *  - `/demo/*`  → two self-contained mockups. No API, no session, no shared components.
  *  - `path="*"` → the ONE global 404, kept LAST.
  *
  * The pathless `ThemeLayout` stamps the portal's daisyUI `data-theme` onto the subtree. It
@@ -57,10 +58,6 @@ function App() {
     <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route element={<ThemeLayout portal="client" />}>
-          {/* MVP Demo Routes */}
-          <Route path="/demo/client" element={<DemoClientPortalPage />} />
-          <Route path="/demo/admin" element={<DemoAdminDashboardPage />} />
-
           {/* The client LIFF surface. `HomePage` is route-less (it swaps screens via
               internal state, not the URL), so it matches only the INDEX (`/`); there is no
               client sub-route to catch. */}
