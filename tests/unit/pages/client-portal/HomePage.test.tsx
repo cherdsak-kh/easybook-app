@@ -28,7 +28,7 @@ const VALID_PHONE = '0'.repeat(PHONE_COUNT)
  * react-router primitive throws outside a router context. Every case here goes
  * through this helper so a future `<Link>`/`useNavigate` added anywhere else in
  * the page cannot redden an unrelated test. `MemoryRouter` matches the repo
- * convention (see `AdminPortalLoginPage.test.tsx`); no route table is needed
+ * convention; no route table is needed
  * because nothing here asserts on navigation, only that the link renders.
  */
 const renderHome = () =>

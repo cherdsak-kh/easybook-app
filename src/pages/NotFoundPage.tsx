@@ -2,14 +2,15 @@
 import FaceFrownIcon from '@heroicons/react/24/solid/FaceFrownIcon'
 
 /**
- * The app's single GLOBAL 404 page — portal-agnostic. It backs the one `path="*"` fallback
- * in `App.tsx`, so ANY unmatched URL (an unknown `/admin-portal/*` sub-path OR an unknown
- * client path) lands here, regardless of authentication. It is purely static and
- * presentational: the frown glyph and the `404 - Not Found` heading, with no router hook,
- * no countdown, no auto-redirect, and no login link. The global fallback lives inside the
- * client theme layout, so it renders in the client theme even for admin paths (deliberate
- * — see `App.tsx`); it uses only theme-agnostic semantic tokens so it looks correct under
- * either portal's `data-theme`.
+ * The app's single GLOBAL 404 page. It backs the one `path="*"` fallback in `App.tsx`, so
+ * ANY unmatched URL lands here. It is purely static and presentational: the frown glyph and
+ * the `404 - Not Found` heading, with no router hook, no countdown, no auto-redirect and no
+ * login link.
+ *
+ * Since the old back-office was deleted (2026-08-16) that includes every `/admin-portal/*`
+ * URL, which is the honest answer: there is no back-office to be logged out of, so a bounce
+ * to a login screen would be a lie about what exists. It uses only theme-agnostic semantic
+ * tokens, so it stays correct when v2 arrives with its own theme.
  */
 export function NotFoundPage() {
   return (

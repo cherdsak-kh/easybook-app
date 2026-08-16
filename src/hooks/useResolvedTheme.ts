@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react'
 
-/** The two portal identities; each resolves to a light or `-dark` daisyUI theme. */
-export type Portal = 'client' | 'admin'
+/**
+ * The portal identities. There is exactly ONE since 2026-08-16: the old back-office was
+ * deleted along with its `easybook-admin(-dark)` themes.
+ *
+ * ⚠️ The union is kept rather than collapsed into a bare string so the parameter still reads
+ * as a choice — and so re-adding a portal means adding a theme block, not discovering at
+ * runtime that `data-theme` points at a theme nobody defined. v2 brings its own theming from
+ * the prototype and will not come back through this hook.
+ */
+export type Portal = 'client'
 
-export type ResolvedTheme =
-  | 'easybook-client'
-  | 'easybook-client-dark'
-  | 'easybook-admin'
-  | 'easybook-admin-dark'
+export type ResolvedTheme = 'easybook-client' | 'easybook-client-dark'
 
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 
@@ -29,7 +33,10 @@ function matchDark(): boolean {
  * is a localized change to this hook only.
  */
 export function useResolvedTheme(portal: Portal): ResolvedTheme {
-  const base = portal === 'admin' ? 'easybook-admin' : 'easybook-client'
+  // One identity, so no branch. The parameter stays because the CALLER still declares
+  // which portal it is, and a second identity would reintroduce the choice here.
+  void portal
+  const base = 'easybook-client' as const
   const [dark, setDark] = useState<boolean>(matchDark)
 
   useEffect(() => {

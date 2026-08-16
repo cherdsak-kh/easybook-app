@@ -41,9 +41,9 @@
  * LINE login → resolving → friendship gate → registration/edit → pending →
  * rejected → allowed → blocked → the two error screens.
  *
- * Not covered: the internal back-office (admin-portal) surfaces, whose copy lives
- * in the per-feature `ui-strings-*.ts` modules (`ui-strings-auth.ts`,
- * `ui-strings-line-users.ts`). Also deliberately excluded:
+ * ⚠️ THIS IS NOW THE ONLY STRING MODULE. The seven back-office ones went with the old
+ * portal on 2026-08-16; v2 writes its copy inline in the page that shows it (PO ruling `Q9`),
+ * with one small `labels.ts` for enum→Thai. Deliberately excluded from here:
  *  - `StatusCard`'s `tone`/`icon` props — semantic identifiers, not copy.
  *  - Logo/QR asset paths — this is a copy store, not an asset registry.
  *  - `HomePage`'s `new ApiError(401, 'Missing LINE session.')` — a thrown
