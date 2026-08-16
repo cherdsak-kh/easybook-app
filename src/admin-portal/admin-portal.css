@@ -1,0 +1,941 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ADMIN PORTAL v2 — the prototype's CSS layer, ported VERBATIM.
+
+   Source: docs/prototypes/admin-portal/master_layout_prototype_v2.html (parent repo),
+   the `@layer base` + `@layer components` blocks and the plain-CSS block after them.
+   The prototype is the design authority (PO ruling, 2026-08-12): when this file and a
+   document disagree, the prototype wins and the document is what gets corrected.
+
+   ⚠️ DO NOT "tidy" the values. Every number here was measured in a browser — row
+   heights, 44px hit targets, contrast in both themes. A plausible-looking round number
+   is how a measured value is lost.
+
+   ⚠️ `@apply` of anything that is not a real utility kills the WHOLE stylesheet, not
+   just its own rule. If the page renders unstyled, look for that before anything else.
+
+   What is NOT here, deliberately:
+     · the colour tokens — they are daisyUI theme blocks in `index.css` instead, which
+       is what the prototype's own `@theme` comment names as the port target.
+     · the 11 `sw-*` classes and `.sw-scroll` — the review dock is chrome for whoever is
+       inspecting the prototype, not part of the product.
+     · the prototype's `body { background-color; color }` rule — see the note at the
+       plain-CSS block below.
+   ⚠️ This file is `@import`ed by `src/index.css` and must NOT import "tailwindcss"
+   itself — Tailwind v4 inlines the import into the same compilation pass, so `@apply`
+   and `@layer` already resolve here. Importing it a second time duplicates Preflight
+   and the whole utility set.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   POINTER CURSOR — restored deliberately.
+   Tailwind v4 dropped v3's Preflight rule that gave `button` a pointer
+   cursor; v4 defers to the UA default, which is `cursor: default`. So every
+   <button> in this file silently rendered with an arrow while every <a> got
+   a hand — the two looked identical but behaved differently under the mouse.
+   One base rule fixes the whole surface instead of sprinkling
+   `cursor-pointer` per component and missing some.
+     - `:not(:disabled)` keeps the disabled pagination button on
+       `cursor: not-allowed` (set in .page-btn) rather than overriding it.
+     - <label for> and <summary> are included: they are click targets too and
+       have NEVER had a pointer by default, in v3 or v4.
+     - text inputs are deliberately excluded — they must keep the I-beam.
+   ═══════════════════════════════════════════════════════════════════════ */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label[for],
+  summary,
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  /* ── Nav ─────────────────────────────────────────────────────────────
+     44px floor (touch target) at 15px type. v1 used py-3.5 + 16px = 56px,
+     which is what made 32 items need 2,289px of scroll. */
+  /* HOVER IS A WASH OF THE FOREGROUND, NOT A FIXED GREY — `bg-base-content/5`
+     rather than `bg-base-200`. This is the rule that decides whether dark mode
+     works: a hover written as a surface step darkens the row, which is correct
+     on white and backwards on slate-900, where hovering must LIGHTEN. A wash of
+     base-content lightens on dark and darkens on light, automatically. */
+  .nav-row {
+    @apply relative mb-0.5 flex min-h-11 w-full items-center gap-3 rounded-control px-3 py-2.5
+           text-[15px] font-normal leading-[1.45] text-base-content/80 transition-colors
+           hover:bg-base-content/5 hover:text-base-content
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+  }
+  .nav-row-active { @apply bg-primary/10 font-medium text-primary hover:bg-primary/10 hover:text-primary; }
+  .nav-row-sub    { @apply min-h-11 py-2 text-[14px]; }
+  .nav-ico        { @apply h-5 w-5 shrink-0; }
+  /* Workload counters — the one genuinely useful thing borrowed from Midone. */
+  .nav-count       { @apply ml-auto shrink-0 rounded-full bg-base-content/10 px-2 py-0.5 text-[12px] font-semibold text-base-content/70 tabular-nums; }
+  .nav-count-alert { @apply bg-warning/15 text-warning; }
+
+  /* ── Table ───────────────────────────────────────────────────────────
+     13px / slate-600 / weight 600. NOT 11px + uppercase + tracking-widest:
+     `uppercase` is a no-op on Thai, and letter-spacing actively hurts it
+     (Thai has no inter-word spaces, so glyph proximity IS the word boundary). */
+  /* ── Full-height card ───────────────────────────────────────────────
+     The card fills the viewport and scrolls INSIDE itself, instead of
+     being a short box with dead background under it and the whole page
+     scrolling. Two consequences that are the actual point: the column
+     headers stay put, and the pagination bar is always reachable without
+     scrolling to the end of the data first.
+
+     Declared as component classes, not utilities, on purpose: the state
+     switcher toggles `.hidden`, and utilities beat components, so
+     `hidden` is guaranteed to win over these `display:flex` rules. Written
+     as `flex ... hidden` in the class attribute it would be a coin-toss on
+     Tailwind's internal ordering.
+
+     DESKTOP ONLY (`lg:`), and that is a measured decision, not caution.
+     Pinning the toolbar and the pagination costs 127px + 110px of permanent
+     chrome. On a 1280×860 desktop that is spare room the page was wasting on
+     dead background anyway. On a 375×812 phone it is 29% of the screen, and
+     it took the list from 7 cards per screen down to 4 — undoing the density
+     work that got the mobile card from 175px to 102px in the first place.
+     A phone also does not have the problem this fixes: with the toolbar and
+     five 102px cards the content is already 895px tall, so there is no dead
+     space under the card to remove. Below `lg` the page scrolls as before. */
+  .card-shell  { @apply lg:flex lg:min-h-0 lg:flex-1 lg:flex-col; }
+  .card-scroll { @apply lg:min-h-0 lg:flex-1 lg:overflow-y-auto; }
+
+  /* `box-shadow`, not `border-b`. The header is sticky inside the scroll
+     area, and with `border-collapse: collapse` a border on a sticky cell
+     is painted by the table, not the cell — so it scrolls away and leaves
+     the header floating over the rows with nothing under it. */
+  .th-cell { @apply sticky top-0 z-10 bg-base-100 px-4 py-3 text-[13px] font-semibold leading-[1.45] text-base-content/70 shadow-[inset_0_-1px_0_var(--color-base-300)] lg:px-5; }
+  .td-cell { @apply px-4 py-3.5 align-middle text-[14px] lg:px-5; }
+
+  /* Base only — the hover colour is set per action below, because two buttons
+     sitting 4px apart that light up identically give no feedback about WHICH
+     one is under the cursor. Colour also carries meaning here: sky = read
+     (opens a review dialog, changes nothing), emerald = write (opens the edit
+     form). Same sky/emerald split already used by รีเฟรช vs รายงาน above. */
+  .icon-btn {
+    @apply flex h-11 w-11 items-center justify-center rounded-control text-base-content/70 transition-colors
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+  }
+  .icon-btn-view { @apply hover:bg-info/10 hover:text-info; }
+  .icon-btn-edit { @apply hover:bg-primary/10 hover:text-primary; }
+  /* Actions stay reachable by keyboard even while visually de-emphasised —
+     hiding them behind `group-hover` alone would strand keyboard users. */
+  /* A GRID of two fixed 44px slots, not a flex row. With flex + text-right the
+     unregistered row — which has no แก้ไข button — pushed its single ตรวจสอบ
+     button into the rightmost position, so it sat under everyone else's แก้ไข
+     icon and the column read as ragged. Fixed slots mean button 1 is always
+     under button 1, whatever a row happens to offer. */
+  .row-actions { @apply ml-auto grid w-fit grid-cols-2 gap-1 opacity-70 transition-opacity group-hover:opacity-100 focus-within:opacity-100; }
+
+  /* ── Live rows — การลงทะเบียน only ────────────────────────────────
+     `.row-flash` marks a row that just changed underneath the reader, for a
+     couple of seconds. It is a LEFT RAIL, not a background wash, and that was
+     forced by measurement rather than taste.
+
+     ⚠️ THE WASH FAILED. `bg-info/12` across the row composites under the status
+     badge, which carries a 10% tint of its own hue, and `badge-emerald` —
+     already the tightest of the five at 4.76 — dropped to 4.53. That passes, by
+     0.03. But the row ALSO has `hover:bg-base-content/5`, and the operator's
+     pointer is on the row that just changed more often than not, because they
+     are reading it. Flash plus hover measured ~4.3: a fail, on the one element
+     the flash exists to draw the eye to. An inset shadow sits under nothing, so
+     flash + hover is just hover, and the badge keeps its 4.76.
+
+     A left rail is also not a new vocabulary here — `.rail` is the sidebar's
+     active marker, and this file already treats a bar on the left edge as
+     "this one". `info`, not `success` or `warning`: someone else's edit is
+     neither good news nor a problem, and both of those tokens are spoken for by
+     the status vocabulary this table is scanned for.
+
+     No `@keyframes` anywhere in it, so `prefers-reduced-motion` has nothing to
+     switch off — it appears, and a timer takes it away.
+
+     ⚠️ Colour alone would fail WCAG 1.4.1. It is not alone: the change itself is
+     visible in words (the badge now reads อนุมัติแล้ว) and `#lu-live` announces
+     it. The rail only has to say LOOK HERE.
+
+     `.row-gone` is the other half — a record deleted on the server while it is
+     still on screen. It is NOT removed (that would move every row below it, the
+     one thing this page refuses to do without a click); it is made unclickable,
+     and the bar collects it for the next load. Killing `pointer-events` matters
+     more than the dimming: a row that opens a dialog onto a record the server no
+     longer has is a 404 the operator cannot explain. */
+  .row-flash > :first-child { box-shadow: inset 4px 0 0 0 var(--color-info); }
+  .row-gone  { @apply pointer-events-none opacity-45 line-through decoration-base-content/40; }
+
+  /* ── Badges — one per AppAccess value, all ≥4.5:1 on their own tint ──
+     FIVE states, matching `STATUS_BADGE` in ui-strings-line-users.ts:
+       ALLOWED อนุมัติแล้ว · PENDING รออนุมัติ · REJECTED ส่งคืนแล้ว
+       BLOCKED ถูกระงับการใช้งาน · UNREGISTERED ยังไม่ลงทะเบียน
+     Each gets its OWN hue. The live app paints PENDING and REJECTED both
+     `badge-warning`, so "รออนุมัติ" and "ส่งคืนแล้ว" are the same colour —
+     two states an operator must tell apart at a glance. Split here: REJECTED
+     is sky (waiting on the USER to resend), BLOCKED keeps rose (the only
+     genuinely punitive state). */
+  /* Kept as five NAMES (`badge-emerald` … ) rather than renaming to
+     `badge-success` etc., because the name here says which STATUS it is; the
+     token underneath says which colour that status gets. Mapping the two is
+     the whole job: ALLOWED→success, PENDING→warning, REJECTED→info,
+     BLOCKED→error, UNREGISTERED→neutral. daisyUI's four semantic hues plus
+     `neutral` cover all five exactly. */
+  .badge         { @apply inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-medium whitespace-nowrap; }
+  .badge-emerald { @apply bg-success/10 text-success; }      /* ALLOWED      */
+  .badge-amber   { @apply bg-warning/10 text-warning; }      /* PENDING      */
+  .badge-sky     { @apply bg-info/10 text-info; }            /* REJECTED     */
+  .badge-rose    { @apply bg-error/10 text-error; }          /* BLOCKED      */
+  .badge-slate   { @apply bg-base-content/10 text-base-content/80; } /* UNREGISTERED */
+
+  /* ── Role chip — `SystemRole`, on เจ้าหน้าที่ระบบ only ──────────────
+     OUTLINED, where every `.badge` above is FILLED, and that difference is the
+     whole point. เจ้าหน้าที่ระบบ is the one table with two closed vocabularies
+     in adjacent columns — บทบาท and สถานะ — and two filled chip columns give
+     the eye two competing scan targets in a table whose actual question is
+     "who is suspended". Shape is what separates them, and it has to be, because
+     as of 15 ส.ค. 2569 colour no longer can (see below).
+
+     ⚠️ SHAPE ONLY here. Every colour on this chip comes from `--role-c`, which
+     is set by `.role-super` / `.role-admin` / `.role-viewer` in the UNLAYERED
+     block beside the profile cover colours — one colour decision per role,
+     spent in two places. Do not put a colour utility back in this `@apply`: an
+     unlayered rule beats `@layer components` regardless of specificity, so it
+     would sit here looking authoritative and doing nothing. */
+  .role-chip { @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[13px] font-medium whitespace-nowrap; }
+
+  /* ── Pagination ─────────────────────────────────────────────────── */
+  /* /65 not /55: the disabled label now sits on base-200 (slate-100) rather
+     than the lighter slate-50 it used to, and /55 measured 3.85:1 there.
+     "Dim but legible" was the whole point of this control — the current
+     system's failure was disabled text you genuinely cannot read. */
+  .page-btn     { @apply min-h-11 cursor-not-allowed rounded-control border border-base-300 bg-base-200 px-3.5 text-[14px] font-medium text-base-content/65; }
+  .page-btn-on  { @apply cursor-pointer border-base-content/20 bg-base-100 text-base-content/80 hover:bg-base-content/5; }
+  .page-num     { @apply flex h-11 min-w-11 items-center justify-center rounded-control text-[14px] font-medium text-base-content/80 tabular-nums hover:bg-base-content/10; }
+  .page-num-active { @apply bg-primary text-primary-content hover:bg-primary; }
+
+  /* ── Account menu (user-card popup) ─────────────────────────────── */
+  .menu-item {
+    @apply flex min-h-11 w-full items-center gap-2.5 rounded-control px-2.5 text-left
+           text-[14px] font-normal leading-[1.45] text-base-content/80 transition-colors
+           hover:bg-base-content/5 hover:text-base-content
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+  }
+  .menu-item-danger { @apply text-error hover:bg-error/10 hover:text-error; }
+  /* For a menu row that is a <label> wrapping an sr-only <input>: the input is
+     what receives focus, and it is visually hidden, so without this a keyboard
+     user tabbing through the theme options gets no focus ring at all. Kept off
+     `.menu-item` itself — :focus-within has no -visible counterpart, so putting
+     it there would ring the plain anchors on every mouse click too. */
+  .menu-item-radio  { @apply focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary; }
+  .menu-ico         { @apply h-4.5 w-4.5 shrink-0; }
+
+  /* ── Notification panel ─────────────────────────────────────────────
+     A LIST OF RECORDS, not a menu. Each row is a thing that happened —
+     it has a subject, a context line and a timestamp, and it wraps to
+     two or three lines. `.menu-item` is a single-line 44px nav choice
+     and fights all of that, so this is its own vocabulary.
+     (Port: daisyUI `list` + `list-row` is the matching component; the
+     panel itself becomes `dropdown` + `dropdown-content`.)
+
+     UNREAD IS MARKED THREE WAYS — dot, weight, and wash — on purpose.
+     "Unread" is the only thing this panel exists to tell you, and a
+     tint alone fails WCAG 1.4.1: it is invisible to a colour-blind
+     user, to a screen reader, and in a screenshot printed in grey.
+     Each row also carries a visually-hidden "ยังไม่อ่าน". */
+  .notif-row {
+    @apply relative flex w-full items-start gap-3 px-3.5 py-3 text-left transition-colors
+           hover:bg-base-content/5
+           focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary;
+  }
+  /* 5%, not the 10% used by the active nav row. At 10% an unread row reads
+     as SELECTED — the same signal the sidebar uses for "you are here" — and
+     three of them at once looks like a broken multi-select. */
+  .notif-row-unread   { @apply bg-primary/5; }
+  .notif-dot          { @apply mt-[7px] h-2 w-2 shrink-0 rounded-full bg-primary; }
+  .notif-ico          { @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-control; }
+  .notif-glyph        { @apply h-[18px] w-[18px]; }
+  .notif-tone-emerald { @apply bg-success/10 text-success; }
+  .notif-tone-amber   { @apply bg-warning/10 text-warning; }
+  .notif-tone-sky     { @apply bg-info/10 text-info; }
+  .notif-tone-rose    { @apply bg-error/10 text-error; }
+  .notif-tone-slate   { @apply bg-base-content/10 text-base-content/70; }
+  .notif-title        { @apply m-0 text-[14px] leading-[1.45] text-base-content/80; }
+  .notif-title-unread { @apply font-semibold text-base-content; }
+  .notif-sub          { @apply m-0 mt-0.5 text-[13px] leading-[1.45] text-base-content/70; }
+  .notif-time         { @apply m-0 mt-1 text-[12px] text-base-content/70 tabular-nums; }
+
+  /* ── Modal ──────────────────────────────────────────────────────── */
+  .field-row   { @apply flex flex-col gap-0.5 border-b border-base-300/60 py-2.5 last:border-0 sm:flex-row sm:items-baseline sm:gap-4; }
+  .field-label { @apply shrink-0 text-[13px] text-base-content/70 sm:w-36; }
+  .field-value { @apply min-w-0 text-[15px] text-base-content; }
+
+  /* Solid buttons hover with `brightness-90`, not a darker colour token. A
+     hard-coded darker step (emerald-800) is correct on light and wrong on
+     dark, where `primary` is already a light emerald-400 sitting on a dark
+     field. brightness moves in the right direction relative to whatever the
+     token currently is. */
+  .btn-ghost2  { @apply flex min-h-11 items-center justify-center gap-2 rounded-control border border-base-content/20 bg-base-100 px-4 text-[14px] font-medium text-base-content/80 transition-colors hover:bg-base-content/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  .btn-primary2{ @apply flex min-h-11 items-center justify-center gap-2 rounded-control bg-primary px-4 text-[14px] font-medium text-primary-content transition-[filter,background-color] hover:brightness-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  .btn-danger2 { @apply flex min-h-11 items-center justify-center gap-2 rounded-control border border-error/40 bg-base-100 px-4 text-[14px] font-medium text-error transition-colors hover:bg-error/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error; }
+  .btn-warn2   { @apply flex min-h-11 items-center justify-center gap-2 rounded-control border border-info/40 bg-base-100 px-4 text-[14px] font-medium text-info transition-colors hover:bg-info/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info; }
+
+  /* ── Filled variants — the CONFIRM step only ──────────────────────
+     Outline = "propose this" (one option among several in the review
+     dialog); filled = "commit this" (the single decisive button in the
+     confirm dialog). Same hue, different weight, so an operator can tell
+     "I am choosing" from "I am doing" without reading the label.
+     Both clear 4.5:1 as content-on-700: rose-700 6.2:1, sky-700 5.7:1. */
+  .btn-danger-solid { @apply flex min-h-11 items-center justify-center gap-2 rounded-control bg-error px-4 text-[14px] font-medium text-error-content transition-[filter,background-color] hover:brightness-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error; }
+  .btn-warn-solid   { @apply flex min-h-11 items-center justify-center gap-2 rounded-control bg-info px-4 text-[14px] font-medium text-info-content transition-[filter,background-color] hover:brightness-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info; }
+
+  /* ── Confirm modal ───────────────────────────────────────────────────
+     Every class the confirm dialog builds in JavaScript is declared HERE, as
+     a component class, and never assembled from bare utilities in a script
+     string. Measured: `bg-sky-100`, `bg-rose-100` and `line-through` existed
+     only inside a JS string literal and were NEVER GENERATED — the tint came
+     out transparent and the old value was not struck through, with no error
+     anywhere. Tailwind's scanner reads the markup, not the script. Rules in
+     @layer components are emitted unconditionally, so a class named here is
+     always safe to hand to className at runtime.
+     (In the React port this stops mattering — className lands in the JSX the
+     scanner reads — but the classes are worth keeping as one named thing.) */
+  .cm-icon-shell   { @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-control; }
+  .cm-icon-glyph   { @apply h-6 w-6; }
+  .cm-tone-emerald { @apply bg-success/15 text-success; }  /* grants access */
+  .cm-tone-sky     { @apply bg-info/15 text-info; }        /* back to user  */
+  .cm-tone-rose    { @apply bg-error/15 text-error; }      /* removes access*/
+
+  .cm-diff-row      { @apply flex flex-col gap-1 border-b border-base-300 px-3.5 py-2.5 last:border-0; }
+  .cm-diff-row-warn { @apply bg-warning/10; }
+  .cm-diff-label    { @apply text-[13px] text-base-content/70; }
+  .cm-diff-label-warn { @apply text-[13px] text-warning; }
+  .cm-diff-val      { @apply m-0 flex flex-wrap items-center gap-2 text-[14px]; }
+  /* slate-500 measured 4.59:1 on the amber สถานะ row — a pass with almost no
+     headroom, on the one value an operator reads specifically to catch their
+     own mistake. slate-600 gives 7.3:1 there; the old/new hierarchy comes from
+     the strikethrough and the weight step instead of from a fading colour. */
+  .cm-diff-from     { @apply text-base-content/70 line-through; }
+  .cm-diff-to       { @apply font-semibold text-base-content; }
+  .cm-diff-arrow    { @apply h-4 w-4 shrink-0 text-base-content/60; }
+  .cm-btn-ico       { @apply h-4.5 w-4.5 shrink-0; }
+
+  /* ── Toast ───────────────────────────────────────────────────────────
+     The result of a confirmed action. Tinted rather than solid-dark: a
+     success and an error must be told apart at a glance from across a desk,
+     and a dark pill would need its own contrast budget for every hue. Same
+     three tints the badges and the confirm dialog already use. */
+  /* A toast floats over an unknown background, so its own surface must be
+     opaque — `bg-base-100` first, then the hue as a wash ON TOP of it, not a
+     translucent tint that would let the page show through. */
+  /* `items-center`, not `items-start`. The ✕ is a 44px target pulled in by
+     `-my-2`, so it still contributes 28px of row height — taller than the
+     21.7px line box of a one-line message. Under `items-start` the text was
+     pinned to the top of that 28px row and sat 13px below the toast's top edge
+     against 19.3px above its bottom: measurably 3.16px high, and visible.
+     Centring costs nothing here because a toast is one or two lines by design;
+     first-line icon alignment is a rule for paragraphs, and it is `.inline-alert`
+     and the form errors — which can run long — that keep `items-start`. */
+  .toast-item    { @apply pointer-events-auto flex w-full items-center gap-3 rounded-control border bg-base-100 px-4 py-3 shadow-e2; }
+  .toast-success { @apply border-success/30 bg-success/10 text-base-content; }
+  .toast-error   { @apply border-error/30 bg-error/10 text-base-content; }
+  .toast-info    { @apply border-base-300 bg-base-100 text-base-content; }
+  /* No `mt-0.5`: that nudge existed only to line the icon up with the first
+     line of text under `items-start`. With the row centred it now pushes the
+     icon 2px BELOW the centre, which is the same bug one item over. */
+  .toast-ico     { @apply h-5 w-5 shrink-0; }
+  .toast-ico-success { @apply text-success; }
+  .toast-ico-error   { @apply text-error; }
+  .toast-ico-info    { @apply text-base-content/70; }
+  .toast-msg     { @apply m-0 min-w-0 flex-1 text-[14px] leading-[1.55]; }
+  /* -my-* pulls the 44px hit area back inside the toast's own height so the
+     target stays finger-sized without inflating the pill. */
+  .toast-x       { @apply -my-2 -mr-2.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-control transition-colors hover:bg-base-content/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current; }
+  .toast-x-ico   { @apply h-4.5 w-4.5; }
+
+  /* ── Inline alert (inside a dialog) ──────────────────────────────────
+     A failure that happens WHILE a dialog is open cannot be a toast.
+     showModal() makes the rest of the document inert, so a toast over an
+     open dialog paints on top but does not receive clicks — measured: a real
+     click on its ✕ fell through to the dialog's ::backdrop and CLOSED THE
+     FORM, throwing away the edits the operator was trying to save. The
+     message belongs where the retry button is anyway. */
+  .inline-alert     { @apply mb-4 flex items-start gap-2.5 rounded-control border border-error/30 bg-error/10 px-3.5 py-3 text-[14px] leading-[1.55] text-base-content; }
+  .inline-alert-ico { @apply mt-0.5 h-5 w-5 shrink-0 text-error; }
+
+  /* The neutral sibling of .inline-alert. Used for a consequence the operator
+     needs to read but that is not itself a failure — "unsaved work will be
+     lost" on the session dialog. Rendering that in the error palette would put
+     two red boxes on one screen competing for the same alarm. */
+  .inline-note     { @apply flex items-start gap-2.5 rounded-control border border-base-300 bg-base-200 px-3.5 py-3 text-[13px] leading-[1.55] text-base-content/80; }
+  .inline-note-ico { @apply mt-0.5 h-4.5 w-4.5 shrink-0 text-base-content/60; }
+
+  /* ── Load-failure panel ──────────────────────────────────────────────
+     Same centred block as the empty state, different vocabulary: an icon
+     tile whose TONE says whether anything is actually broken. Rose for a
+     failure the operator can retry; neutral grey for 403, which is not a
+     malfunction at all — the system worked and the answer is no. */
+  .load-err-ico     { @apply mb-4 flex h-16 w-16 items-center justify-center rounded-full; }
+  .load-err-fail    { @apply bg-error/10 text-error; }
+  .load-err-denied  { @apply bg-base-200 text-base-content/60; }
+
+  /* ── Spinner ─────────────────────────────────────────────────────────
+     A ring with one side missing — `border-current` means it inherits the
+     button's own text colour, so one class works on the white-on-emerald
+     confirm button and on the grey-on-white refresh button alike. */
+  .spinner    { @apply inline-block shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent align-[-2px]; }
+  .spinner-sm { @apply h-4.5 w-4.5; }
+  .spinner-lg { @apply h-8 w-8 border-[3px]; }
+
+  /* ── Skeleton ────────────────────────────────────────────────────────
+     Two weights so a skeleton row has the same visual hierarchy as the row
+     it stands in for: the darker bar is the primary line (a name), the
+     lighter one is the secondary line under it. A single grey everywhere
+     reads as a wall of bars and tells you nothing about what is coming. */
+  /* Washes of base-content, not fixed greys: slate-200 bars are invisible on
+     a slate-900 card. A wash darkens on light and lightens on dark, which is
+     the only way one value works in both. */
+  .sk      { @apply animate-pulse rounded-full bg-base-content/12; }
+  .sk-soft { @apply animate-pulse rounded-full bg-base-content/6; }
+  .sk-box  { @apply animate-pulse rounded-control bg-base-content/12; }
+  /* Skeleton bars are block elements, so `text-center` on the cell does nothing
+     to them — they need a real `mx-auto`. Named here rather than left as a bare
+     utility inside a JS string, so it cannot depend on whether the scanner
+     picked that string up: rules in this layer emit unconditionally.
+
+     `max-w-full` rides along because a bar wider than its own cell cannot be
+     centred by anything: it overflows to the right and its visual centre lands
+     off by half the overflow. Measured before this: `w-28` (112px) in a 90px
+     content box put the phone bar 12px right of the column's centre, and the
+     date bar 8px. Left-aligned columns hid that for as long as the bars only
+     ever spilled rightwards into the next cell's padding. */
+  .sk-mid  { @apply mx-auto max-w-full; }
+
+  /* ── Form fields (edit modal) ────────────────────────────────────
+     Same soft-filled treatment as the toolbar search: grey at rest, lifts to
+     white with a ring on focus. Reusing it means a field looks like a field
+     everywhere in the portal instead of per-screen improvisation. */
+  .form-label { @apply mb-1 block text-[13px] font-medium text-base-content/80; }
+  .form-shell { @apply flex items-center rounded-control border border-transparent bg-base-200 px-3.5 transition-all focus-within:border-primary/40 focus-within:bg-base-100 focus-within:ring-4 focus-within:ring-primary/10; }
+  .form-input { @apply min-h-11 w-full min-w-0 border-none bg-transparent text-[15px] text-base-content/90 outline-none placeholder:text-base-content/60; }
+  .form-select{ @apply min-h-11 w-full cursor-pointer appearance-none border-none bg-transparent pr-7 text-[15px] text-base-content/90 outline-none; }
+
+  /* Field-level error. Declared AFTER .form-shell so the plain error border
+     wins on source order, while `.form-shell:focus-within` (0,2,0 — a
+     pseudo-class outranks a second class) still beats `.form-shell-err`
+     (0,1,0). That ordering is deliberate: focusing a field you are about to
+     fix should show the normal focus ring, not stay stuck looking broken.
+
+     The message carries its own ⚠ glyph and sits below the field. Colour is
+     NOT the only signal (WCAG 1.4.1) — there is the icon, the wording, and
+     aria-invalid on the input itself, so a red border alone never has to
+     carry the meaning. */
+  .form-shell-err { @apply border-error/50 bg-error/5; }
+  .form-err       { @apply mt-1.5 flex items-start gap-1.5 text-[13px] leading-[1.45] text-error; }
+  .form-err-ico   { @apply mt-0.5 h-4 w-4 shrink-0; }
+
+  /* ── Login screen ────────────────────────────────────────────────────
+     `.login-x` rather than raw utilities for the two things that repeat
+     across the login card and (next) the forced password-change card, so the
+     two screens cannot drift into looking like different products. */
+  .login-eye { @apply -mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-base-content/60 transition-colors hover:text-base-content focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary; }
+
+  /* The password policy, one line per rule.
+     This WAS a single line and a note saying a checklist would be inventing
+     requirements — correct while the policy was one rule (>= 12, no
+     composition). The policy is now five, so the argument inverts: with one
+     rule a line can say what is wrong, with five it cannot, and the user is
+     left guessing which of five a rejected password missed. A checklist is
+     the answer to a composition policy, not an ornament on top of one.
+     Still NOT a strength meter — a meter scores, and a policy that is a hard
+     pass/fail should not show a score it does not act on. */
+  .pw-reqs    { @apply mt-2 grid list-none grid-cols-1 gap-x-3 gap-y-1.5 p-0 sm:grid-cols-2; }
+  .pw-req     { @apply flex items-center gap-1.5 text-[13px] leading-[1.45] text-base-content/70 transition-colors; }
+  .pw-req-ok  { @apply text-success; }
+  .pw-req-ico { @apply h-4 w-4 shrink-0; }
+
+  /* ── Profile page ────────────────────────────────────────────────────
+     Three stacked cards rather than one tall card, because they answer
+     three different questions and only one of them is a form: what you may
+     change, what only a SUPER_ADMIN may change, and where to go next.
+     Merging them would put an editable field and a permanently read-only
+     one in the same visual container, which is exactly the confusion the
+     read-only card exists to prevent.
+     ⚠️ Never `@apply th-tight` — it is a plain rule in the unlayered block,
+     not a Tailwind utility, and @apply-ing a non-utility fails the WHOLE
+     stylesheet silently (see the README's first gotcha). Use `leading-[…]`. */
+  /* ═══ โหมดอ่านอย่างเดียว ═══
+     `<html data-acl="viewer">`, written by the role module. One attribute, so
+     "is this session read-only" is answerable from anywhere without a JS call
+     and without every module keeping its own copy of the answer.
+
+     ⚠️ `data-acl`, NOT `data-role` — `[data-role]` is already the selector the
+     review switcher's three buttons are found by, and putting the same
+     attribute on <html> would make `document.querySelectorAll('[data-role]')`
+     return four elements, one of which is the document element.
+
+     `[data-write-only]` marks an affordance that exists ONLY for a role that
+     can write — today the row pencils and the second skeleton box.
+
+     ⚠️ It is deliberately NOT on the whole `[data-col="actions"]` cell, and
+     that was the first attempt. Hiding the column took the **eye** with it,
+     and the eye is how a read-only session opens a record at all on desktop —
+     which is the one thing this role exists to do. Measured: `eyes: 0` for a
+     viewer at 1440px. The column stays; only the pencil goes, and the header
+     stops calling itself จัดการ (see the ACL module).
+
+     Everything else a screen has to say differently — an empty modal footer, a
+     menu that is gone rather than greyed — is decided in JS, because "hide it"
+     and "never build it" are different designs and the second is usually the
+     right one. */
+  [data-acl="viewer"] [data-write-only] { display: none; }
+
+  /* `[data-super-only]` is the SECOND axis, and it exists because
+     เจ้าหน้าที่ระบบ is the first page where "can this session write" and "can
+     this session write HERE" are different questions.
+
+     `POST`, `DELETE`, `/restore` and `/reset-password` on `/system-users` are
+     `@Roles(SUPER_ADMIN)`, and after D-2 an ADMIN may not `PATCH` anyone but
+     themselves — so on this one table an ADMIN has exactly the VIEWER's
+     capabilities, even though `__acl.write` is true for them everywhere else.
+     `[data-write-only]` cannot express that: it asks about the SESSION, and
+     the answer here is about the ROUTE.
+
+     Read it as "minting and revoking identities", not as "super can do more":
+     the boundary is separation of duties (01_plan_log.md D-2), which is why it
+     is worth its own attribute rather than a role check sprinkled through the
+     staff module. */
+  [data-acl="admin"]  [data-super-only],
+  [data-acl="viewer"] [data-super-only] { display: none; }
+
+  /* `.row-actions` is `grid-cols-2` on purpose — it keeps every row's eye in
+     the same vertical line even on the one row that has no pencil (the
+     unregistered follower). Under a read-only session NO row has a pencil, so
+     that reserved track becomes 48px of nothing hanging off the right of every
+     row: measured, the eye ended 68px from the cell edge while the right-
+     aligned header sat at the edge. One column when nothing is writable. */
+  [data-acl="viewer"] .row-actions { grid-template-columns: minmax(0, 1fr); }
+
+  .pf-card  { @apply rounded-card border border-base-300/70 bg-base-100 shadow-e1; }
+  .pf-head  { @apply flex items-start justify-between gap-3 border-b border-base-300 px-4 py-4 sm:px-5; }
+  .pf-title { @apply m-0 text-[16px] font-semibold leading-[1.45] text-base-content; }
+  .pf-note  { @apply m-0 mt-1 text-[13px] leading-[1.5] text-base-content/70; }
+  .pf-body  { @apply px-4 py-4 sm:px-5 sm:py-5; }
+  /* A navigating row, not a button: it goes somewhere. 60px, not 44, because
+     it carries two lines and a 44px box would clip the second. */
+  .pf-row   { @apply flex min-h-[60px] w-full items-center gap-3.5 px-4 text-left transition-colors hover:bg-base-content/5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary sm:px-5; }
+  .pf-row-ico { @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-base-content/8 text-base-content/70; }
+
+  /* ── The closing rule (15 ส.ค. 2569, PO: "มันรู้สึกว่ามีอะไรแหว่ง") ──
+     Both `.field-row` (`last:border-0`) and `divide-y` draw lines BETWEEN
+     items, so the last one ends in mid-air. On the three profile cards that
+     reads as an unfinished edge, and on ประวัติการใช้งานระบบ it is worse than a
+     feeling: that <dl> is `sm:grid-cols-2`, so `:last-child` is the bottom-RIGHT
+     cell only. Measured at 1440px — both bottom cells sit at y=1148, the left
+     one carries a 1px rule and the right one carries none. Half a line across
+     the bottom of a card is exactly what "แหว่ง" describes.
+
+     ⚠️ Scoped to a class, NOT fixed on `.field-row` itself, because that class
+     is shared with five dialogs (ตรวจสอบผู้ลงทะเบียน, ข้อมูลบัญชีเจ้าหน้าที่,
+     รหัสผ่านชั่วคราว …) where the last row is followed by a footer that already
+     closes it. A global change would draw a second line into all of them.
+
+     ⚠️ `.pf-card` is in the selector for SPECIFICITY, not for scoping.
+     `.pf-close > :last-child` is (0,2,0) and so is `.field-row:last-child`;
+     equal weight means SOURCE ORDER decides, which is the trap the cover-colour
+     block above already documents. The extra class makes it (0,3,0) and the
+     question stops depending on where in the file this sits.
+
+     `sm:` and not `lg:`: the audit grid becomes two columns at `sm`, so that is
+     where the broken edge appears. Below it every list is one column, the cards
+     do not stretch, and the existing rhythm was measured as it is. */
+  .pf-card .pf-close > :last-child { @apply sm:border-b sm:border-base-300/60; }
+
+  /* The social-profile header. Circular avatar overlapping a cover band is the
+     shape every social product uses, and it is doing real work here rather than
+     decoration: it makes the avatar the one obviously interactive thing on a
+     page where everything else is locked. */
+  .pf-ava   { @apply h-24 w-24 rounded-full border-4 border-base-100 bg-base-200 object-cover sm:h-28 sm:w-28; }
+  /* THE WHOLE AVATAR IS THE BUTTON, not the badge.
+     The badge used to be the control at 40px — 35.7% of the avatar's width,
+     covering 11.7% of the visible circle (measured). It was that big only
+     because it had to be a tap target on its own. Promoting the avatar to the
+     button removes that constraint: the target grows from 40px to 112px, far
+     past the 44px rule, and the badge is free to shrink to what it should have
+     been all along — an INDICATOR that says "this picture is editable". */
+  .pf-ava-btn { @apply relative inline-block rounded-full transition-[filter] hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  /* 28px ≈ 25% of the avatar, and parked at the box's bottom-right corner,
+     which on a CIRCLE is ~16px outside the ink diagonally — so most of it
+     hangs past the edge instead of sitting on the face.
+     NO `pointer-events-none`, though it looks like the tidy choice for a
+     decorative span: the badge sits OUTSIDE the circle, so making it
+     transparent to hit-testing sent clicks straight through to the layout div
+     behind it (measured). The badge is the thing that reads as "press me" —
+     it has to be pressable. Inside a <button> it swallows nothing: the event
+     bubbles up and activates the button either way. */
+  .pf-cam   { @apply absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-base-100 bg-primary text-primary-content; }
+  .pf-meta  { @apply flex min-w-0 items-center gap-1.5 text-[13px] leading-[1.45] text-base-content/70; }
+  .pf-meta-ico { @apply h-4 w-4 shrink-0 text-base-content/60; }
+  /* The lock is a CHIP on the card head, once — not an icon repeated on all six
+     rows. Six locks say the same thing six times and turn into wallpaper; one
+     says it where the eye lands before it reads any value. */
+  .pf-lock  { @apply inline-flex shrink-0 items-center gap-1.5 rounded-full bg-base-content/8 px-2.5 py-1 text-[12px] font-medium text-base-content/70; }
+
+  /* Avatar upload — drop zone */
+  .pf-drop    { @apply flex h-64 w-full cursor-pointer items-center justify-center overflow-hidden rounded-card border-2 border-dashed border-base-300 bg-base-200 p-4 text-center transition-colors hover:bg-base-content/5 sm:h-72; }
+  .pf-drop-on { @apply border-primary bg-primary/10; }
+  /* Once an image is in it, it stops being a drop target: solid border, no
+     hover, no pointer. Leaving it looking droppable invites a second drop that
+     would silently replace the crop in progress. */
+  .pf-drop-img{ @apply cursor-default border-solid border-base-300 bg-base-300/40 p-0 hover:bg-base-300/40; }
+}
+
+/* Plain CSS: only things Tailwind has no utility for (scrollbar, mask, marker). */
+
+/* ⚠️ THE PROTOTYPE'S `body` RULE IS DELIBERATELY NOT HERE.
+   It read:
+     body { font-family: 'Kanit', sans-serif;
+            background-color: var(--color-base-200);
+            color: var(--color-base-content); }
+
+   In a one-page prototype `body` IS the portal. Here it is not: this app also serves
+   the LIFF client, and a global `body` background painted from the ADMIN theme's
+   variables would repaint that surface too — a change to a portal this port is not
+   allowed to touch.
+
+   Split three ways instead, each to the place that already owns it:
+     · font-family → `@theme --font-sans` in index.css. It was already there (Kanit,
+       self-hosted via @fontsource, with a Noto Sans Thai fallback the prototype's
+       Google-Fonts link did not need). Re-declaring it here would fight that.
+     · background + colour → the admin shell's own wrapper element (`bg-base-200
+       text-base-content`), which is markup, and lands with the shell in P2.
+
+   Everything below this line is scoped by a class, a `data-*` attribute, or an
+   ancestor that only exists inside the admin subtree — EXCEPT the four bare element
+   rules (`select option`, `select optgroup`, `dialog*`, `details > summary`), which
+   are wrapped in `[data-theme^="easybook-admin"]` for the same reason. */
+
+/* Thai needs vertical room for สระบน / สระล่าง / วรรณยุกต์ — a tight
+   leading clips ํ ิ ี ึ ื ุ ู ่ ้ ๊ ๋ against the line above. */
+.th-tight { line-height: 1.45; }
+
+/* Profile cover band. Written as plain CSS, not `bg-gradient-to-br`, because
+   Tailwind v4 renamed those utilities to `bg-linear-*` and relying on whether
+   the old alias survived is a silent-failure risk this file has been bitten by
+   before. A gradient and NOT an image on purpose: the repo has two assets, both
+   logos — a photographic cover would have to be invented, and a missing one
+   reads as a broken upload. Built from theme tokens so it flips with the theme
+   instead of being a fixed pair of hexes that is right in one mode only. */
+.pf-cover {
+  background-image: linear-gradient(135deg,
+    color-mix(in oklab, var(--pf-cov-a, var(--color-primary)) 85%, transparent) 0%,
+    color-mix(in oklab, var(--pf-cov-a, var(--color-primary)) 40%, transparent) 55%,
+    color-mix(in oklab, var(--pf-cov-b, var(--color-info)) 32%, transparent) 100%);
+}
+
+/* ── Cover colour per role (project, 12 ส.ค. 2569): super ชมพู · admin เขียว
+   · viewer ฟ้า ──
+   Set on <html data-acl>, which the ACL module already writes, so the cover is
+   a consequence of the session rather than a fourth place that has to be told
+   who is signed in.
+
+   Two channels, not one: the alpha ramp stays exactly as it was, and only the
+   two source colours move. That keeps the band readable in both themes without
+   re-tuning three stops per role.
+
+   Each role shifts ~25-30° of hue across the band, because the original cover
+   did (emerald -> sky, 70°) and a flat one reads as a coloured rectangle rather
+   than a cover. Measured first: the obvious `primary -> success` for admin came
+   out at 163° -> 163°, i.e. no gradient at all — the two tokens are the same
+   emerald. `--color-success` is not a second green; it is the same green with a
+   different job.
+
+   ⚠️ Defaults live in the `var()` FALLBACKS above, not in a `:root` rule.
+   `[data-acl="…"]` and `:root` are both (0,1,0), so a `:root` default would be
+   decided by source order — a trap that only shows up when someone reorders
+   the stylesheet. A fallback cannot lose that race because it is not in it.
+
+   Pink is a literal `oklch()` and not a token because the palette has no pink:
+   it is emerald / amber / sky / rose / slate, and `rose` is `--color-error`.
+   Borrowing the error colour to decorate a profile is how "red means something
+   is wrong" stops being true. Green and blue DO have honest tokens, so they
+   use them.
+
+   ⚠️ ...which is why pink needs a SECOND rule and they do not. A token already
+   carries two lightnesses (measured: L 0.51 light / 0.77 dark); a literal
+   carries one, so a single pink would have sat ~0.2 lighter than the other two
+   in light mode and the three would have stopped reading as one set. The dark
+   pair is written out explicitly. `[data-theme$="-dark"]` matches the same
+   element as `[data-acl]` — both live on <html> — so (0,2,0) beats (0,1,0) and
+   no `!important` is involved. Light theme has NO `data-theme` at all, so the
+   base rule IS the light rule. */
+[data-acl="super"]  { --pf-cov-a: oklch(0.55 0.20 350); --pf-cov-b: oklch(0.62 0.15 320); }
+[data-acl="admin"]  { --pf-cov-a: var(--color-primary); --pf-cov-b: oklch(0.55 0.14 140); }
+[data-acl="viewer"] { --pf-cov-a: var(--color-info);    --pf-cov-b: oklch(0.50 0.14 268); }
+
+[data-theme$="-dark"][data-acl="super"]  { --pf-cov-a: oklch(0.75 0.17 350); --pf-cov-b: oklch(0.82 0.11 320); }
+[data-theme$="-dark"][data-acl="admin"]  { --pf-cov-b: oklch(0.79 0.13 140); }
+[data-theme$="-dark"][data-acl="viewer"] { --pf-cov-b: oklch(0.76 0.12 268); }
+
+/* ── Role ink — the SAME three colours, one row at a time (15 ส.ค. 2569, PO) ──
+   The cover above paints ONE role: whoever is signed in. This paints THIRTEEN,
+   one per row of เจ้าหน้าที่ระบบ, and it must be the same three colours or the
+   product would be teaching two different meanings for pink.
+
+   That is the whole rule the PO gave, and it replaced the previous one. Before,
+   only ผู้ดูแลระบบสูงสุด was tinted, on the argument that colour should mark the
+   exception rather than enumerate the set. The objection is better: a reader
+   who meets a coloured chip in a column of grey ones asks what the colour MEANS,
+   and "this one is the dangerous one" is not something a hue can say on its own —
+   so the colour was a question with no answer on screen. Three colours that each
+   match a face the reader has already seen on a profile is an answer.
+
+   `--role-c` is the single decision, read by BOTH presentations: the outlined
+   chip in the desktop table and the plain coloured label on the phone card. Two
+   places, one source — the way the old two-tone chip drifted from the cover is
+   precisely by having had its own copy of the colour.
+
+   ⚠️ Defaults ride in the `var()` FALLBACK, never in a `:root` rule — same trap,
+   same reason as the cover above: `:root` and `[data-theme=…]` are both (0,1,0)
+   and source order would decide the winner. `.role-admin` / `.role-viewer` need
+   no dark rule at all because a TOKEN already carries both lightnesses; pink is
+   a literal (the palette has no pink, and `rose` is `--color-error`), so it
+   carries one and the dark value is written out. `[data-theme$="-dark"] .role-…`
+   is (0,2,0) and wins without `!important`.
+
+   ⚠️ KNOWN COLLISION, flagged rather than quietly designed around: ADMIN's ink is
+   `--color-primary`, and `--color-success` is not merely a similar green — the
+   two tokens are byte-identical, measured `#047857` light and `#34d399` dark.
+   So an ADMIN row shows an emerald role chip immediately beside an emerald
+   `ใช้งานอยู่` badge in the very next column, and OUTLINE vs FILL is the only
+   thing separating them. That is exactly why the chip gave up its filled option
+   above, and it is now load-bearing rather than merely tidy.
+
+   Substituting a different green would have been the easy fix and the wrong
+   one: it would break the tie to that role's profile cover, which is the entire
+   instruction. If the pairing reads badly in use, the fix belongs in the STATUS
+   column — that vocabulary has four values and three spare hues, while this one
+   is pinned to three faces the reader has already met.
+
+   VIEWER's `--color-info` (#0369a1) is the same token as `.badge-sky`, but that
+   badge is not in this table's status set (active/pending/suspended/deleted are
+   emerald/amber/rose/slate), so it never lands beside itself. SUPER's pink
+   collides with nothing because the palette has no pink at all. */
+.role-super  { --role-c: oklch(0.55 0.20 350); }
+.role-admin  { --role-c: var(--color-primary); }
+.role-viewer { --role-c: var(--color-info); }
+[data-theme$="-dark"] .role-super { --role-c: oklch(0.75 0.17 350); }
+
+.role-chip {
+  border-color: color-mix(in oklab, var(--role-c, var(--color-base-content)) 45%, transparent);
+  background-color: color-mix(in oklab, var(--role-c, var(--color-base-content)) 6%, transparent);
+  color: var(--role-c, var(--color-base-content));
+}
+/* The phone card's third line: same decision, no box around it. */
+.role-ink { color: var(--role-c, var(--color-base-content)); }
+
+/* Sidebar scroll: thin, inset, and it never touches the card's rounded
+   corner — v1's default scrollbar cut straight through the 32px radius. */
+.nav-scroll { scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--color-base-content) 25%, transparent) transparent; scrollbar-gutter: stable; }
+.nav-scroll::-webkit-scrollbar { width: 6px; }
+.nav-scroll::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--color-base-content) 25%, transparent); border-radius: 999px; }
+.nav-scroll::-webkit-scrollbar-track { background: transparent; }
+/* Fade masks tell you there is more menu above/below without a scrollbar.
+   Each edge only fades when there IS something past it — the widths are set
+   from JS, and 0 collapses that stop so the gradient starts fully opaque.
+
+   Fixed 12px/16px was wrong at rest: the first nav row begins at scroll
+   offset 0, exactly inside the top fade, so 12px of "ภาพรวมระบบ" — its top
+   border and the top of its active pill — was erased while nothing was
+   scrolled above it. It read as a rendering fault because it WAS one: the
+   mask was announcing hidden content that did not exist. */
+.nav-mask { mask-image: linear-gradient(to bottom,
+              transparent 0, #000 var(--mask-top, 0px),
+              #000 calc(100% - var(--mask-bottom, 0px)), transparent 100%); }
+
+/* ── <select> popup ──────────────────────────────────────────────────────
+   `color-scheme: dark` alone does NOT fix this, which was measured the wrong
+   way first: a bare probe <input> did pick up the dark UA field, so the fix
+   looked verified — but the select popup never took that path. Once a page
+   sets `color` and `appearance: none` on a <select>, Chromium treats it as
+   author-styled and paints the popup from the select's OWN background-color
+   instead of the color-scheme palette. That background is `transparent` here
+   (the filled look comes from the .form-shell wrapper), so the popup came out
+   white while the options inherited the dark theme's near-white text.
+
+   So the options carry their own opaque pair. They are what covers the popup
+   row for row; `color-scheme` stays because it is still what handles
+   scrollbars, macOS's native popup, and any future date/time input.
+
+   base-100, not base-200: the popup is a surface floating ABOVE the page, so
+   it takes the card colour, the same as every menu in this file. */
+[data-theme^="easybook-admin"] select option {
+  background-color: var(--color-base-100);
+  color: var(--color-base-content);
+}
+
+/* ⚠️ …and the <optgroup> LABEL is the SAME BUG one row higher, which the rule
+   above does not reach. `select option` matches the options inside a group —
+   they are still <option>s — so the choices were opaque and readable while the
+   heading that names them was not. Measured with the author rules reverted:
+   background `rgba(0,0,0,0)` and colour `rgb(226,232,240)`, i.e. the dark
+   theme's near-white text on the popup's own white surface. Invisible, in the
+   one row of the list a reader cannot afford to miss, since it is the only
+   thing saying these two ตำแหน่ง are not ordinary choices.
+
+   `font-weight` is authored for the same reason: once the colours are ours the
+   whole row is, and the UA's bold-ish label is a convention, not a promise.
+   base-content/70 would be the instinct for a heading, but this row is painted
+   by the browser inside a popup no script in this file can measure, so it takes
+   the full-strength token — one shade too light here is invisible rather than
+   merely subtle. */
+[data-theme^="easybook-admin"] select optgroup {
+  background-color: var(--color-base-100);
+  color: var(--color-base-content);
+  font-weight: 600;
+}
+
+/* Mobile drawer. `peer-checked:` cannot drive the sidebar: Tailwind's peer
+   variant compiles to a sibling combinator (`~`), and the <aside> lives inside
+   the flex wrapper, not next to the checkbox. The scrim (a real sibling) worked
+   and the sidebar silently did not. `:has()` crosses the nesting.
+   Note it must set `translate`, NOT `transform`: Tailwind v4 compiles
+   `-translate-x-full` to the standalone `translate: -100%` property, so a
+   `transform: translateX(0)` override lands on a property that was already
+   identity and changes nothing. */
+@media (max-width: 1023.98px) {
+  body:has(#nav-toggle:checked) aside { translate: 0; }
+}
+
+/* ═══ Topbar at phone width ═══
+   Adding the theme and settings buttons took the topbar from one utility
+   control to three. Measured at 375px: the global search field was left 57px
+   of inner width for a placeholder needing 83px, so it clipped mid-word
+   ("ค้นหาทั้..."). Trimming padding recovers ~18px — not enough, and a 75px
+   search box is not a search box.
+   So the field yields the bar only while it is being used: on focus the three
+   icons step out and the input takes the full width. `:has()` on the header,
+   because the icons are a sibling of the field, not a descendant.
+   At rest the placeholder is shortened by the script instead — a truncated
+   word reads as a layout bug, a short word does not. */
+@media (max-width: 639.98px) {
+  header:has(#global-search:focus) [data-topbar-utils] { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TOOLTIP — for controls whose only label is an icon.
+   `aria-label` already names them for screen readers; this is the SIGHTED
+   mouse/keyboard user's equivalent, which they had no way to get.
+   Shown on :hover AND :focus-visible — a keyboard user tabbing onto an icon
+   button needs the name just as much as a mouse user hovering it.
+   Uses the same `data-tip` attribute name as daisyUI's `tooltip` component,
+   so porting is a class swap, not a markup rewrite.
+   ═══════════════════════════════════════════════════════════════════════ */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  translate: -50% 0;
+  white-space: nowrap;
+  /* Inverted on purpose: a tooltip must read as an overlay, not as another
+     panel, so it takes the FOREGROUND colour as its background in both themes. */
+  background: var(--color-base-content);
+  color: var(--color-base-100);
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 4px 9px;
+  border-radius: var(--radius-control);
+  opacity: 0;
+  pointer-events: none;            /* never blocks the click underneath */
+  transition: opacity .15s ease;
+  z-index: 60;
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after { opacity: 1; }
+/* An open panel answers the question the tooltip was going to answer, and
+   `data-tip-pos="bottom"` puts the bubble exactly where the panel now is —
+   measured sitting on top of the notification panel's "อ่านทั้งหมด" button.
+   The pointer is still over the trigger after the click, so without this the
+   label hangs there for as long as the panel is open. */
+[data-tip][aria-expanded="true"]:hover::after,
+[data-tip][aria-expanded="true"]:focus-visible::after { opacity: 0; }
+/* Controls in the top bar have no room above them — flip below. */
+[data-tip-pos="bottom"]::after { bottom: auto; top: calc(100% + 6px); }
+/* Right-most row actions: keep the bubble inside the card edge. */
+[data-tip-pos="left"]::after { left: auto; right: 0; translate: 0 0; }
+
+/* ═══ Detail modal ═══
+   Native <dialog> + showModal(): the platform gives focus trapping, Esc to
+   close, inert background, and focus return to the trigger — all the parts a
+   hand-rolled div modal gets wrong. daisyUI 5 uses <dialog> too, so this ports
+   as a class swap. */
+/* margin:auto is what centres a native dialog. Tailwind Preflight sets
+   margin:0 on every element, which silently removed it and pinned the
+   dialog to the top-left corner. */
+/* Scoped to the admin subtree: `dialog` is a bare element selector, and this app
+   also serves the LIFF client. A <dialog> in the top layer still matches an ancestor
+   selector — the element stays where it was authored in the DOM — so `showModal()`
+   and `::backdrop` are unaffected by the scope. */
+[data-theme^="easybook-admin"] dialog { margin: auto; padding: 0; border: 0; background: transparent; max-width: 100vw; max-height: 100dvh; }
+/* The scrim is always DARK, never a token — its job is to push the page back,
+   and a slate-900 wash over an already-slate-950 page separates nothing. Fixed
+   black, heavier in dark because there is less luminance difference to work with. */
+[data-theme^="easybook-admin"] dialog::backdrop { background: rgb(2 6 23 / .5); backdrop-filter: blur(2px); }
+[data-theme="easybook-admin-dark"] dialog::backdrop { background: rgb(0 0 0 / .72); }
+[data-theme^="easybook-admin"] dialog[open] { animation: modal-in .18s ease-out; }
+@keyframes modal-in { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { [data-theme^="easybook-admin"] dialog[open] { animation: none; } }
+
+/* ═══ Toast stack ═══
+   `popover="manual"` is not decoration — it is the only way this can sit above
+   an open dialog. showModal() puts a <dialog> in the TOP LAYER, and nothing in
+   the normal stacking context reaches it: z-index: 99999 still renders behind.
+   A popover joins the same top layer, so the toast stays visible when a failed
+   save reopens the edit form underneath it. "manual" (not "auto") because an
+   auto popover light-dismisses on any outside click and closes itself when
+   another popover opens — a toast must do neither.
+   Top-layer order is insertion order, so the stack is re-shown whenever a
+   toast is added; without that it would sit under a dialog opened afterwards. */
+#toast-stack {
+  position: fixed; inset: auto; top: 12px; left: 50%; translate: -50% 0;
+  z-index: 80; margin: 0; padding: 0; border: 0; background: transparent;
+  width: min(440px, calc(100vw - 24px)); max-width: none; max-height: none;
+  overflow: visible; color: inherit;
+  display: flex; flex-direction: column; gap: 8px;
+  /* the gaps between toasts must not swallow clicks on the page behind */
+  pointer-events: none;
+}
+@supports selector(:popover-open) {
+  #toast-stack:not(:popover-open) { display: none; }
+}
+/* Entry animation is a CLASS, removed once it has played. As a permanent rule
+   it would replay on every toast already on screen each time the stack is
+   re-shown to re-enter the top layer. */
+.toast-item.is-in  { animation: toast-in .22s cubic-bezier(.16,1,.3,1); }
+.toast-item.is-out { animation: toast-out .18s ease-in forwards; }
+/* `translate`, not `transform` — same reason as the drawer above. */
+@keyframes toast-in  { from { opacity: 0; translate: 0 -14px; } to { opacity: 1; translate: 0 0; } }
+@keyframes toast-out { from { opacity: 1; } to { opacity: 0; translate: 0 -10px; } }
+
+/* Scoped for the same reason as `dialog` above — a bare element selector in an app
+   that also serves the LIFF client. */
+[data-theme^="easybook-admin"] details > summary { list-style: none; }
+[data-theme^="easybook-admin"] details > summary::-webkit-details-marker { display: none; }
+details[open] .chev { transform: rotate(180deg); }
+.chev { transition: transform .2s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+
+  /* ⚠️ The blanket rule above BREAKS loading indicators, and this is easy to
+     ship without noticing because nobody reviews the page with the OS setting
+     on. A spinner at .01ms is a static ring: the one element whose entire job
+     is to say "something is still happening" stops saying it. Spinning is not
+     decorative motion — it is the content. Slowed, not removed. */
+  .spinner { animation-duration: 1.4s !important; }
+  /* The skeleton is the opposite case: the SHAPE carries the message and the
+     pulse is pure decoration, so freezing it costs nothing. Pinned at a
+     mid-opacity rather than left wherever the paused frame happened to land. */
+  .sk, .sk-soft, .sk-box { animation: none !important; opacity: .85; }
+}

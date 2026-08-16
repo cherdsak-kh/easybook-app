@@ -22,19 +22,60 @@
   --font-sans: 'Kanit', 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
 }
 
+/* 2c. Admin Portal v2's NON-COLOUR scale, lifted from the prototype's `@theme static`
+      block. Colour is not here — it is the two daisyUI theme blocks further down, which
+      is what the prototype's own comment names as the port target. What is left is the
+      part daisyUI has no vocabulary for.
+
+      `static`, not plain `@theme`: Tailwind v4 tree-shakes theme variables that no
+      utility references, and a theme override for a variable that was never emitted has
+      nothing to override. The prototype measured exactly that — `--color-base-100` came
+      back as an empty string purely because nothing used it yet.
+
+      Two radii and two shadows, and that is the whole scale on purpose: v1 of the
+      prototype had six radii and seven shadows, which is how a sidebar loses its corners
+      without anyone noticing. Pills use Tailwind's own `rounded-full` as the third.
+
+      ⚠️ These are DUPLICATED as `--radius-box` / `--radius-field` inside the admin theme
+      blocks below, and that is not redundancy: these four drive the `rounded-card`,
+      `rounded-control` and `shadow-e1/e2` UTILITIES the ported markup writes, while the
+      daisyUI ones drive daisyUI's own COMPONENTS (`btn`, `input`, `modal`). Two consumers,
+      one number — change it in both or the two halves of a screen disagree. */
+@theme static {
+  --radius-card: 24px;     /* containers: sidebar, topbar, cards, modals   */
+  --radius-control: 12px;  /* controls: inputs, buttons, nav rows, avatars */
+
+  /* ⚠️ INDIRECTION, NOT A MISSING VALUE — measured, do not "simplify" this back.
+     Tailwind v4 emits a `--shadow-*` theme value INLINE into the utility it
+     generates: `shadow-e1` compiles to a literal `box-shadow: 0 1px 2px …`, not to
+     `box-shadow: var(--shadow-e1)`. So redefining `--shadow-e1` under the dark theme
+     changes nothing — measured in the browser: `.pf-card` returned the LIGHT
+     `rgba(15,23,42,0.04)` in both themes, and the dark elevation block was dead code.
+
+     Pointing the theme value at a SECOND variable is what survives the inlining: the
+     literal Tailwind writes is now `var(--elev-1)`, which resolves per theme at paint.
+     This is the trap the prototype's README predicted for the build-time port, and it
+     is silent — the shadows still render, just never the dark ones. */
+  --shadow-e1: var(--elev-1);
+  --shadow-e2: var(--elev-2);
+}
+
+/* The elevation pair itself. Light on `:root` so it is the default everywhere; the dark
+   theme overrides it further down. In light, higher = whiter + a shadow. */
+:root {
+  --elev-1: 0 1px 2px 0 rgb(15 23 42 / .04), 0 1px 3px 0 rgb(15 23 42 / .06);
+  --elev-2: 0 4px 6px -2px rgb(15 23 42 / .05), 0 12px 20px -4px rgb(15 23 42 / .08);
+}
+
 /* 3. Enable daisyUI (CSS-first — no tailwind.config.js).
       `light --default, dark --prefersdark` is daisyUI 5's OWN implicit default when the
       plugin is given no config, and it is spelled out here verbatim so that adding a
-      theme to the list does not silently drop those two. The one ADDITION is `cupcake`:
-      the admin portal's light theme (a warm pastel with real separation between
-      base-100/200/300 and a genuinely dark base-content — `pastel` was rejected because
-      its surfaces sit within a few percent lightness of each other, which is exactly the
-      discrimination an older user loses first).
+      theme to the list does not silently drop those two. There are no other built-ins
+      opted in: the `cupcake` opt-in that used to sit here belonged to the old
+      back-office and went with it on 2026-08-16.
 
-      `cupcake` carries NO `--default` flag, so it only ever applies via
-      `data-theme="cupcake"`. `easybook-client` (below) keeps `default: true` and stays the
-      `:root` theme. The `@plugin "daisyui/theme"` blocks below are untouched — the
-      convention is that theme blocks are additive and never edited. */
+      `easybook-client` (below) keeps `default: true` and stays the `:root` theme. The
+      `@plugin "daisyui/theme"` blocks below are additive and never edited in place. */
 @plugin "daisyui" {
   themes: light --default, dark --prefersdark;
 }
@@ -123,12 +164,131 @@
   --noise: 0;
 }
 
-/* The four themes the OLD back-office used — `easybook-admin`, `easybook-admin-dark`,
-   `dashwind-light`, `dashwind-dark` — were deleted with it on 2026-08-16, along with the
-   `cupcake` opt-in above. Nothing applies them any more: the only remaining `data-theme`
-   comes from `ThemeLayout portal="client"`.
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ADMIN PORTAL v2 — light + dark. Written FROM THE PROTOTYPE, not restored.
 
-   ⚠️ v2 does NOT restore them. Its theming comes from the prototype's `@theme static`
-   block, which defines its own tokens rather than a daisyUI theme, so re-adding these
-   would be two systems describing the same colours. The convention that theme blocks are
-   additive and never edited still holds for what remains. */
+   The old back-office's four themes (`easybook-admin`, `easybook-admin-dark`,
+   `dashwind-light`, `dashwind-dark`) were deleted with it on 2026-08-16. These two
+   reuse two of those NAMES and none of their values: every number below is copied from
+   `master_layout_prototype_v2.html`'s `@theme static` block, which is the design
+   authority. The prototype's own comment on that block names a daisyUI theme block in
+   this file as its port target, so this is the port landing where it was aimed — not a
+   second system describing the same colours.
+
+   ⚠️ HEX, NOT OKLCH, and deliberately so — unlike the client themes above. These exact
+   values are what the prototype's contrast sweeps were measured against. Converting
+   them would move each one by a hair and silently invalidate every ratio recorded in
+   the plan folder, for no benefit: daisyUI 5 accepts any CSS colour.
+
+   Three of these values are BUG FIXES relative to the deleted `easybook-admin`, and
+   they are the reason porting the markup without porting the theme would have shipped a
+   failing contrast ratio on the portal's most-used control:
+     · primary emerald-600 → emerald-700. White on emerald-600 measures 3.65:1 (fails
+       AA); on emerald-700 it is 5.48:1. Every filled button in the prototype was already
+       drawn on emerald-700.
+     · radius-box 1rem → 24px, radius-field 0.5rem → 12px — the prototype's card and
+       control radii.
+
+   Semantic hues are anchored at the 700 step so ONE value serves both jobs: white on it
+   for a solid button, and it on a 10% wash of itself for a soft badge. daisyUI has no
+   "readable-on-tint" variant, so `bg-success/10 text-success` inherits whatever
+   `success` is, and a mid-tone one lands near 3:1.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* --- Admin Portal v2 — light -------------------------------------------- */
+@plugin "daisyui/theme" {
+  name: "easybook-admin";
+  color-scheme: light;
+
+  --color-base-100: #ffffff;     /* raised: cards, modals, topbar, sidebar    */
+  --color-base-200: #f1f5f9;     /* sunken: page bg, input fills   (slate-100)*/
+  --color-base-300: #e2e8f0;     /* lines: borders, dividers       (slate-200)*/
+  --color-base-content: #0f172a; /* foreground                     (slate-900)*/
+
+  --color-primary: #047857;         /* emerald-700 */
+  --color-primary-content: #ffffff;
+  --color-neutral: #334155;         /* slate-700 — UNREGISTERED, quiet chips */
+  --color-neutral-content: #ffffff;
+
+  --color-success: #047857;         /* emerald-700 — ALLOWED  */
+  --color-success-content: #ffffff;
+  /* amber-800, not amber-700. Amber is the weakest hue on white — amber-700 only
+     reaches 4.9:1 there, and on a 10% wash of ITSELF (which is what
+     `bg-warning/10 text-warning` means) it drops to 4.35 and fails. Every other hue
+     had headroom to spare; this one did not. */
+  --color-warning: #92400e;         /* amber-800   — PENDING  */
+  --color-warning-content: #ffffff;
+  --color-info: #0369a1;            /* sky-700     — REJECTED */
+  --color-info-content: #ffffff;
+  --color-error: #be123c;           /* rose-700    — BLOCKED  */
+  --color-error-content: #ffffff;
+
+  --radius-selector: 9999px;  /* pills/circles — the 3rd and last radius */
+  --radius-field: 12px;       /* = --radius-control */
+  --radius-box: 24px;         /* = --radius-card    */
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* --- Admin Portal v2 — dark ---------------------------------------------
+   Note what does NOT appear here: a `dark:` utility. Swapping the values behind the
+   same names IS the whole mechanism, and `@custom-variant dark` at the top of this
+   file keys off the `-dark` suffix in this theme's name. Rename it and that silently
+   stops matching. */
+@plugin "daisyui/theme" {
+  name: "easybook-admin-dark";
+  color-scheme: dark;
+
+  --color-base-100: #0f172a;     /* slate-900 — cards sit ABOVE the page     */
+  --color-base-200: #020617;     /* slate-950 — page bg                      */
+  --color-base-300: #334155;     /* slate-700 — borders                      */
+  --color-base-content: #e2e8f0; /* slate-200 — never pure white: on a dark
+                                    field it blooms, and Thai suffers most
+                                    because สระ/วรรณยุกต์ are thin marks     */
+
+  /* Polarity flips: at the 700 step these hues are unreadable on a dark field, so they
+     lift to 400 — and once they are that light, white text on them fails, so `-content`
+     becomes dark. Background and foreground must move together. */
+  --color-primary: #34d399;         /* emerald-400 */
+  --color-primary-content: #0f172a;
+  --color-neutral: #cbd5e1;         /* slate-300   */
+  --color-neutral-content: #0f172a;
+
+  --color-success: #34d399;         /* emerald-400 */
+  --color-success-content: #0f172a;
+  --color-warning: #fbbf24;         /* amber-400   */
+  --color-warning-content: #0f172a;
+  --color-info: #38bdf8;            /* sky-400     */
+  --color-info-content: #0f172a;
+  --color-error: #fb7185;           /* rose-400    */
+  --color-error-content: #0f172a;
+
+  --radius-selector: 9999px;
+  --radius-field: 12px;
+  --radius-box: 24px;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* Elevation inverts in dark. On a dark field a shadow is invisible, so height comes from
+   the surface being lighter than the page — which base-100 over base-200 already does.
+   These stay only to hold a modal off its backdrop.
+
+   ⚠️ Overrides `--elev-*`, NOT `--shadow-e*`. Writing `--shadow-e1` here looks right and
+   does nothing — see the note in section 2c. Verified in the browser: `.pf-card` returns
+   `rgba(0,0,0,0.35)` under this theme and `rgba(15,23,42,0.04)` under the light one. */
+[data-theme="easybook-admin-dark"] {
+  --elev-1: 0 1px 2px 0 rgb(0 0 0 / .35);
+  --elev-2: 0 8px 24px -6px rgb(0 0 0 / .55);
+}
+
+/* 5. The admin portal's own component layer — 122 classes lifted verbatim from the
+      prototype. Imported LAST so `@apply bg-base-100` resolves against the themes
+      declared above. */
+@import "./admin-portal/admin-portal.css";
