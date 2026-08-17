@@ -26,6 +26,18 @@ import { Modal } from '../../components/ui/Modal'
 import { Pagination } from '../../components/ui/Pagination'
 import { PasswordField } from '../../components/ui/PasswordField'
 import { PasswordRules } from '../../components/ui/PasswordRules'
+import { ComingSoon } from '../../components/feedback/ComingSoon'
+import { ConfirmModal } from '../../components/feedback/ConfirmModal'
+import { EmptyState } from '../../components/feedback/EmptyState'
+import { InlineAlert, InlineNote } from '../../components/feedback/InlineAlert'
+import { LoadError } from '../../components/feedback/LoadError'
+import type { LoadErrorKind } from '../../components/feedback/LoadError'
+import { NotFound } from '../../components/feedback/NotFound'
+import { Skeleton, SkeletonRegion } from '../../components/feedback/Skeleton'
+import { Spinner } from '../../components/feedback/Spinner'
+import { useBusy } from '../../lib/use-busy'
+import { ToastProvider } from '../../components/feedback/Toast'
+import { useToast } from '../../lib/toast-context'
 import { checkPassword, passwordOk } from '../../lib/password-policy'
 import { ACCESS_LABEL, ACCESS_TONE, ROLE_HINT, ROLE_LABEL } from '../../labels'
 import type { AppAccess, SystemRole } from '../../labels'
@@ -44,12 +56,26 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+/** Wraps the page so `useToast` has a provider — the real shell does this in P2. */
 export function ShowcasePage() {
+  return (
+    <ToastProvider>
+      <ShowcaseBody />
+    </ToastProvider>
+  )
+}
+
+function ShowcaseBody() {
   const [theme, setTheme] = useState<'easybook-admin' | 'easybook-admin-dark'>('easybook-admin')
   const [pw, setPw] = useState('')
   const [page, setPage] = useState(2)
   const [modal, setModal] = useState(false)
+  const [confirm, setConfirm] = useState(false)
+  const [alert, setAlert] = useState<string | null>('บันทึกไม่สำเร็จ — โปรดลองใหม่อีกครั้ง')
+  const [errKind, setErrKind] = useState<LoadErrorKind>('server')
   const rules = checkPassword(pw, 'Current-1!')
+  const toast = useToast()
+  const { busy, run, buttonProps } = useBusy()
 
   return (
     <div data-theme={theme} data-acl="super" className="min-h-screen bg-base-200 text-base-content">
@@ -199,6 +225,111 @@ export function ShowcasePage() {
 
         <Section title="Pagination">
           <Pagination page={page} pages={5} onGo={setPage} />
+        </Section>
+
+        <Section title="Toast — 3 kinds · error never expires">
+          <div className="flex flex-wrap gap-2">
+            <Btn variant="primary" onClick={() => toast('success', 'บันทึกข้อมูลเรียบร้อยแล้ว')}>
+              success
+            </Btn>
+            <Btn variant="danger" onClick={() => toast('error', 'บันทึกไม่สำเร็จ — เซิร์ฟเวอร์ไม่ตอบสนอง')}>
+              error
+            </Btn>
+            <Btn variant="ghost" onClick={() => toast('info', 'มีรายการใหม่ 3 รายการ')}>
+              info
+            </Btn>
+          </div>
+        </Section>
+
+        <Section title="Spinner · useBusy — label must not change while busy">
+          <div className="flex flex-wrap items-center gap-3">
+            <Btn
+              variant="primary"
+              {...buttonProps('กำลังบันทึก')}
+              onClick={() => void run(() => new Promise((r) => setTimeout(r, 1600)))}
+            >
+              {busy ? (
+                <Spinner />
+              ) : (
+                <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              )}
+              บันทึก
+            </Btn>
+            <Spinner size="lg" label="กำลังโหลด" />
+          </div>
+        </Section>
+
+        <Section title="InlineAlert · InlineNote — alert stays in the DOM when empty">
+          <InlineAlert message={alert} />
+          <InlineNote>ผู้ดูแลระบบเป็นผู้แก้ไขชื่อและเบอร์โทรศัพท์ของคุณ</InlineNote>
+          <div className="mt-3">
+            <Btn variant="ghost" onClick={() => setAlert((a) => (a ? null : 'บันทึกไม่สำเร็จ — โปรดลองใหม่อีกครั้ง'))}>
+              สลับ alert
+            </Btn>
+          </div>
+        </Section>
+
+        <Section title="Skeleton">
+          <SkeletonRegion label="กำลังโหลดข้อมูลการลงทะเบียน" className="flex items-center gap-3">
+            <Skeleton variant="box" className="h-11 w-11 shrink-0" />
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <Skeleton width="45%" className="h-3.5" />
+              <Skeleton variant="soft" width="70%" className="h-3" />
+            </span>
+          </SkeletonRegion>
+        </Section>
+
+        <Section title="EmptyState">
+          <EmptyState
+            icon={
+              <svg className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z" />
+              </svg>
+            }
+            title="ไม่พบข้อมูลการลงทะเบียน"
+            description="ยังไม่มีผู้ใช้ที่ตรงกับเงื่อนไขที่เลือก ลองล้างตัวกรอง หรือรอผู้ใช้ลงทะเบียนผ่าน LINE"
+            actions={<Btn variant="primary">รีเฟรชข้อมูล</Btn>}
+          />
+        </Section>
+
+        <Section title="LoadError — retry exists only where retrying can change the answer">
+          <div className="mb-3 flex flex-wrap gap-2">
+            {(['network', 'server', 'forbidden'] as LoadErrorKind[]).map((k) => (
+              <Btn key={k} variant={errKind === k ? 'primary' : 'ghost'} onClick={() => setErrKind(k)}>
+                {k}
+              </Btn>
+            ))}
+          </div>
+          <LoadError kind={errKind} />
+        </Section>
+
+        <Section title="ConfirmModal — shows the diff, not just a yes/no">
+          <Btn variant="danger" onClick={() => setConfirm(true)}>
+            ระงับการใช้งาน
+          </Btn>
+          <ConfirmModal
+            open={confirm}
+            onClose={() => setConfirm(false)}
+            onConfirm={() => new Promise((r) => setTimeout(r, 1200))}
+            tone="danger"
+            title="ยืนยันการระงับการใช้งาน"
+            who="สมชาย ใจดี"
+            description="ผู้ใช้รายนี้จะเข้าใช้งานระบบผ่าน LINE ไม่ได้จนกว่าจะถูกปลดระงับ"
+            confirmLabel="ยืนยันการระงับ"
+            busyLabel="กำลังระงับ"
+            diff={[{ label: 'สถานะ', from: 'อนุมัติแล้ว', to: 'ถูกระงับการใช้งาน' }]}
+            reason={{ label: 'เหตุผลการระงับ', hint: 'บันทึกในประวัติระบบ ผู้ใช้ไม่เห็นข้อความนี้', required: true }}
+          />
+        </Section>
+
+        <Section title="ComingSoon — the designed state of 24 destinations">
+          <ComingSoon onBack={() => {}} onHome={() => {}} />
+        </Section>
+
+        <Section title="NotFound — shell variant">
+          <NotFound variant="shell" path="/backend/reports/room-usage-2568" onBack={() => {}} onHome={() => {}} />
         </Section>
       </div>
     </div>
