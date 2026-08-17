@@ -148,7 +148,13 @@ export function ConfirmModal({
               <dt className="shrink-0 text-[13px] text-base-content/70 sm:w-32">{d.label}</dt>
               <dd className="m-0 min-w-0 text-[14px] text-base-content">
                 <span className="text-base-content/60 line-through">{d.from}</span>
-                <span aria-hidden="true" className="px-1.5 text-base-content/50">
+                {/* /70, not /50. The contrast sweep measured the arrow at 3.41 against the
+                    modal's surface. It is `aria-hidden` — the strikethrough and the bold
+                    already carry before/after for a screen reader — but a sighted operator
+                    reads it as the word "becomes", and being decorative to one audience does
+                    not make it exempt for the other. /70 is what the rest of the portal uses
+                    for secondary text and measures comfortably clear. */}
+                <span aria-hidden="true" className="px-1.5 text-base-content/70">
                   →
                 </span>
                 <span className="font-medium">{d.to}</span>
