@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Sidebar, type SidebarUser } from './components/shell/Sidebar'
 import { Topbar } from './components/shell/Topbar'
 import { useAcl } from './lib/use-acl'
@@ -23,7 +23,7 @@ import { useTheme } from './lib/use-theme'
 import type { Notification } from './lib/notifications'
 import { useAuth } from './lib/auth-context'
 import type { SystemUser } from '@/lib/api-client'
-import type { AdminRouteLabel } from './routes'
+import { ADMIN_PORTAL_ROUTES, HOME_PATH, urlOf, type AdminRouteLabel } from './routes'
 
 /**
  * The identity card's view of `/auth/system/me`.
@@ -112,6 +112,27 @@ export function BackendLayout() {
   // Any navigation closes the drawer — including the ones the sidebar does not originate, such
   // as the browser's back button, which would otherwise change the page behind an open menu.
   useEffect(() => setDrawerOpen(false), [pathname])
+
+  /**
+   * Standing on a destination this role may not reach.
+   *
+   * ⚠️ THIS IS NOT THE CONTROL, and it must never be mistaken for one. `@Roles` on the server
+   * plus `system-users.policy.ts` are the boundary; a route that forgets to list a role fails
+   * CLOSED there. Deleting everything below would leave the portal exactly as secure and merely
+   * wrong-looking — someone would sit on a page whose every request answers 403.
+   *
+   * It covers TWO arrivals with one rule, which is why it lives here rather than in a link
+   * handler: a deep link or a bookmark typed straight into the bar, and a role that CHANGED
+   * under a session that was already standing there. The second is the one a per-link check
+   * would miss entirely.
+   *
+   * `replace`, never a push: the denied URL must not stay in history, or Back returns to it,
+   * bounces again, and the Back button is dead for as long as the operator keeps pressing it.
+   */
+  const here = ADMIN_PORTAL_ROUTES.find((r) => urlOf(r) === pathname)
+  if (here && !acl.can(here.label)) {
+    return <Navigate to={HOME_PATH} replace />
+  }
 
   return (
     <div
