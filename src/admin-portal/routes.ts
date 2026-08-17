@@ -251,6 +251,15 @@ export const ADMIN_PORTAL_ROUTES = [
  */
 export type AdminRouteLabel = (typeof ADMIN_PORTAL_ROUTES)[number]['label']
 
+/**
+ * A row of the table with its literal `label` intact.
+ *
+ * `AdminRoute` widens `label` back to `string`, which is right for a component that only prints
+ * it — and wrong for anything that feeds it to `acl.can` or looks it up in a per-label map,
+ * because that is exactly where the union is doing the work. Annotate with this type there.
+ */
+export type AdminRouteEntry = (typeof ADMIN_PORTAL_ROUTES)[number]
+
 /** `Q1` — where login lands, and the one destination with no breadcrumb. */
 export const HOME_LABEL: AdminRouteLabel = 'ภาพรวมระบบ'
 export const HOME_PATH = `${BACKEND_BASE}/dashboard`

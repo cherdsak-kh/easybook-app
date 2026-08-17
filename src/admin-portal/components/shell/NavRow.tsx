@@ -10,11 +10,14 @@
  * `aria-current="page"` rides with it. The active row is otherwise distinguished by colour and
  * a rail, neither of which reaches a screen reader.
  *
- * Rendered as a `<button>` here rather than a `<Link>`: P2 owns the router, and hard-coding
- * `react-router` into the shell now would make the showcase depend on a route table that does
- * not exist. The prop shape (`onSelect`) is what a `<Link>` swap keeps.
+ * ⚠️ `to` MAKES IT A REAL `<a href>`, and the shell always passes it. That is not cosmetic:
+ * operators middle-click and ⌘-click menu rows, copy link addresses, and read the status bar
+ * before committing to a navigation — a `<button>` offers none of that, and no amount of
+ * `role`/`onKeyDown` gives it back. The `<button>` form survives only for the showcase, which
+ * demonstrates the row with no destination behind it.
  */
 
+import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
 export function NavRow({
@@ -24,8 +27,11 @@ export function NavRow({
   active = false,
   sub = false,
   alert = false,
+  to,
   onSelect,
 }: {
+  /** Destination. Present → renders an `<a href>`; absent → a `<button>` (showcase only). */
+  to?: string
   /** Omitted on sub-rows — they sit under their group's icon and get an indent instead. */
   icon?: ReactNode
   label: string
@@ -37,13 +43,11 @@ export function NavRow({
   alert?: boolean
   onSelect?: () => void
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-current={active ? 'page' : undefined}
-      className={`nav-row w-full ${sub ? 'nav-row-sub' : ''} ${active ? 'nav-row-active' : ''} th-tight`.trim()}
-    >
+  const className =
+    `nav-row w-full ${sub ? 'nav-row-sub' : ''} ${active ? 'nav-row-active' : ''} th-tight`.trim()
+
+  const inner = (
+    <>
       {icon && <span className="nav-ico shrink-0">{icon}</span>}
       <span className="min-w-0 flex-1 text-left">{label}</span>
       {/* A zero is not news. Rendering "0" beside a menu row trains the eye to stop reading
@@ -53,6 +57,20 @@ export function NavRow({
           {count > 99 ? '99+' : count}
         </span>
       )}
+    </>
+  )
+
+  if (to) {
+    return (
+      <Link to={to} onClick={onSelect} aria-current={active ? 'page' : undefined} className={className}>
+        {inner}
+      </Link>
+    )
+  }
+
+  return (
+    <button type="button" onClick={onSelect} aria-current={active ? 'page' : undefined} className={className}>
+      {inner}
     </button>
   )
 }
