@@ -68,11 +68,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * next — which could be any of forty call sites. A per-caller check would be forty chances to
    * forget one, and the symptom of forgetting is a screen that silently stops working.
    *
-   * Registered once, at module scope of this component's lifetime: `api.use` appends, so
-   * re-registering on every render would stack middleware until the tab died.
+   * ⚠️ IT MUST EJECT ON UNMOUNT, and the first version did not. `api` is a MODULE-LEVEL client
+   * shared by the whole app, `use()` appends, and `/backend` is a lazy branch that unmounts
+   * whenever the operator leaves it — so every re-entry left another copy behind for the life
+   * of the tab. Measured before the fix: three round trips out of `/backend` and back
+   * registered 6 middlewares and ejected 0.
+   *
+   * StrictMode is what surfaced it, by mounting, unmounting and mounting again on the first
+   * load — which is exactly the case it exists to expose. With the cleanup in place that same
+   * double-mount now nets out to one.
    */
   useEffect(() => {
-    api.use({
+    const watchForSessionDeath: Parameters<typeof api.use>[0] = {
       onResponse({ request, response }) {
         if (response.status !== 401) return
         if (NOT_SESSION_DEATH.some((p) => request.url.includes(p))) return
@@ -81,7 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (statusRef.current !== 'authenticated') return
         setSessionExpired(true)
       },
-    })
+    }
+    api.use(watchForSessionDeath)
+    return () => api.eject(watchForSessionDeath)
   }, [])
 
   const probe = useCallback(async () => {
