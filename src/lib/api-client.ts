@@ -115,6 +115,7 @@ async function withCsrfRetry<T extends { response: Response }>(
 // ---------------------------------------------------------------------------
 
 export type HealthResponse = components['schemas']['HealthResponseDto']
+export type SystemVersion = components['schemas']['VersionResponseDto']
 export type SystemUser = components['schemas']['SystemUserResponseDto']
 export type SystemRole = SystemUser['role']
 export type LoginResponse = components['schemas']['LoginResponseDto']
@@ -183,6 +184,33 @@ export async function getHealth(): Promise<HealthResponse> {
     throw new Error(`Request failed: /api/v1/health (${response.status})`)
   }
   return snapshot
+}
+
+/**
+ * The SERVER half of the version screen. Never throws — the two failures are outcomes it renders.
+ *
+ * ⚠️ `net` and `down` are DIFFERENT SENTENCES on screen, which is the only reason this returns a
+ * reason at all. "ตรวจสอบไม่ได้ เพราะเชื่อมต่ออินเทอร์เน็ตไม่ได้" is something the reader can check
+ * themselves; "ตรวจสอบไม่ได้ในขณะนี้" is something they report. Collapsing them into one failure
+ * would hand a school administrator the wrong instruction half the time.
+ *
+ * The split is by WHETHER THE SERVER ANSWERED, not by status code: a rejected `fetch` means the
+ * request never completed (no network, DNS, a dead port), while any status at all — 503, 500,
+ * even the 401 of a session that just died — means something answered, so the connection is fine
+ * and the fault is on the far side. A 401 additionally trips `AuthProvider`'s watcher, which owns
+ * that outcome; this function only has to avoid claiming the network is down when it is not.
+ */
+export type SystemVersionResult =
+  | { ok: true; value: SystemVersion }
+  | { ok: false; reason: 'net' | 'down' }
+
+export async function getSystemVersion(): Promise<SystemVersionResult> {
+  try {
+    const { data } = await api.GET('/api/v1/system/version')
+    return data ? { ok: true, value: data } : { ok: false, reason: 'down' }
+  } catch {
+    return { ok: false, reason: 'net' }
+  }
 }
 
 // ---------------------------------------------------------------------------
