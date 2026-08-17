@@ -45,6 +45,22 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '0.3.0',
+    // Same day as 0.2.0, and that is simply what happened. A date is a fact about the release,
+    // not a slot that has to be unique.
+    date: '17 ส.ค. 2569',
+    groups: [
+      {
+        t: 'ใหม่',
+        items: [
+          'หน้าข้อมูลเวอร์ชันระบบ — บอกเวอร์ชันของหน้าเว็บและของเซิร์ฟเวอร์ และเตือนเมื่อสองส่วนนี้ไม่ตรงกัน',
+          'ประวัติการอัปเดต แสดงสิ่งที่เปลี่ยนไปในแต่ละเวอร์ชัน',
+          'บล็อกข้อมูลสำหรับแจ้งปัญหา คัดลอกแนบไปกับการรายงานได้ในปุ่มเดียว',
+        ],
+      },
+    ],
+  },
+  {
     v: '0.2.0',
     date: '17 ส.ค. 2569',
     groups: [

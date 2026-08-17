@@ -17,6 +17,12 @@ import { defineConfig } from 'vitest/config'
  *
  * `version` is read from `package.json` rather than duplicated here: one number, one home, and
  * `npm version` keeps working.
+ *
+ * ⚠️ BOTH CONSTANTS ARE FROZEN WHEN THIS CONFIG LOADS. Bumping `package.json` while `npm run dev`
+ * is running does NOT change what the app reports — config evaluation is not part of HMR — so the
+ * version screen keeps showing the old number and, against a backend that already moved, reports
+ * a mismatch that does not exist in the files. Measured during the 0.3.0 bump. Restart the dev
+ * server after a bump; a production build re-evaluates this every time and is never affected.
  */
 const appVersion = (JSON.parse(readFileSync('./package.json', 'utf8')) as { version: string })
   .version
