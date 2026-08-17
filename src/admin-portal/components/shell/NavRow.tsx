@@ -7,8 +7,9 @@
  * active state walked straight past the hand-written one. That is why `active` is a prop with
  * one class behind it and callers never spell the treatment themselves.
  *
- * `aria-current="page"` rides with it. The active row is otherwise distinguished by colour and
- * a rail, neither of which reaches a screen reader.
+ * The treatment is THREE things, and the first port shipped only two: the wash and weight from
+ * `.nav-row-active`, and the left rail below. `aria-current="page"` rides with them, because
+ * colour and a bar reach no screen reader.
  *
  * ⚠️ `to` MAKES IT A REAL `<a href>`, and the shell always passes it. That is not cosmetic:
  * operators middle-click and ⌘-click menu rows, copy link addresses, and read the status bar
@@ -48,6 +49,24 @@ export function NavRow({
 
   const inner = (
     <>
+      {/* ⚠️ THE ACTIVE RAIL. It is a real element, not a `::before` — which is why a sweep that
+          read `getComputedStyle` on the row and diffed the classes found the two sidebars
+          identical and still missed it. `.nav-row`'s otherwise-unused `relative` is what anchors
+          it, and that dangling `relative` was the clue.
+
+          The prototype MOVES one rail node between rows with `insertBefore`, because it has no
+          renderer; here it simply exists while `active`. Its own comment records why it needed a
+          class at all: both nav handlers queried `.rail`, got null, and left the bar parked
+          beside a row that was no longer highlighted.
+
+          `inset-y-1.5`, not `inset-y-0`: the bar is shorter than the row so it reads as a marker
+          on the row rather than as the row's own left border. */}
+      {active && (
+        <span
+          aria-hidden="true"
+          className="rail absolute inset-y-1.5 left-0 w-1 rounded-r-full bg-primary"
+        />
+      )}
       {icon && <span className="nav-ico shrink-0">{icon}</span>}
       <span className="min-w-0 flex-1 text-left">{label}</span>
       {/* A zero is not news. Rendering "0" beside a menu row trains the eye to stop reading
