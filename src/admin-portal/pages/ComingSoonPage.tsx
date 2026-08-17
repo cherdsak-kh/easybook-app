@@ -28,10 +28,8 @@ export function ComingSoonPage({ route }: { route: AdminRoute }) {
       <ComingSoon
         onBack={() => void navigate(-1)}
         // Never offer "go to ภาพรวมระบบ" while standing on ภาพรวมระบบ — `ComingSoon` drops the
-        // button entirely when this is undefined.
-        onHome={
-          route.label === HOME_LABEL ? undefined : () => void navigate(HOME_PATH)
-        }
+        // link entirely when this is undefined.
+        homeTo={route.label === HOME_LABEL ? undefined : HOME_PATH}
       />
     </div>
   )

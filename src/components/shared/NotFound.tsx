@@ -27,18 +27,27 @@
  */
 
 import { useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 
 export function NotFound({
   variant = 'shell',
   path,
   onBack,
-  onHome,
+  homeTo,
 }: {
   variant?: 'shell' | 'full'
   /** The URL that missed. Shown verbatim. */
   path: string
+  /**
+   * `history.back()`. A `<button>`, because there is no URL to offer — unlike `homeTo`, which
+   * has one and is therefore an `<a>`. The prototype marks both up exactly this way and the
+   * first port made them both buttons, quietly dropping middle-click, ⌘-click, "copy link
+   * address" and the screen reader's "link" announcement from the one control that leads
+   * somewhere.
+   */
   onBack?: () => void
-  onHome?: () => void
+  /** Where "home" is — `/` for the public 404, the portal's home for the in-shell one. */
+  homeTo?: string
 }) {
   const titleRef = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
@@ -72,9 +81,9 @@ export function NotFound({
             {path}
           </p>
           {/* One way out, and it is the PUBLIC home. See the note at the top. */}
-          <button type="button" className="btn-primary2 w-full sm:w-auto" onClick={onHome}>
+          <Link to={homeTo ?? '/'} className="btn-primary2 w-full sm:w-auto">
             กลับสู่หน้าแรก
-          </button>
+          </Link>
           <p className="m-0 text-[12px] text-base-content/70 tabular-nums">รหัสข้อผิดพลาด 404</p>
         </div>
       </div>
@@ -126,9 +135,9 @@ export function NotFound({
           <button type="button" className="btn-ghost2" onClick={onBack}>
             ย้อนกลับ
           </button>
-          <button type="button" className="btn-primary2" onClick={onHome}>
+          <Link to={homeTo ?? '/'} className="btn-primary2">
             ไปหน้าภาพรวมระบบ
-          </button>
+          </Link>
         </div>
 
         <p className="m-0 text-[12px] text-base-content/70 tabular-nums">รหัสข้อผิดพลาด 404</p>

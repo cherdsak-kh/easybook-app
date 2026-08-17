@@ -13,11 +13,10 @@
  * know: which URL missed, and where "home" is for an anonymous visitor.
  */
 
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { NotFound } from '@/components/shared/NotFound'
 
 export function NotFoundPage() {
-  const navigate = useNavigate()
   const { pathname, search } = useLocation()
 
   return (
@@ -27,7 +26,7 @@ export function NotFoundPage() {
       // it is stale, and the operator reading this out over the phone needs the part that
       // differs from the working one.
       path={`${pathname}${search}`}
-      onHome={() => void navigate('/')}
+      homeTo="/"
     />
   )
 }

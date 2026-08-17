@@ -38,17 +38,24 @@ function renderAt(path: string) {
 describe('NotFoundPage', () => {
   it('names the page, echoes the URL that missed, and offers only the PUBLIC home', () => {
     // `MemoryRouter` is required now, not decorative: the page reads the location to quote the
-    // failed URL back and calls `navigate` for its one way out.
+    // failed URL back, and its one way out is a router link.
     renderAt('/fake-client?ref=old-bookmark')
 
     expect(screen.getByRole('heading', { name: 'ไม่พบหน้าที่คุณค้นหา' })).toBeInTheDocument()
     // The query string is part of the quote — a stale link's query is often why it is stale.
     expect(screen.getByText('/fake-client?ref=old-bookmark')).toBeInTheDocument()
-    // ONE button, and it goes to the public home. A public error page must never advertise
-    // where the staff entrance is.
-    const buttons = screen.getAllByRole('button')
-    expect(buttons).toHaveLength(1)
-    expect(buttons[0]).toHaveTextContent('กลับสู่หน้าแรก')
+    // ⚠️ A LINK, not a button, and this assertion changed on purpose (18 ส.ค. 2569): it used to
+    // pin `role="button"`, which is what the first port rendered and what the prototype does
+    // NOT — home has a real URL, so it must be middle-clickable and copyable. The spec was
+    // holding the defect in place.
+    //
+    // ONE way out and it is the PUBLIC home; a public error page must never advertise where the
+    // staff entrance is. That is what `toHaveLength(1)` is really guarding, so it stays.
+    const links = screen.getAllByRole('link')
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveTextContent('กลับสู่หน้าแรก')
+    expect(links[0]).toHaveAttribute('href', '/')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('renders the global 404 for an unknown CLIENT path (AC-4)', () => {

@@ -359,7 +359,7 @@ function ShowcaseBody() {
         </Section>
 
         <Section title="ComingSoon — the designed state of 24 destinations">
-          <ComingSoon onBack={() => {}} onHome={() => {}} />
+          <ComingSoon onBack={() => {}} homeTo="/backend/dashboard" />
         </Section>
 
         <Section title="useAcl — hides affordances, never enforces">
@@ -434,7 +434,7 @@ function ShowcaseBody() {
         </Section>
 
         <Section title="NotFound — shell variant">
-          <NotFound variant="shell" path="/backend/reports/room-usage-2568" onBack={() => {}} onHome={() => {}} />
+          <NotFound variant="shell" path="/backend/reports/room-usage-2568" onBack={() => {}} homeTo="/backend/dashboard" />
         </Section>
       </div>
     </div>

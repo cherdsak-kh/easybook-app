@@ -15,10 +15,18 @@
  * The button pair is declared with the primary SECOND so it lands on the right on desktop and
  * on top on a phone (`flex-col-reverse`), where the thumb is. On desktop the sidebar is the
  * real way out; this pair exists for the phone, where the sidebar is behind a drawer — which
- * is why `onHome` may be omitted when you are already on the home destination.
+ * is why `homeTo` may be omitted when you are already on the home destination.
+ *
+ * ⚠️ HOME IS AN `<a>`, BACK IS A `<button>`, and the split is not arbitrary. "ไปหน้าภาพรวมระบบ"
+ * has a real URL, so it must be a link — middle-click, ⌘-click, "copy link address" and the
+ * screen reader's "link" are properties of the element, not of the handler. "ย้อนกลับ" has no
+ * URL to offer (it is `history.back()`), so a button is the honest element there. The prototype
+ * marks them up exactly this way; the first port made both buttons.
  */
 
-export function ComingSoon({ onBack, onHome }: { onBack?: () => void; onHome?: () => void }) {
+import { Link } from 'react-router-dom'
+
+export function ComingSoon({ onBack, homeTo }: { onBack?: () => void; homeTo?: string }) {
   return (
     <div className="card-shell rounded-card border border-base-300/70 bg-base-100 shadow-e1">
       <div className="flex flex-col items-center gap-4 px-5 py-14 text-center sm:px-6 lg:flex-1 lg:justify-center">
@@ -56,10 +64,10 @@ export function ComingSoon({ onBack, onHome }: { onBack?: () => void; onHome?: (
           <button type="button" className="btn-ghost2" onClick={onBack}>
             ย้อนกลับ
           </button>
-          {onHome && (
-            <button type="button" className="btn-primary2" onClick={onHome}>
+          {homeTo && (
+            <Link to={homeTo} className="btn-primary2">
               ไปหน้าภาพรวมระบบ
-            </button>
+            </Link>
           )}
         </div>
       </div>

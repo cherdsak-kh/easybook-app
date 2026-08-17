@@ -57,7 +57,7 @@ function ShellNotFound() {
       variant="shell"
       path={pathname}
       onBack={() => void navigate(-1)}
-      onHome={() => void navigate(HOME_PATH)}
+      homeTo={HOME_PATH}
     />
   )
 }

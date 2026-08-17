@@ -279,9 +279,18 @@ export async function logout(): Promise<void> {
 // Self-service (the signed-in user acting on themselves).
 // ---------------------------------------------------------------------------
 
-/** New-password rules, mirrored from the backend DTO. The server is the control. */
-export const PASSWORD_MIN_LENGTH = 12
-export const PASSWORD_MAX_LENGTH = 128
+/**
+ * ⚠️ THE PASSWORD LENGTHS LIVE IN `admin-portal/lib/password-policy.ts`, NOT HERE.
+ *
+ * There used to be a `PASSWORD_MIN_LENGTH = 12` on this line, described as "mirrored from the
+ * backend DTO". It was not: `ChangePasswordDto` is `@MinLength(8)`, and so is the prototype's
+ * checklist and `password-policy.ts`'s `PASSWORD_MIN`. Nothing imported the 12 — which is the
+ * only reason it never shipped as a screen that refuses a password the server would have taken,
+ * and exactly why it survived: an unused constant is never contradicted by anything.
+ *
+ * One fact, one home. `password-policy.ts` is where the rule is CHECKED, so it is where the
+ * number lives; anything needing it imports from there.
+ */
 
 /**
  * Change your own password — the forced-reset door AND the voluntary one.
