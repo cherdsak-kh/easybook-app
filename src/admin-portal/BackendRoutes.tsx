@@ -18,6 +18,7 @@
  * keep rendering the stand-in until each is actually built.
  */
 
+import type { ReactElement } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './AuthProvider'
 import { BackendLayout } from './BackendLayout'
@@ -27,8 +28,25 @@ import { BootScreen } from './pages/BootScreen'
 import { ComingSoonPage } from './pages/ComingSoonPage'
 import { ForcePasswordChangePage } from './pages/ForcePasswordChangePage'
 import { LoginPage } from './pages/LoginPage'
+import { VersionPage } from './pages/VersionPage'
 import { useTheme } from './lib/use-theme'
-import { ADMIN_PORTAL_ROUTES, HOME_PATH } from './routes'
+import {
+  ADMIN_PORTAL_ROUTES,
+  HOME_PATH,
+  type AdminRoute,
+  type AdminRouteLabel,
+} from './routes'
+
+/**
+ * The destinations that have a real screen. Everything absent renders `ComingSoonPage`.
+ *
+ * The prototype's `DESIGNED` map is the same idea, and the reason it is a map rather than a
+ * branch inside the loop is that this is the ONE place the two populations are distinguished —
+ * so "which of the 31 are built?" is answerable by reading a single object.
+ */
+const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElement>> = {
+  ข้อมูลเวอร์ชันระบบ: (route) => <VersionPage route={route} />,
+}
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */
 function ShellNotFound() {
@@ -99,7 +117,16 @@ function ShellRoutes() {
           <Route
             key={route.path}
             path={route.path}
-            element={<ComingSoonPage route={route} />}
+            element={
+              // ⚠️ Keyed by LABEL, which is `AdminRouteLabel` — renaming a menu row breaks the
+              // build rather than silently reverting its page to the stand-in. As P3/P4 land,
+              // rows move out of `ComingSoonPage` one at a time; the table stays the only list.
+              DESIGNED[route.label] ? (
+                DESIGNED[route.label]!(route)
+              ) : (
+                <ComingSoonPage route={route} />
+              )
+            }
           />
         ))}
 

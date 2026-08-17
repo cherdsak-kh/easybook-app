@@ -14,7 +14,7 @@
  * 429 cooldown — brings its own `disabled:` utilities, as the prototype does.
  */
 
-import type { ButtonHTMLAttributes } from 'react'
+import type { ButtonHTMLAttributes, Ref } from 'react'
 
 export type BtnVariant = 'primary' | 'ghost' | 'danger' | 'warn' | 'danger-solid' | 'warn-solid'
 
@@ -33,7 +33,19 @@ export function Btn({
   className = '',
   children,
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: BtnVariant }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: BtnVariant
+  /**
+   * React 19 passes `ref` to a function component as an ordinary prop, so no `forwardRef` — but
+   * `ButtonHTMLAttributes` does not include it, so without this line a caller holding a ref gets
+   * a type error rather than a working ref.
+   *
+   * A caller needs one when the button must survive its own click: `disabled` BLURS the element
+   * it is set on, and a busy button that is not re-focused afterwards drops a keyboard user on
+   * `<body>` at the top of the document.
+   */
+  ref?: Ref<HTMLButtonElement>
+}) {
   return (
     <button type={type} className={`${VARIANT_CLASS[variant]} ${className}`.trim()} {...rest}>
       {children}

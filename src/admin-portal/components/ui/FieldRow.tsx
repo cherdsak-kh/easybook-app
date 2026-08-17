@@ -12,6 +12,7 @@
  */
 
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 export function FieldRow({
   label,
@@ -33,10 +34,16 @@ export function FieldRow({
 /**
  * A whole tappable row inside a card — `pf-row`, the "เปลี่ยนรหัสผ่าน ›" shape.
  *
- * Renders a <button> by default and an <a>-like element only when the caller passes `href`,
- * because most of these open a modal rather than navigate. `min-h-[60px]` is in the class:
- * comfortably past the 44px minimum, which these get because they are the primary way
- * through those two pages.
+ * `min-h-[60px]` is in the class: comfortably past the 44px minimum, which these get because
+ * they are the primary way through the two pages that use them.
+ *
+ * ⚠️ `to` MAKES IT A REAL LINK, and most rows should not have one — most of these open a
+ * modal, where a `<button>` is correct. But a row that goes to one of the portal's 31 real
+ * URLs must be an `<a>`: middle-click, ⌘-click, "copy link address" and the screen reader's
+ * "link" announcement are all properties of the element, not of the click handler, and a
+ * button-that-navigates silently drops every one of them. The prototype's version of this row
+ * is `<a href="#" data-nav>` — a prototype has no router, so that was the closest it could get;
+ * porting the `#` would be porting the limitation.
  *
  * The chevron is decorative and marked so. The row's accessible name is its label; a
  * screen reader announcing "ไปต่อ" after every row would add nothing and repeat six times.
@@ -46,15 +53,18 @@ export function LinkRow({
   title,
   detail,
   trailing,
+  to,
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   icon?: ReactNode
   title: ReactNode
   detail?: ReactNode
   trailing?: ReactNode
+  /** An in-app route. Renders an `<a>` via the router instead of a `<button>`. */
+  to?: string
 }) {
-  return (
-    <button type="button" className="pf-row" {...rest}>
+  const inside = (
+    <>
       {icon && <span className="pf-row-ico">{icon}</span>}
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 py-3">
         <span className="text-[15px] font-medium text-base-content th-tight">{title}</span>
@@ -73,6 +83,20 @@ export function LinkRow({
       >
         <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
       </svg>
+    </>
+  )
+
+  if (to !== undefined) {
+    return (
+      <Link to={to} className="pf-row">
+        {inside}
+      </Link>
+    )
+  }
+
+  return (
+    <button type="button" className="pf-row" {...rest}>
+      {inside}
     </button>
   )
 }
