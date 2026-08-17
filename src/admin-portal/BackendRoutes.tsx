@@ -19,9 +19,14 @@
  */
 
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { AuthProvider } from './AuthProvider'
 import { BackendLayout } from './BackendLayout'
 import { NotFound } from './components/feedback/NotFound'
+import { useAuth } from './lib/auth-context'
+import { BootScreen } from './pages/BootScreen'
 import { ComingSoonPage } from './pages/ComingSoonPage'
+import { LoginPage } from './pages/LoginPage'
+import { useTheme } from './lib/use-theme'
 import { ADMIN_PORTAL_ROUTES, HOME_PATH } from './routes'
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */
@@ -38,7 +43,41 @@ function ShellNotFound() {
   )
 }
 
+/**
+ * What the whole `/backend` branch renders, in three mutually exclusive states.
+ *
+ * ⚠️ THE URL NEVER CHANGES. The login screen is rendered IN PLACE of the shell at whatever
+ * address the operator asked for, rather than redirected to `/backend/login` and bounced back
+ * afterwards. That is what makes a deep link survive a signed-out arrival for free: no
+ * `?next=` parameter to round-trip, nothing to sanitise on the way back, and no window in which
+ * a half-restored redirect target can point somewhere it should not.
+ *
+ * ⚠️ There is no fourth branch. `booting` exists precisely so nothing has to guess: rendering
+ * the login form optimistically would flash it at every signed-in operator on every page load,
+ * teaching them to start typing before the app has decided, and then eating the keystrokes.
+ */
+function BackendGate() {
+  const { status } = useAuth()
+  const { resolved } = useTheme()
+
+  if (status === 'authenticated') return <ShellRoutes />
+
+  // Boot and login carry the theme themselves — they render instead of, not inside, the shell,
+  // and the stored preference has to apply before either paints.
+  return (
+    <div data-theme={resolved}>{status === 'booting' ? <BootScreen /> : <LoginPage />}</div>
+  )
+}
+
 export function BackendRoutes() {
+  return (
+    <AuthProvider>
+      <BackendGate />
+    </AuthProvider>
+  )
+}
+
+function ShellRoutes() {
   return (
     <Routes>
       <Route element={<BackendLayout />}>

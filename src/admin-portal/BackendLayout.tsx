@@ -1,14 +1,13 @@
 /**
  * The `/backend` shell.
  *
- * ⚠️ P2-B1: the sidebar is real; the topbar is a stub holding only the drawer trigger. P2-B2
- * replaces that strip with search, theme, notifications and nothing else moves — the same seam
- * P2-A left for the sidebar, and for the same reason: a broken menu and a broken route must
- * never be able to look like each other.
+ * It renders only for an authenticated session — `BackendGate` in `BackendRoutes` owns that
+ * decision, so nothing in here has a signed-out variant to get wrong.
  *
- * ⚠️ THE SIGNED-IN USER IS A PLACEHOLDER until P2-C. It is declared HERE, once, marked, and
- * passed down as a prop — never faked inside a component. When `/auth/system/me` arrives it is
- * this one binding that changes, and nothing below it knows the difference.
+ * The identity and the ACL both come from the ONE `/auth/system/me` response. When P2-B built
+ * this against a placeholder, the placeholder was declared here, once, and passed down as a
+ * prop rather than faked inside a component — which is why switching to the real user was a
+ * one-line change and nothing below noticed.
  *
  * `data-theme` is stamped here rather than on `<html>` so the back-office's two themes stay
  * scoped to the back-office. The LIFF client has its own pair on its own wrapper, and neither
@@ -22,20 +21,24 @@ import { Topbar } from './components/shell/Topbar'
 import { useAcl } from './lib/use-acl'
 import { useTheme } from './lib/use-theme'
 import type { Notification } from './lib/notifications'
+import { useAuth } from './lib/auth-context'
+import type { SystemUser } from '@/lib/api-client'
 import type { AdminRouteLabel } from './routes'
 
 /**
- * ⚠️ PLACEHOLDER — P2-C replaces this with the `/auth/system/me` response.
+ * The identity card's view of `/auth/system/me`.
  *
- * `SUPER_ADMIN` deliberately: it is the role that sees the WHOLE menu, so building the shell
- * against it means every row is on screen while it is being built. P2-D adds the role switcher
- * and proves the other two hide what they should.
+ * ⚠️ The name is built HERE and nowhere else. It appears on the one control that is on screen
+ * every second of every session, and an early prototype pass hardcoded it — so the sidebar kept
+ * claiming one thing while the profile page said another. A user with neither name falls back
+ * to the email rather than to an empty card, because a blank identity control reads as a broken
+ * session.
  */
-const PLACEHOLDER_ME: SidebarUser = {
-  name: 'ยังไม่ได้เข้าสู่ระบบ',
-  role: 'SUPER_ADMIN',
-  avatarUrl: null,
-}
+const toSidebarUser = (u: SystemUser): SidebarUser => ({
+  name: [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email,
+  role: u.role,
+  avatarUrl: u.profilePictureUrl ?? null,
+})
 
 /**
  * ⚠️ PLACEHOLDER — P4 feeds these from the list endpoints' `meta.total`.
@@ -97,9 +100,14 @@ const PLACEHOLDER_NOTIFICATIONS: Notification[] = [
 export function BackendLayout() {
   const { resolved, choice, setTheme, isDark } = useTheme()
   const { pathname } = useLocation()
+  const { user, signOut } = useAuth()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [notifications, setNotifications] = useState(PLACEHOLDER_NOTIFICATIONS)
-  const acl = useAcl(PLACEHOLDER_ME.role)
+  // Non-null by construction: `BackendGate` renders this only while authenticated. Asserting it
+  // here rather than threading an optional user through the whole shell keeps every component
+  // below from having to render a "signed out" variant that can never appear.
+  const me = toSidebarUser(user!)
+  const acl = useAcl(me.role)
 
   // Any navigation closes the drawer — including the ones the sidebar does not originate, such
   // as the browser's back button, which would otherwise change the page behind an open menu.
@@ -112,14 +120,12 @@ export function BackendLayout() {
     >
       <div className="flex h-screen overflow-hidden">
         <Sidebar
-          me={PLACEHOLDER_ME}
+          me={me}
           acl={acl}
           counts={PLACEHOLDER_COUNTS}
           drawerOpen={drawerOpen}
           onDrawerChange={setDrawerOpen}
-          onLogout={() => {
-            // P2-C: POST /auth/system/logout, then land on the login screen.
-          }}
+          onLogout={() => void signOut()}
         />
 
         <div className="flex min-w-0 flex-1 flex-col p-3 lg:py-4 lg:pl-0 lg:pr-4">

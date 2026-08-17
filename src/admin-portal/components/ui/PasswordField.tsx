@@ -19,7 +19,7 @@
  */
 
 import { useId, useState } from 'react'
-import type { InputHTMLAttributes, ReactNode } from 'react'
+import type { InputHTMLAttributes, ReactNode, Ref } from 'react'
 import { Field } from './FormField'
 
 export function PasswordField({
@@ -33,6 +33,14 @@ export function PasswordField({
   label: ReactNode
   error?: string
   hint?: ReactNode
+  /**
+   * Reaches the `<input>` through the prop spread below — React 19 hands `ref` to a function
+   * component as an ordinary prop, so no `forwardRef` is needed. Declared here rather than left
+   * to flow silently: the login screen puts the caret back in this field after a 401, and a
+   * capability that only works because of an implementation detail is one somebody removes
+   * while "tidying" the spread.
+   */
+  ref?: Ref<HTMLInputElement>
 }) {
   const auto = useId()
   const fieldId = id ?? auto
