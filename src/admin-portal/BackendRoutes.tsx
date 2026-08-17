@@ -21,7 +21,7 @@
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './AuthProvider'
 import { BackendLayout } from './BackendLayout'
-import { NotFound } from './components/feedback/NotFound'
+import { NotFound } from '@/components/shared/NotFound'
 import { useAuth } from './lib/auth-context'
 import { BootScreen } from './pages/BootScreen'
 import { ComingSoonPage } from './pages/ComingSoonPage'

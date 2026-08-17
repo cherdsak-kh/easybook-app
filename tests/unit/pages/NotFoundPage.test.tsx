@@ -17,6 +17,10 @@ import { ThemeLayout } from '@/components/client-portal/ThemeLayout'
  *
  * The client index is a lightweight STAND-IN (`HOME`) — the real `HomePage` runs LIFF and API
  * effects, so it is never mounted here.
+ *
+ * The COPY changed on 2026-08-17: the ported DashWind placeholder was replaced by the
+ * prototype's full-page 404 (PO ruling). The routing assertions below are the part worth
+ * keeping and are unchanged; only the strings they look for moved.
  */
 function renderAt(path: string) {
   return render(
@@ -32,24 +36,25 @@ function renderAt(path: string) {
 }
 
 describe('NotFoundPage', () => {
-  it('renders the 404 heading and a frown glyph (static component smoke)', () => {
-    // The component is purely presentational — no router hook, no countdown, no redirect.
-    // The `MemoryRouter` wrapper is kept deliberately (harmless) to guard a future
-    // re-introduction of a router hook.
-    const { container } = render(
-      <MemoryRouter>
-        <NotFoundPage />
-      </MemoryRouter>,
-    )
-    expect(screen.getByRole('heading', { name: '404 - Not Found' })).toBeInTheDocument()
-    // The frown glyph is decorative (`aria-hidden`), so assert its presence structurally.
-    expect(container.querySelector('svg')).toBeInTheDocument()
+  it('names the page, echoes the URL that missed, and offers only the PUBLIC home', () => {
+    // `MemoryRouter` is required now, not decorative: the page reads the location to quote the
+    // failed URL back and calls `navigate` for its one way out.
+    renderAt('/fake-client?ref=old-bookmark')
+
+    expect(screen.getByRole('heading', { name: 'ไม่พบหน้าที่คุณค้นหา' })).toBeInTheDocument()
+    // The query string is part of the quote — a stale link's query is often why it is stale.
+    expect(screen.getByText('/fake-client?ref=old-bookmark')).toBeInTheDocument()
+    // ONE button, and it goes to the public home. A public error page must never advertise
+    // where the staff entrance is.
+    const buttons = screen.getAllByRole('button')
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0]).toHaveTextContent('กลับสู่หน้าแรก')
   })
 
   it('renders the global 404 for an unknown CLIENT path (AC-4)', () => {
     renderAt('/fake-client')
 
-    expect(screen.getByRole('heading', { name: '404 - Not Found' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'ไม่พบหน้าที่คุณค้นหา' })).toBeInTheDocument()
     // The client index stand-in is NOT rendered for a bogus client path.
     expect(screen.queryByText('HOME')).not.toBeInTheDocument()
   })
@@ -59,7 +64,7 @@ describe('NotFoundPage', () => {
     (path) => {
       renderAt(path)
 
-      expect(screen.getByRole('heading', { name: '404 - Not Found' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'ไม่พบหน้าที่คุณค้นหา' })).toBeInTheDocument()
       // No shell chrome, and no bounce to a login screen that no longer exists.
       expect(screen.queryByRole('navigation')).toBeNull()
     },
@@ -69,6 +74,6 @@ describe('NotFoundPage', () => {
     renderAt('/')
 
     expect(screen.getByText('HOME')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: '404 - Not Found' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'ไม่พบหน้าที่คุณค้นหา' })).not.toBeInTheDocument()
   })
 })

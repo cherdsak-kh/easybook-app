@@ -3,11 +3,17 @@
  *
  *  · `variant="shell"` — inside `/backend`, for a signed-in operator who followed a stale
  *    link. The chrome around it is fine: they can already see the menu.
- *  · `variant="full"`  — outside `/backend`, reachable by ANYONE including LIFF users who
- *    never sign in. Rendering the back-office chrome here would hand every mistyped address
- *    a full listing of the portal's menu names. For the same reason it offers no route to
- *    the staff entrance: a public error page must not advertise where the staff door is.
- *    The only way out is the public home.
+ *  · `variant="full"`  — ANY unmatched URL outside `/backend`, reachable by anyone including
+ *    LIFF users who never sign in (PO ruling, 17 ส.ค. 2569). Rendering the back-office chrome
+ *    here would hand every mistyped address a full listing of the portal's menu names. For the
+ *    same reason it offers no route to the staff entrance: a public error page must not
+ *    advertise where the staff door is. The only way out is the public home.
+ *
+ * ⚠️ IT LIVES IN `components/shared/`, NOT IN `admin-portal/`, and that is the folder rule
+ * working rather than an exception to it: `full` is the whole app's 404 and `shell` is the
+ * back-office's, so the file has two portals as consumers. Keeping the pair in ONE file is
+ * deliberate — the note above is the only place the distinction is written down, and split
+ * across two folders nobody would read them together.
  *
  * ⚠️ Deliberately NOT a giant "404". The number means nothing to the school staff who use
  * this; it goes at the bottom, small, where it is good for the one thing it IS good for —
