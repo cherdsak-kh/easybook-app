@@ -18,13 +18,27 @@ import type { Notification } from '../../lib/notifications'
 export function NotifRow({
   item,
   onRead,
+  preferFocus = false,
 }: {
   item: Notification
   onRead: (id: string) => void
+  /**
+   * ⚠️ SET THIS ON THE FIRST ROW OF A POPUP PANEL. Without it the panel's first focusable
+   * control is "ทำเครื่องหมายว่าอ่านแล้วทั้งหมด", so opening the bell and pressing Enter wipes
+   * every unread marker — measured, on the first build of the topbar, by the same person who
+   * had written the warning into `usePopupMenu` an hour earlier.
+   *
+   * It is a per-ROW flag rather than something the panel does to its container because the
+   * empty and loading states have no rows, and there the default "first visible focusable"
+   * scan is the right answer.
+   */
+  preferFocus?: boolean
 }) {
   return (
     <button
       type="button"
+      data-menu-focus={preferFocus ? '' : undefined}
+      data-menu-close=""
       onClick={() => onRead(item.id)}
       className={`notif-row w-full text-left ${item.read ? '' : 'notif-row-unread'}`.trim()}
     >

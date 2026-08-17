@@ -18,8 +18,10 @@
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar, type SidebarUser } from './components/shell/Sidebar'
+import { Topbar } from './components/shell/Topbar'
 import { useAcl } from './lib/use-acl'
 import { useTheme } from './lib/use-theme'
+import type { Notification } from './lib/notifications'
 import type { AdminRouteLabel } from './routes'
 
 /**
@@ -47,10 +49,56 @@ const PLACEHOLDER_COUNTS: Partial<Record<AdminRouteLabel, number>> = {
   การลงทะเบียน: 1,
 }
 
+/**
+ * ⚠️ PLACEHOLDER — P4 replaces this with the realtime feed the gateway already broadcasts.
+ *
+ * Held in layout state rather than as a constant so read/read-all actually mutate something:
+ * a panel whose rows cannot change is a panel whose focus and count behaviour cannot be
+ * verified, and those are the two parts of it that have already been wrong once.
+ */
+const PLACEHOLDER_NOTIFICATIONS: Notification[] = [
+  {
+    id: 'n1',
+    tone: 'amber',
+    icon: null,
+    title: 'มีคำขอลงทะเบียนใหม่ 1 รายการ',
+    detail: 'รอการตรวจสอบจากเจ้าหน้าที่',
+    time: '5 นาทีที่แล้ว',
+    read: false,
+  },
+  {
+    id: 'n2',
+    tone: 'sky',
+    icon: null,
+    title: 'คำขอจองสถานที่ 3 รายการรอการอนุมัติ',
+    detail: 'ห้องประชุมใหญ่ · โรงอาหาร',
+    time: '1 ชั่วโมงที่แล้ว',
+    read: false,
+  },
+  {
+    id: 'n3',
+    tone: 'rose',
+    icon: null,
+    title: 'การเชื่อมต่อ LINE ขัดข้องชั่วคราว',
+    detail: 'ระบบกลับมาทำงานปกติแล้ว',
+    time: 'เมื่อวาน',
+    read: false,
+  },
+  {
+    id: 'n4',
+    tone: 'emerald',
+    icon: null,
+    title: 'อนุมัติการลงทะเบียนแล้ว 4 รายการ',
+    time: '2 วันที่แล้ว',
+    read: true,
+  },
+]
+
 export function BackendLayout() {
-  const { resolved } = useTheme()
+  const { resolved, choice, setTheme, isDark } = useTheme()
   const { pathname } = useLocation()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [notifications, setNotifications] = useState(PLACEHOLDER_NOTIFICATIONS)
   const acl = useAcl(PLACEHOLDER_ME.role)
 
   // Any navigation closes the drawer — including the ones the sidebar does not originate, such
@@ -75,28 +123,17 @@ export function BackendLayout() {
         />
 
         <div className="flex min-w-0 flex-1 flex-col p-3 lg:py-4 lg:pl-0 lg:pr-4">
-          {/* ⚠️ P2-B2 STUB. Only the drawer trigger, because without it the menu is
-              unreachable on a phone and the sidebar could not be verified at all. A `<label>`
-              rather than a button: it drives the same checkbox the CSS drawer runs on, so
-              there is exactly one source of truth for whether the menu is open. */}
-          <header className="mb-3 flex shrink-0 items-center gap-3 rounded-card border border-base-300/70 bg-base-100 px-3 py-2.5 shadow-e1 lg:mb-4 lg:px-5 lg:py-3">
-            <label
-              htmlFor="nav-toggle"
-              aria-label="เปิดเมนู"
-              className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-control text-base-content/70 hover:bg-base-content/10 lg:hidden"
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-              </svg>
-            </label>
-            <span className="text-[13px] text-base-content/60">แถบเครื่องมือ — P2-B2</span>
-          </header>
+          <Topbar
+            acl={acl}
+            isDark={isDark}
+            themeChoice={choice}
+            onThemeChange={setTheme}
+            notifications={notifications}
+            onReadNotification={(id) =>
+              setNotifications((xs) => xs.map((x) => (x.id === id ? { ...x, read: true } : x)))
+            }
+            onReadAll={() => setNotifications((xs) => xs.map((x) => ({ ...x, read: true })))}
+          />
 
           <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             <Outlet />

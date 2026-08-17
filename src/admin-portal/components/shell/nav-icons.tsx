@@ -1,23 +1,29 @@
 /**
- * The sidebar and account-menu icons, EXTRACTED FROM THE PROTOTYPE BY SCRIPT, never retyped.
+ * The sidebar, account-menu and settings-shortcut icons, EXTRACTED FROM THE PROTOTYPE BY
+ * SCRIPT, never retyped.
  *
- * They are ~30 hand-tuned Heroicons outline paths. A transposed digit in one of them is a
- * silently wrong glyph that no diff catches and no test asserts — the same reason P1-A copied
- * the 122 CSS classes by machine instead of by hand.
+ * They are ~32 hand-tuned Heroicons outline paths. A transposed digit is a silently wrong glyph
+ * that no diff catches and no test asserts — the same reason P1-A copied the 122 CSS classes by
+ * machine instead of by hand.
  *
- * Stored as `d` values only: every icon shares the same wrapper (fill none, currentColor,
- * width 1.8, 24x24, round caps and joins), so repeating the attributes 30 times would be 30
- * more chances to differ. `NavIcon` below is the single wrapper.
+ * The prototype chose these so NO TWO destinations share a glyph, and the pair that had to be
+ * earned is กลุ่ม/ฝ่าย vs ตำแหน่ง — near synonyms in Thai, and exactly where a generic icon turns
+ * into decoration. กลุ่ม/ฝ่าย is an organisational UNIT (grouped rectangles); ตำแหน่ง is what a
+ * PERSON holds (a briefcase). Do not "tidy" them into matching.
  *
- * ⚠️ The settings group has TWO paths (gear + centre dot). The disclosure chevron is NOT here —
- * it belongs to `<summary>`, and `NavGroup` renders and rotates its own.
+ * Stored as `d` values only: every icon shares the same wrapper (fill none, currentColor, width
+ * 1.8, 24x24, round caps and joins), so repeating the attributes 32 times would be 32 more
+ * chances to differ. `NavIcon` below is the single wrapper.
+ *
+ * The settings group has TWO paths (gear + centre dot). The disclosure chevron is NOT here — it
+ * belongs to `<summary>`, and `NavGroup` renders and rotates its own.
  */
 
 import type { ReactElement } from 'react'
 
 // NOT exported: this file would then export a component AND a constant, which costs Fast
-// Refresh for the whole module (oxlint `only-export-components`). Nothing outside needs the
-// raw paths — `NavIcon` is the only thing that should ever render them.
+// Refresh for the whole module (oxlint `only-export-components`). Nothing outside needs the raw
+// paths — `NavIcon` is the only thing that should ever render them.
 const NAV_ICON_PATHS: Record<string, readonly string[]> = {
   'ภาพรวมระบบ': ['M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 018.25 20.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z'],
   'ประกาศและข่าวสาร': ['M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46'],
@@ -45,10 +51,22 @@ const NAV_ICON_PATHS: Record<string, readonly string[]> = {
   'ความเป็นส่วนตัว': ['M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z'],
   'ประวัติการเข้าสู่ระบบ': ['M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z'],
   'ออกจากระบบ': ['M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75'],
+  'ระบบการจอง': ['M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75'],
+  'ประเภทสถานที่': ['M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z', 'M6 6h.008v.008H6V6z'],
+  'กลุ่ม/ฝ่ายบุคลากร': ['M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z'],
+  'ตำแหน่งบุคลากร': ['M20.25 14.15v4.073a2.25 2.25 0 01-1.632 2.163l-1.32.377a9.797 9.797 0 01-5.396 0l-1.32-.377a2.25 2.25 0 00-1.633 0l-1.32.377a9.797 9.797 0 01-5.396 0l-1.32-.377A2.25 2.25 0 013.75 18.223V14.15M20.25 14.15c.313-.09.625-.184.936-.282a2.25 2.25 0 001.564-2.14V6.443c0-1.017-.683-1.906-1.665-2.163a48.4 48.4 0 00-2.835-.63M20.25 14.15a48.65 48.65 0 01-2.835.63m0 0V5.383c0-1.06-.735-1.99-1.784-2.144a48.617 48.617 0 00-7.362 0C7.22 3.393 6.485 4.323 6.485 5.383v9.397m10.93-9.397a48.65 48.65 0 00-10.93 0M3.75 14.15a48.65 48.65 0 002.835.63m-2.835-.63c-.313-.09-.625-.184-.936-.282a2.25 2.25 0 01-1.564-2.14V6.443c0-1.017.683-1.906 1.665-2.163a48.4 48.4 0 012.835-.63'],
+  'เทมเพลตข้อความ': ['M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z'],
+  'การเชื่อมต่อระบบ': ['M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 000 6.364'],
 }
 
-/** The one wrapper. `label` not found renders nothing rather than an empty box. */
-export function NavIcon({ label, className = 'nav-ico' }: { label: string; className?: string }): ReactElement | null {
+/** The one wrapper. A label with no icon renders nothing rather than an empty box. */
+export function NavIcon({
+  label,
+  className = 'nav-ico',
+}: {
+  label: string
+  className?: string
+}): ReactElement | null {
   const paths = NAV_ICON_PATHS[label]
   if (!paths) return null
   return (
