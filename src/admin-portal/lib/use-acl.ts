@@ -18,10 +18,16 @@
 
 import { useMemo } from 'react'
 import type { SystemRole } from '../labels'
+import type { AdminRouteLabel } from '../routes'
 
 /**
- * The destinations a VIEWER cannot reach, BY LABEL — the same keys the route table uses, so a
- * typo here is a menu row that never hides rather than a silent half-grant.
+ * The destinations a VIEWER cannot reach, BY LABEL — the same keys the route table uses.
+ *
+ * ⚠️ TYPED AS `AdminRouteLabel`, not `string`, and that is the whole guard. The prototype could
+ * only warn in a comment that "a typo here is a menu row that never hides rather than a silent
+ * half-grant" — and a half-grant is the failure nobody reports, because the row keeps working
+ * for the role that was supposed to lose it. Now a label that is not one of the 31 fails the
+ * build, and a label RENAMED in the route table fails it too.
  *
  * การตั้งค่าระบบ (all of it): configuration is an ACTION surface. There is no read-only value
  *   in seeing a switch you cannot flip, and rendering one promises a capability the role does
@@ -32,7 +38,7 @@ import type { SystemRole } from '../labels'
  * Everything else IS visible — including เจ้าหน้าที่ระบบ (a supervisor may see who holds an
  * account) and รายงานการใช้งานระบบ (who did what, which is the whole point of the role).
  */
-export const VIEWER_DENY: readonly string[] = [
+export const VIEWER_DENY: readonly AdminRouteLabel[] = [
   'ระบบการจอง',
   'ประเภทสถานที่',
   'กลุ่ม/ฝ่ายบุคลากร',
@@ -46,8 +52,13 @@ export interface Acl {
   role: SystemRole
   /** May this session change anything at all? VIEWER is read-only by definition. */
   write: boolean
-  /** Is this destination reachable? Takes the menu LABEL, matching the route table. */
-  can: (label: string) => boolean
+  /**
+   * Is this destination reachable? Takes the menu LABEL, matching the route table.
+   *
+   * ⚠️ `AdminRouteLabel`, not `string`, for the same reason `VIEWER_DENY` is: `can('typo')`
+   * would answer `true` — reachable — and look exactly like a correct allow.
+   */
+  can: (label: AdminRouteLabel) => boolean
   /**
    * The actions-column heading. For a read-only session the column is no longer a จัดการ
    * column — it holds exactly one thing and that thing opens a record, so a header still
@@ -63,7 +74,7 @@ export function useAcl(role: SystemRole): Acl {
     return {
       role,
       write,
-      can: (label: string) => !denied?.has(label),
+      can: (label: AdminRouteLabel) => !denied?.has(label),
       actionsColumnLabel: write ? 'จัดการ' : 'ดูข้อมูล',
     }
   }, [role])

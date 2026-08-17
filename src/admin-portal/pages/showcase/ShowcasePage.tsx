@@ -406,7 +406,7 @@ function ShowcaseBody() {
             <NavRow icon={NAV_ICO} label="เจ้าหน้าที่ระบบ" count={0} active={navActive === 'เจ้าหน้าที่ระบบ'} onSelect={() => setNavActive('เจ้าหน้าที่ระบบ')} />
             <NavSection>การตั้งค่า</NavSection>
             <NavGroup icon={NAV_ICO} label="การตั้งค่าระบบ" defaultOpen>
-              {['ระบบการจอง', 'ประเภทสถานที่', 'ตำแหน่งบุคลากร'].filter((l) => acl.can(l)).map((l) => (
+              {(['ระบบการจอง', 'ประเภทสถานที่', 'ตำแหน่งบุคลากร'] as const).filter((l) => acl.can(l)).map((l) => (
                 <NavRow key={l} label={l} sub active={navActive === l} onSelect={() => setNavActive(l)} />
               ))}
             </NavGroup>

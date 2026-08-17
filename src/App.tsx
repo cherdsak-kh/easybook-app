@@ -24,6 +24,19 @@ const ShowcasePage = lazy(() =>
   })),
 )
 
+/**
+ * The back-office, lazily loaded as ONE chunk.
+ *
+ * A LIFF user never signs in here, so none of it belongs in the initial download — and the
+ * split is at the branch rather than per page because the shell, the route table and all 31
+ * destinations are reached together the moment anyone enters `/backend`.
+ */
+const BackendRoutes = lazy(() =>
+  import('@/admin-portal/BackendRoutes').then((m) => ({
+    default: m.BackendRoutes,
+  })),
+)
+
 /** The single Suspense fallback for a lazily-loaded route chunk. */
 function RouteFallback() {
   return (
@@ -56,11 +69,17 @@ function RouteFallback() {
  * booking domain that has no schema, no endpoints and no prototype design, so every day they
  * stayed they read as a spec for a feature nobody had agreed to. Their record lives in git.
  *
- * Routes — there are now exactly two:
- *  - `/`        → the client LIFF surface (`HomePage`). Matched at the INDEX only —
- *                 `HomePage` is route-less (it swaps screens via internal state, not the
- *                 URL), so the client portal has exactly one real route.
- *  - `path="*"` → the ONE global 404, kept LAST.
+ * Routes:
+ *  - `/backend/*` → Admin Portal v2 (P2). It owns everything under that segment, including its
+ *                   own in-shell 404, so this file never learns the back-office's 31 paths.
+ *  - `/`          → the client LIFF surface (`HomePage`). Matched at the INDEX only —
+ *                   `HomePage` is route-less (it swaps screens via internal state, not the
+ *                   URL), so the client portal has exactly one real route.
+ *  - `path="*"`   → the ONE global 404, kept LAST. It is still the CLIENT's 404: the
+ *                   prototype's full-page back-office 404 exists (`NotFound variant="full"`)
+ *                   but has no correct home until P2-C decides who is "outside the shell",
+ *                   and pointing an anonymous LIFF user at back-office chrome would advertise
+ *                   the staff entrance to every mistyped address.
  *
  * The pathless `ThemeLayout` stamps the portal's daisyUI `data-theme` onto the subtree. It
  * is presentational only — it adds no path segment, so route specificity is unchanged.
@@ -73,6 +92,12 @@ function App() {
             `data-theme` so it can flip between the two admin themes in place, which is how
             the contrast sweep gets run twice without a reload. */}
         <Route path="/admin-portal/_showcase" element={<ShowcasePage />} />
+
+        {/* The back-office. `/*` because `BackendRoutes` owns everything below this segment —
+            its own 31 destinations and its own in-shell 404 — and a nested `<Routes>` only
+            sees the remainder of the path. Also outside `ThemeLayout`: it stamps its own
+            `data-theme`, and the two portals' themes must never reach each other. */}
+        <Route path="/backend/*" element={<BackendRoutes />} />
 
         <Route element={<ThemeLayout portal="client" />}>
           {/* The client LIFF surface. `HomePage` is route-less (it swaps screens via
