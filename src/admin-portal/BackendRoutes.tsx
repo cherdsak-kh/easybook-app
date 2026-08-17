@@ -25,6 +25,7 @@ import { NotFound } from './components/feedback/NotFound'
 import { useAuth } from './lib/auth-context'
 import { BootScreen } from './pages/BootScreen'
 import { ComingSoonPage } from './pages/ComingSoonPage'
+import { ForcePasswordChangePage } from './pages/ForcePasswordChangePage'
 import { LoginPage } from './pages/LoginPage'
 import { useTheme } from './lib/use-theme'
 import { ADMIN_PORTAL_ROUTES, HOME_PATH } from './routes'
@@ -57,8 +58,19 @@ function ShellNotFound() {
  * teaching them to start typing before the app has decided, and then eating the keystrokes.
  */
 function BackendGate() {
-  const { status } = useAuth()
+  const { status, user } = useAuth()
   const { resolved } = useTheme()
+
+  // ⚠️ The forced reset comes BEFORE the shell, not as a route inside it. With the flag set the
+  // server answers 403 on everything but six routes, so a shell rendered here would be a portal
+  // where nothing works and nothing says why.
+  if (status === 'authenticated' && user?.mustChangePassword) {
+    return (
+      <div data-theme={resolved}>
+        <ForcePasswordChangePage />
+      </div>
+    )
+  }
 
   if (status === 'authenticated') return <ShellRoutes />
 

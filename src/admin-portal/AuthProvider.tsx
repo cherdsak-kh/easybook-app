@@ -8,9 +8,10 @@
  * no third thing to render.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { getMe, login, logout, type SystemUser } from '@/lib/api-client'
+import { api, getMe, login, logout, type SystemUser } from '@/lib/api-client'
+import { SessionExpiredDialog } from './components/feedback/SessionExpiredDialog'
 import {
   AuthContext,
   type AuthStatus,
@@ -42,9 +43,46 @@ const outcomeOf = (status: number, retryAfter?: string | null): SignInOutcome =>
   }
 }
 
+/**
+ * The endpoints whose 401 is an ANSWER rather than a dead session.
+ *
+ * ⚠️ Getting this wrong in either direction is a real defect. `login` answering 401 means the
+ * password was wrong — treating it as session death throws up "เซสชันหมดอายุ" over a login
+ * form, which is nonsense. And the reset screen's wrong-current-password is a **400**, so it
+ * never reaches here at all; that is a backend design decision this list depends on.
+ */
+const NOT_SESSION_DEATH = ['/auth/system/login', '/auth/system/csrf']
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('booting')
   const [user, setUser] = useState<SystemUser | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
+  const statusRef = useRef(status)
+  statusRef.current = status
+
+  /**
+   * ONE place watches for session death, and it is here rather than in each caller.
+   *
+   * Every authenticated route re-reads the user server-side on every request (D-9), so a
+   * deletion, suspension or demotion surfaces as a 401 on whatever the operator happened to do
+   * next — which could be any of forty call sites. A per-caller check would be forty chances to
+   * forget one, and the symptom of forgetting is a screen that silently stops working.
+   *
+   * Registered once, at module scope of this component's lifetime: `api.use` appends, so
+   * re-registering on every render would stack middleware until the tab died.
+   */
+  useEffect(() => {
+    api.use({
+      onResponse({ request, response }) {
+        if (response.status !== 401) return
+        if (NOT_SESSION_DEATH.some((p) => request.url.includes(p))) return
+        // Only while we believed we were signed in. A 401 during the boot probe is the normal
+        // "not signed in" answer and must not raise a dialog over the login screen.
+        if (statusRef.current !== 'authenticated') return
+        setSessionExpired(true)
+      },
+    })
+  }, [])
 
   const probe = useCallback(async () => {
     const me = await getMe()
@@ -97,5 +135,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [status, user, signIn, signOut, probe],
   )
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {/* Rendered as a SIBLING of the whole portal, not inside a page: the dialog outlives
+          whatever route was showing when the session died, and a page unmounting must not be
+          able to take the explanation with it. */}
+      <SessionExpiredDialog
+        open={sessionExpired}
+        onRelogin={() => {
+          setSessionExpired(false)
+          // Drops to the login form in place, at the same URL — so signing back in returns to
+          // the page they were on. A full reload would work too and would throw that away.
+          setUser(null)
+          setStatus('anonymous')
+        }}
+      />
+    </AuthContext.Provider>
+  )
 }
