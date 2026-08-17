@@ -20,6 +20,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { NavGroup, NavRow, NavSection } from './NavRow'
 import { NavIcon } from './nav-icons'
+import { Avatar } from '../ui/Avatar'
 import { ROLE_LABEL, type SystemRole } from '../../labels'
 import { usePopupMenu } from '../../lib/use-popup-menu'
 import type { Acl } from '../../lib/use-acl'
@@ -287,10 +288,13 @@ export function Sidebar({
             {...account.triggerProps}
             className="flex w-full items-center gap-3 rounded-control border border-base-300 bg-base-200 p-2.5 text-left transition-colors hover:bg-base-content/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary aria-expanded:border-primary/40 aria-expanded:bg-primary/10"
           >
-            <img
-              src={me.avatarUrl ?? '/logo/easybook-logo-512px-no-bg.svg'}
-              alt=""
-              className="h-10 w-10 shrink-0 rounded-control border border-base-300 bg-base-100 object-cover"
+            {/* The fallback is the operator's INITIAL, never the product logo — `Avatar` carries
+                the argument. This card is on screen every second of every session, so whatever
+                sits here is the most-seen image in the portal. */}
+            <Avatar
+              src={me.avatarUrl}
+              name={me.name}
+              className="h-10 w-10 rounded-control text-[15px]"
             />
             <span className="flex min-w-0 flex-col">
               <span className="truncate text-[14px] font-semibold text-base-content/90">
