@@ -16,6 +16,7 @@
 
 import { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { NotifGlyph } from './components/shell/notif-icons'
 import { Sidebar, type SidebarUser } from './components/shell/Sidebar'
 import { Topbar } from './components/shell/Topbar'
 import { useAcl } from './lib/use-acl'
@@ -63,35 +64,48 @@ const PLACEHOLDER_NOTIFICATIONS: Notification[] = [
   {
     id: 'n1',
     tone: 'amber',
-    icon: null,
-    title: 'มีคำขอลงทะเบียนใหม่ 1 รายการ',
-    detail: 'รอการตรวจสอบจากเจ้าหน้าที่',
+    icon: <NotifGlyph name="user-plus" />,
+    title: 'ผู้ใช้ลงทะเบียนใหม่ 2 ราย รออนุมัติ',
+    detail: 'เชิดศักดิ์ คำไล้ และอีก 1 ราย',
     time: '5 นาทีที่แล้ว',
     read: false,
   },
   {
     id: 'n2',
     tone: 'sky',
-    icon: null,
-    title: 'คำขอจองสถานที่ 3 รายการรอการอนุมัติ',
-    detail: 'ห้องประชุมใหญ่ · โรงอาหาร',
-    time: '1 ชั่วโมงที่แล้ว',
+    icon: <NotifGlyph name="calendar" />,
+    title: 'คำขอจองห้องประชุมใหม่ 1 รายการ',
+    detail: 'ฝ่ายวิชาการ · 12 ส.ค. 2569 เวลา 09:00–12:00',
+    time: '18 นาทีที่แล้ว',
     read: false,
   },
   {
     id: 'n3',
     tone: 'rose',
-    icon: null,
-    title: 'การเชื่อมต่อ LINE ขัดข้องชั่วคราว',
-    detail: 'ระบบกลับมาทำงานปกติแล้ว',
-    time: 'เมื่อวาน',
+    icon: <NotifGlyph name="warning" />,
+    title: 'เชื่อมต่อ LINE Messaging API ไม่สำเร็จ',
+    detail: 'ระบบจะลองใหม่อัตโนมัติภายใน 5 นาที',
+    time: '1 ชั่วโมงที่แล้ว',
     read: false,
   },
   {
     id: 'n4',
     tone: 'emerald',
-    icon: null,
-    title: 'อนุมัติการลงทะเบียนแล้ว 4 รายการ',
+    icon: <NotifGlyph name="check" />,
+    title: 'อนุมัติคำขอจองสนามกีฬาแล้ว',
+    detail: 'ดำเนินการโดย สมชาย ใจดี',
+    time: 'เมื่อวาน 16:40',
+    read: true,
+  },
+  // ⚠️ FIVE, not four, and the fifth is what makes the panel SCROLL. Its `max-h-[30rem]` and the
+  // list's overflow are only exercised past four rows, so a four-row fixture reviews a panel
+  // whose scrolling nobody has ever seen.
+  {
+    id: 'n5',
+    tone: 'slate',
+    icon: <NotifGlyph name="cancel" />,
+    title: 'ผู้จองยกเลิกคำขอ 1 รายการ',
+    detail: 'ห้องโสตทัศนศึกษา · 10 ส.ค. 2569',
     time: '2 วันที่แล้ว',
     read: true,
   },

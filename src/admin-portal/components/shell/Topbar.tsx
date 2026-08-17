@@ -14,6 +14,7 @@
  * A permanent banner is what you reach for when nothing local can carry the message.
  */
 
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { NavIcon } from './nav-icons'
 import { NotifReadAll, NotifRow } from './NotifRow'
@@ -23,7 +24,6 @@ import { bellLabel, unreadCount, type Notification } from '../../lib/notificatio
 import type { Acl } from '../../lib/use-acl'
 import type { ThemeChoice } from '../../lib/use-theme'
 import { ADMIN_PORTAL_ROUTES, urlOf, type AdminRouteEntry } from '../../routes'
-import { useRef } from 'react'
 
 const ICON = 'h-5 w-5'
 
@@ -110,6 +110,7 @@ export function Topbar({
   const settings = usePopupMenu()
   const notif = usePopupMenu()
   const listRef = useRef<HTMLDivElement>(null)
+  const [readAllAnnouncement, setReadAllAnnouncement] = useState('')
 
   const unread = unreadCount(notifications)
 
@@ -126,6 +127,8 @@ export function Topbar({
       <label
         htmlFor="nav-toggle"
         aria-label="เปิดเมนู"
+        data-tip="เปิดเมนู"
+        data-tip-pos="bottom"
         className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-control text-base-content/70 hover:bg-base-content/10 lg:hidden"
       >
         <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -169,6 +172,8 @@ export function Topbar({
             type="button"
             {...theme.triggerProps}
             aria-label="ธีมการแสดงผล"
+            data-tip="ธีมการแสดงผล"
+            data-tip-pos="bottom"
             className="flex h-11 w-11 items-center justify-center rounded-control text-base-content/70 transition-colors hover:bg-base-content/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary aria-expanded:bg-primary/10 aria-expanded:text-primary"
           >
             {/* The RESOLVED theme, not the choice: under "ตามระบบ" the button has to show what
@@ -218,6 +223,8 @@ export function Topbar({
               type="button"
               {...settings.triggerProps}
               aria-label="การตั้งค่าระบบ"
+              data-tip="การตั้งค่าระบบ"
+              data-tip-pos="bottom"
               className="flex h-11 w-11 items-center justify-center rounded-control text-base-content/70 transition-colors hover:bg-base-content/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary aria-expanded:bg-primary/10 aria-expanded:text-primary"
             >
               <NavIcon label="การตั้งค่าระบบ" className={ICON} />
@@ -251,6 +258,12 @@ export function Topbar({
             type="button"
             {...notif.triggerProps}
             aria-label={bellLabel(unread)}
+            // The tooltip is a NAME, the aria-label is a SENTENCE, and they are different on
+            // purpose: a hover bubble reading "การแจ้งเตือน 3 รายการที่ยังไม่อ่าน" repeats a
+            // count already painted on the badge two pixels away. `[data-tip]` hides itself
+            // while `aria-expanded="true"`, so the bubble never sits on top of the open panel.
+            data-tip="การแจ้งเตือน"
+            data-tip-pos="bottom"
             className="relative flex h-11 w-11 items-center justify-center rounded-control text-base-content/70 transition-colors hover:bg-base-content/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary aria-expanded:bg-primary/10 aria-expanded:text-primary"
           >
             <NavIcon label="ตั้งค่าการแจ้งเตือน" className={ICON} />
@@ -261,7 +274,10 @@ export function Topbar({
                 aria-hidden="true"
                 className="absolute right-1.5 top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-error px-1 text-[12px] font-semibold tabular-nums text-error-content"
               >
-                {unread > 99 ? '99+' : unread}
+                {/* 9+, not 99+. The badge is an 18px circle beside a bell; three glyphs in it
+                    are unreadable at 12px, and "you have a lot" is the entire message a badge
+                    can carry. The exact number is in the panel, one click away. */}
+                {unread > 9 ? '9+' : unread}
               </span>
             )}
           </button>
@@ -274,8 +290,17 @@ export function Topbar({
             <div className="flex shrink-0 items-center gap-2 border-b border-base-300 px-3.5 py-2">
               <h2 className="m-0 text-[15px] font-semibold text-base-content">การแจ้งเตือน</h2>
               {unread > 0 && <span className="nav-count nav-count-alert ml-0">{unread} ใหม่</span>}
-              <span className="ml-auto" />
-              <NotifReadAll count={unread} onReadAll={onReadAll} listRef={listRef} />
+              {/* Already in the DOM before it has anything to say — a live region created at the
+                  same moment as its text is not announced. `NotifReadAll` fills it. */}
+              <span role="status" className="sr-only">
+                {readAllAnnouncement}
+              </span>
+              <NotifReadAll
+                count={unread}
+                onReadAll={onReadAll}
+                listRef={listRef}
+                onAnnounce={setReadAllAnnouncement}
+              />
             </div>
 
             <div className="nav-scroll min-h-0 flex-1 overflow-y-auto">

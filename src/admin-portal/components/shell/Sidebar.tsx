@@ -190,6 +190,8 @@ export function Sidebar({
           <label
             htmlFor="nav-toggle"
             aria-label="ปิดเมนู"
+            data-tip="ปิดเมนู"
+            data-tip-pos="bottom"
             className="-mr-2 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-control text-base-content/60 hover:bg-base-content/10 lg:hidden"
           >
             <svg
@@ -217,7 +219,19 @@ export function Sidebar({
             if (visible.length === 0) return null
 
             return (
-              <div key={section.group || 'top'}>
+              <div
+                key={section.group || 'top'}
+                // ⚠️ 2px more under ภาพรวมระบบ, and it is the prototype's `mb-1` on that row
+                // rather than a nicety: it is the ONE row with no section heading above it, so
+                // without the extra step it reads as the first item of การบริหารจัดการ instead
+                // of as the menu's own home. Every row below sat 2px high until this was found —
+                // which is how it was found, by diffing the two sidebars' row positions.
+                //
+                // ⚠️ PADDING, NOT MARGIN. `mb-0.5` here measured 2px, not 4: with no padding or
+                // border on this wrapper the row's own bottom margin COLLAPSES through it and the
+                // two 2px margins become one. Padding does not collapse, so it actually adds.
+                className={section.heading === null ? 'pb-0.5' : undefined}
+              >
                 {section.heading && <NavSection>{section.heading}</NavSection>}
                 {section.fold ? (
                   <NavGroup

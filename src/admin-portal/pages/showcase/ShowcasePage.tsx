@@ -105,6 +105,7 @@ function ShowcaseBody() {
   const themeCtl = useTheme()
   const copy = useCopy()
   const [notifs, setNotifs] = useState(SEED_NOTIFS)
+  const [readAllSaid, setReadAllSaid] = useState('')
   const unread = unreadCount(notifs)
   const [navActive, setNavActive] = useState('การลงทะเบียน')
   const notifListRef = useRef<HTMLDivElement>(null)
@@ -418,7 +419,12 @@ function ShowcaseBody() {
             <span className="text-[14px]" data-bell-label={bellLabel(unread)}>
               badge: <b data-notif-badge>{unread === 0 ? '—' : unread > 9 ? '9+' : unread}</b>
             </span>
-            <NotifReadAll count={unread} listRef={notifListRef} onReadAll={() => setNotifs((l) => l.map((n) => ({ ...n, read: true })))} />
+            {/* Rendered VISIBLY here, `sr-only` in the real panel — the showcase's job is to
+                make the invisible half reviewable. */}
+            <span role="status" className="text-[13px] text-base-content/70">
+              {readAllSaid}
+            </span>
+            <NotifReadAll count={unread} listRef={notifListRef} onAnnounce={setReadAllSaid} onReadAll={() => setNotifs((l) => l.map((n) => ({ ...n, read: true })))} />
           </div>
           <div ref={notifListRef} className="overflow-hidden rounded-control border border-base-300">
             {notifs.map((n) => (

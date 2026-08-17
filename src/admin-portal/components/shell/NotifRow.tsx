@@ -42,23 +42,24 @@ export function NotifRow({
       onClick={() => onRead(item.id)}
       className={`notif-row w-full text-left ${item.read ? '' : 'notif-row-unread'}`.trim()}
     >
-      {item.read ? (
-        // Holds the dot's column so titles stay aligned down the list once some are read.
-        <span aria-hidden="true" className="mt-[7px] h-2 w-2 shrink-0" />
-      ) : (
-        <span aria-hidden="true" className="notif-dot" />
-      )}
-      <span className={`notif-ico notif-tone-${item.tone}`}>{item.icon}</span>
+      {/* ⚠️ ORDER IS ICON → TEXT → DOT, matching the prototype. The dot sits at the row's
+          TRAILING edge, not before the tile: an unread marker in front of the icon pushes every
+          title 20px right and un-aligns the list the moment one row is read. Read rows therefore
+          need no spacer at all — `flex-1` on the text already holds the shape. */}
+      <span aria-hidden="true" className={`notif-ico notif-tone-${item.tone}`}>
+        {item.icon}
+      </span>
       <span className="min-w-0 flex-1">
-        <span
-          className={`notif-title block ${item.read ? '' : 'notif-title-unread'}`.trim()}
-        >
+        {/* BEFORE the title, not after: a screen reader announcing the whole sentence and then
+            "ยังไม่อ่าน" makes the listener re-file what they just heard. */}
+        {!item.read && <span className="sr-only">ยังไม่อ่าน · </span>}
+        <span className={`notif-title block ${item.read ? '' : 'notif-title-unread'}`.trim()}>
           {item.title}
-          {!item.read && <span className="sr-only"> · ยังไม่อ่าน</span>}
         </span>
         {item.detail && <span className="notif-sub block">{item.detail}</span>}
         <span className="notif-time block">{item.time}</span>
       </span>
+      {!item.read && <span aria-hidden="true" className="notif-dot" />}
     </button>
   )
 }
@@ -81,11 +82,21 @@ export function NotifReadAll({
   count,
   onReadAll,
   listRef,
+  onAnnounce,
 }: {
   count: number
   onReadAll: () => void
   /** The panel's row container. Focus lands on its first row after the sweep. */
   listRef: React.RefObject<HTMLElement | null>
+  /**
+   * Says out loud what the sweep did.
+   *
+   * ⚠️ Without it the ONLY feedback is dots vanishing, which a screen-reader user cannot see.
+   * A toast is the wrong tool: the panel is still open and focus is inside it, so the message
+   * belongs in a live region within the panel — which is what the prototype does and what this
+   * port had dropped.
+   */
+  onAnnounce: (message: string) => void
 }) {
   return (
     <button
@@ -99,11 +110,12 @@ export function NotifReadAll({
         // holding focus had already disabled itself. The first row exists in both states, so
         // moving focus BEFORE the sweep needs no scheduling at all and cannot race.
         listRef.current?.querySelector<HTMLElement>('button')?.focus()
+        onAnnounce(`ทำเครื่องหมายอ่านแล้ว ${count} รายการ`)
         onReadAll()
       }}
-      className="min-h-11 rounded-control px-3 text-[13px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:text-base-content/50 disabled:hover:bg-transparent"
+      className="ml-auto flex min-h-11 shrink-0 items-center rounded-control px-2 text-[13px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:pointer-events-none disabled:text-base-content/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
-      ทำเครื่องหมายว่าอ่านแล้วทั้งหมด
+      อ่านทั้งหมด
     </button>
   )
 }
