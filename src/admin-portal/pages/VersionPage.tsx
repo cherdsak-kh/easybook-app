@@ -35,7 +35,7 @@ import { FieldRow, LinkRow } from '../components/ui/FieldRow'
 import { ROLE_LABEL } from '../labels'
 import { useAuth } from '../lib/auth-context'
 import { useCopy } from '../lib/use-copy'
-import { RELEASES } from '../lib/releases'
+import { RELEASES, type Release } from '../lib/releases'
 import { APP, compareVersions, thaiStamp } from '../lib/version'
 import {
   ADMIN_PORTAL_ROUTES,
@@ -77,6 +77,74 @@ const TONE = {
   slate: 'border-base-300 bg-base-200 text-base-content/80',
   amber: 'border-warning/35 bg-warning/10 text-warning',
 } as const
+
+/**
+ * One release's heading line, built ONCE for both shapes.
+ *
+ * The open release and a folded one must not drift into different headings, which is exactly
+ * what happens the moment a "compact" variant is written separately: the date moves, the pill
+ * loses its colour, and nobody notices because the two are never on screen in the same state.
+ */
+function ReleaseHead({ release, folded }: { release: Release; folded: boolean }) {
+  return (
+    <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
+      <h3 className="m-0 text-[16px] font-semibold leading-[1.45] text-base-content tabular-nums">
+        เวอร์ชัน {release.v}
+      </h3>
+      <p className="m-0 text-[13px] text-base-content/70 tabular-nums">{release.date}</p>
+      {/* Neutral pill, and the WORDS carry the meaning. `<Badge>`'s five tones are bound
+          one-to-one to `AppAccess`; borrowing one here would import a meaning this page does
+          not have. */}
+      {release.v === APP.version && (
+        <span className="inline-flex items-center rounded-full bg-base-content/8 px-2.5 py-1 text-[12px] font-medium text-base-content/70">
+          เวอร์ชันที่คุณใช้อยู่
+        </span>
+      )}
+      {/* ⚠️ A CLOSED ROW MUST ANSWER "is what I am looking for in here?" WITHOUT BEING OPENED.
+          A version plus a date cannot: they are the identical shape for a release that added
+          two whole screens and one that fixed a typo, so a reader hunting for when a feature
+          arrived would have to open every row — which is the folding undone. The counts split
+          those apart at a glance, and they are DERIVED from the list underneath, so the summary
+          can never end up describing something the entry does not contain. */}
+      {folded && (
+        <p className="m-0 text-[13px] text-base-content/60">
+          {release.groups.map((g) => `${g.t} ${g.items.length}`).join(' · ')}
+        </p>
+      )}
+    </span>
+  )
+}
+
+/**
+ * One release's bullets, grouped under a WORD rather than tagged per line with a coloured chip.
+ * Release notes read that way anyway, it says "ใหม่" once instead of eight times, and it invents
+ * no third chip vocabulary in a portal where both existing ones already mean something specific.
+ */
+function ReleaseBody({ release, className = '' }: { release: Release; className?: string }) {
+  return (
+    <div className={`flex flex-col gap-3.5 ${className}`.trim()}>
+      {release.groups.map((group) => (
+        <div key={group.t}>
+          <p className="m-0 text-[13px] font-semibold text-base-content/80">{group.t}</p>
+          <ul className="m-0 mt-1.5 flex list-none flex-col gap-1.5 p-0">
+            {group.items.map((item) => (
+              <li
+                key={item}
+                className="flex gap-2.5 text-[14px] leading-[1.6] text-base-content/80"
+              >
+                <span
+                  aria-hidden="true"
+                  className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-base-content/30"
+                />
+                <span className="min-w-0">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function Glyph({ d, className }: { d: string; className: string }) {
   return (
@@ -359,58 +427,63 @@ export function VersionPage({ route }: { route: AdminRoute }) {
               จึงยังไม่มีสิ่งที่เปลี่ยนไปในเวอร์ชัน {server?.version} · โหลดหน้าใหม่เพื่อดูรายการล่าสุด
             </p>
           )}
-          <div>
-            {history.map((release) => (
-              <section
-                key={release.v}
-                className="border-t border-base-300/60 px-4 py-4 first:border-t-0 sm:px-5 sm:py-5"
-              >
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <h3 className="m-0 text-[16px] font-semibold leading-[1.45] text-base-content tabular-nums">
-                    เวอร์ชัน {release.v}
-                  </h3>
-                  <p className="m-0 text-[13px] text-base-content/70 tabular-nums">
-                    {release.date}
-                  </p>
-                  {/* Neutral pill, and the WORDS carry the meaning. `<Badge>`'s five tones are
-                      bound one-to-one to `AppAccess`; borrowing one here would import a meaning
-                      this page does not have. */}
-                  {release.v === APP.version && (
-                    <span className="inline-flex items-center rounded-full bg-base-content/8 px-2.5 py-1 text-[12px] font-medium text-base-content/70">
-                      เวอร์ชันที่คุณใช้อยู่
-                    </span>
-                  )}
-                </div>
+          {/* ⚠️ THE NEWEST RELEASE IS OPEN; EVERY OLDER ONE IS ITS OWN `<details>`.
+              (PO instruction, 18 ส.ค. 2569 — designed in the prototype first.)
 
-                {/* Grouped under a WORD, not tagged per line with a coloured chip: release notes
-                    read that way anyway, it says "ใหม่" once instead of eight times, and it
-                    invents no third chip vocabulary in a portal where both existing ones already
-                    mean something specific. */}
-                <div className="mt-3 flex flex-col gap-3.5">
-                  {release.groups.map((group) => (
-                    <div key={group.t}>
-                      <p className="m-0 text-[13px] font-semibold text-base-content/80">
-                        {group.t}
-                      </p>
-                      <ul className="m-0 mt-1.5 flex list-none flex-col gap-1.5 p-0">
-                        {group.items.map((item) => (
-                          <li
-                            key={item}
-                            className="flex gap-2.5 text-[14px] leading-[1.6] text-base-content/80"
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-base-content/30"
-                            />
-                            <span className="min-w-0">{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ))}
+              This list only grows. Rendering all of it expanded reads well at the handful of
+              entries it was built against and becomes a wall once a real product accumulates
+              history — and a wall here pushes ข้อมูลสำหรับแจ้งปัญหา, the page's only ACTION, off
+              the bottom. Measured in the prototype at a 30-release history: 2250px folded
+              against 5511px expanded, roughly six viewports of changelog.
+
+              Rejected: one "ดูเพิ่มเติม" fold over everything older (trades one wall for one
+              button and still leaves you scrolling the wall once you press it), and pagination
+              (this portal's `Pagination` is for TABLES, where the reader wants row 400 — nobody
+              asks for page 3 of a changelog, they ask when X arrived).
+
+              Accepted cost, stated here rather than discovered later: **Ctrl+F does not reach
+              closed content.** The derived group counts in each closed head are what keep the
+              list scannable in exchange.
+
+              Uncontrolled `<details>`, deliberately — no React state. The open/closed state is
+              the browser's, it is keyboard-operable for free, and `details[open] .chev` in
+              `admin-portal.css` rotates the chevron without anything re-rendering. */}
+          <div>
+            {history.map((release, i) =>
+              i === 0 ? (
+                <section
+                  key={release.v}
+                  className="border-t border-base-300/60 px-4 py-4 first:border-t-0 sm:px-5 sm:py-5"
+                >
+                  <div className="flex items-center gap-3">
+                    <ReleaseHead release={release} folded={false} />
+                  </div>
+                  <ReleaseBody release={release} className="mt-3" />
+                </section>
+              ) : (
+                <details key={release.v} className="border-t border-base-300/60">
+                  {/* `min-h-11` — 44px, the target every other row in this portal is measured
+                      against. A summary is a real control and gets the real size. */}
+                  <summary className="flex min-h-11 cursor-pointer items-center gap-3 px-4 py-4 transition-colors hover:bg-base-content/5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary sm:px-5 sm:py-5">
+                    <ReleaseHead release={release} folded />
+                    <span aria-hidden="true" className="shrink-0">
+                      <svg
+                        className="chev h-4 w-4 text-base-content/40"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+                    <ReleaseBody release={release} />
+                  </div>
+                </details>
+              ),
+            )}
           </div>
         </Card>
 
