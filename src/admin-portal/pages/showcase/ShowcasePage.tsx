@@ -16,7 +16,7 @@
  * ⚠️ Not part of the product. Nothing here may be imported by a real page.
  */
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Badge } from '../../components/ui/Badge'
 import { Btn, IconBtn } from '../../components/ui/Btn'
 import { Card, CardBody, CardHead, CardRows } from '../../components/ui/Card'
@@ -35,7 +35,15 @@ import type { LoadErrorKind } from '../../components/feedback/LoadError'
 import { NotFound } from '../../components/feedback/NotFound'
 import { Skeleton, SkeletonRegion } from '../../components/feedback/Skeleton'
 import { Spinner } from '../../components/feedback/Spinner'
+import { NavGroup, NavRow, NavSection } from '../../components/shell/NavRow'
+import { NotifReadAll, NotifRow } from '../../components/shell/NotifRow'
+import { bellLabel, unreadCount } from '../../lib/notifications'
+import type { Notification } from '../../lib/notifications'
+import { useAcl } from '../../lib/use-acl'
 import { useBusy } from '../../lib/use-busy'
+import { useCopy } from '../../lib/use-copy'
+import { useEscapeTopDialog } from '../../lib/use-escape-top-dialog'
+import { useTheme } from '../../lib/use-theme'
 import { ToastProvider } from '../../components/feedback/Toast'
 import { useToast } from '../../lib/toast-context'
 import { checkPassword, passwordOk } from '../../lib/password-policy'
@@ -44,6 +52,22 @@ import type { AppAccess, SystemRole } from '../../labels'
 
 const ACCESS_VALUES: AppAccess[] = ['ALLOWED', 'PENDING', 'REJECTED', 'BLOCKED', 'UNREGISTERED']
 const ROLE_VALUES: SystemRole[] = ['SUPER_ADMIN', 'ADMIN', 'VIEWER']
+
+const DOT = (
+  <svg className="notif-glyph" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+  </svg>
+)
+const NAV_ICO = (
+  <svg fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6z" />
+  </svg>
+)
+const SEED_NOTIFS: Notification[] = [
+  { id: 'n1', tone: 'amber', icon: DOT, title: 'มีคำขอลงทะเบียนใหม่ 3 รายการ', detail: 'รอการอนุมัติ', time: '2 นาทีที่แล้ว', read: false },
+  { id: 'n2', tone: 'emerald', icon: DOT, title: 'อนุมัติผู้ใช้ สมชาย ใจดี แล้ว', time: '1 ชั่วโมงที่แล้ว', read: false },
+  { id: 'n3', tone: 'slate', icon: DOT, title: 'ระบบสำรองข้อมูลเรียบร้อย', time: 'เมื่อวาน 23:00', read: true },
+]
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -76,6 +100,15 @@ function ShowcaseBody() {
   const rules = checkPassword(pw, 'Current-1!')
   const toast = useToast()
   const { busy, run, buttonProps } = useBusy()
+  const [role, setRole] = useState<SystemRole>('SUPER_ADMIN')
+  const acl = useAcl(role)
+  const themeCtl = useTheme()
+  const copy = useCopy()
+  const [notifs, setNotifs] = useState(SEED_NOTIFS)
+  const unread = unreadCount(notifs)
+  const [navActive, setNavActive] = useState('การลงทะเบียน')
+  const notifListRef = useRef<HTMLDivElement>(null)
+  useEscapeTopDialog()
 
   return (
     <div data-theme={theme} data-acl="super" className="min-h-screen bg-base-200 text-base-content">
@@ -326,6 +359,72 @@ function ShowcaseBody() {
 
         <Section title="ComingSoon — the designed state of 24 destinations">
           <ComingSoon onBack={() => {}} onHome={() => {}} />
+        </Section>
+
+        <Section title="useAcl — hides affordances, never enforces">
+          <div className="mb-3 flex flex-wrap gap-2">
+            {ROLE_VALUES.map((r) => (
+              <Btn key={r} variant={role === r ? 'primary' : 'ghost'} onClick={() => setRole(r)}>
+                {ROLE_LABEL[r]}
+              </Btn>
+            ))}
+          </div>
+          <div className="grid gap-1 text-[14px]" data-acl-out>
+            <p className="m-0">write: <b>{String(acl.write)}</b></p>
+            <p className="m-0">หัวข้อคอลัมน์: <b>{acl.actionsColumnLabel}</b></p>
+            <p className="m-0">เห็น ตำแหน่งบุคลากร: <b data-can-options>{String(acl.can('ตำแหน่งบุคลากร'))}</b></p>
+            <p className="m-0">เห็น เจ้าหน้าที่ระบบ: <b data-can-staff>{String(acl.can('เจ้าหน้าที่ระบบ'))}</b></p>
+          </div>
+        </Section>
+
+        <Section title="useTheme — persists the CHOICE, not the colour">
+          <div className="mb-3 flex flex-wrap gap-2">
+            {(['light', 'dark', 'system'] as const).map((c) => (
+              <Btn key={c} variant={themeCtl.choice === c ? 'primary' : 'ghost'} onClick={() => themeCtl.setTheme(c)}>
+                {c}
+              </Btn>
+            ))}
+          </div>
+          <p className="m-0 text-[14px]">
+            choice <b data-theme-choice>{themeCtl.choice}</b> → resolved <b data-theme-resolved>{themeCtl.resolved}</b>
+          </p>
+        </Section>
+
+        <Section title="useCopy — three tiers, the third always works">
+          <p ref={copy.ref as React.RefObject<HTMLParagraphElement>} className="m-0 mb-2 rounded-control bg-base-200 px-3 py-2 font-mono text-[14px]">
+            Tmp-9xKq7wRn2LbV
+          </p>
+          <Btn variant="ghost" onClick={() => void copy.copy()}>{copy.label}</Btn>
+          <p role="status" className="mt-2 text-[13px] text-base-content/70" data-copy-say>{copy.announcement}</p>
+        </Section>
+
+        <Section title="NavRow · NavGroup · NavSection">
+          <nav className="max-w-[264px]" aria-label="ตัวอย่างเมนู">
+            <NavRow icon={NAV_ICO} label="ภาพรวมระบบ" active={navActive === 'ภาพรวมระบบ'} onSelect={() => setNavActive('ภาพรวมระบบ')} />
+            <NavSection>การบริหารจัดการ</NavSection>
+            <NavRow icon={NAV_ICO} label="การลงทะเบียน" count={12} alert active={navActive === 'การลงทะเบียน'} onSelect={() => setNavActive('การลงทะเบียน')} />
+            <NavRow icon={NAV_ICO} label="เจ้าหน้าที่ระบบ" count={0} active={navActive === 'เจ้าหน้าที่ระบบ'} onSelect={() => setNavActive('เจ้าหน้าที่ระบบ')} />
+            <NavSection>การตั้งค่า</NavSection>
+            <NavGroup icon={NAV_ICO} label="การตั้งค่าระบบ" defaultOpen>
+              {['ระบบการจอง', 'ประเภทสถานที่', 'ตำแหน่งบุคลากร'].filter((l) => acl.can(l)).map((l) => (
+                <NavRow key={l} label={l} sub active={navActive === l} onSelect={() => setNavActive(l)} />
+              ))}
+            </NavGroup>
+          </nav>
+        </Section>
+
+        <Section title="NotifRow — one source for the count">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span className="text-[14px]" data-bell-label={bellLabel(unread)}>
+              badge: <b data-notif-badge>{unread === 0 ? '—' : unread > 9 ? '9+' : unread}</b>
+            </span>
+            <NotifReadAll count={unread} listRef={notifListRef} onReadAll={() => setNotifs((l) => l.map((n) => ({ ...n, read: true })))} />
+          </div>
+          <div ref={notifListRef} className="overflow-hidden rounded-control border border-base-300">
+            {notifs.map((n) => (
+              <NotifRow key={n.id} item={n} onRead={(id) => setNotifs((l) => l.map((x) => (x.id === id ? { ...x, read: true } : x)))} />
+            ))}
+          </div>
         </Section>
 
         <Section title="NotFound — shell variant">
