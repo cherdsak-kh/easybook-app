@@ -34,6 +34,8 @@ import {
   listDepartments,
   listPersonnelRoles,
   patchSystemUser,
+  type Department,
+  type PersonnelRole,
   type SystemUser,
   type UpdateSystemUserBody,
 } from '@/lib/api-client'
@@ -50,24 +52,37 @@ import {
  * `{ id, name, isSystemReserved }` → `StaffOption`, plus the row the operator is ALREADY on if the
  * list does not contain it.
  *
- * ⚠️ `fallback` is never set from the API, and that is not an oversight. The prototype's tombstone
- * rows (`ไม่พบตำแหน่ง` / `ไม่พบกลุ่ม/ฝ่าย`) do not exist in `easybook-service` — nothing seeds them
- * and no endpoint returns one. What CAN happen is that the option a row points at was soft-deleted
- * and so is absent from the list, and `<select>` has no concept of "a value not in the list": omit
- * it and the browser silently selects option 0, so opening the dialog and pressing บันทึก would
- * quietly refile the operator under a different department. Appending the current value with
- * `fallback` is what `StaffFormDialog`'s `OptionList` already knows how to render — offered only
- * because it is already the answer, never as a choice.
+ * ⚠️ `fallback` HAS TWO SOURCES, and they are different facts that happen to want the same
+ * rendering — "show it only if it is already the value".
+ *
+ *  1. `isFallback` FROM THE SERVER. The tombstone rows (`ไม่พบตำแหน่ง` / `ไม่พบกลุ่ม/ฝ่าย`) that
+ *     `OptionsService.softDelete` re-points holders onto (OPT-FALLBACK-1). They cannot be told from
+ *     the System Developer row by `isSystemReserved` — both are `true` — and the two need OPPOSITE
+ *     treatment here: the reserved row is assignable by a SUPER_ADMIN, the tombstone must never be
+ *     offered, because "offering it in a dropdown would let an operator file somebody under 'not
+ *     found' deliberately". Hence a second flag on the DTO (OPT-COUNT-2, 18 ส.ค. 2569) rather than
+ *     matching the Thai name here, which would put that spelling in two repositories.
+ *  2. NOT IN THE LIST AT ALL. The option this row points at was soft-deleted, so it is absent.
+ *     `<select>` has no concept of "a value not in the list": omit it and the browser silently
+ *     selects option 0, so opening the dialog and pressing บันทึก would quietly refile the operator
+ *     under a different department.
+ *
+ * ⚠️ `reserved` and `fallback` are MUTUALLY EXCLUSIVE below. A tombstone satisfies both flags on
+ * the wire, and `OptionList` sorts reserved rows into an `<optgroup>` it offers — so passing both
+ * would put the row back in the list this function exists to keep it out of.
  */
 function toOptions(
-  rows: readonly { id: number; name: string; isSystemReserved: boolean }[],
+  // The GENERATED types, not a hand-written structural echo of them. This function reads three
+  // fields the contract owns; spelling them out again is a second copy that stops matching the day
+  // one of them changes, and the compiler would not say so.
+  rows: readonly (Department | PersonnelRole)[],
   current: { id: number; name: string },
 ): StaffOption[] {
-  const out: StaffOption[] = rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    reserved: r.isSystemReserved || undefined,
-  }))
+  const out: StaffOption[] = rows.map((r) =>
+    r.isFallback
+      ? { id: r.id, name: r.name, fallback: true }
+      : { id: r.id, name: r.name, reserved: r.isSystemReserved || undefined },
+  )
   if (!out.some((o) => o.id === current.id)) {
     out.push({ id: current.id, name: current.name, fallback: true })
   }
@@ -120,12 +135,8 @@ export function AccountEditor({
    * `/me` re-read, so a save refetched both lists, and a save is exactly when it happened.
    * Measured: three GETs per list on one page load.
    */
-  const [rawPositions, setRawPositions] = useState<
-    readonly { id: number; name: string; isSystemReserved: boolean }[] | null
-  >(null)
-  const [rawDepartments, setRawDepartments] = useState<
-    readonly { id: number; name: string; isSystemReserved: boolean }[] | null
-  >(null)
+  const [rawPositions, setRawPositions] = useState<readonly PersonnelRole[] | null>(null)
+  const [rawDepartments, setRawDepartments] = useState<readonly Department[] | null>(null)
   const [alert, setAlert] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   /** Set when the form submits; the confirmation is what actually writes. */

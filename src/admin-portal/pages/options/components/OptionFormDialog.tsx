@@ -97,23 +97,46 @@ export function OptionFormDialog({
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  /** Armed when the dialog opens, consumed once the value below has actually landed. */
+  const armSelect = useRef(false)
+
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      armSelect.current = false
+      return
+    }
+    armSelect.current = true
     setName(isEdit ? target.name : prefill)
     setError(null)
   }, [open, isEdit, target, prefill])
 
   /**
-   * Select-all on a RENAME so the first keystroke replaces the old title. Not on create — there is
-   * nothing to select, and calling it there would be a no-op that reads as intent.
+   * Focus, and select-all on a RENAME so the first keystroke replaces the old title. Not on create
+   * — there is nothing to select, and calling it there would be a no-op that reads as intent.
+   *
+   * ⚠️ THE `el.value !== want` GUARD IS THE WHOLE MECHANISM. This is a CONTROLLED input, so when
+   * the effects of the OPENING render run, its DOM value is still the previous one and the
+   * assignment that lands the new value CLEARS any selection. Measured: focused, caret at the end,
+   * nothing highlighted — the first keystroke appended to the old name instead of replacing it. A
+   * plain second effect does not help; it runs in the same commit as the first.
+   *
+   * So this waits for the commit where the value matches, which is exactly one render later, and
+   * `armSelect` makes it fire once — without it, typing the original name back character by
+   * character would re-select the field mid-edit.
+   *
+   * ⚠️ NOT `requestAnimationFrame`, which was the first fix and was wrong: a frame callback does
+   * not run in a hidden tab, so the field opened unfocused whenever the browser felt like it.
+   * Measured too, by accident, which is the only reason it was caught.
    */
   useEffect(() => {
-    if (!open) return
+    if (!open || !armSelect.current) return
     const el = inputRef.current
     if (!el) return
+    if (el.value !== (isEdit ? target.name : prefill)) return
+    armSelect.current = false
     el.focus()
     if (isEdit) el.select()
-  }, [open, isEdit])
+  }, [open, isEdit, target, prefill, name])
 
   function submit() {
     /*

@@ -1012,6 +1012,21 @@ export interface components {
              * @example 12
              */
             holderCount: number;
+            /**
+             * @description Back-office accounts holding this option, excluding soft-deleted ones.
+             * @example 5
+             */
+            staffCount: number;
+            /**
+             * @description LINE registrations holding this option, excluding soft-deleted ones.
+             * @example 7
+             */
+            registrationCount: number;
+            /**
+             * @description READ-ONLY. True only for the tombstone row that holders are re-pointed to when an option is deleted. Never offer it as a choice; show it only when it is already the current value.
+             * @example false
+             */
+            isFallback: boolean;
         };
         CreateDepartmentDto: {
             /** @example Computer Science */
@@ -1043,6 +1058,21 @@ export interface components {
              * @example 12
              */
             holderCount: number;
+            /**
+             * @description Back-office accounts holding this option, excluding soft-deleted ones.
+             * @example 5
+             */
+            staffCount: number;
+            /**
+             * @description LINE registrations holding this option, excluding soft-deleted ones.
+             * @example 7
+             */
+            registrationCount: number;
+            /**
+             * @description READ-ONLY. True only for the tombstone row that holders are re-pointed to when an option is deleted. Never offer it as a choice; show it only when it is already the current value.
+             * @example false
+             */
+            isFallback: boolean;
         };
         CreatePersonnelRoleDto: {
             /** @example Teacher */

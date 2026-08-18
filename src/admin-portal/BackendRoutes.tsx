@@ -29,6 +29,7 @@ import { ComingSoonPage } from './pages/ComingSoonPage'
 import { ForcePasswordChangePage } from './pages/password/ForcePasswordChangePage'
 import { LoginPage } from './pages/login/LoginPage'
 import { ChangePasswordPage } from './pages/password/ChangePasswordPage'
+import { OptionsPage } from './pages/options/OptionsPage'
 import { ProfilePage } from './pages/profile/ProfilePage'
 import { VersionPage } from './pages/version/VersionPage'
 import { useTheme } from './lib/use-theme'
@@ -50,6 +51,9 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   ข้อมูลเวอร์ชันระบบ: (route) => <VersionPage route={route} />,
   โปรไฟล์: (route) => <ProfilePage route={route} />,
   เปลี่ยนรหัสผ่าน: (route) => <ChangePasswordPage route={route} />,
+  // TWO labels, ONE component — see `OptionsPage`'s header and the comment in `routes.ts`.
+  ตำแหน่งบุคลากร: (route) => <OptionsPage route={route} />,
+  'กลุ่ม/ฝ่ายบุคลากร': (route) => <OptionsPage route={route} />,
 }
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */

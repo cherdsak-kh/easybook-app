@@ -14,12 +14,17 @@
  * promises a page that does not exist.
  */
 
+import type { ReactNode } from 'react'
 import type { AdminRoute } from '../../routes'
 
 export function PageHeading({
   route,
   desc,
-  descAtEveryWidth = false,
+  // ⚠️ NO `= false` DEFAULT. A default here would fire before the `??` below and collapse three
+  // states into two — "not asked" and "explicitly no" must stay distinguishable, because the first
+  // means "decide from `desc`" and the second means "hide it below `sm`".
+  descAtEveryWidth,
+  actions,
 }: {
   route: AdminRoute
   /**
@@ -46,9 +51,26 @@ export function PageHeading({
    * That second case is implied by `desc` rather than asked for twice.
    */
   descAtEveryWidth?: boolean
+  /**
+   * The page's toolbar — the right-hand side of the SAME flex row.
+   *
+   * ⚠️ IT BELONGS HERE, not beside this component. This element IS the header row (that is what
+   * `justify-between` and the bottom margin are for), so a page that rendered its buttons as a
+   * sibling had to wrap both in a second copy of the same wrapper — and paid its margin twice.
+   * Measured on ตัวเลือกบุคลากร: a 111.7px header against the prototype's 95.7, pushing the card
+   * and everything in it down by exactly the `lg:mb-4`.
+   */
+  actions?: ReactNode
 }) {
   const subtitle = desc ?? route.desc
-  const always = descAtEveryWidth || desc !== undefined
+  /*
+   * ⚠️ `??`, NOT `||`. A TABLE page passes its own `desc` AND hides it below `sm` — the table
+   * explains the page by being it, so the line is worth the vertical space only on a wide screen.
+   * With `||` that combination was unexpressible: passing `desc` forced the subtitle visible at
+   * every width and there was no way to say otherwise. Now an explicit `false` wins, and omitting
+   * the prop keeps the old default (a page that wrote its own sentence shows it everywhere).
+   */
+  const always = descAtEveryWidth ?? desc !== undefined
   return (
     <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1 lg:mb-4">
       <div className="min-w-0">
@@ -86,6 +108,7 @@ export function PageHeading({
           {subtitle}
         </p>
       </div>
+      {actions}
     </div>
   )
 }

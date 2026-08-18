@@ -45,6 +45,38 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    /*
+     * ⚠️ NOT RELEASED YET, AND THEREFORE NOT VISIBLE YET. `package.json` is still `0.3.0`, and the
+     * page renders `RELEASES.filter(r => compareVersions(r.v, APP.version) <= 0)` — so this entry
+     * is inert until the version is bumped at the close of P4. That is deliberate and is the
+     * doctrine at the top of this file: notes are written by whoever ships the work, at the moment
+     * they ship it, not reconstructed from a diff weeks later by someone guessing what changed.
+     * Lines get appended here as P4 lands each page; the bump is a separate, PO-owned decision
+     * (`Q3`: one phase = one minor).
+     *
+     * The date is a placeholder for the same reason — it is filled in on the day, never computed.
+     */
+    v: '0.4.0',
+    date: '18 ส.ค. 2569',
+    groups: [
+      {
+        t: 'ใหม่',
+        items: [
+          'หน้าโปรไฟล์ — ดูข้อมูลบัญชีของคุณได้ครบ และเปลี่ยนรูปโปรไฟล์ได้เอง',
+          'หน้าเปลี่ยนรหัสผ่าน ตั้งรหัสผ่านใหม่ได้เองโดยไม่ต้องขอรหัสผ่านชั่วคราวจากผู้ดูแลระบบ',
+          'ผู้ดูแลระบบสูงสุดแก้ไขชื่อ–สกุล ตำแหน่ง กลุ่ม/ฝ่าย และเบอร์โทรศัพท์ของตัวเองได้จากหน้าโปรไฟล์',
+        ],
+      },
+      {
+        t: 'แก้ไข',
+        items: [
+          'การ์ดบัญชีที่มุมล่างซ้าย แสดงชื่อตำแหน่งของคุณ จากเดิมที่แสดงบทบาทในระบบ',
+          'ข้อความเตือนตอนตั้งรหัสผ่านใหม่ ระบุว่ายังขาดเงื่อนไขข้อใด จากเดิมที่บอกรวม ๆ ว่ายังไม่ผ่าน',
+        ],
+      },
+    ],
+  },
+  {
     v: '0.3.0',
     // Same day as 0.2.0, and that is simply what happened. A date is a fact about the release,
     // not a slot that has to be unique.
