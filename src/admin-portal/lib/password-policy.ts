@@ -43,3 +43,56 @@ export function checkPassword(value: string, current?: string): PasswordRuleStat
 
 /** Every rule met — what a submit button gates on, alongside the server's own answer. */
 export const passwordOk = (s: PasswordRuleState): boolean => Object.values(s).every(Boolean)
+
+/**
+ * The fragment each rule contributes to a submit-time error, so the message NAMES what is missing
+ * instead of saying "ยังไม่ผ่านเงื่อนไขทั้งหมด". With five rules, a generic sentence makes the
+ * operator diff their own password against a checklist by eye — and the error is what focus lands
+ * on, so it is the one that has to say something.
+ *
+ * `diff` has no fragment: it is the only rule that is not about the new password alone, and it
+ * carries its own whole sentence (`ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน`).
+ *
+ * ⚠️ Each fragment matches its `PasswordRules` row and its server-side `@Matches` message. The
+ * three must not drift — `ChangePasswordDto` carries one `@Matches` per class for exactly this
+ * reason, so a 400 names the same class the checklist is pointing at.
+ */
+const NEEDED: { key: keyof PasswordRuleState; need: string }[] = [
+  { key: 'len', need: `ความยาวอย่างน้อย ${PASSWORD_MIN} ตัวอักษร` },
+  { key: 'upper', need: 'ตัวพิมพ์ใหญ่' },
+  { key: 'lower', need: 'ตัวพิมพ์เล็ก' },
+  { key: 'digit', need: 'ตัวเลข' },
+  { key: 'special', need: 'อักขระพิเศษ' },
+]
+
+/** Which rules a candidate misses, in checklist order. */
+export const missingIn = (s: PasswordRuleState): string[] =>
+  NEEDED.filter((r) => !s[r.key]).map((r) => r.need)
+
+/**
+ * Thai lists the last item with `และ` and separates the rest with a SPACE, not a comma —
+ * `join(', ')` reads as English punctuation dropped into a Thai sentence.
+ */
+export function joinTh(parts: string[]): string {
+  if (parts.length < 2) return parts[0] ?? ''
+  return `${parts.slice(0, -1).join(' ')} และ${parts[parts.length - 1]}`
+}
+
+/**
+ * The whole submit-time verdict for the new-password field, in the prototype's order: length first
+ * (the rule most people miss, and the one with its own plain sentence), then the character classes
+ * named together, then "must differ" LAST because it is the only rule about the OTHER box.
+ *
+ * Returns `''` when the value passes. Shared so the forced gate and the voluntary page cannot
+ * answer the same failure with two different sentences.
+ */
+export function newPasswordError(value: string, current: string): string {
+  if (!value) return 'โปรดระบุรหัสผ่านใหม่'
+  const state = checkPassword(value, current)
+  if (value.length < PASSWORD_MIN) return `รหัสผ่านใหม่ต้องยาวอย่างน้อย ${PASSWORD_MIN} ตัวอักษร`
+  if (value.length > PASSWORD_MAX) return `รหัสผ่านใหม่ต้องยาวไม่เกิน ${PASSWORD_MAX} ตัวอักษร`
+  const missing = missingIn(state)
+  if (missing.length) return `รหัสผ่านใหม่ต้องมี${joinTh(missing)}`
+  if (!state.diff) return 'รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านปัจจุบัน'
+  return ''
+}

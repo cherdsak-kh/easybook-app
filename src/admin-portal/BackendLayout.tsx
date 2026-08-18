@@ -38,6 +38,10 @@ import { ADMIN_PORTAL_ROUTES, HOME_PATH, urlOf, type AdminRouteLabel } from './r
  */
 const toSidebarUser = (u: SystemUser): SidebarUser => ({
   name: [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email,
+  // ⚠️ `personnelRole.name`, the JOB TITLE — see `SidebarUser.position`. Non-null in the DTO
+  // (`SystemUserOptionDto`, not nullable), so no fallback: a blank line here would be a contract
+  // violation to investigate, not a case to paper over.
+  position: u.personnelRole.name,
   role: u.role,
   avatarUrl: u.profilePictureUrl ?? null,
 })

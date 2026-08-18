@@ -21,7 +21,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { NavGroup, NavRow, NavSection } from './NavRow'
 import { NavIcon } from './nav-icons'
 import { Avatar } from '../ui/Avatar'
-import { ROLE_LABEL, type SystemRole } from '../../labels'
+import type { SystemRole } from '../../labels'
 import { usePopupMenu } from '../../lib/use-popup-menu'
 import type { Acl } from '../../lib/use-acl'
 import {
@@ -79,6 +79,12 @@ const ACCOUNT_LABELS: readonly AdminRouteLabel[] = [
 
 export interface SidebarUser {
   name: string
+  /**
+   * ⚠️ THE JOB TITLE (`personnelRole.name`), NOT `ROLE_LABEL[role]` — and the distinction is the
+   * whole point of the field. See the card at the bottom of this file for why.
+   */
+  position: string
+  /** Still needed: `useAcl` gates the menu by it. It is simply never PRINTED here. */
   role: SystemRole
   avatarUrl: string | null
 }
@@ -300,13 +306,23 @@ export function Sidebar({
               <span className="truncate text-[14px] font-semibold text-base-content/90">
                 {me.name}
               </span>
-              {/* The signed-in role, from ONE place. It was a hardcoded string in an early
-                  prototype pass, so the sidebar kept claiming ผู้ดูแลระบบสูงสุด while the
-                  profile page said something else — on the one control that is on screen at
-                  all times. */}
-              <span className="truncate text-[12px] text-base-content/70">
-                {ROLE_LABEL[me.role]}
-              </span>
+              {/* ⚠️ THE POSITION (ตำแหน่ง), NEVER THE ROLE. Ported wrong on the first pass — it
+                  printed `ROLE_LABEL[me.role]`, which the prototype's ACL module rejects in as
+                  many words:
+
+                    "The identity card carries the POSITION, not the role. It is the only line
+                     about you that is on screen at all times, and the thing a person recognises
+                     themselves by is their job title — หัวหน้าฝ่ายบริหารงานทั่วไป, not VIEWER."
+
+                  It is also the second half of the SUPER_ADMIN-only rule the profile page already
+                  honours: the RBAC enum stays off every screen for everyone but a SUPER_ADMIN, and
+                  a card that is on screen every second of every session is the last place it may
+                  leak from. Printing the role here would have re-opened, in the most visible
+                  control in the portal, exactly the confusion `ProfilePage`'s header comment
+                  exists to prevent — that a job title and a permission are the same kind of thing.
+
+                  Presentation only. `me.role` still gates the menu two hundred lines above. */}
+              <span className="truncate text-[12px] text-base-content/70">{me.position}</span>
             </span>
             <svg
               aria-hidden="true"

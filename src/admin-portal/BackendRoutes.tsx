@@ -28,6 +28,7 @@ import { BootScreen } from './pages/login/BootScreen'
 import { ComingSoonPage } from './pages/ComingSoonPage'
 import { ForcePasswordChangePage } from './pages/password/ForcePasswordChangePage'
 import { LoginPage } from './pages/login/LoginPage'
+import { ChangePasswordPage } from './pages/password/ChangePasswordPage'
 import { ProfilePage } from './pages/profile/ProfilePage'
 import { VersionPage } from './pages/version/VersionPage'
 import { useTheme } from './lib/use-theme'
@@ -48,6 +49,7 @@ import {
 const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElement>> = {
   ข้อมูลเวอร์ชันระบบ: (route) => <VersionPage route={route} />,
   โปรไฟล์: (route) => <ProfilePage route={route} />,
+  เปลี่ยนรหัสผ่าน: (route) => <ChangePasswordPage route={route} />,
 }
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */

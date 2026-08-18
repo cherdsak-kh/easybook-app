@@ -26,7 +26,12 @@ import { ApiError, changeOwnPassword } from '@/lib/api-client'
 import { InlineAlert } from '../../components/feedback/InlineAlert'
 import { PasswordField } from '../../components/ui/PasswordField'
 import { PasswordRules } from '../../components/ui/PasswordRules'
-import { checkPassword, passwordOk, PASSWORD_MAX } from '../../lib/password-policy'
+import {
+  checkPassword,
+  newPasswordError,
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+} from '../../lib/password-policy'
 import { useAuth } from '../../lib/auth-context'
 
 export function ForcePasswordChangePage() {
@@ -49,11 +54,12 @@ export function ForcePasswordChangePage() {
     setAlert('')
 
     const cErr = current ? '' : 'โปรดระบุรหัสผ่านปัจจุบัน'
-    const nErr = !next
-      ? 'โปรดระบุรหัสผ่านใหม่'
-      : passwordOk(rules)
-        ? ''
-        : 'รหัสผ่านใหม่ยังไม่ผ่านเงื่อนไขทั้งหมด'
+    // ⚠️ SHARED with เปลี่ยนรหัสผ่าน. This used to be the local sentence "รหัสผ่านใหม่ยังไม่ผ่าน
+    // เงื่อนไขทั้งหมด", which with five rules makes the operator diff their own password against
+    // the checklist by eye — and the error is what focus lands on. `newPasswordError` names the
+    // classes that are missing, in the prototype's order, and is the same function the voluntary
+    // page calls: one endpoint, one policy, one sentence per failure.
+    const nErr = newPasswordError(next, current)
     const fErr = !confirm
       ? 'โปรดยืนยันรหัสผ่านใหม่'
       : confirm === next
@@ -158,7 +164,7 @@ export function ForcePasswordChangePage() {
               label="รหัสผ่านใหม่"
               maxLength={PASSWORD_MAX}
               autoComplete="new-password"
-              placeholder={`อย่างน้อย ${8} ตัวอักษร`}
+              placeholder={`อย่างน้อย ${PASSWORD_MIN} ตัวอักษร`}
               value={next}
               error={nextErr}
               // The WHOLE policy is described by the field, so it is read out on focus rather

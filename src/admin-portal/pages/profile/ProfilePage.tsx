@@ -39,7 +39,6 @@
  */
 
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '../../lib/auth-context'
 import { thaiDate, thaiDateTime, NO_VALUE } from '../../lib/thai-date'
 import { ROLE_LABEL } from '../../labels'
@@ -50,6 +49,10 @@ import { FieldRow, LinkRow } from '../../components/ui/FieldRow'
 import { NavIcon } from '../../components/shell/nav-icons'
 import { PageHeading } from '../../components/shell/PageHeading'
 import { AvatarModal } from './components/AvatarModal'
+// ⚠️ ACROSS PAGE FOLDERS, and it is the one place P4 does that. The capability belongs to
+// เจ้าหน้าที่ระบบ; this card only asks for it. See `AccountEditor`'s header for why copying it here
+// would be the "two doors" the prototype warns about.
+import { AccountEditor } from '../staff/components/AccountEditor'
 import { routeOf, urlOf, type AdminRoute, type AdminRouteLabel } from '../../routes'
 
 /**
@@ -73,9 +76,6 @@ const MINE: readonly AdminRouteLabel[] = [
 const MINE_DESC: Partial<Record<AdminRouteLabel, string>> = {
   เปลี่ยนรหัสผ่าน: 'ต้องกรอกรหัสผ่านปัจจุบันเพื่อยืนยันตัวตน',
 }
-
-/** เจ้าหน้าที่ระบบ — where a SUPER_ADMIN's own row actually lives. See `ManageAccount` below. */
-const STAFF_LABEL: AdminRouteLabel = 'เจ้าหน้าที่ระบบ'
 
 function MetaIcon({ d }: { d: string }) {
   return (
@@ -110,14 +110,13 @@ export function ProfilePage({ route }: { route: AdminRoute }) {
   const { user, refresh } = useAuth()
   const me = user!
   const [avatarOpen, setAvatarOpen] = useState(false)
+  const [manageOpen, setManageOpen] = useState(false)
 
   const isSuper = me.role === 'SUPER_ADMIN'
   const fullName = [me.firstName, me.lastName].filter(Boolean).join(' ').trim() || me.email
   const creator = me.createdBy
     ? [me.createdBy.firstName, me.createdBy.lastName].filter(Boolean).join(' ').trim()
     : null
-
-  const staff = routeOf(STAFF_LABEL)
 
   return (
     <div className="card-shell lg:overflow-y-auto">
@@ -242,7 +241,9 @@ export function ProfilePage({ route }: { route: AdminRoute }) {
             <CardHead
               title="ข้อมูลบัญชี"
               subtitle="ผู้ดูแลระบบสูงสุดเป็นผู้กำหนดตอนสร้างบัญชี"
-              action={isSuper ? <ManageAccount to={staff ? urlOf(staff) : undefined} /> : <Lock />}
+              action={
+                isSuper ? <ManageAccount onClick={() => setManageOpen(true)} /> : <Lock />
+              }
             />
             <div className="pf-body">
               <div className="pf-close">
@@ -363,6 +364,29 @@ export function ProfilePage({ route }: { route: AdminRoute }) {
         // never a moment where two of them disagree about the picture.
         onDone={refresh}
       />
+
+      {/* ⚠️ MOUNTED ONLY FOR A SUPER_ADMIN, which is what keeps the two option lists off every
+          other session's network tab — `AccountEditor` fetches them when it mounts so the click is
+          instant. That is a cost decision, NOT the permission boundary: `canPatch` and `@Roles`
+          decide, and they decide again for a request this page never made.
+
+          `self` is unconditionally true here. This card can only ever address the signed-in
+          operator — there is no row picker on โปรไฟล์ — so it is a property of the page, not
+          something computed from the two ids and therefore capable of being computed wrongly. */}
+      {isSuper && (
+        <AccountEditor
+          open={manageOpen}
+          onClose={() => setManageOpen(false)}
+          target={me}
+          self
+          // `mustChangePassword` is false by construction (the gate 403s this route) and
+          // `isActive` is true (a suspended user holds no session) — so this is always `active`.
+          // Passed explicitly anyway: the dialog states the pair on screen, and a chip that is
+          // right by accident is one refactor from being wrong in silence.
+          currentState="active"
+          onSaved={refresh}
+        />
+      )}
     </div>
   )
 }
@@ -402,23 +426,21 @@ function Lock() {
  * ⚠️ HIDING THIS BUTTON HAS NEVER BEEN THE BOUNDARY. The four self-mutation rules are enforced in
  * `system-users.policy.ts`, inside the write transaction, and again by `@Roles`. This is UX.
  *
- * ⚠️ IT NAVIGATES, AND THE PROTOTYPE'S DESIGN IS THAT IT DOES NOT. There it opens เจ้าหน้าที่ระบบ's
- * manage dialog in place — a `<dialog>` is top-level, so it sits over whatever route is showing,
- * and coming back to the profile is the reason somebody started here. That dialog is owned by a
- * page P4 has not ported yet, and the alternatives were both worse: a dead button, or leaving the
- * padlock up and telling a SUPER_ADMIN to contact themselves. Sending them to the page where the
- * capability actually lives is the portal's existing convention for a destination that is designed
- * but not built.
- *
- * WHEN เจ้าหน้าที่ระบบ LANDS: drop `to`, take an `onClick` that opens the dialog on this operator's
- * own row through the SAME `openEdit` the pencil calls — never a second path into it, or two doors
- * end up enforcing two different rules.
+ * ⚠️ IT OPENS A DIALOG IN PLACE AND DOES NOT NAVIGATE, which is the prototype's design and was got
+ * wrong on the first pass — it shipped as a `<Link>` to เจ้าหน้าที่ระบบ on the belief that the
+ * dialog had to wait for that page. It did not. What it needed was the DIALOG (`StaffFormDialog`,
+ * built ahead of its page under the PO's P1 rule) and a save path, and both now exist in
+ * `AccountEditor`. A dialog is top level, so it sits over whatever route is showing — and coming
+ * back to the profile is the reason somebody started here.
  */
-function ManageAccount({ to }: { to: string | undefined }) {
-  const className =
-    'inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-control border border-base-content/20 bg-base-100 px-3 text-[13px] font-medium text-base-content/80 transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
-  const inside = (
-    <>
+function ManageAccount({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-haspopup="dialog"
+      className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-control border border-base-content/20 bg-base-100 px-3 text-[13px] font-medium text-base-content/80 transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+    >
       <svg
         aria-hidden="true"
         className="h-4 w-4 shrink-0"
@@ -430,17 +452,6 @@ function ManageAccount({ to }: { to: string | undefined }) {
         <path strokeLinecap="round" strokeLinejoin="round" d={META.pencil} />
       </svg>
       จัดการบัญชี
-    </>
-  )
-  // No route means no destination, and a `<button>` that goes nowhere is the dead control this
-  // whole card exists to avoid — so fall back to the padlock's honesty and render nothing.
-  if (!to) return null
-  // The router's `<Link>`, not a bare `<a href>`: a plain anchor to an in-app URL is a full page
-  // reload — it throws away the session probe, the theme decision and the scroll position, and
-  // takes about a second to arrive somewhere the router reaches instantly.
-  return (
-    <Link to={to} className={className}>
-      {inside}
-    </Link>
+    </button>
   )
 }

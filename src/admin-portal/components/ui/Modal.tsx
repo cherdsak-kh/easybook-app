@@ -90,13 +90,35 @@ export function Modal({
     const el = ref.current
     if (!el) return
     if (open && !el.open) {
-      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      // ⚠️ `<body>` IS AN HTMLElement AND IS NOT AN ANCHOR. It is what `document.activeElement`
+      // reports whenever the dialog was opened without the trigger being focused first — a click
+      // that moved focus nowhere, or a programmatic open. Storing it makes the restore a
+      // `body.focus()`, which silently does nothing and looks exactly like having no restore at
+      // all. `null` is the honest answer: let the platform decide.
+      const from = document.activeElement
+      opener.current = from instanceof HTMLElement && from !== document.body ? from : null
       el.showModal()
     } else if (!open && el.open) {
       el.close()
     }
   }, [open])
 
+  /*
+   * ⚠️ THERE IS NO UNMOUNT-TIME RESTORE HERE, AND THAT IS DELIBERATE — it was tried and removed.
+   *
+   * A caller that stops rendering this component while the dialog is open removes the node without
+   * ever closing it, so `close` never fires and focus is left on `<body>`. The obvious fix is a
+   * cleanup on `[]` that focuses `opener`. It does not work: StrictMode double-invokes effects in
+   * dev, so that cleanup runs once while the dialog is very much alive and consumes `opener` — and
+   * the effect above cannot re-arm it, because its guard is `open && !el.open` and the dialog is
+   * open by then. Net effect: every dialog in the portal loses its restore, in dev only, silently.
+   * Guarding on `el.isConnected` to tell a rehearsal from a real unmount did not save it either;
+   * React's deletion order does not make that a reliable signal.
+   *
+   * So the rule is on the CALLER: drive `open` to false and keep the component mounted for that
+   * commit. `close` then fires, this handler runs, and focus goes back. `AccountEditor` documents
+   * the same rule from the other side.
+   */
   return (
     <dialog
       ref={ref}
