@@ -72,8 +72,15 @@ export function ConfirmModal({
   tone?: ConfirmTone
   confirmLabel: string
   busyLabel?: string
-  /** field → [before, after]. Rendered as a <dl>; omit when nothing is changing. */
-  diff?: { label: string; from: ReactNode; to: ReactNode }[]
+  /**
+   * field → [before, after]. Rendered as a <dl>; omit when nothing is changing.
+   *
+   * `warn` tints one row amber — for the change in the list that is categorically more
+   * consequential than the others. การลงทะเบียน's edit form sets it on สถานะ, where the operator
+   * is otherwise scanning a surname, a phone number and an access grant in the same grey column
+   * at the same weight.
+   */
+  diff?: { label: string; from: ReactNode; to: ReactNode; warn?: boolean }[]
   /** Present only for actions the system logs a justification for. */
   reason?: { label: string; hint: string; required?: boolean }
 }) {
@@ -146,9 +153,17 @@ export function ConfirmModal({
           {diff.map((d) => (
             <div
               key={d.label}
-              className="flex flex-col gap-0.5 border-b border-base-300/60 px-3.5 py-2.5 last:border-0 sm:flex-row sm:items-baseline sm:gap-4"
+              className={`flex flex-col gap-0.5 border-b border-base-300/60 px-3.5 py-2.5 last:border-0 sm:flex-row sm:items-baseline sm:gap-4 ${
+                d.warn ? 'bg-warning/10' : ''
+              }`.trim()}
             >
-              <dt className="shrink-0 text-[13px] text-base-content/70 sm:w-32">{d.label}</dt>
+              <dt
+                className={`shrink-0 text-[13px] sm:w-32 ${
+                  d.warn ? 'text-warning' : 'text-base-content/70'
+                }`}
+              >
+                {d.label}
+              </dt>
               <dd className="m-0 min-w-0 text-[14px] text-base-content">
                 <span className="text-base-content/60 line-through">{d.from}</span>
                 {/* /70, not /50. The contrast sweep measured the arrow at 3.41 against the

@@ -55,6 +55,10 @@ import { StaffFormDialog } from '../staff/components/StaffFormDialog'
 import type { StaffFormValues } from '../staff/components/StaffFormDialog'
 import { TempPasswordDialog } from '../staff/components/TempPasswordDialog'
 import type { StaffOption, StaffRecord } from '../staff/staff-record'
+import { RegistrationDetailDialog } from '../line-users/components/RegistrationDetailDialog'
+import { RegistrationEditDialog } from '../line-users/components/RegistrationEditDialog'
+import type { RegistrationEditValues } from '../line-users/components/RegistrationEditDialog'
+import type { RegistrationOption, RegistrationRecord } from '../line-users/registration-record'
 
 const ACCESS_VALUES: AppAccess[] = ['ALLOWED', 'PENDING', 'REJECTED', 'BLOCKED', 'UNREGISTERED']
 const ROLE_VALUES: SystemRole[] = ['SUPER_ADMIN', 'ADMIN', 'VIEWER']
@@ -137,6 +141,54 @@ const STAFF_FORM_BLANK: StaffFormValues = {
   isActive: true,
 }
 
+/** Fixtures for การลงทะเบียน's dialogs. */
+const REG_POSITIONS: RegistrationOption[] = [
+  { id: 1, name: 'อาจารย์' },
+  { id: 2, name: 'เจ้าหน้าที่' },
+  { id: 3, name: 'นักศึกษา' },
+  { id: 4, name: 'ผู้ดูแลระบบ' },
+]
+const REG_DEPARTMENTS: RegistrationOption[] = [
+  { id: 1, name: 'วิทยาการคอมพิวเตอร์' },
+  { id: 2, name: 'ฝ่ายเทคโนโลยีสารสนเทศ' },
+  { id: 3, name: 'ฝ่ายกิจการนักศึกษา' },
+  { id: 4, name: 'ฝ่ายอาคารสถานที่' },
+]
+
+const REG_SEED: RegistrationRecord = {
+  id: 'clx1a2b3c4d5e6f7g8h9i0j1',
+  lineUserId: 'U0123456789abcdef0123456789abcdef',
+  displayName: 'Chai',
+  pictureUrl: null,
+  access: 'PENDING',
+  registeredAt: '2026-08-09T04:30:00+07:00',
+  registration: {
+    firstName: 'เชิดศักดิ์',
+    lastName: 'คำไล้',
+    phone: '081-234-5678',
+    departmentId: 2,
+    department: 'ฝ่ายเทคโนโลยีสารสนเทศ',
+    personnelRoleId: 2,
+    personnelRole: 'เจ้าหน้าที่',
+  },
+}
+
+const REG_NOTICE: Partial<Record<AppAccess, string>> = {
+  REJECTED: 'ส่งคืนให้ผู้ใช้แก้ไขเมื่อ 4 ส.ค. 2569 · เหตุผล: เบอร์โทรศัพท์ไม่ตรงกับที่แจ้งไว้',
+  BLOCKED: 'ระงับการใช้งานเมื่อ 3 ส.ค. 2569 โดย EasyBook Administrator',
+  UNREGISTERED:
+    'ผู้ใช้รายนี้เพิ่มเพื่อนใน LINE แล้ว แต่ยังไม่ได้กรอกแบบฟอร์มลงทะเบียน จึงยังไม่มีข้อมูลให้ตรวจสอบ',
+}
+
+const REG_EDIT_SEED: RegistrationEditValues = {
+  firstName: 'เชิดศักดิ์',
+  lastName: 'คำไล้',
+  personnelRoleId: 2,
+  departmentId: 2,
+  phone: '081-234-5678',
+  access: 'PENDING',
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-6">
@@ -179,6 +231,8 @@ function ShowcaseBody() {
   const [staffDetail, setStaffDetail] = useState<'other' | 'self' | 'deleted' | null>(null)
   const [staffForm, setStaffForm] = useState<'create' | 'edit' | 'self' | null>(null)
   const [tempPw, setTempPw] = useState<'created' | 'reset' | null>(null)
+  const [regDetail, setRegDetail] = useState<AppAccess | null>(null)
+  const [regEdit, setRegEdit] = useState<'staff' | 'super' | null>(null)
   const notifListRef = useRef<HTMLDivElement>(null)
   useEscapeTopDialog()
 
@@ -424,7 +478,12 @@ function ShowcaseBody() {
             description="ผู้ใช้รายนี้จะเข้าใช้งานระบบผ่าน LINE ไม่ได้จนกว่าจะถูกปลดระงับ"
             confirmLabel="ยืนยันการระงับ"
             busyLabel="กำลังระงับ"
-            diff={[{ label: 'สถานะ', from: 'อนุมัติแล้ว', to: 'ถูกระงับการใช้งาน' }]}
+            // Two rows, one of them `warn` — the tinted variant only exists on screen if
+            // something renders it, and การลงทะเบียน's edit form is what will.
+            diff={[
+              { label: 'เบอร์โทรศัพท์', from: '081-234-5678', to: '081-234-9999' },
+              { label: 'สถานะ', from: 'อนุมัติแล้ว', to: 'ถูกระงับการใช้งาน', warn: true },
+            ]}
             reason={{ label: 'เหตุผลการระงับ', hint: 'บันทึกในประวัติระบบ ผู้ใช้ไม่เห็นข้อความนี้', required: true }}
           />
         </Section>
@@ -491,6 +550,54 @@ function ShowcaseBody() {
             name="เชิดศักดิ์ คำไล้"
             email="cherd@easybook.local"
             password="Kp7Rn2Tq9Wx4Yb6C"
+          />
+        </Section>
+
+        {/* ── การลงทะเบียน's two dialogs ── chunk 2 of the same backlog. */}
+        <Section title="RegistrationDetailDialog — one dialog, five states, five footers">
+          <div className="flex flex-wrap gap-2">
+            {(['PENDING', 'ALLOWED', 'REJECTED', 'BLOCKED', 'UNREGISTERED'] as AppAccess[]).map(
+              (a) => (
+                <Btn key={a} onClick={() => setRegDetail(a)}>
+                  {ACCESS_LABEL[a]}
+                </Btn>
+              ),
+            )}
+          </div>
+          <RegistrationDetailDialog
+            open={regDetail !== null}
+            onClose={() => setRegDetail(null)}
+            record={
+              regDetail === 'UNREGISTERED'
+                ? { ...REG_SEED, access: 'UNREGISTERED', registration: null, registeredAt: null }
+                : { ...REG_SEED, access: regDetail ?? 'PENDING' }
+            }
+            canWrite
+            // The notice is DATA the page supplies, not the component's copy — three of the five
+            // states carry one in the prototype, and reviewing the other two without it would be
+            // reviewing a panel 60px shorter than the real thing.
+            notice={REG_NOTICE[regDetail ?? 'PENDING'] ?? ''}
+            onAction={(a) => toast('info', `ขอทำรายการ: ${a}`)}
+            onEdit={() => setRegDetail(null)}
+          />
+        </Section>
+
+        <Section title="RegistrationEditDialog — สถานะ appears for a SUPER_ADMIN only">
+          <div className="flex flex-wrap gap-2">
+            <Btn onClick={() => setRegEdit('staff')}>เจ้าหน้าที่ดูแลระบบ</Btn>
+            <Btn onClick={() => setRegEdit('super')}>ผู้ดูแลระบบสูงสุด</Btn>
+          </div>
+          <RegistrationEditDialog
+            open={regEdit !== null}
+            onClose={() => setRegEdit(null)}
+            record={REG_SEED}
+            initial={REG_EDIT_SEED}
+            positions={REG_POSITIONS}
+            departments={REG_DEPARTMENTS}
+            canEditAccess={regEdit === 'super'}
+            onSubmit={(_v, d) =>
+              toast('success', d.length ? `จะบันทึก ${d.length} รายการ` : 'ไม่มีการเปลี่ยนแปลง')
+            }
           />
         </Section>
 

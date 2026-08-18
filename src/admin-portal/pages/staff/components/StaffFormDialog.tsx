@@ -258,7 +258,7 @@ export function StaffFormDialog({
               set('email', e.target.value)
             }}
             hint={
-              <span className="text-[13px] leading-[1.55]">
+              <span className="leading-[1.55]">
                 ที่อยู่นี้เปลี่ยนไม่ได้หลังสร้างบัญชีแล้ว และใช้ซ้ำกับบัญชีอื่นในภายหลังไม่ได้ แม้บัญชีเดิมจะถูกลบไปแล้ว
               </span>
             }
@@ -321,7 +321,7 @@ export function StaffFormDialog({
           error={errors.phoneNumber}
           onChange={(e) => set('phoneNumber', e.target.value)}
           hint={
-            <span className="text-[13px] leading-[1.55]">
+            <span className="leading-[1.55]">
               ใช้ตัวเลข เว้นวรรค และ + - ( ) # . · เบอร์ต่อภายในให้ใช้ # เช่น 02-123-4567 #101
             </span>
           }
@@ -347,9 +347,7 @@ export function StaffFormDialog({
             // options are three Thai noun phrases tells an operator nothing about what they are
             // handing over; this line is where the actual grant is stated, at the moment it is
             // being made.
-            hint={
-              <span className="text-[13px] leading-[1.55]">{ROLE_HINT[values.role]}</span>
-            }
+            hint={<span className="leading-[1.55]">{ROLE_HINT[values.role]}</span>}
           >
             {ROLE_ORDER.map((r) => (
               <option key={r} value={r}>

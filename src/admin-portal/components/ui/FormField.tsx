@@ -68,12 +68,22 @@ export function Field({
         {label}
       </label>
       <div className={`form-shell ${error ? 'form-shell-err' : ''}`.trim()}>{children}</div>
-      {hint && <p className="m-0 mt-1 text-[12px] text-base-content/70 th-tight">{hint}</p>}
       {/* Always present, hidden when empty — see the note at the top of this file. */}
       <p id={errorId} className={`form-err ${error ? '' : 'hidden'}`.trim()}>
         <ErrIcon />
         <span>{error}</span>
       </p>
+      {/* ⚠️ AFTER the error, and `mt-1.5 text-[13px]` — the first port had `mt-1 text-[12px]
+          th-tight` ABOVE it. Measured on การลงทะเบียน's edit dialog: 573.4px against the
+          prototype's 577.5. The order matters on its own: when a field is invalid the operator
+          should meet the correction first and the standing advice second, not read past the advice
+          to find out what went wrong.
+
+          ⚠️ NO `leading-` here, deliberately. The prototype's one-line hints inherit 1.5 and its
+          WRAPPING ones set `leading-[1.55]` — 0.65px a line apart. Baking either in makes one of
+          the two groups wrong, so the default matches the plain case and a caller with a hint that
+          wraps passes its own leading. */}
+      {hint && <p className="m-0 mt-1.5 text-[13px] text-base-content/70">{hint}</p>}
     </div>
   )
 }
