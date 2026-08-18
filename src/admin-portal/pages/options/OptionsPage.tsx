@@ -142,7 +142,7 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
   const copy = OPTION_COPY[model]
   const api = API[model]
 
-  const { user } = useAuth()
+  const { user, refresh } = useAuth()
   const acl = useAcl(user!.role)
   const toast = useToast()
 
@@ -190,6 +190,33 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
     [all, trimmed],
   )
 
+  /**
+   * Re-read `/me` after a write that can have moved or renamed the OPERATOR'S OWN option.
+   *
+   * This is the port of the prototype's `__reidentifyMe`, and its comment says exactly why it
+   * exists — including that this is the LIKELY case, not the exotic one:
+   *
+   *   "If one of the moved rows was YOURS, the sidebar identity card and the profile page are now
+   *    printing a ตำแหน่ง that no longer exists — the deleter is very often the person holding it,
+   *    since a SUPER_ADMIN is the only one who can delete and 'ผู้ดูแลระบบ' is their own title."
+   *
+   * ⚠️ UNCONDITIONAL, unlike the prototype's `hitMe` check. That check is cheap there because the
+   * directory is a local array; here "did this touch me?" would cost the same request as just
+   * asking. `/me` is one small call on a rare, deliberate action, and the alternative is the shell
+   * quietly disagreeing with the database about who you are.
+   *
+   * ⚠️ NEVER FATAL. The write already succeeded and the list is already correct; a failed refresh
+   * means the identity card is briefly stale, which a navigation fixes. Turning that into an error
+   * toast would report a failure that did not happen.
+   */
+  const syncSession = async () => {
+    try {
+      await refresh()
+    } catch {
+      /* see above — deliberately silent */
+    }
+  }
+
   const openCreate = (prefill?: string) => {
     setNameError(null)
     setFormAlert(null)
@@ -230,6 +257,10 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
       // Refetch rather than splicing: the endpoint orders by name, and this is how the row lands
       // where a reload would put it. See the header note on sorting.
       await load()
+      // A RENAME can be a rename of the option YOU hold, and `/me` resolves `personnelRole.name`
+      // fresh — so without this the sidebar card and โปรไฟล์ keep printing the old title. Same
+      // reasoning as the delete below; see `syncSession`.
+      if (target) await syncSession()
       // A rename can move a row out of the current filter, and then the operator sees nothing at
       // all where they expected their edit. Clearing the search is the only way the result of what
       // they just did is on screen.
@@ -264,6 +295,8 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
     try {
       await api.remove(confirming.id)
       await load()
+      // The delete re-points every holder onto the tombstone, and you are very likely one of them.
+      await syncSession()
       setConfirming(null)
       closeForm()
       toast('success', `ลบ${copy.noun} ${confirming.name} แล้ว`)
