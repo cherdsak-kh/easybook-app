@@ -316,10 +316,19 @@ export async function changeOwnPassword(
 }
 
 /**
- * Edit your own profile. Accepts EXACTLY `firstName`, `lastName`, `phoneNumber`,
- * `profilePictureUrl` — `role`, `departmentId` and `personnelRoleId` are absent
- * from the DTO, so sending one is a 400 (`forbidNonWhitelisted`). A SUPER_ADMIN
- * manages those via `patchSystemUser`.
+ * Edit your own profile. Accepts EXACTLY ONE field, `profilePictureUrl`.
+ *
+ * ⚠️ IT USED TO TAKE FOUR — `firstName`, `lastName` and `phoneNumber` went with
+ * them on 2026-08-16, because the portal does not offer them: the project rule
+ * is that the owner may not change anything in `system_users` that the creating
+ * admin set. Everything else — `role`, `email`, `departmentId`,
+ * `personnelRoleId`, `password`, `lineUserId` — is absent from the DTO, so
+ * sending one is a 400 at the pipe (`forbidNonWhitelisted`). That absence IS the
+ * enforcement; the padlock on โปรไฟล์ is not decorative.
+ *
+ * `null` clears the avatar — there is no DELETE route, and the nullable column is
+ * what makes "no picture" expressible. A SUPER_ADMIN changes the other fields on
+ * their own row via `patchSystemUser`, from เจ้าหน้าที่ระบบ.
  */
 export async function updateOwnProfile(body: UpdateOwnProfileBody): Promise<SystemUser> {
   const { data, error, response } = await withCsrfRetry(() =>

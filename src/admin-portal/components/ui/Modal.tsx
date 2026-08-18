@@ -28,6 +28,7 @@ export function Modal({
   title,
   children,
   footer,
+  footerClassName = 'flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end',
   width = 560,
   dismissable = true,
 }: {
@@ -36,6 +37,22 @@ export function Modal({
   title: ReactNode
   children: ReactNode
   footer?: ReactNode
+  /**
+   * The action bar's LAYOUT only — the border, the `bg-base-200` and the padding are fixed below,
+   * because all nine of the prototype's dialogs share them exactly.
+   *
+   * ⚠️ THE DEFAULT IS THE PROTOTYPE'S OWN `FOOTER_BASE` CONSTANT, and the part that matters is
+   * `flex-col` under `sm`. The first port wrote `flex flex-wrap items-center justify-end` for
+   * every dialog, which on a phone leaves buttons at their content width wrapping onto two ragged
+   * lines instead of stacking full-width — and it silently cancelled `ConfirmModal`'s documented
+   * "the confirm lands on top, under the thumb", since `flex-col-reverse` was never in the
+   * markup that comment describes. The `bg-base-200` was missing too: without it the action bar
+   * is the same colour as the body and stops reading as a separate strip.
+   *
+   * Three dialogs vary and say so at the call site: `ConfirmModal` reverses, the session dialog
+   * is one full-width button, and the avatar dialog splits ลบรูปโปรไฟล์ away from the commit pair.
+   */
+  footerClassName?: string
   /** Panel max width in px — the prototype uses 460 / 560 / 640. */
   width?: number
   /**
@@ -46,19 +63,45 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
+  /**
+   * Who to give focus back to.
+   *
+   * ⚠️ THE PLATFORM'S OWN RESTORE IS NOT ENOUGH HERE, and that was measured rather than assumed:
+   * after บันทึกรูปภาพ the avatar dialog closed and focus was on `<body>` — a keyboard user
+   * dropped at the top of the document, mid-task, with a toast they will never reach. `<dialog>`
+   * returns focus to whatever was focused when `showModal()` ran, but a write that re-renders on
+   * the way out (here `refresh()`, repainting the header the trigger lives in) can leave that
+   * anchor stale. The prototype does not rely on it either — its avatar dialog calls
+   * `openBtn.focus()` on every close.
+   */
+  const opener = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    if (open && !el.open) el.showModal()
-    else if (!open && el.open) el.close()
+    if (open && !el.open) {
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      el.showModal()
+    } else if (!open && el.open) {
+      el.close()
+    }
   }, [open])
 
   return (
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      onClose={onClose}
+      // Bound to the dialog's own `close` event, so EVERY exit lands here — the ✕, a footer
+      // button, Esc, the backdrop, and React setting `open` to false. Restoring focus anywhere
+      // else would cover some of those and silently miss the rest.
+      onClose={() => {
+        onClose()
+        const back = opener.current
+        opener.current = null
+        // `isConnected` because the trigger may not have survived the write this dialog just
+        // performed — focusing a detached node moves focus nowhere at all, with no error.
+        if (back?.isConnected) back.focus()
+      }}
       onCancel={(e) => {
         // Esc. Suppressed while non-dismissable — the platform would otherwise close a
         // dialog whose ✕ we deliberately removed.
@@ -97,7 +140,9 @@ export function Modal({
         <div className="max-h-[70dvh] overflow-y-auto px-5 py-4">{children}</div>
 
         {footer && (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 px-5 py-4">
+          <div
+            className={`border-t border-base-300 bg-base-200 px-5 py-4 ${footerClassName}`.trim()}
+          >
             {footer}
           </div>
         )}

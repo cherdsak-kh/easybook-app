@@ -934,8 +934,25 @@
    unchanged this way, and `class="badge"` never half-works. Note the prototype author hit
    this collision once already — it is why the buttons are `.btn-primary2`, not
    `.btn-primary`. `badge` is the only name that slipped through; the full list of ported
-   classes was checked against daisyUI 5's component names and this is the sole overlap. */
-.badge         { @apply inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-medium whitespace-nowrap; }
+   classes was checked against daisyUI 5's component names and this is the sole overlap.
+
+   ⚠️ `h-auto align-baseline` ARE PART OF THE DE-COLLISION, added 18 ส.ค. 2569 while porting
+   โปรไฟล์. Moving the rule out of the layer only wins the properties this rule DECLARES —
+   everything it stays silent about is still daisyUI's, because there is nothing to overrule it
+   with. daisyUI's `.badge` also sets `height: var(--size)` (24px) and `vertical-align: middle`,
+   and both survived the original fix untouched: measured against the prototype on
+   สิทธิ์การใช้งานระบบ, the pill was **24px against 27.5px** and sat on a different baseline,
+   which pulled the whole row 3.1px short. Colour was the symptom that got noticed; these two
+   were the same bug one property over, and they were invisible because a pill that is slightly
+   too small still looks like a pill.
+
+   `border-0 gap-0` finish the list. daisyUI also sets a 1px border and an 8px flex gap; the
+   border only became visible once `h-auto` stopped the fixed height from absorbing it (the pill
+   went 24 → 29.5 against the prototype's 27.5), and the gap is silent until the first badge with
+   an icon beside its text. FOUR properties, and the general lesson is worth more than any of
+   them: moving a rule out of a layer wins only what that rule DECLARES. Everything it says
+   nothing about is still daisyUI's, because silence cannot overrule anything. */
+.badge         { @apply inline-flex h-auto items-center gap-0 rounded-full border-0 px-2.5 py-1 align-baseline text-[13px] font-medium whitespace-nowrap; }
 .badge-emerald { @apply bg-success/10 text-success; }      /* ALLOWED      */
 .badge-amber   { @apply bg-warning/10 text-warning; }      /* PENDING      */
 .badge-sky     { @apply bg-info/10 text-info; }            /* REJECTED     */

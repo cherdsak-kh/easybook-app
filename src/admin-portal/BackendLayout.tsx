@@ -17,6 +17,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { NotifGlyph } from './components/shell/notif-icons'
+import { ToastProvider } from './components/feedback/Toast'
 import { Sidebar, type SidebarUser } from './components/shell/Sidebar'
 import { Topbar } from './components/shell/Topbar'
 import { useAcl } from './lib/use-acl'
@@ -149,10 +150,28 @@ export function BackendLayout() {
   }
 
   return (
+    /*
+     * ⚠️ `data-acl` IS A STYLING HOOK AND NOTHING ELSE — `use-acl.ts` says so at `ACL_ATTR`, and
+     * the CSS says so where it reads it. Deleting this attribute changes three colours and hides
+     * nothing that was protecting anything.
+     *
+     * It sits on the SAME wrapper as `data-theme`, for the same reason: the prototype puts both on
+     * `<html>` because in a one-page file `<html>` is the portal, and here it is not — this app
+     * also serves the LIFF client. The cover-colour rules set CUSTOM PROPERTIES, which inherit, so
+     * any ancestor of the profile page works; the two visibility rules are descendant selectors,
+     * which also work from here. `<html>` would additionally have to be un-stamped on the way out.
+     */
     <div
       data-theme={resolved}
+      data-acl={acl.attr}
       className="bg-base-200 text-base-content"
     >
+      {/* Toasts are SHELL chrome, not a page's. `__toast` in the prototype is global, and the first
+          screen to need one (โปรไฟล์, after an avatar upload) must not be the one that owns the
+          stack — the next page to say "บันทึกแล้ว" would then either mount a second provider or
+          find itself outside this one. It wraps the whole shell so a toast raised anywhere,
+          including from a dialog in the top layer, lands in the same corner. */}
+      <ToastProvider>
       <div className="flex h-screen overflow-hidden">
         <Sidebar
           me={me}
@@ -181,6 +200,7 @@ export function BackendLayout() {
           </main>
         </div>
       </div>
+      </ToastProvider>
     </div>
   )
 }

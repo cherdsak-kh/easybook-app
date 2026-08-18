@@ -18,18 +18,37 @@ import type { AdminRoute } from '../../routes'
 
 export function PageHeading({
   route,
+  desc,
   descAtEveryWidth = false,
 }: {
   route: AdminRoute
   /**
+   * The page's OWN subtitle, replacing the route table's.
+   *
+   * ⚠️ THE TWO ARE NOT THE SAME SENTENCE, and the prototype is consistent about which goes where:
+   * the table's `desc` answers "what is behind this menu row" and appears in the menu, in the
+   * coming-soon stand-in and on the table pages (การลงทะเบียน, ตัวเลือกบุคลากร). A DESIGNED page
+   * writes its own, addressed to somebody who has already arrived — โปรไฟล์ says
+   * "ข้อมูลบัญชีของคุณ และการตั้งค่าที่คุณปรับเองได้" where the menu says
+   * "ดูและแก้ไขข้อมูลส่วนตัวของบัญชีคุณ". The first port had no way to say that, so
+   * ข้อมูลเวอร์ชันระบบ shipped wearing its menu tooltip.
+   *
+   * Passing one also makes it visible at every width — see below.
+   */
+  desc?: string
+  /**
    * Keep the subtitle visible on a phone.
    *
-   * A designed page hides it below `sm` — the card underneath explains the page by BEING it, so
-   * the line is a nicety. The coming-soon stand-in has no such card, so hiding the subtitle
-   * there would leave a phone screen saying nothing about the destination at all.
+   * A TABLE page hides it below `sm`: the table underneath explains the page by being it, and the
+   * line is a nicety worth the vertical space only on a wide screen. Everything else keeps it —
+   * the coming-soon stand-in because it has no such content at all, and a designed page because
+   * the sentence it wrote for itself is part of the design rather than a repeat of the menu.
+   * That second case is implied by `desc` rather than asked for twice.
    */
   descAtEveryWidth?: boolean
 }) {
+  const subtitle = desc ?? route.desc
+  const always = descAtEveryWidth || desc !== undefined
   return (
     <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1 lg:mb-4">
       <div className="min-w-0">
@@ -61,10 +80,10 @@ export function PageHeading({
 
         <p
           className={`mt-1 text-[14px] text-base-content/70 th-tight ${
-            descAtEveryWidth ? '' : 'hidden sm:block'
+            always ? '' : 'hidden sm:block'
           }`.trim()}
         >
-          {route.desc}
+          {subtitle}
         </p>
       </div>
     </div>

@@ -46,12 +46,40 @@ export function Avatar({
   src,
   name,
   className = '',
+  chrome = 'border border-base-300',
+  backdrop = 'bg-base-100',
 }: {
   src?: string | null
   /** Used for the initial only. The picture is decorative — see below. */
   name?: string | null
   /** Size and shape, e.g. `h-10 w-10 rounded-control`. */
   className: string
+  /**
+   * The frame. Default is the sidebar card's hairline — the prototype's `#me-avatar` carries
+   * exactly `border border-base-300`.
+   *
+   * ⚠️ IT IS A PROP BECAUSE THE PROFILE HEADER'S FRAME IS PART OF ITS OWN CLASS. `.pf-ava` is
+   * `border-4 border-base-100` — the thick ring that lifts the circle off the cover band — and a
+   * default emitted here would BEAT it: `.pf-ava` lives in `@layer components` while every
+   * utility above lands in `@layer utilities`, which cascades later regardless of what order the
+   * words sit in the class attribute. The result is a silent 4px→1px downgrade at the one place
+   * the ring is doing work. Callers with their own frame pass `chrome=""`.
+   *
+   * BACKGROUND IS A SECOND PROP, not part of this one, because the two branches need different
+   * values and one string would have them fighting inside `@layer utilities` — where the winner
+   * is whichever class Tailwind happened to emit later, not whichever the caller wrote last.
+   */
+  chrome?: string
+  /**
+   * What shows through a transparent PNG. IMAGE BRANCH ONLY — the initial's disc is
+   * `bg-primary/10`, which is the design and not a caller's business.
+   *
+   * `bg-base-100` matches the prototype's sidebar card, where the avatar sits on `bg-base-200`.
+   * The profile header passes `""` so `.pf-ava`'s own `bg-base-200` survives: a utility here
+   * would beat it from the later layer, which is a one-token difference nobody would ever spot
+   * and exactly the kind that accumulates.
+   */
+  backdrop?: string
 }) {
   // `alt=""` on purpose: the name is always rendered beside this, and an avatar that announces
   // it a second time just makes the row take twice as long to read out.
@@ -60,7 +88,7 @@ export function Avatar({
       <img
         src={src}
         alt=""
-        className={`shrink-0 border border-base-300 bg-base-100 object-cover ${className}`.trim()}
+        className={`shrink-0 object-cover ${backdrop} ${chrome} ${className}`.trim()}
       />
     )
   }
@@ -68,7 +96,7 @@ export function Avatar({
   return (
     <span
       aria-hidden="true"
-      className={`flex shrink-0 items-center justify-center border border-base-300 bg-primary/10 font-semibold text-primary ${className}`.trim()}
+      className={`flex shrink-0 items-center justify-center bg-primary/10 font-semibold text-primary ${chrome} ${className}`.trim()}
     >
       {initialOf(name)}
     </span>

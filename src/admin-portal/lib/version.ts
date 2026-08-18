@@ -13,6 +13,8 @@
  * `getSystemVersion()`, which is allowed to fail and renders as a state rather than an error.
  */
 
+import { thaiDateTime } from './thai-date'
+
 /**
  * This bundle, stated once. Every other file reads `APP`, never the raw `__…__` globals, so the
  * two text substitutions have exactly one point of contact with the source tree — and so a test
@@ -47,39 +49,18 @@ export function compareVersions(a: string, b: string): -1 | 0 | 1 {
   return 0
 }
 
-const TH_MONTHS = [
-  'ม.ค.',
-  'ก.พ.',
-  'มี.ค.',
-  'เม.ย.',
-  'พ.ค.',
-  'มิ.ย.',
-  'ก.ค.',
-  'ส.ค.',
-  'ก.ย.',
-  'ต.ค.',
-  'พ.ย.',
-  'ธ.ค.',
-] as const
-
-const two = (n: number) => String(n).padStart(2, '0')
-
 /**
  * `17 ส.ค. 2569 14:32` — the moment the reader copied the diagnostic block.
  *
- * The ONE computed date on this screen. Every other date it shows is a release date, which is a
+ * The ONE computed date on that screen. Every other date it shows is a release date, which is a
  * fixed fact written down when the release happened; this one is stamped into the text somebody
  * pastes into a support message, so it has to be *now* or the technician cannot line the report up
  * against the logs.
  *
- * Hand-rolled rather than `Intl.DateTimeFormat('th-TH')`: the Buddhist year is what the school
- * reads, and `th-TH`'s output varies by engine and by ICU build — an `en-US` fallback locale would
- * quietly emit a Gregorian year into a support ticket, which is the one number in it that must not
- * be ambiguous.
+ * The formatting itself moved to `lib/thai-date.ts` when โปรไฟล์ started printing dates too — see
+ * that file for why it is not `Intl.DateTimeFormat('th-TH')`. This wrapper stays because "now" is
+ * the part that belongs to the version screen; the month names never did.
  */
 export function thaiStamp(now: Date = new Date()): string {
-  return (
-    `${now.getDate()} ${TH_MONTHS[now.getMonth()]} ${now.getFullYear() + 543} ` +
-    `${two(now.getHours())}:${two(now.getMinutes())}`
-  )
+  return thaiDateTime(now)
 }

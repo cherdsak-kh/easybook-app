@@ -63,25 +63,37 @@ export function LinkRow({
   /** An in-app route. Renders an `<a>` via the router instead of a `<button>`. */
   to?: string
 }) {
+  /*
+   * ⚠️ EVERY CLASS BELOW IS THE PROTOTYPE'S, and the first port got five of them wrong at once —
+   * caught by diffing this row against all five `.pf-row`s in the prototype, which are byte-
+   * identical to each other. It had the title at 15px instead of 14 and in full-strength
+   * `base-content` instead of `/90`; the detail without `mt-0.5` or `leading-[1.45]`; the text
+   * block as a padded flex column instead of `flex-1 overflow-hidden`; and a chevron two sizes too
+   * big (`h-5 w-5`, `/40`) drawn from a different path than the one the portal uses everywhere
+   * else. None of it is visible without the two rows side by side, which is why it survived P1 and
+   * shipped on ข้อมูลเวอร์ชันระบบ.
+   */
   const inside = (
     <>
       {icon && <span className="pf-row-ico">{icon}</span>}
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5 py-3">
-        <span className="text-[15px] font-medium text-base-content th-tight">{title}</span>
+      <span className="flex-1 overflow-hidden">
+        <span className="block min-w-0 text-[14px] font-medium text-base-content/90">{title}</span>
         {detail && (
-          <span className="text-[13px] text-base-content/70 th-tight">{detail}</span>
+          <span className="mt-0.5 block text-[13px] leading-[1.45] text-base-content/70">
+            {detail}
+          </span>
         )}
       </span>
       {trailing}
       <svg
         aria-hidden="true"
-        className="h-5 w-5 shrink-0 text-base-content/40"
+        className="h-4 w-4 shrink-0 text-base-content/60"
         fill="none"
         stroke="currentColor"
         strokeWidth={2}
         viewBox="0 0 24 24"
       >
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        <path strokeLinecap="round" d="M9 5l7 7-7 7" />
       </svg>
     </>
   )

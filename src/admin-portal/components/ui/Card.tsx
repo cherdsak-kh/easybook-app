@@ -41,12 +41,14 @@ export function CardHead({
   return (
     <div className="pf-head">
       <div className="min-w-0">
-        <Heading id={id} className="m-0 text-[16px] font-semibold text-base-content th-tight">
+        {/* ⚠️ `.pf-title` / `.pf-note`, NOT the same utilities written out again. The first port
+            spelled them by hand and substituted `th-tight` (1.45) for `.pf-note`'s `leading-[1.5]`
+            — measured against the prototype at 18.85px against 19.5px on every card subtitle in
+            the portal. Two copies of a measured value is one copy too many. */}
+        <Heading id={id} className="pf-title">
           {title}
         </Heading>
-        {subtitle && (
-          <p className="m-0 mt-1 text-[13px] text-base-content/70 th-tight">{subtitle}</p>
-        )}
+        {subtitle && <p className="pf-note">{subtitle}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>

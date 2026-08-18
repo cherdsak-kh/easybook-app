@@ -293,7 +293,11 @@ export function VersionPage({ route }: { route: AdminRoute }) {
 
   return (
     <div className="card-shell lg:overflow-y-auto">
-      <PageHeading route={route} />
+      {/* The page's own sentence, not the menu's tooltip — see `PageHeading`'s `desc`. */}
+      <PageHeading
+        route={route}
+        desc="เวอร์ชันที่คุณกำลังใช้งาน และสิ่งที่เปลี่ยนไปในแต่ละครั้งที่ระบบอัปเดต"
+      />
 
       <div className="flex flex-col gap-4 pb-1">
         {/* ══ เวอร์ชันที่ใช้งานอยู่ ══ */}

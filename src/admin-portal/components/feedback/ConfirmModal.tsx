@@ -95,6 +95,9 @@ export function ConfirmModal({
       // Closing mid-write leaves the operator unsure whether what they asked for happened.
       dismissable={!busy}
       width={520}
+      // The `flex-col-reverse` the header paragraph describes: on a phone the confirm sits on
+      // top, under the thumb, and ยกเลิก below it.
+      footerClassName="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"
       footer={
         <>
           <Btn variant="ghost" className="w-full sm:w-auto" disabled={busy} onClick={onClose}>

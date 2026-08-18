@@ -48,8 +48,31 @@ export const VIEWER_DENY: readonly AdminRouteLabel[] = [
   'บันทึกข้อผิดพลาด',
 ]
 
+/**
+ * `SystemRole` → the value stamped on `data-acl`.
+ *
+ * ⚠️ It is a CSS HOOK, not a permission. `admin-portal.css` keys three things off it: the profile
+ * cover's colour pair (super ชมพู · admin เขียว · viewer ฟ้า, project 12 ส.ค. 2569) and the two
+ * `[data-write-only]` / `[data-super-only]` visibility rules. All three are presentation — see this
+ * module's header, and the shell's.
+ *
+ * ⚠️ `data-acl`, NOT `data-role`: `[data-role]` is ARIA's, and reusing it would put a styling hook
+ * on the same attribute assistive technology reads. The CSS says so at the point of use.
+ *
+ * The short words are the prototype's own (`super` / `admin` / `viewer`) because the stylesheet was
+ * ported verbatim with those selectors already in it — spelling them `SUPER_ADMIN` here would mean
+ * editing measured CSS to match a preference.
+ */
+export const ACL_ATTR: Record<SystemRole, 'super' | 'admin' | 'viewer'> = {
+  SUPER_ADMIN: 'super',
+  ADMIN: 'admin',
+  VIEWER: 'viewer',
+}
+
 export interface Acl {
   role: SystemRole
+  /** What to stamp on `data-acl`. See `ACL_ATTR`. */
+  attr: 'super' | 'admin' | 'viewer'
   /** May this session change anything at all? VIEWER is read-only by definition. */
   write: boolean
   /**
@@ -73,6 +96,7 @@ export function useAcl(role: SystemRole): Acl {
     const denied = role === 'VIEWER' ? new Set(VIEWER_DENY) : null
     return {
       role,
+      attr: ACL_ATTR[role],
       write,
       can: (label: AdminRouteLabel) => !denied?.has(label),
       actionsColumnLabel: write ? 'จัดการ' : 'ดูข้อมูล',
