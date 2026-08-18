@@ -59,6 +59,8 @@ import { RegistrationDetailDialog } from '../line-users/components/RegistrationD
 import { RegistrationEditDialog } from '../line-users/components/RegistrationEditDialog'
 import type { RegistrationEditValues } from '../line-users/components/RegistrationEditDialog'
 import type { RegistrationOption, RegistrationRecord } from '../line-users/registration-record'
+import { OptionFormDialog } from '../options/components/OptionFormDialog'
+import type { OptionRecord } from '../options/option-model'
 
 const ACCESS_VALUES: AppAccess[] = ['ALLOWED', 'PENDING', 'REJECTED', 'BLOCKED', 'UNREGISTERED']
 const ROLE_VALUES: SystemRole[] = ['SUPER_ADMIN', 'ADMIN', 'VIEWER']
@@ -189,6 +191,16 @@ const REG_EDIT_SEED: RegistrationEditValues = {
   access: 'PENDING',
 }
 
+/** ตัวเลือกบุคลากร fixture. The counts split LINE from staff because the dialog prints both. */
+const OPT_SEED: OptionRecord = {
+  id: 4,
+  name: 'เจ้าหน้าที่',
+  lineUsers: 7,
+  staff: 5,
+  createdAt: '14 ก.ค. 2569',
+  updatedAt: '14 ก.ค. 2569',
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-6">
@@ -233,6 +245,7 @@ function ShowcaseBody() {
   const [tempPw, setTempPw] = useState<'created' | 'reset' | null>(null)
   const [regDetail, setRegDetail] = useState<AppAccess | null>(null)
   const [regEdit, setRegEdit] = useState<'staff' | 'super' | null>(null)
+  const [optForm, setOptForm] = useState<string | null>(null)
   const notifListRef = useRef<HTMLDivElement>(null)
   useEscapeTopDialog()
 
@@ -598,6 +611,33 @@ function ShowcaseBody() {
             onSubmit={(_v, d) =>
               toast('success', d.length ? `จะบันทึก ${d.length} รายการ` : 'ไม่มีการเปลี่ยนแปลง')
             }
+          />
+        </Section>
+
+        {/* ── ตัวเลือกบุคลากร's one dialog ── chunk 3, and the end of the P1 backlog.
+            Both destinations are shown because they are the same component: everything that
+            differs between them is a string, and a reviewer should see both sets. */}
+        <Section title="OptionFormDialog — one dialog, two modes, two destinations">
+          <div className="flex flex-wrap gap-2">
+            <Btn onClick={() => setOptForm('personnelRole-create')}>เพิ่มตำแหน่ง</Btn>
+            <Btn onClick={() => setOptForm('personnelRole-edit')}>แก้ไขตำแหน่ง</Btn>
+            <Btn onClick={() => setOptForm('department-create')}>เพิ่มกลุ่ม/ฝ่าย</Btn>
+            <Btn onClick={() => setOptForm('department-edit')}>แก้ไขกลุ่ม/ฝ่าย</Btn>
+            <Btn onClick={() => setOptForm('personnelRole-edit-empty')}>แก้ไข (ยังไม่มีใครถือ)</Btn>
+          </div>
+          <OptionFormDialog
+            open={optForm !== null}
+            onClose={() => setOptForm(null)}
+            model={optForm?.startsWith('department') ? 'department' : 'personnelRole'}
+            target={
+              optForm?.includes('edit-empty')
+                ? { ...OPT_SEED, lineUsers: 0, staff: 0 }
+                : optForm?.includes('edit')
+                  ? OPT_SEED
+                  : null
+            }
+            onSubmit={(n) => toast('success', `จะบันทึกชื่อ: ${n}`)}
+            onDelete={() => toast('error', 'ขอลบตัวเลือก (ตัวอย่าง)')}
           />
         </Section>
 

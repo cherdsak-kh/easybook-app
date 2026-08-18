@@ -18,7 +18,7 @@
  */
 
 import { useId } from 'react'
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
+import type { InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes } from 'react'
 
 /** The 16×16 alert glyph every field error carries. */
 function ErrIcon() {
@@ -99,6 +99,15 @@ export function FormField({
   label: ReactNode
   error?: string
   hint?: ReactNode
+  /**
+   * React 19 passes `ref` to a function component as an ordinary prop, so no `forwardRef` — but
+   * `InputHTMLAttributes` does not include it, so without this line a caller holding a ref gets a
+   * type error rather than a working ref. Same reason `Btn` declares one.
+   *
+   * A caller needs it to focus or select the field on open: ตัวเลือกบุคลากร selects the whole
+   * name on a rename so the first keystroke replaces the old title.
+   */
+  ref?: Ref<HTMLInputElement>
 }) {
   const auto = useId()
   const fieldId = id ?? auto
