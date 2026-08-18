@@ -68,6 +68,7 @@ export function Avatar({
    * BACKGROUND IS A SECOND PROP, not part of this one, because the two branches need different
    * values and one string would have them fighting inside `@layer utilities` — where the winner
    * is whichever class Tailwind happened to emit later, not whichever the caller wrote last.
+   * (The initial's disc takes neither: it is `.ava-fill`, which is not the caller's business.)
    */
   chrome?: string
   /**
@@ -93,10 +94,14 @@ export function Avatar({
     )
   }
 
+  // ⚠️ `.ava-fill`, NOT `bg-primary/10` — OPAQUE, by PO instruction (18 ส.ค. 2569). A wash lets
+  // whatever is behind it through, and on the profile header what is behind it is the coloured
+  // cover band. See the class in `admin-portal.css` for the two places that had already gone
+  // wrong. It is a `@layer components` class, so a caller's `className` can still override it.
   return (
     <span
       aria-hidden="true"
-      className={`flex shrink-0 items-center justify-center bg-primary/10 font-semibold text-primary ${chrome} ${className}`.trim()}
+      className={`ava-fill flex shrink-0 items-center justify-center font-semibold text-primary ${chrome} ${className}`.trim()}
     >
       {initialOf(name)}
     </span>

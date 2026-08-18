@@ -25,24 +25,24 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getSystemVersion, type SystemVersionResult } from '@/lib/api-client'
-import { Skeleton } from '../components/feedback/Skeleton'
-import { Spinner } from '../components/feedback/Spinner'
-import { NavIcon } from '../components/shell/nav-icons'
-import { PageHeading } from '../components/shell/PageHeading'
-import { Btn } from '../components/ui/Btn'
-import { Card, CardBody, CardHead } from '../components/ui/Card'
-import { FieldRow, LinkRow } from '../components/ui/FieldRow'
-import { ROLE_LABEL } from '../labels'
-import { useAuth } from '../lib/auth-context'
-import { useCopy } from '../lib/use-copy'
-import { RELEASES, type Release } from '../lib/releases'
-import { APP, compareVersions, thaiStamp } from '../lib/version'
+import { Skeleton } from '../../components/feedback/Skeleton'
+import { Spinner } from '../../components/feedback/Spinner'
+import { NavIcon } from '../../components/shell/nav-icons'
+import { PageHeading } from '../../components/shell/PageHeading'
+import { Btn } from '../../components/ui/Btn'
+import { Card, CardBody, CardHead } from '../../components/ui/Card'
+import { FieldRow, LinkRow } from '../../components/ui/FieldRow'
+import { ROLE_LABEL } from '../../labels'
+import { useAuth } from '../../lib/auth-context'
+import { useCopy } from '../../lib/use-copy'
+import { RELEASES, type Release } from '../../lib/releases'
+import { APP, compareVersions, thaiStamp } from '../../lib/version'
 import {
   ADMIN_PORTAL_ROUTES,
   urlOf,
   type AdminRoute,
   type AdminRouteLabel,
-} from '../routes'
+} from '../../routes'
 
 /**
  * ⚠️ Typed as `AdminRouteLabel`, so renaming that menu row breaks the BUILD rather than quietly

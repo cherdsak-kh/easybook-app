@@ -27,10 +27,10 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { InlineAlert } from '../components/feedback/InlineAlert'
-import { PasswordField } from '../components/ui/PasswordField'
-import { useAuth } from '../lib/auth-context'
-import type { SignInOutcome } from '../lib/auth-context'
+import { InlineAlert } from '../../components/feedback/InlineAlert'
+import { PasswordField } from '../../components/ui/PasswordField'
+import { useAuth } from '../../lib/auth-context'
+import type { SignInOutcome } from '../../lib/auth-context'
 
 const MSG = {
   emailRequired: 'โปรดระบุอีเมล',

@@ -547,6 +547,7 @@
      do not stretch, and the existing rhythm was measured as it is. */
   .pf-card .pf-close > :last-child { @apply sm:border-b sm:border-base-300/60; }
 
+
   /* The social-profile header. Circular avatar overlapping a cover band is the
      shape every social product uses, and it is doing real work here rather than
      decoration: it makes the avatar the one obviously interactive thing on a
@@ -914,6 +915,31 @@
 /* `translate`, not `transform` — same reason as the drawer above. */
 @keyframes toast-in  { from { opacity: 0; translate: 0 -14px; } to { opacity: 1; translate: 0 0; } }
 @keyframes toast-out { from { opacity: 1; } to { opacity: 0; translate: 0 -10px; } }
+
+/* ── The initial-letter avatar's disc — OPAQUE (PO, 18 ส.ค. 2569) ──────
+   A 10% wash is not a colour; it is a colour PLUS whatever sits behind it. That is fine on a
+   white card and wrong everywhere else, and the prototype had already met the consequence
+   twice without naming the cause: its edit dialog's identity strip is outlined-on-base-100
+   rather than filled-base-200 because the same tile measured 4.35:1 there against 5.0 on
+   base-100 — the STRIP was moved to work around a property of the TILE — and on the profile
+   header the disc sits on the cover band, so a SUPER_ADMIN's pink and a VIEWER's blue showed
+   straight through the one element meant to read as a solid object lifted off it.
+
+   `color-mix` against base-100 is the SAME colour the wash resolves to on a card, made opaque:
+   nothing changes where it was already right, the measured 5.0 stops depending on the
+   neighbourhood, and the disc reads as a disc on any surface. Tokens, not hexes, so it still
+   flips with the theme. Ported alongside the prototype, which changed first.
+
+   ⚠️ UNLAYERED, like `.badge` below, and it started inside `@layer components` where it LOST.
+   The profile's disc also carries `.pf-ava`, which brings `bg-base-200`; both were (0,1,0) in the
+   same layer, so source order decided and `.pf-ava` happened to come after. Measured in dark:
+   the disc rendered `rgb(2,6,23)` — base-200 exactly, no tint at all — while the sidebar's disc,
+   which has no such neighbour, rendered the mix correctly. Opaque either way, so the symptom was
+   only a colour, and the two are far enough apart on screen that nobody would have caught it by
+   eye. An unlayered rule cannot lose that race because it is not in it. */
+.ava-fill      { background-color: color-mix(in oklab, var(--color-primary) 10%, var(--color-base-100)); }
+/* The never-registered variant, same argument in the neutral hue. */
+.ava-fill-none { background-color: color-mix(in oklab, var(--color-base-content) 12%, var(--color-base-100)); }
 
 /* ═══ Badges — moved here out of `@layer components`, and this is the only reason ═══
    `badge` is ALSO a daisyUI 5 component class. The prototype never met it: it ran on raw

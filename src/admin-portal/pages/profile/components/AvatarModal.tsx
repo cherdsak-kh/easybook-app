@@ -38,12 +38,12 @@ import {
   updateOwnProfile,
   uploadOwnAvatar,
 } from '@/lib/api-client'
-import { InlineAlert } from '../../components/feedback/InlineAlert'
-import { Spinner } from '../../components/feedback/Spinner'
-import { Btn } from '../../components/ui/Btn'
-import { Modal } from '../../components/ui/Modal'
-import { useBusy } from '../../lib/use-busy'
-import { useToast } from '../../lib/toast-context'
+import { InlineAlert } from '../../../components/feedback/InlineAlert'
+import { Spinner } from '../../../components/feedback/Spinner'
+import { Btn } from '../../../components/ui/Btn'
+import { Modal } from '../../../components/ui/Modal'
+import { useBusy } from '../../../lib/use-busy'
+import { useToast } from '../../../lib/toast-context'
 
 const MSG = {
   type: 'รองรับเฉพาะไฟล์ JPEG, PNG และ WEBP',

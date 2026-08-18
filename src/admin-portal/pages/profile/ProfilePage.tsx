@@ -40,17 +40,17 @@
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../lib/auth-context'
-import { thaiDate, thaiDateTime, NO_VALUE } from '../lib/thai-date'
-import { ROLE_LABEL } from '../labels'
-import { Avatar } from '../components/ui/Avatar'
-import { Badge } from '../components/ui/Badge'
-import { Card, CardHead } from '../components/ui/Card'
-import { FieldRow, LinkRow } from '../components/ui/FieldRow'
-import { NavIcon } from '../components/shell/nav-icons'
-import { PageHeading } from '../components/shell/PageHeading'
-import { AvatarModal } from './profile/AvatarModal'
-import { routeOf, urlOf, type AdminRoute, type AdminRouteLabel } from '../routes'
+import { useAuth } from '../../lib/auth-context'
+import { thaiDate, thaiDateTime, NO_VALUE } from '../../lib/thai-date'
+import { ROLE_LABEL } from '../../labels'
+import { Avatar } from '../../components/ui/Avatar'
+import { Badge } from '../../components/ui/Badge'
+import { Card, CardHead } from '../../components/ui/Card'
+import { FieldRow, LinkRow } from '../../components/ui/FieldRow'
+import { NavIcon } from '../../components/shell/nav-icons'
+import { PageHeading } from '../../components/shell/PageHeading'
+import { AvatarModal } from './components/AvatarModal'
+import { routeOf, urlOf, type AdminRoute, type AdminRouteLabel } from '../../routes'
 
 /**
  * The four rows of การตั้งค่าของฉัน, BY LABEL — the same keys the route table uses, and typed, so

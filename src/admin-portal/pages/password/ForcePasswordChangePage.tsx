@@ -23,11 +23,11 @@
 
 import { useState } from 'react'
 import { ApiError, changeOwnPassword } from '@/lib/api-client'
-import { InlineAlert } from '../components/feedback/InlineAlert'
-import { PasswordField } from '../components/ui/PasswordField'
-import { PasswordRules } from '../components/ui/PasswordRules'
-import { checkPassword, passwordOk, PASSWORD_MAX } from '../lib/password-policy'
-import { useAuth } from '../lib/auth-context'
+import { InlineAlert } from '../../components/feedback/InlineAlert'
+import { PasswordField } from '../../components/ui/PasswordField'
+import { PasswordRules } from '../../components/ui/PasswordRules'
+import { checkPassword, passwordOk, PASSWORD_MAX } from '../../lib/password-policy'
+import { useAuth } from '../../lib/auth-context'
 
 export function ForcePasswordChangePage() {
   const { user, refresh, signOut } = useAuth()
