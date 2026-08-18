@@ -19,8 +19,16 @@
  * shipped under it (the first back-office) was removed whole on 16 ส.ค. 2569. A note for it would
  * describe a product that no longer exists.
  *
- * The version train is `Q3`: `0.x.y`, one phase = one minor, `1.0.0` on the day the school starts
- * using it.
+ * The version train is `Q3`: `0.x.y`, `1.0.0` on the day the school starts using it. What moves
+ * which digit is decided by the SIZE OF THE RELEASE, not by whether a phase closed (the PO replaced
+ * "one phase = one minor" on 18 ส.ค. 2569):
+ *
+ *  · a new page or a large feature bumps `x`, and `y` resets to `0` — `npm version minor` does the
+ *    reset itself, so it cannot be forgotten;
+ *  · adding, removing or changing something that already ships, or anything small, bumps `y`.
+ *
+ * ⚠️ The decision is made per RELEASE, not per page: one release moves the number once, sized by
+ * the largest thing inside it. Five pages that have not shipped yet are one `0.4.0`, not `0.8.0`.
  */
 
 /**
@@ -65,6 +73,8 @@ export const RELEASES: readonly Release[] = [
           'หน้าโปรไฟล์ — ดูข้อมูลบัญชีของคุณได้ครบ และเปลี่ยนรูปโปรไฟล์ได้เอง',
           'หน้าเปลี่ยนรหัสผ่าน ตั้งรหัสผ่านใหม่ได้เองโดยไม่ต้องขอรหัสผ่านชั่วคราวจากผู้ดูแลระบบ',
           'ผู้ดูแลระบบสูงสุดแก้ไขชื่อ–สกุล ตำแหน่ง กลุ่ม/ฝ่าย และเบอร์โทรศัพท์ของตัวเองได้จากหน้าโปรไฟล์',
+          'หน้าตำแหน่งบุคลากร และหน้ากลุ่ม/ฝ่ายบุคลากร — เพิ่ม แก้ไข และลบรายการได้เอง ค้นหาได้ และเห็นจำนวนผู้ถือครองของแต่ละรายการ',
+          'ลบตำแหน่งหรือกลุ่ม/ฝ่ายที่ยังมีผู้ถือครองอยู่ได้ โดยทุกคนจะถูกย้ายไปที่ “ไม่พบตำแหน่ง” หรือ “ไม่พบกลุ่ม/ฝ่าย” ทันที',
         ],
       },
       {
