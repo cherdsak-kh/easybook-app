@@ -156,19 +156,23 @@ export const ADMIN_PORTAL_ROUTES = [
     desc: 'จัดการประเภทของสถานที่ที่เปิดให้จอง',
   },
   {
-    label: 'กลุ่ม/ฝ่ายบุคลากร',
-    path: 'settings/departments',
-    group: 'การตั้งค่าระบบ',
-    desc: 'จัดการรายการกลุ่ม/ฝ่ายของบุคลากรในโรงเรียน',
-  },
-  {
     // TWO labels, ONE screen — `settings/positions` and `settings/departments` are the same page
     // reading its model from the label, exactly as `OptionsService` serves both tables on the
-    // server. Do not fork it into two components when P4 ports it.
+    // server. `OptionsPage` does that; do not fork it into two components.
+    //
+    // ⚠️ ตำแหน่ง BEFORE กลุ่ม/ฝ่าย (PO, 18 ส.ค. 2569). THE ORDER OF THESE TWO OBJECTS IS THE ORDER
+    // OF THE MENU — `Sidebar` filters this table by `group` and renders what it gets, so there is
+    // no second list to keep in step and no way to reorder the menu except here.
     label: 'ตำแหน่งบุคลากร',
     path: 'settings/positions',
     group: 'การตั้งค่าระบบ',
     desc: 'จัดการรายการตำแหน่งของบุคลากรในโรงเรียน',
+  },
+  {
+    label: 'กลุ่ม/ฝ่ายบุคลากร',
+    path: 'settings/departments',
+    group: 'การตั้งค่าระบบ',
+    desc: 'จัดการรายการกลุ่ม/ฝ่ายของบุคลากรในโรงเรียน',
   },
   {
     label: 'เทมเพลตข้อความ',
