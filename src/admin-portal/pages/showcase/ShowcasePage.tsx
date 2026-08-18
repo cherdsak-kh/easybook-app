@@ -49,6 +49,12 @@ import { useToast } from '../../lib/toast-context'
 import { checkPassword, passwordOk } from '../../lib/password-policy'
 import { ACCESS_LABEL, ACCESS_TONE, ROLE_HINT, ROLE_LABEL } from '../../labels'
 import type { AppAccess, SystemRole } from '../../labels'
+import { RoleChip } from '../staff/components/RoleChip'
+import { StaffDetailDialog } from '../staff/components/StaffDetailDialog'
+import { StaffFormDialog } from '../staff/components/StaffFormDialog'
+import type { StaffFormValues } from '../staff/components/StaffFormDialog'
+import { TempPasswordDialog } from '../staff/components/TempPasswordDialog'
+import type { StaffOption, StaffRecord } from '../staff/staff-record'
 
 const ACCESS_VALUES: AppAccess[] = ['ALLOWED', 'PENDING', 'REJECTED', 'BLOCKED', 'UNREGISTERED']
 const ROLE_VALUES: SystemRole[] = ['SUPER_ADMIN', 'ADMIN', 'VIEWER']
@@ -68,6 +74,68 @@ const SEED_NOTIFS: Notification[] = [
   { id: 'n2', tone: 'emerald', icon: DOT, title: 'อนุมัติผู้ใช้ สมชาย ใจดี แล้ว', time: '1 ชั่วโมงที่แล้ว', read: false },
   { id: 'n3', tone: 'slate', icon: DOT, title: 'ระบบสำรองข้อมูลเรียบร้อย', time: 'เมื่อวาน 23:00', read: true },
 ]
+
+/**
+ * Fixtures for เจ้าหน้าที่ระบบ's dialogs. The reserved and tombstone rows are both present on
+ * purpose: they are the two cases `OptionList` exists to place correctly, and neither shows up in
+ * a list of ordinary options.
+ */
+const SEED_POSITIONS: StaffOption[] = [
+  { id: 1, name: 'ครู' },
+  { id: 2, name: 'เจ้าหน้าที่ธุรการ' },
+  { id: 3, name: 'ผู้ดูแลระบบ' },
+  { id: 4, name: 'รองผู้อำนวยการ' },
+  { id: 9, name: 'ผู้พัฒนาระบบ', reserved: true },
+  { id: 99, name: 'ไม่พบตำแหน่ง', reserved: true, fallback: true },
+]
+const SEED_DEPARTMENTS: StaffOption[] = [
+  { id: 1, name: 'ฝ่ายบริหารงานทั่วไป' },
+  { id: 2, name: 'ฝ่ายวิชาการ' },
+  { id: 3, name: 'ฝ่ายเทคโนโลยีสารสนเทศ' },
+  { id: 98, name: 'ไม่พบกลุ่ม/ฝ่าย', reserved: true, fallback: true },
+]
+
+const STAFF_SEED: StaffRecord = {
+  id: 'u101',
+  email: 'cherd@easybook.local',
+  firstName: 'เชิดศักดิ์',
+  lastName: 'คำไล้',
+  role: 'ADMIN',
+  personnelRole: { id: 3, name: 'ผู้ดูแลระบบ' },
+  department: { id: 3, name: 'ฝ่ายเทคโนโลยีสารสนเทศ' },
+  phoneNumber: '081-234-5678',
+  profilePictureUrl: null,
+  isActive: true,
+  mustChangePassword: false,
+  lastLoginAt: '2026-08-11T09:42:00+07:00',
+  createdAt: '2026-07-08T10:00:00+07:00',
+  createdBy: { firstName: 'EasyBook', lastName: 'Administrator' },
+}
+
+const STAFF_FORM_SEED: StaffFormValues = {
+  email: STAFF_SEED.email,
+  firstName: STAFF_SEED.firstName,
+  lastName: STAFF_SEED.lastName,
+  personnelRoleId: 3,
+  departmentId: 3,
+  phoneNumber: STAFF_SEED.phoneNumber ?? '',
+  role: 'ADMIN',
+  isActive: true,
+}
+
+// VIEWER is the default, and that is a decision: the least privilege that still makes an account
+// worth creating. A select that opens on the most powerful option grants it to whoever does not
+// read it.
+const STAFF_FORM_BLANK: StaffFormValues = {
+  email: '',
+  firstName: '',
+  lastName: '',
+  personnelRoleId: SEED_POSITIONS[0].id,
+  departmentId: SEED_DEPARTMENTS[0].id,
+  phoneNumber: '',
+  role: 'VIEWER',
+  isActive: true,
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -108,6 +176,9 @@ function ShowcaseBody() {
   const [readAllSaid, setReadAllSaid] = useState('')
   const unread = unreadCount(notifs)
   const [navActive, setNavActive] = useState('การลงทะเบียน')
+  const [staffDetail, setStaffDetail] = useState<'other' | 'self' | 'deleted' | null>(null)
+  const [staffForm, setStaffForm] = useState<'create' | 'edit' | 'self' | null>(null)
+  const [tempPw, setTempPw] = useState<'created' | 'reset' | null>(null)
   const notifListRef = useRef<HTMLDivElement>(null)
   useEscapeTopDialog()
 
@@ -356,6 +427,79 @@ function ShowcaseBody() {
             diff={[{ label: 'สถานะ', from: 'อนุมัติแล้ว', to: 'ถูกระงับการใช้งาน' }]}
             reason={{ label: 'เหตุผลการระงับ', hint: 'บันทึกในประวัติระบบ ผู้ใช้ไม่เห็นข้อความนี้', required: true }}
           />
+        </Section>
+
+        {/* ── เจ้าหน้าที่ระบบ's three dialogs ──
+            Built ahead of their page (PO, 18 ส.ค. 2569: whatever is a component gets built first).
+            They live in `pages/staff/components/` because that is where their page will own them,
+            and they are rendered HERE because P1's own rule stands: a component that has never
+            been rendered has never been checked. This section is how they get measured against
+            the prototype before anything depends on them. */}
+        <Section title="StaffDetailDialog — read-only, every role opens it">
+          <div className="flex flex-wrap gap-2">
+            <Btn onClick={() => setStaffDetail('other')}>บัญชีคนอื่น (SUPER_ADMIN)</Btn>
+            <Btn onClick={() => setStaffDetail('self')}>บัญชีของคุณเอง</Btn>
+            <Btn onClick={() => setStaffDetail('deleted')}>บัญชีที่ถูกลบแล้ว</Btn>
+          </div>
+          <StaffDetailDialog
+            open={staffDetail !== null}
+            onClose={() => setStaffDetail(null)}
+            record={
+              staffDetail === 'deleted' ? { ...STAFF_SEED, deleted: true } : STAFF_SEED
+            }
+            self={staffDetail === 'self'}
+            canManage
+            canManageRow={staffDetail !== 'deleted'}
+            onManage={() => setStaffDetail(null)}
+            onRestore={() => setStaffDetail(null)}
+            onGoToProfile={() => setStaffDetail(null)}
+          />
+        </Section>
+
+        <Section title="StaffFormDialog — create, manage, and manage-your-own">
+          <div className="flex flex-wrap gap-2">
+            <Btn onClick={() => setStaffForm('create')}>เพิ่มบัญชี</Btn>
+            <Btn onClick={() => setStaffForm('edit')}>จัดการบัญชี</Btn>
+            <Btn onClick={() => setStaffForm('self')}>จัดการบัญชีของคุณ</Btn>
+          </div>
+          <StaffFormDialog
+            open={staffForm !== null}
+            onClose={() => setStaffForm(null)}
+            mode={staffForm === 'create' ? 'create' : 'edit'}
+            self={staffForm === 'self'}
+            initial={staffForm === 'create' ? STAFF_FORM_BLANK : STAFF_FORM_SEED}
+            positions={SEED_POSITIONS}
+            departments={SEED_DEPARTMENTS}
+            currentState="active"
+            onSubmit={(_v, d) =>
+              toast('success', d.length ? `จะบันทึก ${d.length} รายการ` : 'ไม่มีการเปลี่ยนแปลง')
+            }
+            onResetPassword={() => setTempPw('reset')}
+            onDelete={() => toast('error', 'ลบบัญชี (ตัวอย่าง)')}
+          />
+        </Section>
+
+        <Section title="TempPasswordDialog — shown once, and refuses every casual dismissal">
+          <div className="flex flex-wrap gap-2">
+            <Btn onClick={() => setTempPw('created')}>หลังสร้างบัญชี</Btn>
+            <Btn onClick={() => setTempPw('reset')}>หลังรีเซ็ตรหัสผ่าน</Btn>
+          </div>
+          <TempPasswordDialog
+            open={tempPw !== null}
+            onClose={() => setTempPw(null)}
+            kind={tempPw === 'reset' ? 'reset' : 'created'}
+            name="เชิดศักดิ์ คำไล้"
+            email="cherd@easybook.local"
+            password="Kp7Rn2Tq9Wx4Yb6C"
+          />
+        </Section>
+
+        <Section title="RoleChip — outlined, so it never competes with a status badge">
+          <div className="flex flex-wrap items-center gap-2">
+            <RoleChip role="SUPER_ADMIN" />
+            <RoleChip role="ADMIN" />
+            <RoleChip role="VIEWER" />
+          </div>
         </Section>
 
         <Section title="ComingSoon — the designed state of 24 destinations">

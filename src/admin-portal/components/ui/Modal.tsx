@@ -26,6 +26,7 @@ export function Modal({
   open,
   onClose,
   title,
+  subtitle,
   children,
   footer,
   footerClassName = 'flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end',
@@ -35,6 +36,15 @@ export function Modal({
   open: boolean
   onClose: () => void
   title: ReactNode
+  /**
+   * A lead sentence under the title, inside the header block.
+   *
+   * Only รหัสผ่านชั่วคราว has one, and it needs it there rather than at the top of the body: the
+   * body is the scrolling region, so a lead placed inside it scrolls away from the heading it
+   * belongs to. It cannot ride inside `title` either — that slot is the `<h2>`, and a `<p>` inside
+   * a heading is not markup any screen reader can make sense of.
+   */
+  subtitle?: ReactNode
   children: ReactNode
   footer?: ReactNode
   /**
@@ -116,9 +126,17 @@ export function Modal({
         style={{ width: `min(${width}px, calc(100vw - 24px))` }}
       >
         <div className="flex items-center justify-between gap-3 border-b border-base-300 px-5 py-4">
-          <h2 id={titleId} className="text-[18px] font-semibold text-base-content th-tight">
-            {title}
-          </h2>
+          {/* `min-w-0` so a long title truncates rather than pushing the ✕ off the panel. The
+              wrapper is a flex item hugging its content, so a header WITHOUT a subtitle measures
+              exactly as it did when the <h2> was the direct child. */}
+          <div className="min-w-0">
+            <h2 id={titleId} className="text-[18px] font-semibold text-base-content th-tight">
+              {title}
+            </h2>
+            {subtitle && (
+              <p className="m-0 mt-1 text-[14px] leading-[1.55] text-base-content/70">{subtitle}</p>
+            )}
+          </div>
           {dismissable && (
             <button
               type="button"
