@@ -15,6 +15,23 @@
  * login endpoint's own **401 is "bad credentials"** — wiring this to "any 401 anywhere" would
  * make both of those log the operator out. It belongs to authenticated reads and writes only,
  * which is why the filter lives in `AuthProvider` next to the client rather than in here.
+ *
+ * ── ⚠️ IT MUST NOT NAME A CAUSE IT CANNOT KNOW (PO, 19 ส.ค. 2569) ──
+ * The first version said "คุณถูกออกจากระบบเนื่องจากไม่ได้ใช้งานเป็นเวลานาน" — one cause, stated as
+ * fact. `resolveSessionUser` in the service rejects for FOUR distinct reasons:
+ *
+ *   NO_SESSION       no cookie, no `systemUserId` — signed out elsewhere, or the session store lost it
+ *   SESSION_EXPIRED  past `SESSION_ABSOLUTE_MAX_AGE_MS`
+ *   USER_NOT_FOUND   the row the session points at is gone
+ *   USER_REVOKED     `deletedAt != null` OR `isActive === false` — deleted, or suspended
+ *
+ * …and all four arrive here as the SAME 401 carrying the same `Authentication required.`, so the
+ * bundle genuinely cannot tell them apart. Inactivity is therefore a guess, and on the two account
+ * reasons it is a wrong one that also sends the operator to retry a login that cannot succeed.
+ *
+ * So the copy states what IS known (the session cannot be used, unsaved work is gone), names the
+ * real possibilities without picking one, and gives the way out for the case where signing in again
+ * will not work. Printing the actual reason needs the server to say which — see AUTH-401-REASON.
  */
 
 import { useEffect, useRef } from 'react'
@@ -64,13 +81,18 @@ export function SessionExpiredDialog({ open, onRelogin }: { open: boolean; onRel
                 id="session-modal-title"
                 className="m-0 text-[18px] font-semibold leading-tight text-base-content th-tight"
               >
-                เซสชันหมดอายุ
+                เซสชันสิ้นสุดแล้ว
               </h2>
+              {/* ⚠️ "เกิดได้จากหลายกรณี" IS THE POINT, not hedging: see the header. The three cases
+                  are the four server-side rejections grouped by what the reader can DO about each —
+                  wait/relogin, relogin, or contact an admin. A demotion is not in the list because
+                  it is a 403 on the route, not a 401 here. */}
               <p
                 id="session-modal-desc"
                 className="m-0 mt-1.5 text-[14px] leading-[1.6] text-base-content/70 th-tight"
               >
-                คุณถูกออกจากระบบเนื่องจากไม่ได้ใช้งานเป็นเวลานาน โปรดเข้าสู่ระบบอีกครั้งเพื่อทำงานต่อ
+                เซสชันของคุณใช้งานต่อไม่ได้แล้ว เกิดได้จากหลายกรณี เช่น ไม่ได้ใช้งานเป็นเวลานาน
+                มีการออกจากระบบจากอุปกรณ์อื่น หรือบัญชีของคุณถูกระงับหรือถูกลบโดยผู้ดูแลระบบสูงสุด
               </p>
             </div>
           </div>
@@ -95,6 +117,12 @@ export function SessionExpiredDialog({ open, onRelogin }: { open: boolean; onRel
               การเปลี่ยนแปลงที่ยังไม่ได้บันทึกจะหายไป ระบบไม่สามารถบันทึกให้ได้เพราะเซสชันสิ้นสุดแล้ว
             </p>
           </div>
+          {/* The one case where the button below cannot help: a suspended or deleted account signs
+              in to the same refusal. Naming the way out is the difference between an operator who
+              asks for help and one who retries the login form until they give up. */}
+          <p className="m-0 mt-3 text-[13px] leading-[1.55] text-base-content/70 th-tight">
+            หากเข้าสู่ระบบอีกครั้งไม่สำเร็จ โปรดติดต่อผู้ดูแลระบบสูงสุดเพื่อตรวจสอบสถานะบัญชีของคุณ
+          </p>
         </div>
         <div className="flex border-t border-base-300 bg-base-200 px-5 py-4">
           <button type="button" className="btn-primary2 w-full" onClick={onRelogin}>
