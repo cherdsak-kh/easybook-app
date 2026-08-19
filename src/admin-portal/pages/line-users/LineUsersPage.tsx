@@ -136,6 +136,36 @@ function Glyph({ d, className = 'h-4.5 w-4.5 shrink-0' }: { d: string; className
   )
 }
 
+/**
+ * The face on a row — and THE PICTURE ALWAYS WINS.
+ *
+ * ⚠️ THIS EXISTS BECAUSE THE FIRST PORT ASKED THE WRONG QUESTION FIRST (PO, 19 ส.ค. 2569). The rows
+ * branched on `registration` and only reached for `pictureUrl` inside the registered branch, so
+ * somebody who had just added the LINE account — a follower with a real LINE photo and no
+ * registration yet — rendered as the neutral `?` disc. The detail dialog got it right (it tests
+ * `pictureUrl` first), so the same person had a face in the dialog and none in the list.
+ *
+ * The correct rule, and the one the dialog was already following:
+ *   1. a LINE picture, if LINE gave us one — it belongs to the person, not to their paperwork;
+ *   2. otherwise their initial, on the primary disc;
+ *   3. otherwise `?` on the NEUTRAL disc — no name was ever given, so there is no initial to take.
+ *
+ * Registration decides only which FALLBACK, never whether the photo is shown. It lives in one
+ * component used by both layouts because two copies of this rule is exactly how it broke.
+ */
+function RowAvatar({ record, className }: { record: RegistrationRecord; className: string }) {
+  if (record.pictureUrl) return <Avatar src={record.pictureUrl} className={className} />
+  if (record.registration) return <Avatar name={record.registration.firstName} className={className} />
+  return (
+    <span
+      aria-hidden="true"
+      className={`ava-fill-none flex items-center justify-center text-base-content/70 ${className}`}
+    >
+      ?
+    </span>
+  )
+}
+
 /** `ApiError` → which of the three error panels. */
 const kindOf = (err: unknown): LoadErrorKind => {
   const status = err instanceof ApiError ? err.status : 0
@@ -1099,22 +1129,10 @@ function Row({
       <td className="td-cell text-center text-base-content/70 tabular-nums">{index}</td>
       <td className="td-cell">
         <div className="flex items-center gap-3">
-          {reg ? (
-            <Avatar
-              src={record.pictureUrl}
-              name={reg.firstName}
-              className="h-9 w-9 shrink-0 rounded-control text-[14px] font-semibold"
-            />
-          ) : (
-            /* No name was ever given, so there is no initial to take — the neutral disc and a `?`,
-               exactly as the detail dialog renders the same person. */
-            <span
-              aria-hidden="true"
-              className="ava-fill-none flex h-9 w-9 shrink-0 items-center justify-center rounded-control text-[14px] font-semibold text-base-content/70"
-            >
-              ?
-            </span>
-          )}
+          <RowAvatar
+            record={record}
+            className="h-9 w-9 shrink-0 rounded-control text-[14px] font-semibold"
+          />
           <span className="flex min-w-0 flex-col">
             {reg ? (
               <>
@@ -1243,20 +1261,10 @@ function CardRow({
         aria-label={reg ? `ดูรายละเอียด ${name} สถานะ ${label}` : `ดูรายละเอียด ผู้ใช้ที่ยังไม่ลงทะเบียน ${lineName}`}
         className="flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-base-content/5 active:bg-base-content/10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
       >
-        {reg ? (
-          <Avatar
-            src={record.pictureUrl}
-            name={reg.firstName}
-            className="h-10 w-10 shrink-0 rounded-control text-[15px] font-semibold"
-          />
-        ) : (
-          <span
-            aria-hidden="true"
-            className="ava-fill-none flex h-10 w-10 shrink-0 items-center justify-center rounded-control text-[15px] font-semibold text-base-content/70"
-          >
-            ?
-          </span>
-        )}
+        <RowAvatar
+          record={record}
+          className="h-10 w-10 shrink-0 rounded-control text-[15px] font-semibold"
+        />
         <span className="min-w-0 flex-1">
           <span className="flex items-start justify-between gap-2">
             <span

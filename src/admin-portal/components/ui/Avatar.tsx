@@ -55,8 +55,11 @@ export function Avatar({
   /** Size and shape, e.g. `h-10 w-10 rounded-control`. */
   className: string
   /**
-   * The frame. Default is the sidebar card's hairline — the prototype's `#me-avatar` carries
-   * exactly `border border-base-300`.
+   * The image's frame. Default is the sidebar card's hairline — the prototype's `#me-avatar`
+   * carries exactly `border border-base-300`.
+   *
+   * ⚠️ IMAGE BRANCH ONLY, like `backdrop` below: an initial's disc has no border anywhere in the
+   * prototype. See the fallback.
    *
    * ⚠️ IT IS A PROP BECAUSE THE PROFILE HEADER'S FRAME IS PART OF ITS OWN CLASS. `.pf-ava` is
    * `border-4 border-base-100` — the thick ring that lifts the circle off the cover band — and a
@@ -98,10 +101,17 @@ export function Avatar({
   // whatever is behind it through, and on the profile header what is behind it is the coloured
   // cover band. See the class in `admin-portal.css` for the two places that had already gone
   // wrong. It is a `@layer components` class, so a caller's `className` can still override it.
+  //
+  // ⚠️ NO `chrome` ON THIS BRANCH, and that is the prototype, not a simplification. Every initial
+  // disc in that file is a bare `ava-fill` span — the staff table, the registration table, both
+  // phone lists, all six dialogs — while every `<img>` carries `border border-base-300`. The
+  // default came from `#me-avatar`, which is an `<img>`, and the fallback inherited it by accident:
+  // a tinted disc needs no hairline to separate it from the surface, because the tint already does
+  // that, and the border it was drawing showed up on every account without a photo.
   return (
     <span
       aria-hidden="true"
-      className={`ava-fill flex shrink-0 items-center justify-center font-semibold text-primary ${chrome} ${className}`.trim()}
+      className={`ava-fill flex shrink-0 items-center justify-center font-semibold text-primary ${className}`.trim()}
     >
       {initialOf(name)}
     </span>
