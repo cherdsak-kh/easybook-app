@@ -31,6 +31,7 @@ import { LoginPage } from './pages/login/LoginPage'
 import { ChangePasswordPage } from './pages/password/ChangePasswordPage'
 import { OptionsPage } from './pages/options/OptionsPage'
 import { ProfilePage } from './pages/profile/ProfilePage'
+import { StaffPage } from './pages/staff/StaffPage'
 import { VersionPage } from './pages/version/VersionPage'
 import { useTheme } from './lib/use-theme'
 import {
@@ -54,6 +55,7 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   // TWO labels, ONE component — see `OptionsPage`'s header and the comment in `routes.ts`.
   ตำแหน่งบุคลากร: (route) => <OptionsPage route={route} />,
   'กลุ่ม/ฝ่ายบุคลากร': (route) => <OptionsPage route={route} />,
+  เจ้าหน้าที่ระบบ: (route) => <StaffPage route={route} />,
 }
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */

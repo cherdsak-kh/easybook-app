@@ -54,6 +54,25 @@ export interface Release {
 export const RELEASES: readonly Release[] = [
   {
     /*
+     * ⚠️ NOT RELEASED YET, so not visible yet — `package.json` is `0.4.0` and the page filters to
+     * `<= APP.version`. `x` because this is a NEW PAGE, which is the rule the PO set on
+     * 18 ส.ค. 2569; the date is a placeholder until the day it actually ships.
+     */
+    v: '0.5.0',
+    date: '19 ส.ค. 2569',
+    groups: [
+      {
+        t: 'ใหม่',
+        items: [
+          'หน้าเจ้าหน้าที่ระบบ — รายชื่อบัญชีทั้งหมดที่เข้าใช้งานระบบหลังบ้านได้ ค้นหาด้วยชื่อหรืออีเมล และกรองตามบทบาทหรือสถานะได้',
+          'ผู้ดูแลระบบสูงสุดเพิ่มบัญชีเจ้าหน้าที่ได้เอง โดยระบบจะออกรหัสผ่านชั่วคราวให้และแสดงเพียงครั้งเดียว',
+          'แก้ไขข้อมูล เปลี่ยนบทบาท ระงับการใช้งาน รีเซ็ตรหัสผ่าน ลบ และกู้คืนบัญชีเจ้าหน้าที่ได้จากหน้าเดียวกัน',
+        ],
+      },
+    ],
+  },
+  {
+    /*
      * ⚠️ NOT RELEASED YET, AND THEREFORE NOT VISIBLE YET. `package.json` is still `0.3.0`, and the
      * page renders `RELEASES.filter(r => compareVersions(r.v, APP.version) <= 0)` — so this entry
      * is inert until the version is bumped at the close of P4. That is deliberate and is the

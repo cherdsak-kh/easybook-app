@@ -35,9 +35,32 @@ const TONE: Record<SystemRole, string> = {
   VIEWER: 'role-viewer',
 }
 
-export function RoleChip({ role, className = '' }: { role: SystemRole; className?: string }) {
+/**
+ * ⚠️ TWO PRESENTATIONS, ONE DECISION — the prototype's `paintRole()` fills both from the same
+ * `--role-c`, and the class that sets it (`.role-super` / `.role-admin` / `.role-viewer`) is the
+ * same in each. `chip` is the desktop table's outlined pill; `ink` is the phone card's third line,
+ * where at 13px a bordered pill costs a line of its own.
+ *
+ * It is a variant rather than a second component because the alternative is two files that each
+ * translate a `SystemRole` into a colour and a glyph — and the day one of them gains a fourth role,
+ * the other still renders three.
+ *
+ * The `ink` layout classes are the prototype's own, from `#st-card-tpl`: `.role-ink` carries only
+ * the colour.
+ */
+export function RoleChip({
+  role,
+  variant = 'chip',
+  className = '',
+}: {
+  role: SystemRole
+  variant?: 'chip' | 'ink'
+  className?: string
+}) {
+  const shape =
+    variant === 'ink' ? 'role-ink flex min-w-0 items-center gap-1 text-[13px]' : 'role-chip'
   return (
-    <span className={`role-chip ${TONE[role]} ${className}`.trim()}>
+    <span className={`${shape} ${TONE[role]} ${className}`.trim()}>
       <svg
         aria-hidden="true"
         className="h-3.5 w-3.5 shrink-0"
@@ -48,7 +71,7 @@ export function RoleChip({ role, className = '' }: { role: SystemRole; className
       >
         <path strokeLinecap="round" strokeLinejoin="round" d={GLYPH[role]} />
       </svg>
-      <span>{ROLE_LABEL[role]}</span>
+      <span className={variant === 'ink' ? 'truncate' : undefined}>{ROLE_LABEL[role]}</span>
     </span>
   )
 }

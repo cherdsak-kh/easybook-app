@@ -551,14 +551,36 @@ export async function updateLineUserRegistration(
 // System (staff) users.
 // ---------------------------------------------------------------------------
 
+/**
+ * The เจ้าหน้าที่ระบบ directory. Search and both filters are SERVER-side (STAFF-QUERY-1) — the
+ * screen never holds a second, unfiltered copy of the table to narrow in the browser.
+ *
+ * ⚠️ `status: 'deleted'` is the ONLY way to obtain a soft-deleted row's id, and it is
+ * SUPER_ADMIN-only: soft-deleted rows are excluded from `data` AND from `meta.total` for every
+ * other query, so a restore has nothing to address without it. Any other role asking for it is a
+ * 403 from the server, not a hidden option here — hiding the option is UX.
+ *
+ * Empty strings are omitted rather than sent. The server trims and treats empty as absent, so both
+ * behave the same; a URL that carries `search=` on every keystroke just makes the network log
+ * harder to read.
+ */
 export async function listSystemUsers(
-  params: { page?: number; limit?: number } = {},
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    role?: SystemRole
+    status?: 'active' | 'pending' | 'suspended' | 'deleted'
+  } = {},
 ): Promise<PaginatedSystemUsers> {
   const query: NonNullable<
     paths['/api/v1/system-users']['get']['parameters']['query']
   > = {}
   if (params.page != null) query.page = params.page
   if (params.limit != null) query.limit = params.limit
+  if (params.search) query.search = params.search
+  if (params.role) query.role = params.role
+  if (params.status) query.status = params.status
 
   const { data, error, response } = await api.GET('/api/v1/system-users', {
     params: { query },

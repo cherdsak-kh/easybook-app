@@ -28,81 +28,22 @@
  * rather than the form being what refuses them.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ApiError,
-  listDepartments,
-  listPersonnelRoles,
   patchSystemUser,
-  type Department,
-  type PersonnelRole,
   type SystemUser,
   type UpdateSystemUserBody,
 } from '@/lib/api-client'
 import { ConfirmModal } from '../../../components/feedback/ConfirmModal'
 import { useToast } from '../../../lib/toast-context'
-import { fullName, type StaffOption, type StaffState } from '../staff-record'
+import { fullName, type StaffState } from '../staff-record'
+import { useStaffOptions } from '../use-staff-options'
 import {
   StaffFormDialog,
   type StaffDiff,
   type StaffFormValues,
 } from './StaffFormDialog'
-
-/**
- * `{ id, name, isSystemReserved }` → `StaffOption`, plus the row the operator is ALREADY on if the
- * list does not contain it.
- *
- * ⚠️ `fallback` HAS TWO SOURCES, and they are different facts that happen to want the same
- * rendering — "show it only if it is already the value".
- *
- *  1. `isFallback` FROM THE SERVER. The tombstone rows (`ไม่พบตำแหน่ง` / `ไม่พบกลุ่ม/ฝ่าย`) that
- *     `OptionsService.softDelete` re-points holders onto (OPT-FALLBACK-1). They cannot be told from
- *     the System Developer row by `isSystemReserved` — both are `true` — and the two need OPPOSITE
- *     treatment here: the reserved row is assignable by a SUPER_ADMIN, the tombstone must never be
- *     offered, because "offering it in a dropdown would let an operator file somebody under 'not
- *     found' deliberately". Hence a second flag on the DTO (OPT-COUNT-2, 18 ส.ค. 2569) rather than
- *     matching the Thai name here, which would put that spelling in two repositories.
- *  2. NOT IN THE LIST AT ALL. The option this row points at was soft-deleted, so it is absent.
- *     `<select>` has no concept of "a value not in the list": omit it and the browser silently
- *     selects option 0, so opening the dialog and pressing บันทึก would quietly refile the operator
- *     under a different department.
- *
- * ⚠️ A TOMBSTONE CARRIES **BOTH** FLAGS, and an earlier version of this function treated them as
- * mutually exclusive — which was backwards, and is the bug the PO reported (18 ส.ค. 2569).
- * `OptionList` reads them together:
- *
- *     plain    = rows.filter(r => !r.reserved)
- *     reserved = rows.filter(r => r.reserved && (!r.fallback || r.id === current))
- *
- * so `reserved` is what keeps a row OUT of the ordinary choices and inside the `สงวนของระบบ`
- * group, and `fallback` is what hides it there unless it is already the value. Dropping `reserved`
- * did not hide the tombstone — it promoted it: `!r.reserved` matched, so `ไม่พบตำแหน่ง` rendered as
- * an ungrouped, always-selectable option. Exactly what the prototype forbids in as many words:
- * "filing somebody under 'not found' on purpose is not a thing this dialog may offer."
- *
- * The appended row — the record's own option, absent from the list — gets both for the same
- * reason. It is reachable for an ADMIN whose row was re-pointed onto the tombstone, since reserved
- * rows are filtered out of their list server-side; without `reserved` it would come back as a
- * normal choice for the one role that must never be handed it.
- */
-function toOptions(
-  // The GENERATED types, not a hand-written structural echo of them. This function reads three
-  // fields the contract owns; spelling them out again is a second copy that stops matching the day
-  // one of them changes, and the compiler would not say so.
-  rows: readonly (Department | PersonnelRole)[],
-  current: { id: number; name: string },
-): StaffOption[] {
-  const out: StaffOption[] = rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    reserved: r.isSystemReserved || undefined,
-    fallback: r.isFallback || undefined,
-  }))
-  if (!out.some((o) => o.id === current.id)) {
-    out.push({ id: current.id, name: current.name, reserved: true, fallback: true })
-  }
-  return out
-}
 
 const MSG = {
   options: 'โหลดรายการตำแหน่งและกลุ่ม/ฝ่ายไม่สำเร็จ โปรดปิดหน้าต่างนี้แล้วลองใหม่อีกครั้ง',
@@ -122,6 +63,8 @@ export function AccountEditor({
   self,
   currentState,
   onSaved,
+  onResetPassword,
+  onDelete,
 }: {
   open: boolean
   onClose: () => void
@@ -138,73 +81,26 @@ export function AccountEditor({
    * disagree.
    */
   onSaved: () => void | Promise<void>
+  /**
+   * The danger zone, EDIT and never on your own row. Two separate endpoints, so they are the
+   * caller's writes, not this one's — but the buttons live inside `StaffFormDialog`, so they arrive
+   * through here. Omitted (โปรไฟล์, and any self-edit) the zone is not rendered at all.
+   */
+  onResetPassword?: () => void
+  onDelete?: () => void
 }) {
   const toast = useToast()
 
   /**
-   * The lists AS FETCHED. `positions` / `departments` below derive from these plus `target`.
-   *
-   * ⚠️ THE RAW ROWS ARE THE STATE, not the mapped options, because the mapping depends on the
-   * target and the fetch must not. Holding the mapped result meant the effect had to list
-   * `target.personnelRole` in its deps — and those are fresh OBJECTS out of the DTO on every
-   * `/me` re-read, so a save refetched both lists, and a save is exactly when it happened.
-   * Measured: three GETs per list on one page load.
+   * ⚠️ FETCHED PER OPEN, by the hook both staff forms share — see `use-staff-options.ts` for why it
+   * is not a mount-only fetch, and why the raw rows rather than the mapped options are the state.
    */
-  const [rawPositions, setRawPositions] = useState<readonly PersonnelRole[] | null>(null)
-  const [rawDepartments, setRawDepartments] = useState<readonly Department[] | null>(null)
+  const { positions, departments, alert: optionsAlert } = useStaffOptions(open, target)
+
   const [alert, setAlert] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  /** Have the lists ever arrived? See the `catch` in the effect below. */
-  const loaded = useRef(false)
   /** Set when the form submits; the confirmation is what actually writes. */
   const [pending, setPending] = useState<{ values: StaffFormValues; diff: StaffDiff } | null>(null)
-
-  /**
-   * On MOUNT **and on every OPEN**, and the second half is not an optimisation to trim.
-   *
-   * ⚠️ IT USED TO BE MOUNT-ONLY, and that was the PO's bug (18 ส.ค. 2569): delete a ตำแหน่ง on
-   * ตัวเลือกบุคลากร, come back here, and the dropdown still offered it — a row the server had
-   * already soft-deleted, which would answer 400 on save. The prototype is explicit about the
-   * rule and about why:
-   *
-   *   "Both selects are filled from the LIVE option arrays, every time the dialog opens — not once
-   *    at boot. Adding a ตำแหน่ง on the other screen and finding it here is what the real app does,
-   *    because both are the same GET /personnel-roles."
-   *
-   * The mount fetch STAYS so the first open is instant; the open fetch is what keeps it honest
-   * afterwards. Both lists are small and this component only mounts where the capability exists.
-   */
-  useEffect(() => {
-    let live = true
-    void (async () => {
-      try {
-        const [roles, depts] = await Promise.all([listPersonnelRoles(), listDepartments()])
-        if (!live) return
-        setRawPositions(roles)
-        setRawDepartments(depts)
-        loaded.current = true
-      } catch {
-        // Only shout if there is nothing to show. A refresh that fails while the operator already
-        // has a usable list is not worth replacing that list with an error.
-        //
-        // Read through a REF, not the state, so this effect does not have to depend on the very
-        // value it sets — which would refetch on every successful load, forever.
-        if (live && !loaded.current) setAlert(MSG.options)
-      }
-    })()
-    return () => {
-      live = false
-    }
-  }, [open])
-
-  const positions = useMemo(
-    () => (rawPositions ? toOptions(rawPositions, target.personnelRole) : null),
-    [rawPositions, target.personnelRole],
-  )
-  const departments = useMemo(
-    () => (rawDepartments ? toOptions(rawDepartments, target.department) : null),
-    [rawDepartments, target.department],
-  )
 
   const initial = useMemo<StaffFormValues>(
     () => ({
@@ -322,9 +218,14 @@ export function AccountEditor({
         positions={positions}
         departments={departments}
         currentState={currentState}
-        alert={alert}
+        // The option lists' own failure and a failed save share one slot: both are whole-form
+        // problems, and the form can only ever be showing one of them — you cannot submit a form
+        // whose selects never arrived.
+        alert={alert ?? optionsAlert}
         busy={busy}
         onSubmit={onSubmit}
+        onResetPassword={onResetPassword}
+        onDelete={onDelete}
       />
 
       <ConfirmModal
