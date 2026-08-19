@@ -54,9 +54,16 @@ export interface Release {
 export const RELEASES: readonly Release[] = [
   {
     /*
-     * ⚠️ NOT RELEASED YET, so not visible yet — `package.json` is `0.4.0` and the page filters to
-     * `<= APP.version`. `x` because this is a NEW PAGE, which is the rule the PO set on
-     * 18 ส.ค. 2569; the date is a placeholder until the day it actually ships.
+     * `x` because this release adds a PAGE — the rule the PO set on 18 ส.ค. 2569 — and the date is
+     * the day it shipped, written down rather than computed.
+     *
+     * ⚠️ THE TWO SESSION LINES ARE HERE AND THE VIEWER FIX IS NOT, and that is the same rule
+     * applied twice. The session dialog shipped in `0.2.0`, so an operator on `0.4.0` could meet
+     * both defects and will notice they are gone. เจ้าหน้าที่ระบบ did not exist before this
+     * release, so "ผู้ดูข้อมูลเปิดหน้านี้ไม่ได้" is not something anybody experienced — it was
+     * fixed inside the version that introduces the page, and announcing it would describe a
+     * product nobody used. Who can open the page is stated in the ใหม่ line instead, as a fact
+     * about the page rather than as a repair.
      */
     v: '0.5.0',
     date: '19 ส.ค. 2569',
@@ -64,9 +71,16 @@ export const RELEASES: readonly Release[] = [
       {
         t: 'ใหม่',
         items: [
-          'หน้าเจ้าหน้าที่ระบบ — รายชื่อบัญชีทั้งหมดที่เข้าใช้งานระบบหลังบ้านได้ ค้นหาด้วยชื่อหรืออีเมล และกรองตามบทบาทหรือสถานะได้',
+          'หน้าเจ้าหน้าที่ระบบ — รายชื่อบัญชีทั้งหมดที่เข้าใช้งานระบบหลังบ้านได้ ค้นหาด้วยชื่อหรืออีเมล และกรองตามบทบาทหรือสถานะได้ · ทุกบทบาทเปิดดูได้ แต่การจัดการเป็นสิทธิ์ของผู้ดูแลระบบสูงสุดเท่านั้น',
           'ผู้ดูแลระบบสูงสุดเพิ่มบัญชีเจ้าหน้าที่ได้เอง โดยระบบจะออกรหัสผ่านชั่วคราวให้และแสดงเพียงครั้งเดียว',
           'แก้ไขข้อมูล เปลี่ยนบทบาท ระงับการใช้งาน รีเซ็ตรหัสผ่าน ลบ และกู้คืนบัญชีเจ้าหน้าที่ได้จากหน้าเดียวกัน',
+        ],
+      },
+      {
+        t: 'แก้ไข',
+        items: [
+          'หน้าต่างแจ้งเซสชันสิ้นสุด แสดงกลางหน้าจอ จากเดิมที่ไปอยู่มุมบนซ้ายและใช้สีของธีมผิด',
+          'หน้าต่างแจ้งเซสชันสิ้นสุด บอกสาเหตุตรงกับกรณีที่เกิดขึ้นจริง — หากบัญชีถูกระงับหรือถูกลบ จะบอกให้ติดต่อผู้ดูแลระบบสูงสุด แทนที่จะบอกให้เข้าสู่ระบบใหม่ซึ่งจะไม่สำเร็จ',
         ],
       },
     ],
