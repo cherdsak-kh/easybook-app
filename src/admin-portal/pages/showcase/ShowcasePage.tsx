@@ -91,13 +91,16 @@ const SEED_POSITIONS: StaffOption[] = [
   { id: 2, name: 'เจ้าหน้าที่ธุรการ' },
   { id: 3, name: 'ผู้ดูแลระบบ' },
   { id: 4, name: 'รองผู้อำนวยการ' },
-  { id: 9, name: 'ผู้พัฒนาระบบ', reserved: true },
+  // The bootstrap script's reserved ตำแหน่ง, spelled as it is spelled there (renamed 19 ส.ค. 2569).
+  { id: 9, name: 'ผู้พัฒนาระบบ (System Developer)', reserved: true },
   { id: 99, name: 'ไม่พบตำแหน่ง', reserved: true, fallback: true },
 ]
 const SEED_DEPARTMENTS: StaffOption[] = [
   { id: 1, name: 'ฝ่ายบริหารงานทั่วไป' },
   { id: 2, name: 'ฝ่ายวิชาการ' },
   { id: 3, name: 'ฝ่ายเทคโนโลยีสารสนเทศ' },
+  // Its department half — the pair the installer holds, and the only account that ever holds them.
+  { id: 9, name: 'ฝ่ายพัฒนาระบบ (System Development)', reserved: true },
   { id: 98, name: 'ไม่พบกลุ่ม/ฝ่าย', reserved: true, fallback: true },
 ]
 
