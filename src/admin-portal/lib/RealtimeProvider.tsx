@@ -1,24 +1,10 @@
 /**
- * Opens the `/admin` socket for การลงทะเบียน and routes its four server → client events at the
- * caller's handlers. Returns only the connection status.
- *
- * ⚠️ ALL STATE LIVES WITH THE CALLER, and that is what keeps an arriving event from touching the
- * operator's search, filter, sort or page. This hook decides nothing about the table; it decides
- * when there is a socket and what to call.
- *
- * **Realtime is an enhancement, never a dependency.** Nothing here can block a render: the socket
- * opens from an effect, every failure lands in {@link RealtimeStatus}, and a socket that never
- * connects leaves the page working exactly as it does from its initial fetch. **No toast is ever
- * raised from this hook** — a reconnect storm must not become a notification storm.
- *
- * **Exactly one socket, always.** The effect depends ONLY on `enabled`; the handlers are held in a
- * ref that each render refreshes, so a re-render (or a fresh inline callback) can never tear down
- * and re-open the connection. Cleanup removes every listener AND disconnects, so StrictMode's
- * double-invoked effect leaves one live socket with one set of handlers, not two of either.
+ * The one socket the whole shell shares. Everything about WHY it lives here — and why it is not
+ * owned by การลงทะเบียน — is in `realtime-context.ts`; this file is the component alone, so Fast
+ * Refresh keeps working for the shell.
  */
 
-import { useEffect, useRef, useState } from 'react'
-import type { LineUser } from '@/lib/api-client'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   REALTIME_EVENTS,
   RECONNECT_DELAY_MAX_MS,
@@ -30,43 +16,50 @@ import {
   type LineUserEventPayload,
   type SessionClosedPayload,
 } from './realtime'
+import {
+  RealtimeContext,
+  type RealtimeContextValue,
+  type RealtimeHandlers,
+  type RealtimeStatus,
+  type Subscriber,
+} from './realtime-context'
 
-/**
- * What the page's connection chip renders.
- *
- * `disabled` is NOT a failure. It is "this session was never going to have a socket" — the
- * `VITE_WS_ENABLED=false` rollback, or a VIEWER, whom the gateway refuses by role. It renders NO
- * chip at all: telling somebody the automatic updates stopped, when they never started and never
- * could, is a warning they can do nothing with.
- */
-export type RealtimeStatus = 'disabled' | 'connecting' | 'live' | 'offline'
-
-export interface LineUsersRealtimeHandlers {
-  /** `lineUser.created` — a row now exists (or re-exists) in the operator's list. */
-  onCreated: (user: LineUser) => void
-  /** `lineUser.updated` — a row's contents changed. */
-  onUpdated: (user: LineUser) => void
-  /** `lineUser.deleted` — a row left the operator's list. */
-  onDeleted: (id: string) => void
-  /**
-   * Called on every RE-connect, never on the first. Events emitted while the socket was down are
-   * gone forever — the gateway has no replay and no sequence — so the page must be told that its
-   * data has a HOLE in it. Without this the table is *confidently wrong*, which is strictly worse
-   * than visibly stale.
-   */
-  onResync: () => void
-}
-
-export function useLineUsersRealtime(
-  enabled: boolean,
-  handlers: LineUsersRealtimeHandlers,
-): RealtimeStatus {
+export function RealtimeProvider({
+  enabled,
+  children,
+}: {
+  /** The role may hold a socket at all. `false` → nothing is opened and the status is `disabled`. */
+  enabled: boolean
+  children: ReactNode
+}) {
   const [status, setStatus] = useState<RealtimeStatus>('disabled')
+  const subscribers = useRef(new Set<Subscriber>())
 
-  // Refreshed on EVERY render, read only from inside socket callbacks — this is what lets the
-  // effect below depend on `enabled` alone without ever going stale.
-  const handlersRef = useRef(handlers)
-  handlersRef.current = handlers
+  const subscribe = useCallback((ref: Subscriber) => {
+    subscribers.current.add(ref)
+    return () => {
+      subscribers.current.delete(ref)
+    }
+  }, [])
+
+  /**
+   * Fan one event out to every subscriber.
+   *
+   * ⚠️ EACH CALL IS ISOLATED. A subscriber that throws must not stop the next one from being told —
+   * the sidebar count and the table are independent readers of the same news, and one of them
+   * failing is not a reason for the other to go stale silently.
+   */
+  const fanOut = useCallback(<K extends keyof RealtimeHandlers>(key: K, arg: unknown) => {
+    subscribers.current.forEach((ref) => {
+      const handler = ref.current[key] as ((value: unknown) => void) | undefined
+      if (!handler) return
+      try {
+        handler(arg)
+      } catch (error) {
+        console.error(`realtime: a ${key} subscriber threw`, error)
+      }
+    })
+  }, [])
 
   useEffect(() => {
     if (!enabled || !isRealtimeEnabled()) {
@@ -110,7 +103,7 @@ export function useLineUsersRealtime(
       clearHeal()
       healAttempt = 0
       setStatus('live')
-      if (hasConnected) handlersRef.current.onResync()
+      if (hasConnected) fanOut('onResync', undefined)
       hasConnected = true
     }
 
@@ -147,13 +140,13 @@ export function useLineUsersRealtime(
     }
 
     const onCreated = (payload: LineUserEventPayload) => {
-      if (payload?.user) handlersRef.current.onCreated(payload.user)
+      if (payload?.user) fanOut('onCreated', payload.user)
     }
     const onUpdated = (payload: LineUserEventPayload) => {
-      if (payload?.user) handlersRef.current.onUpdated(payload.user)
+      if (payload?.user) fanOut('onUpdated', payload.user)
     }
     const onDeleted = (payload: LineUserDeletedPayload) => {
-      if (payload?.id) handlersRef.current.onDeleted(payload.id)
+      if (payload?.id) fanOut('onDeleted', payload.id)
     }
 
     socket.on('connect', onConnect)
@@ -169,11 +162,14 @@ export function useLineUsersRealtime(
     return () => {
       clearHeal()
       // `off()` with no arguments drops EVERY listener on this socket, so a StrictMode re-invoke
-      // (or a route change and back) can never leave a second copy attached.
+      // can never leave a second copy attached.
       socket.off()
       socket.disconnect()
     }
-  }, [enabled])
+  }, [enabled, fanOut])
 
-  return status
+  const value = useMemo<RealtimeContextValue>(() => ({ status, subscribe }), [status, subscribe])
+
+  return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>
 }
+

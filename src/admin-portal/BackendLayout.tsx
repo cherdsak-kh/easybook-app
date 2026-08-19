@@ -14,18 +14,20 @@
  * surface can repaint the other.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { NotifGlyph } from './components/shell/notif-icons'
 import { ToastProvider } from './components/feedback/Toast'
 import { Sidebar, type SidebarUser } from './components/shell/Sidebar'
 import { Topbar } from './components/shell/Topbar'
-import { useAcl } from './lib/use-acl'
-import { useTheme } from './lib/use-theme'
-import type { Notification } from './lib/notifications'
+import { RealtimeProvider } from './lib/RealtimeProvider'
+import { useAcl, type Acl } from './lib/use-acl'
+import { usePendingRegistrations } from './lib/use-pending-registrations'
+import { useTheme, type ThemeChoice } from './lib/use-theme'
+import type { Notification as NotificationItem } from './lib/notifications'
 import { useAuth } from './lib/auth-context'
 import type { SystemUser } from '@/lib/api-client'
-import { ADMIN_PORTAL_ROUTES, HOME_PATH, urlOf, type AdminRouteLabel } from './routes'
+import { ADMIN_PORTAL_ROUTES, HOME_PATH, urlOf } from './routes'
 
 /**
  * The identity card's view of `/auth/system/me`.
@@ -47,25 +49,13 @@ const toSidebarUser = (u: SystemUser): SidebarUser => ({
 })
 
 /**
- * ⚠️ PLACEHOLDER — P4 feeds these from the list endpoints' `meta.total`.
- *
- * Kept non-empty on purpose: a count pill that only ever renders in the prototype is a piece of
- * chrome nobody looks at again until it is wrong in production.
- */
-const PLACEHOLDER_COUNTS: Partial<Record<AdminRouteLabel, number>> = {
-  ปฏิทินการจอง: 12,
-  คำขอจองสถานที่: 3,
-  การลงทะเบียน: 1,
-}
-
-/**
  * ⚠️ PLACEHOLDER — P4 replaces this with the realtime feed the gateway already broadcasts.
  *
  * Held in layout state rather than as a constant so read/read-all actually mutate something:
  * a panel whose rows cannot change is a panel whose focus and count behaviour cannot be
  * verified, and those are the two parts of it that have already been wrong once.
  */
-const PLACEHOLDER_NOTIFICATIONS: Notification[] = [
+const PLACEHOLDER_NOTIFICATIONS: NotificationItem[] = [
   {
     id: 'n1',
     tone: 'amber',
@@ -176,35 +166,96 @@ export function BackendLayout() {
           find itself outside this one. It wraps the whole shell so a toast raised anywhere,
           including from a dialog in the top layer, lands in the same corner. */}
       <ToastProvider>
-      <div className="flex h-screen overflow-hidden">
-        <Sidebar
-          me={me}
-          acl={acl}
-          counts={PLACEHOLDER_COUNTS}
-          drawerOpen={drawerOpen}
-          onDrawerChange={setDrawerOpen}
-          onLogout={() => void signOut()}
-        />
-
-        <div className="flex min-w-0 flex-1 flex-col p-3 lg:py-4 lg:pl-0 lg:pr-4">
-          <Topbar
+        {/* ⚠️ THE SOCKET BELONGS TO THE SHELL, NOT TO การลงทะเบียน — see `realtime-context.tsx`.
+            The sidebar's รออนุมัติ count has to move while the operator is on another page, which a
+            page-scoped connection cannot do; and one connection per session is also one handshake
+            and one revalidation entry per session instead of one per visit.
+            `acl.write` is the gateway's own rule mirrored: `isRealtimeEligible` admits SUPER_ADMIN
+            and ADMIN only, so starting one for a VIEWER would open a socket guaranteed to be
+            refused. They still read every screen over HTTP. */}
+        <RealtimeProvider enabled={acl.write}>
+          <ShellBody
+            me={me}
             acl={acl}
+            drawerOpen={drawerOpen}
+            onDrawerChange={setDrawerOpen}
+            onLogout={() => void signOut()}
             isDark={isDark}
             themeChoice={choice}
             onThemeChange={setTheme}
             notifications={notifications}
-            onReadNotification={(id) =>
-              setNotifications((xs) => xs.map((x) => (x.id === id ? { ...x, read: true } : x)))
-            }
-            onReadAll={() => setNotifications((xs) => xs.map((x) => ({ ...x, read: true })))}
+            setNotifications={setNotifications}
           />
-
-          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <Outlet />
-          </main>
-        </div>
-      </div>
+        </RealtimeProvider>
       </ToastProvider>
+    </div>
+  )
+}
+
+/**
+ * The shell's chrome, split out for ONE reason: `usePendingRegistrations` subscribes to the socket,
+ * so it has to be called from INSIDE `RealtimeProvider`, and `BackendLayout` is what renders the
+ * provider. Everything here was inline until the count became real.
+ */
+function ShellBody({
+  me,
+  acl,
+  drawerOpen,
+  onDrawerChange,
+  onLogout,
+  isDark,
+  themeChoice,
+  onThemeChange,
+  notifications,
+  setNotifications,
+}: {
+  me: SidebarUser
+  acl: Acl
+  drawerOpen: boolean
+  onDrawerChange: (open: boolean) => void
+  onLogout: () => void
+  isDark: boolean
+  themeChoice: ThemeChoice
+  onThemeChange: (next: ThemeChoice) => void
+  notifications: NotificationItem[]
+  setNotifications: Dispatch<SetStateAction<NotificationItem[]>>
+}) {
+  /**
+   * ⚠️ ONE REAL COUNT, AND THE OTHER TWO ARE GONE RATHER THAN LEFT AS DECORATION. ปฏิทินการจอง's
+   * "12" and คำขอจองสถานที่'s "3" were fixtures for pages that do not exist and have no model; a
+   * menu that carries one true number beside two invented ones teaches the operator that none of
+   * them are worth reading. They come back when those screens do.
+   */
+  const pendingRegistrations = usePendingRegistrations()
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar
+        me={me}
+        acl={acl}
+        counts={{ การลงทะเบียน: pendingRegistrations }}
+        drawerOpen={drawerOpen}
+        onDrawerChange={onDrawerChange}
+        onLogout={onLogout}
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col p-3 lg:py-4 lg:pl-0 lg:pr-4">
+        <Topbar
+          acl={acl}
+          isDark={isDark}
+          themeChoice={themeChoice}
+          onThemeChange={onThemeChange}
+          notifications={notifications}
+          onReadNotification={(id) =>
+            setNotifications((xs) => xs.map((x) => (x.id === id ? { ...x, read: true } : x)))
+          }
+          onReadAll={() => setNotifications((xs) => xs.map((x) => ({ ...x, read: true })))}
+        />
+
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   )
 }

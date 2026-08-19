@@ -62,7 +62,7 @@ import { Pagination } from '../../components/ui/Pagination'
 import { ACCESS_LABEL, ACCESS_TONE, type AppAccess } from '../../labels'
 import { useAcl } from '../../lib/use-acl'
 import { useAuth } from '../../lib/auth-context'
-import { useLineUsersRealtime } from '../../lib/use-line-users-realtime'
+import { useRealtimeEvents, useRealtimeStatus } from '../../lib/realtime-context'
 import { thaiDate } from '../../lib/thai-date'
 import { useToast } from '../../lib/toast-context'
 import { ADMIN_PORTAL_ROUTES, urlOf, type AdminRoute, type AdminRouteLabel } from '../../routes'
@@ -486,7 +486,13 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
    * is news by definition). The operator is looking at ten rows out of a hundred; announcing a
    * change to one of the other ninety is noise they cannot act on and cannot see.
    */
-  const status = useLineUsersRealtime(canWrite, {
+  /**
+   * ⚠️ THE SOCKET IS THE SHELL'S, NOT THIS PAGE'S. Subscribing rather than connecting is what lets
+   * the sidebar's รออนุมัติ count keep moving after the operator navigates away — and it means
+   * leaving and re-entering this page no longer tears a connection down and builds another.
+   */
+  const status = useRealtimeStatus()
+  useRealtimeEvents({
     onUpdated: (user) => {
       const onScreen = rows?.some((r) => r.id === user.id) ?? false
       if (onScreen) {

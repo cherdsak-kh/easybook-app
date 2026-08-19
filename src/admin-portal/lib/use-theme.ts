@@ -30,14 +30,29 @@ export const THEME_KEY = 'easybook-admin-theme'
 
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 
+/**
+ * What an operator gets before they have ever chosen — **สว่าง** (PO, 19 ส.ค. 2569), not `system`.
+ *
+ * ⚠️ IT IS THE DEFAULT, NOT A REMOVAL: `ตามระบบ` is still one of the three options in the topbar,
+ * and a session that has chosen it keeps it. What changed is the answer to "no preference yet",
+ * which used to be "whatever this laptop happens to be set to" — and that made the portal open dark
+ * for a Windows 11 default install, on screens whose colours were measured light-first.
+ *
+ * ⚠️ It is also the ONLY value that is right without being read: `system` needs
+ * `matchMedia` before the first paint, and the FOUC guard that would have to run it does not exist
+ * yet, so a stored-nothing session was painting white and then flipping. A light default paints
+ * once.
+ */
+const DEFAULT_CHOICE: ThemeChoice = 'light'
+
 function readChoice(): ThemeChoice {
   try {
     const v = localStorage.getItem(THEME_KEY)
-    return v === 'light' || v === 'dark' || v === 'system' ? v : 'system'
+    return v === 'light' || v === 'dark' || v === 'system' ? v : DEFAULT_CHOICE
   } catch {
-    // Private mode, or storage disabled. `system` is the safe default: it is the only value
-    // that is right without being remembered.
-    return 'system'
+    // Private mode, or storage disabled. The default still applies — refusing to render a theme
+    // because the choice cannot be remembered would be the worse failure.
+    return DEFAULT_CHOICE
   }
 }
 
