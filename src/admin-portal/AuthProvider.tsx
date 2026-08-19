@@ -18,6 +18,7 @@ import {
   type AuthValue,
   type SignInOutcome,
 } from './lib/auth-context'
+import { useTheme } from './lib/use-theme'
 
 /** 401/403/429/503 → what the login screen renders. Anything else is treated as unreachable. */
 const outcomeOf = (status: number, retryAfter?: string | null): SignInOutcome => {
@@ -54,6 +55,8 @@ const outcomeOf = (status: number, retryAfter?: string | null): SignInOutcome =>
 const NOT_SESSION_DEATH = ['/auth/system/login', '/auth/system/csrf']
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  /* Only for the session dialog's own `data-theme` wrapper below — the shell has its own. */
+  const { resolved } = useTheme()
   const [status, setStatus] = useState<AuthStatus>('booting')
   const [user, setUser] = useState<SystemUser | null>(null)
   const [sessionExpired, setSessionExpired] = useState(false)
@@ -149,17 +152,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
       {/* Rendered as a SIBLING of the whole portal, not inside a page: the dialog outlives
           whatever route was showing when the session died, and a page unmounting must not be
-          able to take the explanation with it. */}
-      <SessionExpiredDialog
-        open={sessionExpired}
-        onRelogin={() => {
-          setSessionExpired(false)
-          // Drops to the login form in place, at the same URL — so signing back in returns to
-          // the page they were on. A full reload would work too and would throw that away.
-          setUser(null)
-          setStatus('anonymous')
-        }}
-      />
+          able to take the explanation with it.
+
+          ⚠️ WHICH IS EXACTLY WHY IT NEEDS ITS OWN `data-theme`. Every other dialog in the portal
+          is a descendant of the shell's themed wrapper; this one is a sibling of it, so it fell
+          outside `[data-theme^="easybook-admin"] dialog { margin: auto; … }` — the rule that
+          centres a native dialog, since Tailwind Preflight zeroes the `margin: auto` the UA
+          stylesheet uses. Measured before the fix: `x: 0, y: 0`, `margin: 0px`, no themed
+          ancestor — the panel sat in the top-left corner of the viewport.
+
+          The wrapper also restores the TOKENS. `bg-base-100` and `text-base-content` resolve
+          against the nearest `data-theme`, so without one the dialog painted in whatever theme
+          the document root happened to carry (this app also serves the LIFF client) — the same
+          root-scoping the CSS comment warns about, seen from the other side. */}
+      <div data-theme={resolved}>
+        <SessionExpiredDialog
+          open={sessionExpired}
+          onRelogin={() => {
+            setSessionExpired(false)
+            // Drops to the login form in place, at the same URL — so signing back in returns to
+            // the page they were on. A full reload would work too and would throw that away.
+            setUser(null)
+            setStatus('anonymous')
+          }}
+        />
+      </div>
     </AuthContext.Provider>
   )
 }
