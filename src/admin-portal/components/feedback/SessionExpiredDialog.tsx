@@ -29,14 +29,53 @@
  * bundle genuinely cannot tell them apart. Inactivity is therefore a guess, and on the two account
  * reasons it is a wrong one that also sends the operator to retry a login that cannot succeed.
  *
- * So the copy states what IS known (the session cannot be used, unsaved work is gone), names the
- * real possibilities without picking one, and gives the way out for the case where signing in again
- * will not work. Printing the actual reason needs the server to say which — see AUTH-401-REASON.
+ * ── AUTH-401-REASON (19 ส.ค. 2569) — the server now says which ──
+ * `SessionGuard` answers `Account is no longer active.` for `USER_NOT_FOUND` / `USER_REVOKED` and
+ * keeps the anonymous-safe `Authentication required.` for the other two, so this dialog has TWO
+ * copies instead of one hedge:
+ *
+ *   `ended`   the session stopped working. Signing in again fixes it, and the button says so.
+ *   `account` the account itself was suspended or deleted. Signing in again CANNOT fix it, so the
+ *             button no longer promises to, and the line about contacting an admin is the action.
+ *
+ * ⚠️ `ended` IS THE FALLBACK, not a claim of knowledge. An unparseable body, an older service, or a
+ * reworded constant all land there — which is the safe direction: it names two possibilities
+ * without asserting either, where a wrong `account` would tell somebody their account was deleted
+ * when it was not.
  */
 
 import { useEffect, useRef } from 'react'
 
-export function SessionExpiredDialog({ open, onRelogin }: { open: boolean; onRelogin: () => void }) {
+/** Which of the two the 401 turned out to be. See the header. */
+export type SessionEndKind = 'ended' | 'account'
+
+const COPY: Record<SessionEndKind, { title: string; desc: string; button: string }> = {
+  ended: {
+    title: 'เซสชันสิ้นสุดแล้ว',
+    desc: 'เซสชันของคุณใช้งานต่อไม่ได้แล้ว อาจเพราะไม่ได้ใช้งานเป็นเวลานาน หรือมีการออกจากระบบจากอุปกรณ์อื่น',
+    button: 'เข้าสู่ระบบอีกครั้ง',
+  },
+  account: {
+    title: 'บัญชีนี้ใช้งานไม่ได้แล้ว',
+    // Does not say WHICH of the two, because the server does not either — and because "ถูกลบ" and
+    // "ถูกระงับ" call for the same next step from the person reading it.
+    desc: 'บัญชีของคุณถูกระงับหรือถูกลบโดยผู้ดูแลระบบสูงสุด การเข้าสู่ระบบอีกครั้งจะยังไม่สำเร็จจนกว่าบัญชีจะถูกเปิดใช้งานใหม่',
+    // Not "เข้าสู่ระบบอีกครั้ง": the button leads to the login screen, and on this branch that
+    // screen will refuse. Naming the destination instead of promising the outcome.
+    button: 'ไปหน้าเข้าสู่ระบบ',
+  },
+}
+
+export function SessionExpiredDialog({
+  open,
+  kind = 'ended',
+  onRelogin,
+}: {
+  open: boolean
+  kind?: SessionEndKind
+  onRelogin: () => void
+}) {
+  const copy = COPY[kind]
   const ref = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -81,18 +120,13 @@ export function SessionExpiredDialog({ open, onRelogin }: { open: boolean; onRel
                 id="session-modal-title"
                 className="m-0 text-[18px] font-semibold leading-tight text-base-content th-tight"
               >
-                เซสชันสิ้นสุดแล้ว
+                {copy.title}
               </h2>
-              {/* ⚠️ "เกิดได้จากหลายกรณี" IS THE POINT, not hedging: see the header. The three cases
-                  are the four server-side rejections grouped by what the reader can DO about each —
-                  wait/relogin, relogin, or contact an admin. A demotion is not in the list because
-                  it is a 403 on the route, not a 401 here. */}
               <p
                 id="session-modal-desc"
                 className="m-0 mt-1.5 text-[14px] leading-[1.6] text-base-content/70 th-tight"
               >
-                เซสชันของคุณใช้งานต่อไม่ได้แล้ว เกิดได้จากหลายกรณี เช่น ไม่ได้ใช้งานเป็นเวลานาน
-                มีการออกจากระบบจากอุปกรณ์อื่น หรือบัญชีของคุณถูกระงับหรือถูกลบโดยผู้ดูแลระบบสูงสุด
+                {copy.desc}
               </p>
             </div>
           </div>
@@ -117,16 +151,19 @@ export function SessionExpiredDialog({ open, onRelogin }: { open: boolean; onRel
               การเปลี่ยนแปลงที่ยังไม่ได้บันทึกจะหายไป ระบบไม่สามารถบันทึกให้ได้เพราะเซสชันสิ้นสุดแล้ว
             </p>
           </div>
-          {/* The one case where the button below cannot help: a suspended or deleted account signs
-              in to the same refusal. Naming the way out is the difference between an operator who
-              asks for help and one who retries the login form until they give up. */}
-          <p className="m-0 mt-3 text-[13px] leading-[1.55] text-base-content/70 th-tight">
-            หากเข้าสู่ระบบอีกครั้งไม่สำเร็จ โปรดติดต่อผู้ดูแลระบบสูงสุดเพื่อตรวจสอบสถานะบัญชีของคุณ
-          </p>
+          {/* ACCOUNT ONLY. On the `ended` branch the button is the whole answer, and a line telling
+              somebody to contact an admin about a session that simply timed out is noise that
+              teaches them to ignore the next one. Here the button cannot help, so this IS the
+              action. */}
+          {kind === 'account' && (
+            <p className="m-0 mt-3 text-[13px] leading-[1.55] text-base-content/70 th-tight">
+              โปรดติดต่อผู้ดูแลระบบสูงสุดเพื่อตรวจสอบสถานะบัญชีของคุณ
+            </p>
+          )}
         </div>
         <div className="flex border-t border-base-300 bg-base-200 px-5 py-4">
           <button type="button" className="btn-primary2 w-full" onClick={onRelogin}>
-            เข้าสู่ระบบอีกครั้ง
+            {copy.button}
           </button>
         </div>
       </div>

@@ -11,7 +11,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api, getMe, login, logout, type SystemUser } from '@/lib/api-client'
-import { SessionExpiredDialog } from './components/feedback/SessionExpiredDialog'
+import {
+  SessionExpiredDialog,
+  type SessionEndKind,
+} from './components/feedback/SessionExpiredDialog'
 import {
   AuthContext,
   type AuthStatus,
@@ -54,12 +57,29 @@ const outcomeOf = (status: number, retryAfter?: string | null): SignInOutcome =>
  */
 const NOT_SESSION_DEATH = ['/auth/system/login', '/auth/system/csrf']
 
+/**
+ * `ACCOUNT_UNAVAILABLE` in `easybook-service/src/auth/auth.constants.ts`, spelled again because the
+ * two repositories cannot import from each other (AUTH-401-REASON).
+ *
+ * ⚠️ THIS STRING IS AN INTERFACE. `SessionGuard` answers it for `USER_NOT_FOUND` / `USER_REVOKED`
+ * and the anonymous-safe `Authentication required.` for everything else, which is the only channel
+ * that carries the distinction: `ErrorResponseDto` is `{ statusCode, error, message }` with no
+ * `code` field anywhere in that repo, and adding one for a single error was considered and rejected
+ * there (see `MUST_CHANGE_PASSWORD`).
+ *
+ * If it is ever reworded on the server, this stops matching and every 401 falls back to the
+ * `ended` copy — vaguer, never wrong. The failure direction was chosen: the opposite default would
+ * tell somebody their account was deleted because a sentence changed.
+ */
+const ACCOUNT_UNAVAILABLE = 'Account is no longer active.'
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   /* Only for the session dialog's own `data-theme` wrapper below — the shell has its own. */
   const { resolved } = useTheme()
   const [status, setStatus] = useState<AuthStatus>('booting')
   const [user, setUser] = useState<SystemUser | null>(null)
   const [sessionExpired, setSessionExpired] = useState(false)
+  const [sessionEndKind, setSessionEndKind] = useState<SessionEndKind>('ended')
   const statusRef = useRef(status)
   statusRef.current = status
 
@@ -83,12 +103,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   useEffect(() => {
     const watchForSessionDeath: Parameters<typeof api.use>[0] = {
-      onResponse({ request, response }) {
+      async onResponse({ request, response }) {
         if (response.status !== 401) return
         if (NOT_SESSION_DEATH.some((p) => request.url.includes(p))) return
         // Only while we believed we were signed in. A 401 during the boot probe is the normal
         // "not signed in" answer and must not raise a dialog over the login screen.
         if (statusRef.current !== 'authenticated') return
+
+        /*
+         * ⚠️ `clone()` FIRST, and read the copy. The caller still has to read this response — the
+         * body is a one-shot stream, so consuming it here would leave `messageFrom()` with nothing
+         * and turn every session-death 401 into an empty error message downstream.
+         *
+         * Awaited rather than fired off, so the dialog opens ALREADY saying the right thing. The
+         * alternative — open on the generic copy and swap it a tick later — is a dialog whose
+         * headline changes while somebody is reading it.
+         */
+        let kind: SessionEndKind = 'ended'
+        try {
+          const body = (await response.clone().json()) as { message?: unknown }
+          if (body?.message === ACCOUNT_UNAVAILABLE) kind = 'account'
+        } catch {
+          // Not JSON, or already consumed elsewhere. `ended` is the safe answer — see the constant.
+        }
+        setSessionEndKind(kind)
         setSessionExpired(true)
       },
     }
@@ -168,6 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       <div data-theme={resolved}>
         <SessionExpiredDialog
           open={sessionExpired}
+          kind={sessionEndKind}
           onRelogin={() => {
             setSessionExpired(false)
             // Drops to the login form in place, at the same URL — so signing back in returns to
