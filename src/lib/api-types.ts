@@ -133,7 +133,7 @@ export interface paths {
         };
         /**
          * List LINE users, paginated.
-         * @description Soft-deleted rows are excluded from `data` and from `meta.total`. Optional `search` is a case-insensitive substring match on `displayName`; optional `access` narrows to one state. Ordered `followedAt DESC, id DESC`. A page beyond the last one is a 200 with an empty `data`, not a 404.
+         * @description Soft-deleted rows are excluded from `data` and from `meta.total`. Optional `search` matches the LINE display name, the registered name, the resolved position/department and the phone (digits-only too); optional `access` narrows to one state; `sort` picks one of `new`/`old`/`name`, defaulting to `new`. Readable by every role. A page beyond the last one is a 200 with an empty `data`, not a 404.
          */
         get: operations["LineUsersController_list"];
         put?: never;
@@ -729,6 +729,16 @@ export interface components {
              * @example 2026-07-09T04:30:00.000Z
              */
             registeredAt: string | null;
+            /**
+             * @description Why this registration was sent back for revision. Non-null only while `access === REJECTED`. Same value the user is shown in the LIFF app.
+             * @example เบอร์โทรศัพท์ไม่ตรงกับที่แจ้งไว้
+             */
+            rejectionReason: string | null;
+            /**
+             * @description Why this user was blocked. Non-null only while `access === BLOCKED`, and only when the operator supplied one — unlike a rejection reason it is optional, because it is an internal note rather than a message pushed to the user. Back-office only; never sent to the LIFF app.
+             * @example ใช้บัญชีผิดคน รอยืนยันตัวตนอีกครั้ง
+             */
+            blockReason: string | null;
             /** @description The user's registration summary, or null for a follower who never submitted the form. */
             registration: components["schemas"]["LineUserRegistrationSummaryDto"] | null;
         };
@@ -760,7 +770,7 @@ export interface components {
              */
             access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED" | "REJECTED";
             /**
-             * @description The operator-authored revision reason. Optional at the transport layer (meaningless for ALLOWED/BLOCKED), but the service REQUIRES a non-empty trimmed value when `access === REJECTED` — a missing/blank reason on a REJECTED request is a 400. Ignored (not persisted) for any non-REJECTED target. Max 500 chars.
+             * @description The operator-authored reason. Optional at the transport layer, but the service REQUIRES a non-empty trimmed value when `access === REJECTED` (it is pushed to the user on LINE) — a missing/blank reason there is a 400. On `access === BLOCKED` it is optional and persisted as `blockReason`, a back-office-only note. Ignored (not persisted) for any other target. Max 500 chars.
              * @example เบอร์โทรศัพท์ไม่ถูกต้อง กรุณากรอกใหม่
              */
             reason?: string;
@@ -1390,7 +1400,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description VIEWER has no access to this collection. */
+            /** @description The caller must change their password before using the app. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1970,7 +1980,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description VIEWER has no access to this collection; or `status=deleted` asked by a non-SUPER_ADMIN. */
+            /** @description `status=deleted` asked by a non-SUPER_ADMIN. Every role may read the collection itself. */
             403: {
                 headers: {
                     [name: string]: unknown;

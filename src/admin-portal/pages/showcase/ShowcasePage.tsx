@@ -167,6 +167,9 @@ const REG_SEED: RegistrationRecord = {
   pictureUrl: null,
   access: 'PENDING',
   registeredAt: '2026-08-09T04:30:00+07:00',
+  // A PENDING record carries neither note: each is bound to the state it describes.
+  rejectionReason: null,
+  blockReason: null,
   registration: {
     firstName: 'เชิดศักดิ์',
     lastName: 'คำไล้',

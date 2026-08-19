@@ -34,6 +34,21 @@ export interface RegistrationRecord {
   access: AppAccess
   /** Registration submission date. `null` for a follower who never registered — NOT `followedAt`. */
   registeredAt: string | null
+  /**
+   * ── The two operator-authored notes (contract, 19 ส.ค. 2569) ──
+   *
+   * Each is non-null only while the state it describes is in force, so a record can never carry
+   * both. They feed the ONE amber line in ตรวจสอบผู้ลงทะเบียน.
+   *
+   * ⚠️ THE PROTOTYPE'S TWO NOTICES SAY MORE THAN THESE CAN. It writes "ส่งคืนให้ผู้ใช้แก้ไขเมื่อ
+   * 4 ส.ค. 2569 · เหตุผล: …" and "ระงับการใช้งานเมื่อ 3 ส.ค. 2569 โดย EasyBook Administrator" —
+   * the WHEN and the WHO. Neither exists in the database: there is no `rejectedAt`, no `blockedAt`
+   * and no actor column, and the realtime `actor` is per-event, not stored. The port renders the
+   * halves it can prove and drops the halves it cannot; the gap is written down in
+   * `NEEDS_DESIGN.md` rather than filled in with a plausible date.
+   */
+  rejectionReason: string | null
+  blockReason: string | null
   registration: RegistrationDetails | null
 }
 

@@ -27,6 +27,7 @@ import { useAuth } from './lib/auth-context'
 import { BootScreen } from './pages/login/BootScreen'
 import { ComingSoonPage } from './pages/ComingSoonPage'
 import { ForcePasswordChangePage } from './pages/password/ForcePasswordChangePage'
+import { LineUsersPage } from './pages/line-users/LineUsersPage'
 import { LoginPage } from './pages/login/LoginPage'
 import { ChangePasswordPage } from './pages/password/ChangePasswordPage'
 import { OptionsPage } from './pages/options/OptionsPage'
@@ -56,6 +57,7 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   ตำแหน่งบุคลากร: (route) => <OptionsPage route={route} />,
   'กลุ่ม/ฝ่ายบุคลากร': (route) => <OptionsPage route={route} />,
   เจ้าหน้าที่ระบบ: (route) => <StaffPage route={route} />,
+  การลงทะเบียน: (route) => <LineUsersPage route={route} />,
 }
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */

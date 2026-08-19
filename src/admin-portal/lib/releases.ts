@@ -54,6 +54,34 @@ export interface Release {
 export const RELEASES: readonly Release[] = [
   {
     /*
+     * ⚠️ NOT RELEASED YET, AND THEREFORE NOT VISIBLE YET. `package.json` is still `0.5.0`, and the
+     * page renders `RELEASES.filter(r => compareVersions(r.v, APP.version) <= 0)` — so this entry is
+     * inert until the PO calls the release. That is the doctrine at the top of this file working as
+     * intended, and it is how `0.4.0` was written too: notes are authored by whoever ships the work,
+     * at the moment they finish it, not reconstructed from a diff weeks later.
+     *
+     * The date is filled in on the day it ships. It is a fact about the release, never computed.
+     *
+     * `x`, because this release adds a PAGE.
+     */
+    v: '0.6.0',
+    date: '19 ส.ค. 2569',
+    groups: [
+      {
+        t: 'ใหม่',
+        items: [
+          'หน้าการลงทะเบียน — ผู้ที่เพิ่มเพื่อนและลงทะเบียนผ่าน LINE ทั้งหมด ค้นหาด้วยชื่อ ชื่อไลน์ ตำแหน่ง กลุ่ม/ฝ่าย หรือเบอร์โทรศัพท์ กรองตามสถานะ และเรียงตามวันที่ลงทะเบียนหรือชื่อได้ · ทุกบทบาทเปิดดูได้ แต่การอนุมัติและแก้ไขเป็นสิทธิ์ของผู้ดูแลระบบและเจ้าหน้าที่ดูแลระบบ',
+          'ตรวจสอบผู้ลงทะเบียนทีละราย แล้วอนุมัติ ส่งคืนให้แก้ไข ระงับ หรือปลดระงับได้จากหน้าต่างเดียว · ผู้ใช้จะได้รับผลทาง LINE ทันที',
+          'แก้ไขชื่อ–สกุล ตำแหน่ง กลุ่ม/ฝ่าย และเบอร์โทรศัพท์ของผู้ลงทะเบียนแทนผู้ใช้ได้ · ผู้ดูแลระบบสูงสุดเปลี่ยนสถานะได้โดยตรงเพิ่มอีกทางหนึ่ง',
+          // The live half, described as what the operator SEES rather than as a technology.
+          'รายการอัปเดตเองเมื่อมีคนลงทะเบียนเข้ามาหรือมีเจ้าหน้าที่คนอื่นดำเนินการ · แถวจะไม่ขยับเองระหว่างที่คุณกำลังอ่าน — ระบบจะขึ้นแถบบอกว่ามีอะไรใหม่ แล้วให้คุณกดโหลดเมื่อพร้อม',
+          'เหตุผลที่เจ้าหน้าที่กรอกตอนส่งคืนหรือระงับ ถูกเก็บไว้กับบัญชีนั้นและอ่านย้อนหลังได้ในหน้าต่างตรวจสอบข้อมูล',
+        ],
+      },
+    ],
+  },
+  {
+    /*
      * `x` because this release adds a PAGE — the rule the PO set on 18 ส.ค. 2569 — and the date is
      * the day it shipped, written down rather than computed.
      *

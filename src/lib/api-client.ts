@@ -384,11 +384,24 @@ export async function uploadOwnAvatar(file: File): Promise<SystemUser> {
 // LINE users.
 // ---------------------------------------------------------------------------
 
+/** The three orderings `GET /line-users` offers. Absent → `new`, which is what the server defaults to. */
+export type LineUserSort = 'new' | 'old' | 'name'
+
 export interface ListLineUsersParams {
   page?: number
   limit?: number
+  /**
+   * One box, six fields server-side (LU-SEARCH-1): the LINE display name, the registered first and
+   * last name, the resolved position and department names, and the phone — plus a digits-only match
+   * on the phone once the query carries three or more digits.
+   */
   search?: string
   access?: AppAccess
+  /**
+   * ⚠️ `new`/`old` order by the REGISTRATION date, never `followedAt` (LU-REGDATE-1), and rows with
+   * no registration sort LAST in every mode — "has no date" is not "is the oldest".
+   */
+  sort?: LineUserSort
 }
 
 export async function listLineUsers(
@@ -401,6 +414,7 @@ export async function listLineUsers(
   if (params.limit != null) query.limit = params.limit
   if (params.search && params.search.trim().length > 0) query.search = params.search.trim()
   if (params.access) query.access = params.access
+  if (params.sort) query.sort = params.sort
 
   const { data, error, response } = await api.GET('/api/v1/line-users', {
     params: { query },
