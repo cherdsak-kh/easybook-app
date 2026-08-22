@@ -92,6 +92,15 @@ export const RELEASES: readonly Release[] = [
           'เปิดลิงก์ตรงไปหน้าใดก็ได้ทั้งที่ยังไม่ได้เข้าสู่ระบบ จะพาไปหน้าเข้าสู่ระบบก่อน แล้วพากลับมาที่หน้านั้นให้เองเมื่อเข้าสู่ระบบสำเร็จ · ที่อยู่บนแถบเบราว์เซอร์ตรงกับหน้าที่เห็นแล้ว จึงคั่นหน้าและส่งลิงก์ให้กันได้ตามปกติ',
         ],
       },
+      {
+        t: 'แก้ไข',
+        items: [
+          // หน้าโปรไฟล์ shipped in `0.4.0`, so this is a repair to something operators have had for
+          // two releases — the same test the login line above passes and the avatar-disc border did
+          // not. Says what they can now do with their hands, not which library changed underneath.
+          'กรอบครอปในหน้าต่างเปลี่ยนรูปโปรไฟล์ ย่อ–ขยายและเลื่อนได้อิสระด้วยการลากมุมหรือขอบอีกครั้ง จากเดิมที่กรอบถูกตรึงขนาดไว้และเลื่อนได้แต่ตัวรูป',
+        ],
+      },
     ],
   },
   {

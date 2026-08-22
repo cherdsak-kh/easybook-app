@@ -11,11 +11,37 @@
  * is half finished, and the page behind is entirely read-only anyway.
  *
  * ── The cropper ──
- * `react-easy-crop`, which the prototype's own header names as one of the two acceptable React
- * equivalents of its CDN Cropper.js — "do NOT hand-roll a cropper" — and which was already a
- * dependency of this repo. Same knobs as the prototype: square aspect, drag to move, wheel/pinch
- * to zoom, and a หมุน 90° button. No zoom slider, because the prototype has none and the gesture
- * is already there.
+ * **Cropper.js 1.6.1 — the SAME library the prototype loads**, with the same four options:
+ * `aspectRatio: 1, viewMode: 1, background: true, autoCropArea: 0.8`.
+ *
+ * ⚠️ IT WAS `react-easy-crop` FIRST, AND THAT WAS THE WRONG HALF OF THE PROTOTYPE'S SENTENCE. Its
+ * header offers two equivalents — "`react-cropper` (the same library) or `react-easy-crop`" — and
+ * only the first is actually equivalent. The two libraries invert which object the operator moves:
+ *
+ *   Cropper.js      the IMAGE stays put and the CROP BOX moves and RESIZES — eight handles
+ *   react-easy-crop the crop box is welded to the frame and the IMAGE pans and zooms under it
+ *
+ * Both can reach the same square, so a screenshot of either looks right; what differs is whether
+ * you can grab a corner, and the PO grabbed one and nothing happened (22 ส.ค. 2569). Measured on
+ * the prototype: 8 `.cropper-point` handles, 4 `.cropper-line` edges, crop box 227.2px = 0.8 × the
+ * 284px container, exactly what `autoCropArea: 0.8` produces.
+ *
+ * ⚠️ THE CROP BOX IS SQUARE, NOT ROUND, and that was the second thing the swap corrected. The port
+ * had passed `cropShape="round"` reasoning that the result is shown round everywhere — but the
+ * prototype's view box measures `border-radius: 0px`, and the dialog's own hint one screen away
+ * already said "เลือกแล้วจะครอปเป็นสี่เหลี่ยมจัตุรัสได้". The copy had been right about the design
+ * and the cropper had been arguing with it.
+ *
+ * ⚠️ NOT A HAND-ROLLED CROPPER — the prototype forbids that and this is not it. Cropper.js has no
+ * React wrapper in this repo because it does not need one: it is 20 lines of `useEffect` that
+ * construct it on the `<img>` and destroy it on the way out. `react-cropper` is that same wrapper
+ * published as a package, last released for React 18, and taking it would add a dependency whose
+ * only job is a lifecycle this file already has to own.
+ *
+ * ⚠️ NO CDN FALLBACK, unlike the prototype. Its `typeof Cropper === 'function'` check — upload the
+ * picture uncropped rather than show a dead modal — exists because it loads the library from
+ * cdnjs. Here it is bundled: if it were missing the module would not have imported and this dialog
+ * would not exist to render. A branch for it would be unreachable code pretending to be a safeguard.
  *
  * ⚠️ THE CLIENT CHECKS ARE A FAST FAIL, NOT THE CONTROL. The server sniffs magic bytes and will
  * reject a `.png` that is really something else, which nothing here can see. Running type and size
@@ -30,7 +56,11 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Cropper, { type Area } from 'react-easy-crop'
+import Cropper from 'cropperjs'
+// The library's own stylesheet, unlayered — so it wins over Tailwind's `@layer base` Preflight,
+// which would otherwise flatten the handles and the modal backdrop it draws. Same relationship the
+// prototype has with the `<link>` it puts after the Tailwind CDN script.
+import 'cropperjs/dist/cropper.css'
 import {
   ApiError,
   AVATAR_ACCEPTED_TYPES,
@@ -69,52 +99,43 @@ const MSG = {
  */
 const OUT_MAX_PX = 512
 
-const rad = (deg: number) => (deg * Math.PI) / 180
+/** The four options the prototype constructs Cropper.js with — copied, not re-derived. */
+const CROPPER_OPTIONS: Cropper.Options = {
+  aspectRatio: 1,
+  viewMode: 1,
+  background: true,
+  autoCropArea: 0.8,
+}
 
 /**
  * The crop, as a file.
  *
- * ⚠️ TWO CANVASES, because `rotation` is not a property of the source bitmap. The first paints the
- * image rotated inside a box big enough to hold it at that angle — which is the coordinate space
- * `croppedAreaPixels` is measured in — and the second cuts the selected square out of that. Doing
- * it in one pass means the crop rectangle and the pixels it is indexing disagree the moment
- * anything but 0° is chosen, and the symptom is a picture that is subtly off-centre only after the
- * rotate button is used.
+ * ⚠️ ROTATION IS NOT HANDLED HERE ANY MORE, and deleting that code is the point. The port did the
+ * whole transform by hand — one canvas to paint the image rotated into a box big enough to hold it
+ * at that angle, a second to cut the square out of it — because `react-easy-crop` reports the crop
+ * in the rotated image's coordinate space and leaves the pixels to the caller. `getCroppedCanvas`
+ * already knows the rotation, the scale and the crop box, because they are all its own state.
  *
- * PNG, matching the prototype. A 512px square tops out well under the 2 MB limit even at PNG's
- * worst case, and it keeps the one lossless step in the pipeline where the operator can see it.
+ * ⚠️ `width`/`height` ARE A CAP, NOT THE PROTOTYPE'S FLAT 512. It passes `{width: 512, height: 512}`
+ * unconditionally, which UPSCALES a crop smaller than that: no detail is added, the bytes multiply,
+ * and the server re-derives everything from what it receives anyway. `getData(true)` reports the
+ * selection in the source image's own pixels, so a small crop is sent at its own size.
+ *
+ * PNG, matching the prototype. A 512px square stays well under the 2 MB limit even at PNG's worst
+ * case, and it keeps the one lossless step in the pipeline where the operator can see it.
  */
-async function croppedFile(src: string, area: Area, rotation: number): Promise<File> {
-  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const el = new Image()
-    el.addEventListener('load', () => resolve(el))
-    el.addEventListener('error', () => reject(new Error('image decode failed')))
-    el.src = src
+async function croppedFile(cropper: Cropper): Promise<File> {
+  const out = Math.min(OUT_MAX_PX, Math.round(cropper.getData(true).width))
+  const canvas = cropper.getCroppedCanvas({
+    width: out,
+    height: out,
+    imageSmoothingQuality: 'high',
   })
+  // Documented to return `null` when the crop box has no area — unreachable with `autoCropArea`,
+  // but it is the caller's job to not hand `toBlob` an undefined.
+  if (!canvas) throw new Error('canvas encode failed')
 
-  const r = rad(rotation)
-  const boxW = Math.abs(Math.cos(r) * image.width) + Math.abs(Math.sin(r) * image.height)
-  const boxH = Math.abs(Math.sin(r) * image.width) + Math.abs(Math.cos(r) * image.height)
-
-  const rotated = document.createElement('canvas')
-  rotated.width = boxW
-  rotated.height = boxH
-  const rctx = rotated.getContext('2d')
-  if (!rctx) throw new Error('no 2d context')
-  rctx.translate(boxW / 2, boxH / 2)
-  rctx.rotate(r)
-  rctx.drawImage(image, -image.width / 2, -image.height / 2)
-
-  const out = Math.min(OUT_MAX_PX, Math.round(area.width))
-  const square = document.createElement('canvas')
-  square.width = out
-  square.height = out
-  const sctx = square.getContext('2d')
-  if (!sctx) throw new Error('no 2d context')
-  sctx.imageSmoothingQuality = 'high'
-  sctx.drawImage(rotated, area.x, area.y, area.width, area.height, 0, 0, out, out)
-
-  const blob = await new Promise<Blob | null>((resolve) => square.toBlob(resolve, 'image/png'))
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('canvas encode failed')
   return new File([blob], 'avatar.png', { type: 'image/png' })
 }
@@ -137,31 +158,55 @@ export function AvatarModal({
   const removing = useBusy()
 
   const [src, setSrc] = useState<string | null>(null)
-  const [crop, setCrop] = useState({ x: 0, y: 0 })
-  const [zoom, setZoom] = useState(1)
-  const [rotation, setRotation] = useState(0)
-  const [pixels, setPixels] = useState<Area | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [alert, setAlert] = useState<string | null>(null)
 
   const fileRef = useRef<HTMLInputElement>(null)
   const dropRef = useRef<HTMLDivElement>(null)
+  const imgRef = useRef<HTMLImageElement>(null)
+  /**
+   * The live Cropper.js instance.
+   *
+   * A ref rather than state, and that is not an optimisation: it holds the crop box, the zoom and
+   * the rotation, all of which change on every mouse move. Putting it in state would re-render the
+   * dialog on each one, and re-rendering is exactly what must not happen — React would reconcile
+   * the `<img>` that Cropper.js has already replaced with its own DOM.
+   */
+  const cropperRef = useRef<Cropper | null>(null)
 
   const busy = saving.busy || removing.busy
 
   /** Back to the empty drop zone. ONE path, so the dialog cannot end up half reset. */
   const clearPick = useCallback(() => {
+    // The cropper itself is torn down by the effect below, which runs on `src` going null. Doing it
+    // here as well would destroy an instance the effect's cleanup is still holding.
     setSrc(null)
-    setCrop({ x: 0, y: 0 })
-    setZoom(1)
-    setRotation(0)
-    setPixels(null)
     setDragOver(false)
     setErr(null)
     setAlert(null)
     if (fileRef.current) fileRef.current.value = ''
   }, [])
+
+  /**
+   * Construct on a picture arriving, destroy on it leaving. Keyed on `src`, so "เลือกรูปอื่น" gets
+   * a fresh cropper rather than a stale one pointed at the previous image.
+   *
+   * ⚠️ `destroy()` IS NOT OPTIONAL. Cropper.js replaces the `<img>` with a container of its own and
+   * binds pointer, wheel and resize listeners to the document; skipping it leaves those bound to a
+   * detached tree for the life of the tab, and the dialog is opened as often as someone changes
+   * their mind about a photo.
+   */
+  useEffect(() => {
+    const el = imgRef.current
+    if (!src || !el) return
+    const cropper = new Cropper(el, CROPPER_OPTIONS)
+    cropperRef.current = cropper
+    return () => {
+      cropper.destroy()
+      cropperRef.current = null
+    }
+  }, [src])
 
   // Every exit lands here — the ✕, ยกเลิก, Escape and the backdrop all close the dialog, and a
   // half-finished crop must never survive into the next open.
@@ -225,10 +270,11 @@ export function AvatarModal({
 
   const save = () =>
     void saving.run(async () => {
-      if (!src || !pixels) return
+      const cropper = cropperRef.current
+      if (!cropper) return
       setAlert(null)
       try {
-        await uploadOwnAvatar(await croppedFile(src, pixels, rotation))
+        await uploadOwnAvatar(await croppedFile(cropper))
         await onDone()
         toast('success', MSG.saved)
         onClose()
@@ -287,7 +333,13 @@ export function AvatarModal({
               {...saving.buttonProps('กำลังอัปโหลดรูปโปรไฟล์')}
               // Nothing picked yet, so there is nothing to save. `buttonProps` also returns
               // `disabled`, so this is merged by hand rather than spread over.
-              disabled={saving.busy || !src || !pixels}
+              //
+              // ⚠️ `src` AND NOT THE CROPPER REF. The ref is set by an effect, which runs after the
+              // render that mounts the `<img>` — reading it here would leave the button disabled
+              // for one frame after a picture appears, and the ref changing does not re-render
+              // anything to undo it. `src` is the state that says a picture is in the frame; the
+              // cropper always exists by the time a click can arrive, and `save` re-checks anyway.
+              disabled={saving.busy || !src}
             >
               {saving.busy && <Spinner />}
               บันทึกรูปภาพ
@@ -339,23 +391,12 @@ export function AvatarModal({
         }}
       >
         {src ? (
-          // The cropper positions its own layers absolutely, so it needs a sized, positioned box.
-          // `.pf-drop-img` drops the zone's padding to zero so this fills the frame exactly.
-          <div className="relative h-full w-full">
-            <Cropper
-              image={src}
-              crop={crop}
-              zoom={zoom}
-              rotation={rotation}
-              aspect={1}
-              // Round, because the thing being produced is round everywhere it is ever shown.
-              // A square preview makes people frame for corners that get cut off.
-              cropShape="round"
-              showGrid={false}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={(_area, areaPixels) => setPixels(areaPixels)}
-            />
+          // ⚠️ THE `<img>` MUST BE THE ONLY CHILD AND CARRY NO LAYOUT CLASSES — the prototype says
+          // so at this exact spot, because Cropper.js REPLACES it with its own container and reads
+          // the wrapper for size. `.pf-drop-img` drops the zone's padding to zero so the container
+          // fills the frame exactly.
+          <div className="h-full w-full">
+            <img ref={imgRef} src={src} alt="" className="block max-w-full" />
           </div>
         ) : (
           <div className="pointer-events-none">
@@ -425,7 +466,7 @@ export function AvatarModal({
           <Btn
             variant="ghost"
             className="h-10 min-h-10 px-3 text-[13px]"
-            onClick={() => setRotation((r) => (r + 90) % 360)}
+            onClick={() => cropperRef.current?.rotate(90)}
           >
             <svg
               aria-hidden="true"
