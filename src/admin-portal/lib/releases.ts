@@ -54,23 +54,27 @@ export interface Release {
 export const RELEASES: readonly Release[] = [
   {
     /*
-     * ⚠️ NOT RELEASED YET, AND THEREFORE NOT VISIBLE YET. `package.json` is still `0.5.0`, and the
-     * page renders `RELEASES.filter(r => compareVersions(r.v, APP.version) <= 0)` — so this entry is
-     * inert until the PO calls the release. That is the doctrine at the top of this file working as
-     * intended, and it is how `0.4.0` was written too: notes are authored by whoever ships the work,
-     * at the moment they finish it, not reconstructed from a diff weeks later.
+     * RELEASED 22 ส.ค. 2569, on the PO's word. It sat here inert for three days with
+     * `package.json` on `0.5.0` — the page renders
+     * `RELEASES.filter(r => compareVersions(r.v, APP.version) <= 0)`, so an unreleased entry
+     * shows to nobody. That is the doctrine at the top of this file working as intended, and it
+     * is how `0.4.0` was written too: notes are authored by whoever ships the work, at the moment
+     * they finish it, not reconstructed from a diff weeks later.
      *
-     * The date is filled in on the day it ships. It is a fact about the release, never computed.
+     * ⚠️ THE DATE IS THE DAY IT SHIPPED, NOT THE DAY THE FIRST LINE WAS WRITTEN. It read
+     * `19 ส.ค.` while the entry waited — the date the registration page landed — and three days of
+     * work went in after that. A release date is a fact about the release; it is written down when
+     * the release happens and never computed.
      *
      * `x`, because this release adds a PAGE.
      */
     v: '0.6.0',
-    date: '19 ส.ค. 2569',
+    date: '22 ส.ค. 2569',
     groups: [
       {
         t: 'ใหม่',
         items: [
-          'หน้าการลงทะเบียน — ผู้ที่เพิ่มเพื่อนและลงทะเบียนผ่าน LINE ทั้งหมด ค้นหาด้วยชื่อ ชื่อไลน์ ตำแหน่ง กลุ่ม/ฝ่าย หรือเบอร์โทรศัพท์ กรองตามสถานะ และเรียงตามวันที่ลงทะเบียนหรือชื่อได้ · ทุกบทบาทเปิดดูได้ แต่การอนุมัติและแก้ไขเป็นสิทธิ์ของผู้ดูแลระบบและเจ้าหน้าที่ดูแลระบบ',
+          'หน้าการลงทะเบียน — ผู้ที่เพิ่มเพื่อนและลงทะเบียนผ่าน LINE ทั้งหมด ค้นหาด้วยชื่อ ชื่อไลน์ ตำแหน่ง กลุ่ม/ฝ่าย หรือเบอร์โทรศัพท์ กรองตามสถานะ และเรียงตามวันที่ลงทะเบียนหรือชื่อได้ · ทุกบทบาทเปิดดูได้ แต่การอนุมัติและแก้ไขเป็นสิทธิ์ของผู้ดูแลระบบสูงสุดและเจ้าหน้าที่ดูแลระบบ',
           'ตรวจสอบผู้ลงทะเบียนทีละราย แล้วอนุมัติ ส่งคืนให้แก้ไข ระงับ หรือปลดระงับได้จากหน้าต่างเดียว · ผู้ใช้จะได้รับผลทาง LINE ทันที',
           'แก้ไขชื่อ–สกุล ตำแหน่ง กลุ่ม/ฝ่าย และเบอร์โทรศัพท์ของผู้ลงทะเบียนแทนผู้ใช้ได้ · ผู้ดูแลระบบสูงสุดเปลี่ยนสถานะได้โดยตรงเพิ่มอีกทางหนึ่ง',
           // The live half, described as what the operator SEES rather than as a technology.
@@ -95,6 +99,13 @@ export const RELEASES: readonly Release[] = [
           // operator upgrading from `0.5.0` has met this and will notice it changed. Written as the
           // thing they can now do, not as the routing that makes it possible.
           'เปิดลิงก์ตรงไปหน้าใดก็ได้ทั้งที่ยังไม่ได้เข้าสู่ระบบ จะพาไปหน้าเข้าสู่ระบบก่อน แล้วพากลับมาที่หน้านั้นให้เองเมื่อเข้าสู่ระบบสำเร็จ · ที่อยู่บนแถบเบราว์เซอร์ตรงกับหน้าที่เห็นแล้ว จึงคั่นหน้าและส่งลิงก์ให้กันได้ตามปกติ',
+          // ⚠️ A LINE-side change in a back-office changelog, and it belongs here: the operator
+          // presses อนุมัติ and this is what the person on the other end receives. Same test as
+          // the "ผู้ใช้จะได้รับผลทาง LINE ทันที" line above.
+          'ข้อความแจ้งผลที่ผู้ใช้ได้รับทาง LINE ทั้งสี่แบบ เปลี่ยนเป็นการ์ดที่มีแถบสีตามสถานะเดียวกับป้ายในหน้าการลงทะเบียน · เหตุผลการส่งคืนแยกเป็นกล่องของตัวเอง และการ์ดอนุมัติกับส่งคืนมีปุ่มเปิดแอปให้เลย',
+          // ⚠️ CARRIES AN ACTION, which is the only reason a removal earns a line at all. Left
+          // unsaid, the first person to notice would be a new follower getting silence.
+          'ข้อความต้อนรับตอนผู้ใช้เพิ่มเพื่อน ย้ายไปใช้ “ข้อความทักทาย” ของ LINE Official Account โดยตรง แก้ข้อความได้เองจาก LINE OA Manager ไม่ต้องรอรอบอัปเดตระบบ · ⚠️ หากยังไม่เคยตั้งไว้ ผู้ที่เพิ่มเพื่อนใหม่จะไม่ได้รับข้อความต้อนรับ',
         ],
       },
       {
