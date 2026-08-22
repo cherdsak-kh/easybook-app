@@ -104,6 +104,10 @@ export const RELEASES: readonly Release[] = [
           // two releases — the same test the login line above passes and the avatar-disc border did
           // not. Says what they can now do with their hands, not which library changed underneath.
           'กรอบครอปในหน้าต่างเปลี่ยนรูปโปรไฟล์ ย่อ–ขยายและเลื่อนได้อิสระด้วยการลากมุมหรือขอบอีกครั้ง จากเดิมที่กรอบถูกตรึงขนาดไว้และเลื่อนได้แต่ตัวรูป',
+          // The confirm dialog shipped in `0.5.0` with เจ้าหน้าที่ระบบ, so an operator has already
+          // met the dead button. Describes what pressing it does now, not the `disabled` prop that
+          // came off.
+          'หน้าต่างยืนยันที่ต้องกรอกเหตุผล (ส่งคืนเพื่อแก้ไข และระงับการใช้งาน) จะบอกให้กรอกเหตุผลและพาเคอร์เซอร์ไปที่ช่องให้ เมื่อกดยืนยันโดยยังไม่ได้กรอก จากเดิมที่ปุ่มถูกปิดไว้เงียบ ๆ โดยไม่บอกว่าติดตรงไหน',
         ],
       },
     ],

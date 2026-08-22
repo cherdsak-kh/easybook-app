@@ -18,7 +18,7 @@
  * `aria-hidden` because the title already says the same thing in words.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Modal } from '../ui/Modal'
 import { Btn } from '../ui/Btn'
@@ -85,14 +85,47 @@ export function ConfirmModal({
   reason?: { label: string; hint: string; required?: boolean }
 }) {
   const [text, setText] = useState('')
+  const [missing, setMissing] = useState(false)
   const { busy, run, buttonProps } = useBusy()
+  const taRef = useRef<HTMLTextAreaElement>(null)
 
-  // A dialog reopened for a DIFFERENT row must not inherit the last one's typed reason.
+  // A dialog reopened for a DIFFERENT row must not inherit the last one's typed reason — or the
+  // error it left behind, which would greet the next row before anybody had done anything wrong.
   useEffect(() => {
-    if (open) setText('')
+    if (open) {
+      setText('')
+      setMissing(false)
+    }
   }, [open])
 
-  const blocked = reason?.required ? text.trim().length === 0 : false
+  /**
+   * The required-reason gate.
+   *
+   * ⚠️ IT DISABLED THE BUTTON UNTIL 22 ส.ค. 2569, AND THAT WAS THE BUG THE PO REPORTED. Pressing
+   * ยืนยันการส่งคืน with an empty box did nothing at all: no movement, no message, no clue which
+   * field was at fault. A disabled button is the one control that cannot explain itself — it does
+   * not fire `click`, so there is no moment at which to say anything, and hover tells you nothing
+   * either. The operator's reading is not "I have missed a field", it is "this is broken".
+   *
+   * ⚠️ THE PROTOTYPE NEVER DISABLED IT. Its confirm is a real `<form>` whose textarea carries
+   * `required` (`ta.required = needsReason`), so a click runs native constraint validation and the
+   * browser points at the field. The port replaced that with a `disabled` prop and lost the half
+   * that does the talking. What is below is the prototype's BEHAVIOUR — press, be told, be taken
+   * to the field — rendered with the portal's own `form-err` / `form-shell-err` error style rather
+   * than a native bubble, so the sentence is in Thai and in the design.
+   *
+   * ⚠️ AND IT ANSWERS THE CURSOR QUESTION BY DISSOLVING IT. There is no disabled state left to
+   * choose a cursor for: the button is always pressable, so it is always `cursor: pointer`, which
+   * is honest — pressing it always does something now, even when that something is an error.
+   */
+  const guard = () => {
+    if (!reason?.required || text.trim().length > 0) return true
+    setMissing(true)
+    // Focus follows the complaint. Saying "this is required" while the caret is somewhere else
+    // makes the operator hunt for the field the dialog is already pointing at.
+    taRef.current?.focus()
+    return false
+  }
 
   return (
     <Modal
@@ -110,16 +143,20 @@ export function ConfirmModal({
           <Btn variant="ghost" className="w-full sm:w-auto" disabled={busy} onClick={onClose}>
             ยกเลิก
           </Btn>
-          {/* ⚠️ `disabled` is merged by hand, NOT written twice. `buttonProps` also returns
-              `disabled`, so spreading it after `disabled={blocked}` silently dropped the
-              required-reason gate and left the confirm button live with an empty textarea.
-              tsc caught it (TS2783); nothing on screen would have. */}
+          {/* ⚠️ `disabled` is `busy` ONLY. The missing-reason case is handled by `guard()` on
+              click, not by taking the button away — see the comment on `guard`. Keep the two
+              apart: "a request is in flight" is a state in which pressing again would be wrong,
+              while "you have not typed a reason" is a state in which pressing is exactly how the
+              operator finds out. */}
           <Btn
             variant={TONE_BTN[tone]}
             className="w-full sm:w-auto"
             {...buttonProps(busyLabel)}
-            disabled={busy || blocked}
-            onClick={() => void run(() => onConfirm(text))}
+            disabled={busy}
+            onClick={() => {
+              if (!guard()) return
+              void run(() => onConfirm(text))
+            }}
           >
             {busy && <Spinner />}
             {confirmLabel}
@@ -190,18 +227,54 @@ export function ConfirmModal({
             {reason.label}
           </label>
           <p className="mb-2 text-[13px] leading-[1.5] text-base-content/70">{reason.hint}</p>
-          <div className="form-shell !px-0">
+          {/* `form-shell-err` is the prototype's own red-ring treatment for a field in error —
+              the same one the staff form and the option form use. */}
+          <div className={`form-shell !px-0 ${missing ? 'form-shell-err' : ''}`.trim()}>
             <textarea
+              ref={taRef}
               id="cm-reason"
               name="reason"
               maxLength={REASON_MAX}
               rows={4}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              // Clearing on the first keystroke, not on blur: the complaint is answered the
+              // moment it stops being true, and a red ring that outlives the fix trains people
+              // to ignore red rings.
+              onChange={(e) => {
+                setText(e.target.value)
+                if (missing) setMissing(false)
+              }}
+              aria-invalid={missing || undefined}
+              aria-describedby={missing ? 'cm-reason-err' : undefined}
               className="min-h-11 w-full resize-y border-none bg-transparent px-3.5 py-2.5 text-[15px] leading-[1.6] text-base-content/90 outline-none placeholder:text-base-content/70"
               placeholder="ระบุเหตุผลอย่างน้อย 1 ประโยค"
             />
           </div>
+          {/* Always in the DOM, hidden when empty — a live region created at the same moment as
+              its text is never announced. Same rule as `InlineAlert` and `FormField`'s error. */}
+          <p
+            id="cm-reason-err"
+            role="alert"
+            className={`form-err ${missing ? '' : 'hidden'}`.trim()}
+          >
+            <svg
+              aria-hidden="true"
+              className="form-err-ico"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+              />
+            </svg>
+            {/* Names the field rather than saying "required": this dialog has exactly one input,
+                but the sentence is what a screen-reader user hears with no view of the layout. */}
+            <span>กรุณากรอก{reason.label}ก่อนยืนยัน</span>
+          </p>
           <p className="mt-1.5 text-right text-[13px] text-base-content/70">
             {text.length}/{REASON_MAX}
           </p>
