@@ -268,6 +268,20 @@ export type AdminRouteEntry = (typeof ADMIN_PORTAL_ROUTES)[number]
 export const HOME_LABEL: AdminRouteLabel = 'ภาพรวมระบบ'
 export const HOME_PATH = `${BACKEND_BASE}/dashboard`
 
+/**
+ * The login screen's own address (`Q14`, PO 22 ส.ค. 2569).
+ *
+ * ⚠️ DELIBERATELY NOT A ROW IN THE TABLE ABOVE. That table is the MENU: every row in it becomes a
+ * sidebar link, a breadcrumb and an ACL key, and login is none of the three — it is the one screen
+ * that exists precisely because there is no operator yet to build a menu for. A row here would put
+ * "เข้าสู่ระบบ" in the sidebar of every signed-in session.
+ *
+ * ⚠️ IT IS ALSO NOT A `<Route>` INSIDE THE SHELL. `BackendGate` matches this path itself, before
+ * the shell exists, because the shell is what a session HAS and this is the screen for not having
+ * one. See the gate.
+ */
+export const LOGIN_PATH = `${BACKEND_BASE}/login`
+
 /** Absolute URL for a route. The one place `BACKEND_BASE` is concatenated. */
 export const urlOf = (route: AdminRoute): string =>
   `${BACKEND_BASE}/${route.path}`

@@ -85,6 +85,11 @@ export const RELEASES: readonly Release[] = [
           // Only the never-chosen see this change, so the line says WHO it is for rather than
           // announcing a switch that has been on the top bar since 0.2.0.
           'ผู้ที่ยังไม่เคยเลือกธีมเอง จะได้ธีมสว่างเป็นค่าเริ่มต้น จากเดิมที่ใช้ตามการตั้งค่าของเครื่อง · เลือกเป็นโหมดมืดหรือให้ตามเครื่องได้เหมือนเดิมจากแถบด้านบน',
+          // ⚠️ THIS ONE BELONGS IN THE NOTES WHERE THE AVATAR FIX DID NOT — see the `0.5.0` comment
+          // below for the rule. The login screen has been on every install since `0.2.0`, so an
+          // operator upgrading from `0.5.0` has met this and will notice it changed. Written as the
+          // thing they can now do, not as the routing that makes it possible.
+          'เปิดลิงก์ตรงไปหน้าใดก็ได้ทั้งที่ยังไม่ได้เข้าสู่ระบบ จะพาไปหน้าเข้าสู่ระบบก่อน แล้วพากลับมาที่หน้านั้นให้เองเมื่อเข้าสู่ระบบสำเร็จ · ที่อยู่บนแถบเบราว์เซอร์ตรงกับหน้าที่เห็นแล้ว จึงคั่นหน้าและส่งลิงก์ให้กันได้ตามปกติ',
         ],
       },
     ],

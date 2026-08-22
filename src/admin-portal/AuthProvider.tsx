@@ -177,6 +177,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // operator apparently signed in is the one outcome nobody expects from that button.
       setUser(null)
       setStatus('anonymous')
+      /*
+       * ⚠️ NO NAVIGATION HERE, and that is on purpose after trying the other way. `BackendGate`
+       * sends every anonymous session to the login URL already, remembering the page underneath —
+       * so signing out of เจ้าหน้าที่ระบบ and back in returns to เจ้าหน้าที่ระบบ. A version of this
+       * navigated to a bare `LOGIN_PATH` first, specifically so a deliberate logout would NOT be
+       * remembered (a shared machine handed to the next person). Measured: the `from` was recorded
+       * anyway — the status flip and the navigation do not land in one render the way that assumed
+       * — and the honest fix was a flag on the auth context to force the asymmetry. One uniform
+       * rule is worth more than the small surprise it avoids: the next operator lands on a page
+       * their own session fetched, and one their own role is allowed to reach (`BackendLayout`
+       * bounces the rest).
+       */
     }
   }, [])
 
@@ -209,8 +221,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           kind={sessionEndKind}
           onRelogin={() => {
             setSessionExpired(false)
-            // Drops to the login form in place, at the same URL — so signing back in returns to
-            // the page they were on. A full reload would work too and would throw that away.
+            /*
+             * Going anonymous is all this does. `BackendGate` then redirects to the login URL and
+             * remembers the page underneath, so signing back in returns to it — which matters more
+             * here than anywhere else: the operator did not choose to leave, and the half-finished
+             * screen still readable behind this dialog is exactly where they are going back to. A
+             * full reload would work and would throw that away.
+             */
             setUser(null)
             setStatus('anonymous')
           }}
