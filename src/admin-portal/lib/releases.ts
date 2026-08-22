@@ -77,6 +77,11 @@ export const RELEASES: readonly Release[] = [
           'รายการอัปเดตเองเมื่อมีคนลงทะเบียนเข้ามาหรือมีเจ้าหน้าที่คนอื่นดำเนินการ · แถวจะไม่ขยับเองระหว่างที่คุณกำลังอ่าน — ระบบจะขึ้นแถบบอกว่ามีอะไรใหม่ แล้วให้คุณกดโหลดเมื่อพร้อม',
           'เหตุผลที่เจ้าหน้าที่กรอกตอนส่งคืนหรือระงับ ถูกเก็บไว้กับบัญชีนั้นและอ่านย้อนหลังได้ในหน้าต่างตรวจสอบข้อมูล',
           'ตัวเลขบนเมนู “การลงทะเบียน” บอกจำนวนผู้ที่รออนุมัติจริง และขยับเองทันทีแม้คุณจะอยู่หน้าอื่น',
+          // ⚠️ A ใหม่ line, not a แก้ไข one, and that is the same rule as the VIEWER fix in `0.5.0`:
+          // this page has never shipped, so nobody has met the stale-name behaviour it repairs.
+          // Stated with its timing rather than as "always current", because it is not — the name
+          // catches up the next time that user opens the app or writes to the chat.
+          'ชื่อและรูปโปรไฟล์ LINE ในรายการ ตามบัญชีจริงของผู้ใช้ · เปลี่ยนชื่อหรือรูปใน LINE แล้ว ระบบจะอัปเดตให้เองเมื่อผู้ใช้เปิดแอปหรือทักแชทเข้ามาครั้งถัดไป',
         ],
       },
       {
