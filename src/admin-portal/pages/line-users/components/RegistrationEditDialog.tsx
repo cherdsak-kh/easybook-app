@@ -259,7 +259,8 @@ export function RegistrationEditDialog({
         <FormField
           label="เบอร์โทรศัพท์"
           type="tel"
-          inputMode="numeric"
+          inputMode="tel"
+          enterKeyHint="done"
           placeholder="08x-xxx-xxxx"
           className=""
           value={values.phone}

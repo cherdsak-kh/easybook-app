@@ -184,13 +184,16 @@ export function LoginPage() {
                 maxLength={254}
                 autoComplete="username"
                 inputMode="email"
+                enterKeyHint="next"
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}
                 placeholder="name@example.com"
                 className="form-input"
                 aria-invalid={emailErr ? true : undefined}
-                aria-describedby={emailErr ? 'login-email-err' : undefined}
+                // Unconditional: `#login-email-err` is always rendered (hidden when empty), so
+                // the link may as well be permanent — see FormField's header.
+                aria-describedby="login-email-err"
                 value={email}
                 // Clear the error the moment they start fixing it — leaving it up until the
                 // next submit means the screen keeps arguing with someone who already agreed.
@@ -233,6 +236,7 @@ export function LoginPage() {
               label="รหัสผ่าน"
               maxLength={128}
               autoComplete="current-password"
+              enterKeyHint="go"
               placeholder="••••••••"
               value={password}
               error={passwordErr}

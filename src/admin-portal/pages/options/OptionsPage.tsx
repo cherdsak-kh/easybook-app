@@ -370,6 +370,10 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
             <input
               id="opt-search"
               type="search"
+              autoCorrect="on"
+              autoCapitalize="none"
+              spellCheck
+              enterKeyHint="search"
               placeholder={`ค้นหาชื่อ${copy.noun}`}
               value={term}
               onChange={(e) => setTerm(e.target.value)}

@@ -809,6 +809,10 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
             <input
               id="lu-q"
               type="search"
+              autoCorrect="on"
+              autoCapitalize="none"
+              spellCheck
+              enterKeyHint="search"
               placeholder="ค้นหาชื่อ–สกุล ชื่อไลน์ ตำแหน่ง กลุ่ม/ฝ่าย หรือเบอร์โทรศัพท์"
               value={term}
               onChange={(e) => setTerm(e.target.value)}

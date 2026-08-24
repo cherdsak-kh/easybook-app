@@ -248,8 +248,10 @@ export function StaffFormDialog({
             className="sm:col-span-2"
             label="อีเมล (ใช้เป็นชื่อผู้ใช้)"
             type="email"
+            inputMode="email"
             maxLength={254}
             autoComplete="off"
+            enterKeyHint="next"
             placeholder="เช่น somchai@easybook.local"
             value={values.email}
             error={errors.email ?? emailMsg}
@@ -277,6 +279,8 @@ export function StaffFormDialog({
           label="ชื่อ"
           maxLength={120}
           autoComplete="off"
+          autoCapitalize="words"
+          enterKeyHint="next"
           value={values.firstName}
           error={errors.firstName}
           onChange={(e) => set('firstName', e.target.value)}
@@ -285,6 +289,8 @@ export function StaffFormDialog({
           label="นามสกุล"
           maxLength={120}
           autoComplete="off"
+          autoCapitalize="words"
+          enterKeyHint="next"
           value={values.lastName}
           error={errors.lastName}
           onChange={(e) => set('lastName', e.target.value)}
@@ -314,8 +320,10 @@ export function StaffFormDialog({
             </>
           }
           type="tel"
+          inputMode="tel"
           maxLength={20}
           autoComplete="off"
+          enterKeyHint="done"
           placeholder="เช่น 02-123-4567 #101"
           value={values.phoneNumber}
           error={errors.phoneNumber}

@@ -19,6 +19,7 @@
 
 import { useId } from 'react'
 import type { InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes } from 'react'
+import { keyboardDefaults } from './keyboard'
 
 /** The 16×16 alert glyph every field error carries. */
 function ErrIcon() {
@@ -124,9 +125,10 @@ export function FormField({
       <input
         id={fieldId}
         className="form-input"
-        aria-describedby={errorId}
         aria-invalid={error ? true : undefined}
+        {...keyboardDefaults(input.type, input.inputMode)}
         {...input}
+        aria-describedby={[input['aria-describedby'], errorId].filter(Boolean).join(' ')}
       />
     </Field>
   )
@@ -160,9 +162,9 @@ export function SelectField({
       <select
         id={fieldId}
         className="form-select"
-        aria-describedby={errorId}
         aria-invalid={error ? true : undefined}
         {...select}
+        aria-describedby={[select['aria-describedby'], errorId].filter(Boolean).join(' ')}
       >
         {children}
       </select>

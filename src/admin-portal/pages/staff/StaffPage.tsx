@@ -568,6 +568,10 @@ export function StaffPage({ route }: { route: AdminRoute }) {
             <input
               id="st-search"
               type="search"
+              autoCorrect="on"
+              autoCapitalize="none"
+              spellCheck
+              enterKeyHint="search"
               placeholder="ค้นหาชื่อ หรืออีเมล"
               value={term}
               onChange={(e) => setTerm(e.target.value)}

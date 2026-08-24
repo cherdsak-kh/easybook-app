@@ -136,7 +136,33 @@ export function RegistrationForm({
     setSubmitted(true)
     const found = validate(fields)
     setErrors(found)
-    if (Object.keys(found).length > 0) return
+    if (Object.keys(found).length > 0) {
+      // ⚠️ Focus the FIRST invalid field, in DOM order. Dropping `role="alert"` from the
+      // per-field messages is only safe with this: an `aria-describedby` description is
+      // announced when the field it describes takes focus, so without moving the caret the
+      // operator gets a red border and silence. Sorting by the declared order rather than by
+      // `Object.keys(found)` matters because that object's order follows `validate`, which is
+      // not obliged to match what is on screen.
+      const order: (keyof RegistrationFormValues)[] = [
+        'firstName',
+        'lastName',
+        'phone',
+        'departmentId',
+        'personnelRoleId',
+      ]
+      const suffix: Record<string, string> = {
+        firstName: 'first',
+        lastName: 'last',
+        phone: 'phone',
+        departmentId: 'dept',
+        personnelRoleId: 'role',
+      }
+      const firstBad = order.find((k) => found[k])
+      if (firstBad) {
+        document.getElementById(`${uid}-${suffix[firstBad]}`)?.focus()
+      }
+      return
+    }
     onSubmit({
       firstName: fields.firstName.trim(),
       lastName: fields.lastName.trim(),
@@ -309,6 +335,10 @@ function Field({
   disabled?: boolean
 }) {
   const errorId = `${id}-error`
+  // Machine-shaped values (the phone) must not be autocorrected; a Thai name must be, because
+  // that is where a phone keyboard's prediction and text-replacement earn their keep. Same rule
+  // as the back-office's `keyboardDefaults`, kept local because the two portals share no code.
+  const machine = type === 'tel' || type === 'email' || type === 'number'
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-sm font-medium">
@@ -317,19 +347,31 @@ function Field({
       <input
         id={id}
         type={type}
+        inputMode={type === 'tel' ? 'tel' : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
+        autoCorrect={machine ? 'off' : 'on'}
+        autoCapitalize={machine ? 'none' : 'words'}
+        spellCheck={!machine}
+        enterKeyHint="next"
         disabled={disabled}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={errorId}
         className={`${INPUT_CLASS} ${error ? 'input-error' : ''}`}
       />
-      {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-error">
-          {error}
-        </p>
-      )}
+      {/* ⚠️ ALWAYS RENDERED, hidden when empty — it used to be mounted only while `error` was
+          set, together with an `aria-describedby` that appeared at the same moment. Assistive
+          technology announces a description when the field it belongs to takes focus, and it
+          announces a live region only if the region already existed when the text arrived; a
+          paragraph created at the instant of its own message is silent on both counts. The
+          back-office's `FormField` states this rule at the top of the file — the client portal
+          was the one surface still doing it the other way. `role="alert"` goes with it: with a
+          stable target and focus moved to the first bad field (see `handleSubmit`), the message
+          is read without interrupting whatever else is speaking. */}
+      <p id={errorId} hidden={!error} className="mt-1 text-xs text-error">
+        {error}
+      </p>
     </div>
   )
 }
@@ -365,7 +407,7 @@ function SelectField({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={errorId}
         className={`${SELECT_CLASS} ${error ? 'select-error' : ''}`}
       >
         <option value="" disabled>
@@ -377,11 +419,10 @@ function SelectField({
           </option>
         ))}
       </select>
-      {error && (
-        <p id={errorId} role="alert" className="mt-1 text-xs text-error">
-          {error}
-        </p>
-      )}
+      {/* Always rendered — see the note on `Field` above. */}
+      <p id={errorId} hidden={!error} className="mt-1 text-xs text-error">
+        {error}
+      </p>
     </div>
   )
 }

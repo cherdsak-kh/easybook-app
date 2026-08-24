@@ -226,7 +226,9 @@ export function ConfirmModal({
           <label className="form-label !mb-0.5" htmlFor="cm-reason">
             {reason.label}
           </label>
-          <p className="mb-2 text-[13px] leading-[1.5] text-base-content/70">{reason.hint}</p>
+          <p id="cm-reason-hint" className="mb-2 text-[13px] leading-[1.5] text-base-content/70">
+            {reason.hint}
+          </p>
           {/* `form-shell-err` is the prototype's own red-ring treatment for a field in error —
               the same one the staff form and the option form use. */}
           <div className={`form-shell !px-0 ${missing ? 'form-shell-err' : ''}`.trim()}>
@@ -245,7 +247,10 @@ export function ConfirmModal({
                 if (missing) setMissing(false)
               }}
               aria-invalid={missing || undefined}
-              aria-describedby={missing ? 'cm-reason-err' : undefined}
+              // Both descriptions, always. The hint says where this text ends up — it is shown
+              // to end users in LINE — which is exactly the sort of thing somebody should hear
+              // BEFORE typing, not only after getting it wrong.
+              aria-describedby="cm-reason-hint cm-reason-err"
               className="min-h-11 w-full resize-y border-none bg-transparent px-3.5 py-2.5 text-[15px] leading-[1.6] text-base-content/90 outline-none placeholder:text-base-content/70"
               placeholder="ระบุเหตุผลอย่างน้อย 1 ประโยค"
             />

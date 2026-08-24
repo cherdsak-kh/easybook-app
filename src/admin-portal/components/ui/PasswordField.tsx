@@ -21,6 +21,7 @@
 import { useId, useState } from 'react'
 import type { InputHTMLAttributes, ReactNode, Ref } from 'react'
 import { Field } from './FormField'
+import { keyboardDefaults } from './keyboard'
 
 export function PasswordField({
   label,
@@ -56,14 +57,19 @@ export function PasswordField({
       errorId={errorId}
       className={className}
     >
+      {/* ⚠️ The keyboard attributes are pinned to `password`, NOT to `type` — the eye toggle
+          swaps this input to `type="text"` while the value is shown, and deriving them from the
+          live type would switch autocorrect ON mid-entry. A keyboard that starts "correcting" a
+          password the moment it becomes visible is a password the operator cannot type. */}
       <input
         id={fieldId}
         type={shown ? 'text' : 'password'}
         maxLength={128}
         className="form-input"
-        aria-describedby={errorId}
         aria-invalid={error ? true : undefined}
+        {...keyboardDefaults('password')}
         {...input}
+        aria-describedby={[input['aria-describedby'], errorId].filter(Boolean).join(' ')}
       />
       <button
         type="button"

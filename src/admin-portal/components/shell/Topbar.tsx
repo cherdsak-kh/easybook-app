@@ -157,11 +157,19 @@ export function Topbar({
         <label htmlFor="global-search" className="sr-only">
           ค้นหาทั้งระบบ
         </label>
+        {/* Raw <input>, so `keyboardDefaults` never reached it — the search boxes are the one
+            group of controls in the back-office that do not go through FormField. Prediction
+            stays ON: the thing being typed here is a Thai name, which is where a phone
+            keyboard's suggestions and text replacements save the most keystrokes. */}
         <input
           id="global-search"
           type="search"
           placeholder="ค้นหาทั้งระบบ"
           className="min-h-11 w-full min-w-0 border-none bg-transparent text-[15px] text-base-content/90 outline-none placeholder:text-base-content/70"
+          autoCorrect="on"
+          autoCapitalize="none"
+          spellCheck
+          enterKeyHint="search"
         />
       </div>
 

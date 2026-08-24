@@ -147,6 +147,7 @@ export function ForcePasswordChangePage() {
               label="รหัสผ่านปัจจุบัน"
               maxLength={PASSWORD_MAX}
               autoComplete="current-password"
+              enterKeyHint="next"
               placeholder="รหัสชั่วคราวที่ได้รับ"
               value={current}
               error={currentErr}
@@ -164,6 +165,7 @@ export function ForcePasswordChangePage() {
               label="รหัสผ่านใหม่"
               maxLength={PASSWORD_MAX}
               autoComplete="new-password"
+              enterKeyHint="next"
               placeholder={`อย่างน้อย ${PASSWORD_MIN} ตัวอักษร`}
               value={next}
               error={nextErr}
@@ -185,6 +187,7 @@ export function ForcePasswordChangePage() {
               label="ยืนยันรหัสผ่านใหม่"
               maxLength={PASSWORD_MAX}
               autoComplete="new-password"
+              enterKeyHint="done"
               placeholder="พิมพ์รหัสผ่านใหม่อีกครั้ง"
               value={confirm}
               error={confirmErr}

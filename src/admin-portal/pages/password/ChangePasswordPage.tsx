@@ -192,6 +192,7 @@ export function ChangePasswordPage({ route }: { route: AdminRoute }) {
               label="รหัสผ่านปัจจุบัน"
               maxLength={PASSWORD_MAX}
               autoComplete="current-password"
+              enterKeyHint="next"
               placeholder="รหัสผ่านที่ใช้อยู่ตอนนี้"
               value={current}
               error={currentErr}
@@ -208,6 +209,7 @@ export function ChangePasswordPage({ route }: { route: AdminRoute }) {
                 label="รหัสผ่านใหม่"
                 maxLength={PASSWORD_MAX}
                 autoComplete="new-password"
+                enterKeyHint="next"
                 placeholder={`อย่างน้อย ${PASSWORD_MIN} ตัวอักษร`}
                 value={next}
                 error={nextErr}
@@ -229,6 +231,7 @@ export function ChangePasswordPage({ route }: { route: AdminRoute }) {
                 label="ยืนยันรหัสผ่านใหม่"
                 maxLength={PASSWORD_MAX}
                 autoComplete="new-password"
+                enterKeyHint="done"
                 placeholder="พิมพ์รหัสผ่านใหม่อีกครั้ง"
                 value={confirm}
                 error={confirmErr}

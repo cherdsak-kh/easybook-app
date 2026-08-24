@@ -230,6 +230,7 @@ export function OptionFormDialog({
         label={`ชื่อ${copy.noun}`}
         maxLength={120}
         autoComplete="off"
+        enterKeyHint="done"
         placeholder={copy.namePlaceholder}
         value={name}
         error={error ?? nameError ?? undefined}
