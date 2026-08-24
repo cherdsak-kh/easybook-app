@@ -62,24 +62,31 @@ export const ADMIN_PORTAL_ROUTES = [
     desc: 'ดูตารางการจองสถานที่ทั้งหมดในมุมมองปฏิทิน',
   },
   {
+    // ⚠️ THIS ROW ABSORBED A DESTINATION (PO, 24 ส.ค. 2569) and the `desc` below is the only
+    // place that currently says so. There was a separate row after this one for the admin's own
+    // bookings: `วันหยุด/วันปิดปรับปรุง` → renamed `จองและล็อกเวลา` once the PO described what it
+    // actually did → dissolved into this row the same day.
+    //
+    // The rename is what exposed the problem rather than fixing it. Named for what it does —
+    // putting a booking on the calendar with nobody asking — it was plainly the same act as
+    // approving a request, minus the request. Two destinations for "a booking exists now",
+    // differing only in who started it, makes the operator pick a screen before they have made a
+    // decision.
+    //
+    // ⚠️ THE SECOND JOB IS NOT DESIGNED. The PO deferred it ("เดี๋ยวถึงเวลาออกแบบหน้านี้เราค่อยมา
+    // คุยกัน"). Open, and genuinely open: does a staff-raised request need approval at all
+    // (self-approval is not a review), does it go straight to booked, and how one list holds two
+    // kinds of row. Do not answer these in a port.
     label: 'คำขอจองสถานที่',
     path: 'bookings/requests',
     group: 'การบริหารจัดการ',
-    desc: 'ตรวจสอบ อนุมัติ หรือปฏิเสธคำขอจองที่ส่งเข้ามา',
+    desc: 'ตรวจสอบ อนุมัติ หรือปฏิเสธคำขอจองที่ส่งเข้ามา และสร้างคำขอจองของเจ้าหน้าที่เอง',
   },
   {
     label: 'สถานที่จัดกิจกรรม',
     path: 'venues',
     group: 'การบริหารจัดการ',
     desc: 'จัดการรายการสถานที่ ความจุ และอุปกรณ์ที่ให้บริการ',
-  },
-  {
-    // ⚠️ `Q7` — this menu name is NOT settled. It stays as the prototype spells it until the PO
-    // rules; see NEEDS_DESIGN. The `path` is unaffected either way.
-    label: 'วันหยุด/วันปิดปรับปรุง',
-    path: 'venues/closures',
-    group: 'การบริหารจัดการ',
-    desc: 'กำหนดวันที่ไม่เปิดให้จอง เช่น วันหยุดหรือช่วงปิดปรับปรุง',
   },
   {
     label: 'การลงทะเบียน',
@@ -154,6 +161,24 @@ export const ADMIN_PORTAL_ROUTES = [
     path: 'settings/venue-types',
     group: 'การตั้งค่าระบบ',
     desc: 'จัดการประเภทของสถานที่ที่เปิดให้จอง',
+  },
+  {
+    // A NEW destination (PO, 24 ส.ค. 2569), and it exists because of a question the
+    // สถานที่จัดกิจกรรม prototype could not answer: "อุปกรณ์ที่ให้บริการ เพิ่ม/ลบ/แก้ไข ต้องทำที่
+    // ไหน". The honest answer was "nowhere" — the vocabulary was hard-coded in the venue form.
+    //
+    // Directly under ประเภทสถานที่ because the two are read together: both are the lists that
+    // form picks from, and this pair is the answer to "where do I change this?" for both.
+    //
+    // ⚠️ In the prototype it is the FOURTH row of the shared options screen's `MODELS`, and the
+    // first whose holders are not pointed at by a required FK — an amenity is a tick in a join
+    // table, so deleting one drops the ticks instead of moving holders to a `ไม่พบ…` tombstone.
+    // That distinction has to survive the port; it is the difference between a `SET`-style
+    // cleanup and a required-FK reassignment on the server too.
+    label: 'อุปกรณ์ที่ให้บริการ',
+    path: 'settings/amenities',
+    group: 'การตั้งค่าระบบ',
+    desc: 'จัดการรายการอุปกรณ์และสิ่งอำนวยความสะดวกที่ติ๊กเลือกได้ตอนเพิ่มสถานที่',
   },
   {
     // TWO labels, ONE screen — `settings/positions` and `settings/departments` are the same page
