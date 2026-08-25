@@ -1002,6 +1002,33 @@
 @keyframes modal-in { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) { [data-theme^="easybook-admin"] dialog[open] { animation: none; } }
 
+/* ⚠️ TWO SCROLLBARS — reported by the PO on สถานที่จัดกิจกรรม, 25 ส.ค. 2569, on the PORT.
+   The prototype hit this exact bug on this exact screen a day earlier and shipped the rule below;
+   the port simply never carried it over, and nothing noticed because it needs a TALL form to
+   appear. The staff form is 644px with a 490px cap and does not trigger it.
+
+   Every dialog here is a shrink-wrapped panel whose MIDDLE section carries `overflow-y-auto`, so
+   the panel owns its scrolling and the <dialog> is only a viewport for it. The UA sheet still
+   gives the <dialog> `overflow: auto`, and on a tall enough form this engine computes the dialog's
+   scrollable overflow from the UN-CLIPPED descendants rather than from the panel box — measured on
+   the venue form: `clientHeight 801` against `scrollHeight 1095`, painting a second 15px bar with
+   its own arrows outside the first one.
+
+   ⚠️ IT IS NOT COSMETIC, and that is what makes it worth a rule rather than a tweak: `dlg.scrollTop
+   = 500` TOOK (measured: settled at 294), so the dialog's own box really does scroll. Anything that
+   brings a descendant into view — a `focus()`, a `scrollIntoView` on a field error — can therefore
+   push the dialog's header off screen.
+
+   ⚠️ `clip`, NOT `hidden`. `hidden` removes the scroll BAR but leaves the scroll BOX, so the
+   offset above still moves and the header can still be lost — with no bar left to bring it back.
+   That is the worse version of the bug being fixed. `clip` makes the box non-scrollable, so every
+   such call resolves against the inner scroller where it belongs.
+
+   `:has()` scopes it to dialogs that actually delegate scrolling. In this port that is all of them,
+   because `Modal` always renders its body with `overflow-y-auto` — so there is no dialog whose
+   content could become unreachable, which is the one case the prototype had to carve out. */
+[data-theme^="easybook-admin"] dialog:has(.overflow-y-auto) { overflow: clip; }
+
 /* ═══ Toast stack ═══
    `popover="manual"` is not decoration — it is the only way this can sit above
    an open dialog. showModal() puts a <dialog> in the TOP LAYER, and nothing in
