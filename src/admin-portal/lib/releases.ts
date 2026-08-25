@@ -67,6 +67,12 @@ export const RELEASES: readonly Release[] = [
      *
      * `x`, because this release adds two PAGES.
      *
+     * ⚠️ IT COVERS EVERY COMMIT SINCE THE `v0.6.0` TAG, NOT JUST THE ONE BEING WRITTEN. The first
+     * draft of this entry covered only the two new pages, and two earlier commits were already
+     * sitting past the tag — the menu change and the forms/keyboard work. A release note is written
+     * per RELEASE, so `git log v0.6.0..HEAD` is the input, not the branch you happen to be on. The
+     * PO caught this; the check costs one command and is worth running before every bump.
+     *
      * ⚠️ WHAT IS DELIBERATELY ABSENT: a line about the options screen now serving four tables
      * instead of two. It is the largest change in the diff and it is invisible — the two personnel
      * pages render byte-identically before and after (measured), so a note would describe work
@@ -89,6 +95,40 @@ export const RELEASES: readonly Release[] = [
           // look broken on the day it ships.
           'ทั้งสองหน้าเป็นรายการที่หน้าสถานที่จัดกิจกรรมจะเลือกใช้ · หน้านั้นยังอยู่ระหว่างการพัฒนา คอลัมน์จำนวนสถานที่จึงยังขึ้น 0 ทุกแถว',
           'ทั้งสองหน้าเปิดได้เฉพาะผู้ดูแลระบบสูงสุดและเจ้าหน้าที่ดูแลระบบ · หัวหน้าฝ่ายจะไม่เห็นเมนูนี้',
+        ],
+      },
+      {
+        t: 'ปรับปรุง',
+        items: [
+          // ⚠️ A REMOVAL, and the file's own test for one is "does it carry an action". This one
+          // does not — the page never worked, so nobody loses a capability. It earns a line anyway
+          // for a different reason: a menu row that vanishes with no explanation is a support
+          // question, and this is the only place that answers it.
+          //
+          // ⚠️ THE SECOND HALF IS PHRASED AS A PLAN, NOT AS A FEATURE, on purpose. คำขอจองสถานที่
+          // does NOT do this today — it is still a coming-soon card. Writing "ย้ายไปอยู่ในหน้าคำขอ
+          // จองสถานที่แล้ว" would be the changelog announcing work nobody built, which is the one
+          // failure this file exists to prevent.
+          'เมนู “วันหยุด/วันปิดปรับปรุง” ถูกยกเลิก · งานที่ตั้งใจให้หน้านั้นทำ — เจ้าหน้าที่จองเองหรือล็อกวันเวลาของสถานที่ไว้ล่วงหน้า — จะไปอยู่ในหน้าคำขอจองสถานที่ ซึ่งยังอยู่ระหว่างการพัฒนา',
+          // ⚠️ SAYS WHAT THE APP STOPPED DOING, not what the keyboard will now do — and the
+          // difference is the whole reason this line is allowed to exist. Attribute presence was
+          // measured in the DOM; real iOS/Android keyboard behaviour was NOT verified, because that
+          // needs a device. "ไม่ปิดกั้นอีกต่อไป" is a claim about this app and is proven; "แนะนำคำ
+          // ได้แล้ว" would be a claim about the phone, and it also depends on settings the operator
+          // owns (prediction switched on, shortcuts actually configured).
+          'ช่องกรอกข้อความบนมือถือ ไม่ปิดกั้นคำแนะนำคำและการแทนที่ข้อความของแป้นพิมพ์อีกต่อไป · ช่องอีเมล เบอร์โทรศัพท์ และรหัสผ่านยังปิดการแก้คำอัตโนมัติไว้เหมือนเดิม เพราะค่าในช่องเหล่านั้นไม่ใช่คำ',
+        ],
+      },
+      {
+        t: 'แก้ไข',
+        items: [
+          // The LIFF registration form is not the back-office, and it belongs here for the same
+          // reason 0.6.0's LINE-card line did: the operator is who gets asked "ทำไมกรอกไม่ผ่าน".
+          'หน้าลงทะเบียนผ่าน LINE เมื่อกดส่งโดยกรอกไม่ครบ จะพาเคอร์เซอร์ไปที่ช่องแรกที่ยังไม่ผ่านให้เลย จากเดิมที่ขึ้นข้อความเตือนไว้เฉย ๆ และผู้ใช้ต้องไล่หาเองว่าติดตรงไหน',
+          // Nothing changed on screen — the message was always visible — so this is a line ONLY
+          // because the people it affects genuinely meet it. Says the mechanism plainly rather than
+          // claiming an improvement a sighted operator could look for and fail to find.
+          'ข้อความเตือนใต้ช่อง “รหัสผ่านใหม่” ผูกกับช่องนั้นแล้ว โปรแกรมอ่านหน้าจอจึงอ่านให้ฟังเมื่อเลื่อนไปที่ช่อง จากเดิมที่ข้อความแสดงบนจอแต่ไม่ถูกอ่าน',
         ],
       },
     ],
