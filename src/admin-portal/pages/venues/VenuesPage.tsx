@@ -703,7 +703,9 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
         title="ยืนยันการปิดชั่วคราว"
         who={pending?.venue.name}
         description="สถานที่นี้จะหายไปจากรายการที่ผู้ใช้เลือกได้ใน LINE และจะส่งคำขอจองใหม่ไม่ได้ จนกว่าจะเปิดอีกครั้ง"
-        tone="warn"
+        // `pause`, not `warn` — see `ConfirmTone`. `warn` is the SKY tone, named for its button, and
+        // reaching for it here rendered ปิดชั่วคราว in the same blue as ส่งคืนเพื่อแก้ไข.
+        tone="pause"
         confirmLabel="ปิดชั่วคราว"
         busyLabel="กำลังปิด"
         // The one place in this portal where a reason is BOTH stored and shown to the people it

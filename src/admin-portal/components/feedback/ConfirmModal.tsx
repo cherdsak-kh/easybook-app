@@ -25,18 +25,39 @@ import { Btn } from '../ui/Btn'
 import { Spinner } from './Spinner'
 import { useBusy } from '../../lib/use-busy'
 
-export type ConfirmTone = 'primary' | 'danger' | 'warn'
+/**
+ * The prototype has FOUR tile tones and each one carries a note saying what it is FOR:
+ * emerald *grants access* · sky *back to user* · rose *removes access* · amber *pauses, reversibly*.
+ * These names follow that — what the action DOES — rather than the hue, because the hue is already
+ * decided by the token and a name like `amber` would need changing if the palette ever moved.
+ *
+ * ⚠️ `warn` IS THE SKY ONE, and the name is a trap worth stating: it is named for its BUTTON
+ * (`btn-warn-solid`, which is `bg-info` in both stylesheets — ported byte-for-byte), not for an
+ * amber tile. `pause` was added on 25 ส.ค. 2569 after the venue screen reached for `warn` expecting
+ * amber and rendered ปิดชั่วคราว in sky — measured: tile foreground `rgb(3,105,161)`, the same blue
+ * as the button beside it, against the prototype's `cm-tone-amber`.
+ *
+ * ⚠️ The tints are `/10` where the prototype's `cm-tone-*` are `/15`. That difference predates this
+ * and applies to all four; the new tone matches its three siblings rather than introducing a fourth
+ * density inside one component.
+ */
+export type ConfirmTone = 'primary' | 'danger' | 'warn' | 'pause'
 
 const TONE_TILE: Record<ConfirmTone, string> = {
   primary: 'bg-success/10 text-success',
   danger: 'bg-error/10 text-error',
   warn: 'bg-info/10 text-info',
+  pause: 'bg-warning/10 text-warning',
 }
 
 const TONE_BTN: Record<ConfirmTone, 'primary' | 'danger-solid' | 'warn-solid'> = {
   primary: 'primary',
   danger: 'danger-solid',
   warn: 'warn-solid',
+  // Amber tile, sky button — the prototype's own pairing for `closeVenue`, and not an oversight:
+  // the tile says what KIND of act this is, the button is the portal's one "proceed, with care"
+  // control and stays the same colour wherever it appears.
+  pause: 'warn-solid',
 }
 
 const TONE_ICON: Record<ConfirmTone, string> = {
@@ -44,6 +65,10 @@ const TONE_ICON: Record<ConfirmTone, string> = {
   danger:
     'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z',
   warn: 'M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z',
+  // `ban` — the prototype's glyph for closeVenue. A slashed circle reads as "not available right
+  // now", which is what ปิดชั่วคราว is; the ⚠ triangle would say "something went wrong".
+  pause:
+    'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636',
 }
 
 const REASON_MAX = 500
