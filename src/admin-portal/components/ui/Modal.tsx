@@ -20,7 +20,7 @@
  */
 
 import { useEffect, useId, useRef } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 
 export function Modal({
   open,
@@ -31,6 +31,8 @@ export function Modal({
   footer,
   footerClassName = 'flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end',
   width = 560,
+  tall = false,
+  bodyRef,
   dismissable = true,
 }: {
   open: boolean
@@ -65,6 +67,33 @@ export function Modal({
   footerClassName?: string
   /** Panel max width in px — the prototype uses 460 / 560 / 640. */
   width?: number
+  /**
+   * Switches the panel from "shrink-wrap, cap the body at 70dvh" to "flex column capped to the
+   * viewport, body absorbs whatever is left".
+   *
+   * ⚠️ IT IS NOT A STYLE PREFERENCE — the venue form measured 878px of content inside an 812px
+   * dialog and had its บันทึก button clipped by 66px. The fixed cap works for the other dialogs
+   * because their footers are one row; a body that is `max-h` plus a header plus a footer can
+   * exceed the viewport, and nothing stops it. With `flex-col` + `max-h` on the panel, the header
+   * and footer take what they need and the body absorbs the remainder at any viewport and any
+   * button count. Below the cap it still shrink-wraps exactly as before.
+   *
+   * `min-h-0` on the body is the load-bearing half: a flex item's default `min-height: auto`
+   * refuses to shrink below its content, so `flex-1` alone would push the footer back out.
+   *
+   * 88dvh rather than `calc(100dvh - 24px)`: with the flex column in place the footer fits at ANY
+   * cap, so the cap is free to be about how heavy the modal should feel.
+   */
+  tall?: boolean
+  /**
+   * The scrolling body node, for callers that must reset `scrollTop`.
+   *
+   * ⚠️ RESET IT AFTER THE DIALOG IS OPEN, NEVER BEFORE. A closed <dialog> is `display: none`, so
+   * nothing inside it has a scroll box and the assignment is silently dropped — then the browser
+   * restores the old offset on reopen. The prototype measured 400px unchanged doing it the other
+   * way round, which reads exactly like the line not being there.
+   */
+  bodyRef?: Ref<HTMLDivElement>
   /**
    * A confirm dialog mid-write sets this false: closing it would leave the operator unsure
    * whether the thing they asked for happened.
@@ -144,10 +173,16 @@ export function Modal({
       }}
     >
       <div
-        className="mx-auto overflow-hidden rounded-card bg-base-100 shadow-e2"
+        className={`mx-auto overflow-hidden rounded-card bg-base-100 shadow-e2 ${
+          tall ? 'flex max-h-[88dvh] flex-col' : ''
+        }`.trim()}
         style={{ width: `min(${width}px, calc(100vw - 24px))` }}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-base-300 px-5 py-4">
+        <div
+          className={`flex items-center justify-between gap-3 border-b border-base-300 px-5 py-4 ${
+            tall ? 'shrink-0' : ''
+          }`.trim()}
+        >
           {/* `min-w-0` so a long title truncates rather than pushing the ✕ off the panel. The
               wrapper is a flex item hugging its content, so a header WITHOUT a subtitle measures
               exactly as it did when the <h2> was the direct child. */}
@@ -176,12 +211,21 @@ export function Modal({
         </div>
 
         {/* 70dvh, not vh — on mobile Safari `vh` counts the space behind the URL bar, so the
-            last row of a full modal sits under browser chrome and cannot be reached. */}
-        <div className="max-h-[70dvh] overflow-y-auto px-5 py-4">{children}</div>
+            last row of a full modal sits under browser chrome and cannot be reached. `tall`
+            swaps the cap for `min-h-0 flex-1`; see the prop's note for why that is a bug fix
+            rather than a variant. */}
+        <div
+          ref={bodyRef}
+          className={`overflow-y-auto px-5 py-4 ${tall ? 'min-h-0 flex-1' : 'max-h-[70dvh]'}`}
+        >
+          {children}
+        </div>
 
         {footer && (
           <div
-            className={`border-t border-base-300 bg-base-200 px-5 py-4 ${footerClassName}`.trim()}
+            className={`border-t border-base-300 bg-base-200 px-5 py-4 ${
+              tall ? 'shrink-0 ' : ''
+            }${footerClassName}`.trim()}
           >
             {footer}
           </div>

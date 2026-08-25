@@ -430,6 +430,123 @@
   .form-err       { @apply mt-1.5 flex items-start gap-1.5 text-[13px] leading-[1.45] text-error; }
   .form-err-ico   { @apply mt-0.5 h-4 w-4 shrink-0; }
 
+  /* ── Multi-select of a closed vocabulary (สถานที่จัดกิจกรรม → อุปกรณ์) ──
+     A LABEL wrapping a real <input type="checkbox">, not a div listening for
+     clicks: keyboard, Space and the accessibility tree all come for free, and
+     the visual tick is drawn by a sibling selector on the span. The input is
+     `sr-only` rather than `hidden` — a hidden input leaves the tab order, which
+     is the whole thing being preserved here.
+
+     `min-h-11` because a tick target sits at the same 44px floor as every other
+     control in this portal. Ticking twelve amenities on a phone is the worst
+     case the size exists for. */
+  .chk      { @apply flex min-h-11 cursor-pointer select-none items-center gap-2.5 rounded-control border border-base-300 bg-base-100 px-3 py-2 text-[14px] leading-[1.45] text-base-content/90 transition-colors hover:border-primary/40 hover:bg-primary/5; }
+  .chk-box  { @apply flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border border-base-content/30 bg-base-100 text-transparent transition-colors; }
+  .chk input:checked ~ .chk-box { @apply border-primary bg-primary text-primary-content; }
+  .chk:has(input:checked)       { @apply border-primary/50 bg-primary/10; }
+  .chk:has(input:focus-visible) { @apply outline-2 outline-offset-2 outline-primary; }
+  .chk:has(input:disabled)      { @apply cursor-default opacity-60 hover:border-base-300 hover:bg-base-100; }
+
+  /* ── Switch (สถานที่จัดกิจกรรม → เปิดให้จอง) ──────────────────────────
+     A <button role="switch">, deliberately NOT daisyUI's `.toggle` and NOT the
+     `.chk` pattern above. Both of those are <input type="checkbox">: they flip
+     the instant they are clicked and they serialise with the surrounding form.
+     This control does neither, and the difference is not cosmetic —
+
+       · Closing a venue is its own write with its own REASON (the shared
+         confirm dialog collects it), so the click opens that dialog and the knob
+         must not move until the write comes back. A checkbox would flip first
+         and be corrected afterwards, i.e. it would render, for a moment, a state
+         the server never held.
+       · It sits inside the edit form. A checkbox there LOOKS like something
+         บันทึกการแก้ไข commits, and this is the one control on that form that
+         บันทึก does not touch.
+
+     The BUTTON is 44×44 and the visible track is drawn by a child span — the
+     same trick the icon buttons use.
+
+     ⚠️ THE BORDERS ARE LOAD-BEARING, not trim. Measured in the prototype: with
+     the track at `/25` and no border on the knob, the OFF state read 1.23:1
+     against the card and the knob 1.23:1 against the track — so the one state
+     where knob POSITION is the only cue was the state where the knob could not
+     be located. Fixed by outlining rather than by darkening the track: a filled
+     dark track would have hit 3:1 and then read as ON, which is worse. */
+  .sw-toggle { @apply flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  .sw-track  { @apply pointer-events-none relative block h-6 w-11 rounded-full border border-base-content/50 bg-base-200 transition-colors; }
+  .sw-knob   { @apply pointer-events-none absolute left-[3px] top-1/2 block h-[18px] w-[18px] -translate-y-1/2 rounded-full border border-base-content/50 bg-base-100 shadow-e1 transition-transform; }
+  .sw-toggle[aria-checked="true"] .sw-track { @apply border-primary bg-primary; }
+  /* 18px, not the 20px `translate-x-5` would give. Track 44 wide with a 1px
+     border and a 3px inset: 3 + 18 + 18 + 3 + 2×1 = 44 exactly, so the knob sits
+     the same distance from both ends. `translate-x-5` measured 3px in on the
+     left and 1px on the right — invisible until the switch is on, which is when
+     everyone looks at it. */
+  .sw-toggle[aria-checked="true"] .sw-knob  { @apply -translate-y-1/2 translate-x-[18px]; }
+  .sw-toggle:disabled { @apply cursor-default opacity-50; }
+
+  /* ── Read-only tag, e.g. an amenity printed on a venue card ──────────
+     Deliberately NOT `.badge`: a badge in this portal means STATUS — one per
+     row, colour-coded, five hues mapping to five states. A venue carries several
+     of these at once and none of them is a state, so giving them the badge shape
+     would make "แอร์" look like the same kind of thing as "ปิดชั่วคราว" sitting
+     40px above it. */
+  .tag { @apply inline-flex items-center gap-1 rounded-control bg-base-200 px-2 py-1 text-[12px] leading-[1.35] text-base-content/80; }
+
+  /* ── สถานที่จัดกิจกรรม — the grid, and why it has NO breakpoint classes ──
+     `auto-fill` + `minmax(var(--vn-card), 1fr)`: the operator sets a card WIDTH
+     and the column count falls out of whatever space is there. That replaced a
+     `grid-cols-1 sm:grid-cols-2 xl:grid-cols-3` ladder, and it is not tidying —
+     a hand-written ladder has to be re-derived for every density level, and
+     three levels × four breakpoints is twelve numbers to keep in step. One
+     number does the whole job, at every width, including the ones nobody picked
+     a breakpoint for.
+     Phone behaviour comes free: 351px of content cannot fit two 240px columns,
+     so it lands on one column at every level with no `sm:` prefix anywhere —
+     which is also why the size control is `lg:flex` and simply does not exist on
+     a phone. */
+  .venue-grid { grid-template-columns: repeat(auto-fill, minmax(var(--vn-card, 300px), 1fr)); }
+
+  /* One segment of the ขนาดการ์ด control. 36px, not the 44px floor the rest of
+     this portal holds to — a deliberate exception with a reason. The floor
+     exists for controls a thumb has to hit; this strip is `lg:flex` only, so it
+     does not exist on any touch device at all, and the three segments sit inside
+     one 44px-tall well so the GROUP still meets it. */
+  .vn-zoom { @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] text-base-content/60 transition-colors hover:bg-base-content/10 hover:text-base-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  /* `aria-checked` drives the styling, so the visual state cannot drift from
+     what a screen reader is told — there is no second `.is-on` class to forget. */
+  .vn-zoom[aria-checked="true"] { @apply bg-base-100 text-primary shadow-e1; }
+
+  /* The whole card is ONE <button>. Not a card with a pencil in the corner: the
+     photo is the biggest hit target on screen and the thing an operator aims at,
+     so anything else would be a 44px target sitting inside a 300px one that does
+     nothing.
+
+     `h-full` is what keeps a row's bottom edge straight. A grid item stretches to
+     the tallest cell but the <button> INSIDE it does not, so a venue with a
+     ปิดชั่วคราว reason (one extra line, measured at +40px) left its neighbours
+     ending 40px short with a gap of card-coloured nothing under them.
+
+     ⚠️ NEVER `@apply group/...` IN THIS BLOCK. `group` is a marker class, not a
+     utility, and `@apply` of a non-utility kills every rule in the sheet — not
+     just this one. In the prototype the symptom was `getComputedStyle(grid)
+     .display === 'block'`, i.e. even `grid` stopped working, with the reason only
+     in the console. A group marker goes in the element's `class` attribute. */
+  .venue-card { @apply flex h-full w-full flex-col overflow-hidden rounded-card border border-base-300 bg-base-100 text-left shadow-e1 transition-[box-shadow,border-color] hover:border-primary/40 hover:shadow-e2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  /* 16:9 — the ratio a phone camera hands back, so a real upload crops least. */
+  .venue-photo  { @apply relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-base-200; }
+  /* Sits ON the photo, so it needs its own contrast floor rather than the page's:
+     a translucent chip over an unknown image is unreadable by definition. Solid
+     `bg-base-100` at 92% + a ring measured clean over both placeholders. */
+  .venue-chip   { @apply absolute inline-flex items-center gap-1 rounded-full bg-base-100/92 px-2 py-1 text-[12px] font-medium text-base-content shadow-e1 ring-1 ring-base-content/10 backdrop-blur-sm; }
+  .venue-meta   { @apply flex items-center gap-1.5 text-[13px] leading-[1.5] text-base-content/70; }
+  .venue-meta-ico { @apply h-4 w-4 shrink-0 text-base-content/60; }
+  /* The dimming a closed venue gets. On the PHOTO only — never on the text,
+     which still has to pass contrast while the venue is shut. */
+  .venue-photo-off > img, .venue-photo-off > .venue-ph { @apply opacity-45 saturate-50; }
+  /* Stand-in for a photo nobody has uploaded yet. Unlike the prototype, this is
+     now a state the real screen genuinely has — a venue added before its photos
+     are. */
+  .venue-ph     { @apply flex h-full w-full items-center justify-center bg-gradient-to-br from-base-200 to-base-300 text-base-content/25; }
+
   /* ── Login screen ────────────────────────────────────────────────────
      `.login-x` rather than raw utilities for the two things that repeat
      across the login card and (next) the forced password-change card, so the

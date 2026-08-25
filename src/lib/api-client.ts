@@ -184,6 +184,19 @@ export type Amenity = components['schemas']['AmenityResponseDto']
 export type AmenityDeleteResult = components['schemas']['DeleteAmenityResponseDto']
 
 /**
+ * `สถานที่จัดกิจกรรม` — the product's subject, and the first ENTITY here whose id is a cuid rather
+ * than an int. `venueType` arrives nested and already resolved, including `isFallback`.
+ *
+ * ⚠️ RENDER THE TOMBSTONE CATEGORY OFF `venueType.isFallback`, NEVER OFF ITS NAME. The name is the
+ * one string a translator would edit without thinking, and a name match turns that edit into
+ * orphaned venues quietly rendering as an ordinary category.
+ */
+export type Venue = components['schemas']['VenueResponseDto']
+export type VenuePhoto = components['schemas']['VenuePhotoDto']
+export type CreateVenueBody = components['schemas']['CreateVenueDto']
+export type UpdateVenueBody = components['schemas']['UpdateVenueDto']
+
+/**
  * The two "quick" transitions an ADMIN's row buttons emit (Approve/Reinstate →
  * ALLOWED, Block → BLOCKED). SUPER_ADMIN's override picker is not limited to
  * these — it sends the full `AppAccess` — so `patchLineUserAccess` takes the
@@ -875,4 +888,154 @@ export async function deleteAmenity(id: number): Promise<AmenityDeleteResult> {
   )
   if (!data) throw new ApiError(response.status, messageFrom(error, response))
   return data
+}
+
+// ---------------------------------------------------------------------------
+// Venues (สถานที่จัดกิจกรรม).
+//
+// ⚠️ THE READ IS OPEN TO EVERY ROLE, the writes are not — the opposite split from
+// the four curated option tables, where a VIEWER is a 403 even on GET. The
+// difference is what the destination IS: `การตั้งค่าระบบ` is an action surface
+// with no read-only value, while a venue list is exactly what a supervisor is
+// expected to look at. `use-acl.ts` agrees; it does not deny this route.
+//
+// ⚠️ `isOpen` IS NOT A FIELD YOU PATCH. Closing needs a reason and reopening
+// clears it, so it is a transition with its own two calls. Sending `isOpen` on a
+// PATCH is a 400 at the pipe, which is the contract working, not a bug.
+// ---------------------------------------------------------------------------
+
+export interface ListVenuesParams {
+  /** Matches the NAME or the LOCATION — the two things the search box names. */
+  q?: string
+  /**
+   * The reserved tombstone id is ACCEPTED here, unlike on create/update: this is how an operator
+   * finds the venues that fell in there when a category was deleted.
+   */
+  venueTypeId?: number
+  status?: 'open' | 'closed'
+}
+
+/** Every non-deleted venue, `name ASC`. No pagination — the endpoint returns the lot. */
+export async function listVenues(params: ListVenuesParams = {}): Promise<Venue[]> {
+  const { data, error, response } = await api.GET('/api/v1/venues', {
+    params: { query: params },
+  })
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+export async function createVenue(body: CreateVenueBody): Promise<Venue> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/venues', {
+      params: { header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * Partial update. `amenityIds` and `photoUrls` REPLACE their whole set when present and mean
+ * UNCHANGED when omitted — clearing is `[]`. `photoUrls` is ordered and index 0 is the cover.
+ */
+export async function patchVenue(id: string, body: UpdateVenueBody): Promise<Venue> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.PATCH('/api/v1/venues/{id}', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/** ปิดชั่วคราว. The reason is shown to end users, so the server refuses a blank one with a 400. */
+export async function closeVenue(id: string, reason: string): Promise<Venue> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/venues/{id}/close', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+      body: { reason },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/** เปิดให้จอง. Clears `closedReason` to null, which the confirm dialog promises out loud. */
+export async function reopenVenue(id: string): Promise<Venue> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/venues/{id}/reopen', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/** Soft delete. Returns nothing on 204. */
+export async function deleteVenue(id: string): Promise<void> {
+  const { error, response } = await withCsrfRetry(() =>
+    api.DELETE('/api/v1/venues/{id}', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+    }),
+  )
+  if (!response.ok) throw new ApiError(response.status, messageFrom(error, response))
+}
+
+/**
+ * Venue photo constraints, mirrored client-side for fast feedback only — the server enforces them
+ * authoritatively and sniffs magic bytes, which we cannot.
+ *
+ * ⚠️ THE SIZE LIMIT IS EXCLUSIVE, exactly as the avatar one is: the backend accepts a file of
+ * exactly 5 MiB and rejects 5 MiB + 1, so the reject condition is `>`, never `>=`.
+ */
+export const VENUE_PHOTO_MAX_BYTES = 5 * 1024 * 1024
+export const VENUE_PHOTOS_MAX = 10
+
+/**
+ * Upload ONE venue photo and get its URL back. There is no venue id in the path, and that is the
+ * shape the whole flow turns on: photos are picked inside the CREATE dialog, before a venue exists.
+ *
+ * The object is stored UNBOUND. It becomes part of a venue only when its URL is sent in `photoUrls`
+ * on a create or update — and if the operator cancels instead, `discardVenuePhoto` removes it.
+ *
+ * ⚠️ AN ABANDONED UPLOAD IS A REAL LEAK, not a hypothetical one: a closed tab or a lost connection
+ * skips the discard call and leaves bytes nothing references. It is bounded and invisible, and there
+ * is no sweep job yet.
+ */
+export async function uploadVenuePhoto(file: File): Promise<string> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/venues/photos', {
+      params: { header: { 'x-csrf-token': '' } },
+      // The generated type calls `file` a binary string; the wire wants a File.
+      body: { file: file as unknown as string },
+      // Returning FormData makes openapi-fetch drop its JSON Content-Type so the browser sets the
+      // multipart boundary itself.
+      bodySerializer(body: { file: string }) {
+        const form = new FormData()
+        form.append('file', body.file as unknown as File)
+        return form
+      },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data.url
+}
+
+/**
+ * Discard an uploaded photo the operator backed out of.
+ *
+ * The server REFUSES any URL a venue still references (409) — removing a photo FROM a venue is a
+ * `patchVenue` of `photoUrls`, which deletes the dropped objects itself. That refusal is what makes
+ * this endpoint safe to call from a cancel handler without checking anything first.
+ */
+export async function discardVenuePhoto(url: string): Promise<void> {
+  const { error, response } = await withCsrfRetry(() =>
+    api.DELETE('/api/v1/venues/photos', {
+      params: { header: { 'x-csrf-token': '' } },
+      body: { url },
+    }),
+  )
+  if (!response.ok) throw new ApiError(response.status, messageFrom(error, response))
 }

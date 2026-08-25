@@ -89,12 +89,25 @@ export const RELEASES: readonly Release[] = [
           // opens a brand-new screen and finds nothing in it reports a bug; one who was told the
           // list is theirs to build starts typing. The reason is the true one (`Q18`).
           'หน้าอุปกรณ์ที่ให้บริการ — รายการอุปกรณ์และสิ่งอำนวยความสะดวก เพิ่ม แก้ไข ลบ และค้นหาได้เอง · เริ่มจากรายการว่างโดยตั้งใจ เพราะของที่โรงเรียนมีจริงเป็นสิ่งที่เจ้าหน้าที่กรอกเอง ไม่ใช่สิ่งที่ระบบเดาให้',
-          // ⚠️ SAYS THE QUIET PART OUT LOUD, the same rule as 0.2.0's "เนื้อหาของแต่ละหน้าอยู่ระหว่าง
-          // การพัฒนา". Both screens print a count column that reads 0 on every row and will keep
-          // reading 0 until venues exist. Leaving that to be discovered would make a correct screen
-          // look broken on the day it ships.
-          'ทั้งสองหน้าเป็นรายการที่หน้าสถานที่จัดกิจกรรมจะเลือกใช้ · หน้านั้นยังอยู่ระหว่างการพัฒนา คอลัมน์จำนวนสถานที่จึงยังขึ้น 0 ทุกแถว',
+          // ⚠️ THIS LINE USED TO END "…หน้านั้นยังอยู่ระหว่างการพัฒนา คอลัมน์จำนวนสถานที่จึงยังขึ้น 0
+          // ทุกแถว", written when the count really was a hard-coded zero. The venues screen landed
+          // in this same release and the count is real now, so the sentence had to change or the
+          // changelog would be describing a version that never shipped. Both halves of an entry are
+          // editable until the release goes out; what is not editable is shipping one that lies.
+          'ทั้งสองหน้าเป็นรายการที่หน้าสถานที่จัดกิจกรรมเลือกใช้ · คอลัมน์จำนวนสถานที่นับจากของจริงแล้ว และขยับทันทีเมื่อเพิ่ม แก้ไข หรือลบสถานที่',
           'ทั้งสองหน้าเปิดได้เฉพาะผู้ดูแลระบบสูงสุดและเจ้าหน้าที่ดูแลระบบ · หัวหน้าฝ่ายจะไม่เห็นเมนูนี้',
+
+          // ── สถานที่จัดกิจกรรม ──
+          // The product's subject, so it gets more than one line — but each line still has to name
+          // something an operator can MEET, not work that was done. "สร้างตาราง Venue" would be the
+          // second kind and does not appear.
+          'หน้าสถานที่จัดกิจกรรม — รายการสถานที่ทั้งหมดในรูปแบบการ์ดพร้อมรูปภาพ เพิ่ม แก้ไข ลบ ค้นหา และกรองตามประเภทหรือสถานะได้ · ปรับขนาดการ์ดได้สามระดับ และระบบจำค่าที่เลือกไว้',
+          'ใส่รูปสถานที่ได้สูงสุด 10 รูปต่อแห่ง · กดที่รูปย่อยเพื่อเลือกว่ารูปไหนเป็นรูปปก ซึ่งเป็นรูปที่ผู้ใช้เห็นก่อนใน LINE · ระบบย่อรูปให้อัตโนมัติก่อนอัปโหลด',
+          // ⚠️ NAMES THE ALTERNATIVE, because almost everybody reaching for ลบ means this instead.
+          'ปิดสถานที่ชั่วคราวได้โดยไม่ต้องลบ · ต้องระบุเหตุผล และเหตุผลนั้นจะแสดงบนการ์ดและให้ผู้ใช้เห็นตอนเลือกสถานที่ · เปิดคืนเมื่อไรก็ได้ แล้วเหตุผลจะถูกล้างทิ้ง',
+          // ⚠️ A RULE THE OPERATOR HAS TO FOLLOW, not a feature — and it is here rather than only in
+          // the form because the form is read once and this page is read when somebody asks why.
+          'หัวหน้าฝ่ายเปิดหน้านี้และดูข้อมูลได้ครบทุกช่อง แต่แก้ไขไม่ได้ · ⚠️ รูปที่อัปโหลดผู้ใช้ทุกคนเห็นใน LINE จึงควรเป็นภาพของตัวสถานที่ ไม่ควรมีบุคคลอยู่ในภาพ',
         ],
       },
       {

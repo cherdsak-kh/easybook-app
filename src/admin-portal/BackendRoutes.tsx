@@ -33,6 +33,7 @@ import { ChangePasswordPage } from './pages/password/ChangePasswordPage'
 import { OptionsPage } from './pages/options/OptionsPage'
 import { ProfilePage } from './pages/profile/ProfilePage'
 import { StaffPage } from './pages/staff/StaffPage'
+import { VenuesPage } from './pages/venues/VenuesPage'
 import { VersionPage } from './pages/version/VersionPage'
 import { useTheme } from './lib/use-theme'
 import {
@@ -62,6 +63,7 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   'กลุ่ม/ฝ่ายบุคลากร': (route) => <OptionsPage route={route} />,
   ประเภทสถานที่: (route) => <OptionsPage route={route} />,
   อุปกรณ์ที่ให้บริการ: (route) => <OptionsPage route={route} />,
+  สถานที่จัดกิจกรรม: (route) => <VenuesPage route={route} />,
   เจ้าหน้าที่ระบบ: (route) => <StaffPage route={route} />,
   การลงทะเบียน: (route) => <LineUsersPage route={route} />,
 }

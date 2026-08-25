@@ -592,6 +592,118 @@ export interface paths {
         patch: operations["AmenitiesController_update"];
         trace?: never;
     };
+    "/api/v1/venues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List venues.
+         * @description Non-deleted venues only, ordered `name ASC`. Returns EVERYTHING — there is no pagination; the screen states a count. `q` matches the name or the location. The reserved tombstone category id is accepted by `venueTypeId` so orphaned venues can be found (unlike on create/update, which refuse it).
+         */
+        get: operations["VenuesController_list"];
+        put?: never;
+        /**
+         * Create a venue.
+         * @description Always created OPEN — the form has no switch in create mode and neither has this body. A name colliding with an ACTIVE venue is a 409; a name matching only soft-deleted rows succeeds. `venueTypeId` must be an ACTIVE, non-reserved category, and every `amenityIds` entry an ACTIVE amenity — otherwise the SAME 400 an unknown id gets, never a 403. `photoUrls` is ordered, index 0 is the cover, max 10, and every entry must already have been uploaded via POST /venues/photos.
+         */
+        post: operations["VenuesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/venues/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload one venue photo and get its URL back.
+         * @description Multipart, one part named `file`. NO venue id: photos are picked inside the CREATE dialog, before a venue exists. The object is stored UNBOUND and becomes part of a venue only when its URL appears in `photoUrls` on a create/update. If the operator cancels instead, call DELETE /venues/photos to discard it. The declared MIME is a first filter only — the real control is a MAGIC-BYTE sniff, and the stored ContentType and key extension come from the SNIFFED type, never from the filename. The CSRF token is a HEADER and works fine with multipart.
+         */
+        post: operations["VenuesController_upload"];
+        /**
+         * Discard an uploaded photo that was never attached to a venue.
+         * @description For the cancel path: the dialog uploaded an object and the operator backed out. REFUSES any URL a venue still references (409) — removing a photo FROM a venue is a PATCH of `photoUrls`, which deletes the dropped objects itself. A URL outside this deployment’s bucket is a 400.
+         */
+        delete: operations["VenuesController_discardPhoto"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/venues/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Soft-delete a venue.
+         * @description Sets `deletedAt`; never a hard delete — a future `Booking.venueId` must keep resolving a name, which is what the confirm dialog’s "ประวัติคำขอจองยังอยู่ครบ" promises. The photo rows and their objects are kept with it; a soft-deleted venue is invisible to every route, so nothing renders them. A second DELETE on the same id is a 404.
+         */
+        delete: operations["VenuesController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a venue.
+         * @description Every field is optional. An omitted `amenityIds`/`photoUrls` means UNCHANGED; clearing is `[]`. Both are REPLACED, never merged. `isOpen` and `closedReason` are absent from the body on purpose — sending either is a 400, because closing needs a reason and is its own transition (POST /:id/close).
+         */
+        patch: operations["VenuesController_update"];
+        trace?: never;
+    };
+    "/api/v1/venues/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ปิดชั่วคราว — stop accepting new booking requests.
+         * @description NOT a delete: the venue stays visible to end users. The reason is REQUIRED (400 without one) because it is shown to the people it affects — on the venue card, and in LINE. Closing an already-closed venue is a 409 rather than a silent no-op: it would replace the reason people are reading, and the screen only offers this on an open venue.
+         */
+        post: operations["VenuesController_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/venues/{id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * เปิดให้จอง — accept booking requests again.
+         * @description Clears `closedReason` to NULL, which the confirm dialog promises explicitly. Reopening an already-open venue is a 409.
+         */
+        post: operations["VenuesController_reopen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/version": {
         parameters: {
             query?: never;
@@ -1266,6 +1378,130 @@ export interface components {
              * @example 6
              */
             releasedVenueCount: number;
+        };
+        VenueTypeSummaryDto: {
+            /** @example 4 */
+            id: number;
+            /** @example หอประชุม */
+            name: string;
+            /**
+             * @description True only for the reserved tombstone category. Render it differently; never match on the name.
+             * @example false
+             */
+            isFallback: boolean;
+        };
+        VenuePhotoDto: {
+            /** @example clx0000000000000000000000 */
+            id: string;
+            /** @example https://cdn.example.com/venues/9f8e….jpg */
+            url: string;
+            /**
+             * @description 0-based. Position 0 is the cover.
+             * @example 0
+             */
+            position: number;
+        };
+        VenueAmenityDto: {
+            /** @example 1 */
+            id: number;
+            /** @example เครื่องเสียง */
+            name: string;
+        };
+        VenueResponseDto: {
+            /** @example clx0000000000000000000000 */
+            id: string;
+            /** @example หอประชุมวารณ */
+            name: string;
+            venueType: components["schemas"]["VenueTypeSummaryDto"];
+            /** @example 900 */
+            capacity: number;
+            /** @example อาคารหอประชุม ชั้น 1 */
+            location: string | null;
+            /** @example มีเวทีถาวรและระบบไฟเวที */
+            description: string | null;
+            /**
+             * @description เปิดให้จอง. False = ปิดชั่วคราว — still visible to end users, but accepts no new booking requests. Changed only via POST /venues/:id/close and /reopen.
+             * @example true
+             */
+            isOpen: boolean;
+            /**
+             * @description Non-null if and only if `isOpen` is false. Cleared on every reopen.
+             * @example null
+             */
+            closedReason: string | null;
+            /** @description Ordered. Index 0 is the cover. Empty for a venue with no photos yet. */
+            photos: components["schemas"]["VenuePhotoDto"][];
+            /** @description Ordered `name ASC`. */
+            amenities: components["schemas"]["VenueAmenityDto"][];
+            /** @example 2026-08-25T10:00:00.000Z */
+            createdAt: string;
+            /** @example 2026-08-25T10:00:00.000Z */
+            updatedAt: string;
+        };
+        VenuePhotoUploadResponseDto: {
+            /** @description The durable https URL of the stored object. Put it in `photoUrls` on the next create/update, or discard it with DELETE /venues/photos. */
+            url: string;
+        };
+        DiscardVenuePhotoDto: {
+            /** @description A URL previously returned by POST /venues/photos that is NOT referenced by any venue. Referenced URLs are refused. */
+            url: string;
+        };
+        CreateVenueDto: {
+            /** @example หอประชุมวารณ */
+            name: string;
+            /**
+             * @description Category id. Must be an ACTIVE, non-reserved venue type — anything else is the same 400 as an unknown id.
+             * @example 4
+             */
+            venueTypeId: number;
+            /** @example 900 */
+            capacity: number;
+            /**
+             * @description ที่ตั้ง. An empty string clears it.
+             * @example อาคารหอประชุม ชั้น 1
+             */
+            location?: string | null;
+            /**
+             * @description รายละเอียด. An empty string clears it.
+             * @example หอประชุมใหญ่ของโรงเรียน มีเวทีถาวรและระบบไฟเวที
+             */
+            description?: string | null;
+            /**
+             * @description The COMPLETE set of amenity ids for this venue — the server replaces, it does not merge. Every id must be an ACTIVE amenity.
+             * @example [
+             *       1,
+             *       3,
+             *       4
+             *     ]
+             */
+            amenityIds?: number[];
+            /** @description The COMPLETE ordered list of photo URLs; index 0 is the cover. Max 10. Each must be a URL returned by POST /venues/photos. */
+            photoUrls?: string[];
+        };
+        UpdateVenueDto: {
+            /** @example หอประชุมวารณ */
+            name?: string;
+            /** @example 4 */
+            venueTypeId?: number;
+            /** @example 900 */
+            capacity?: number;
+            location?: string | null;
+            description?: string | null;
+            /**
+             * @example [
+             *       1,
+             *       3
+             *     ]
+             */
+            amenityIds?: number[];
+            photoUrls?: string[];
+        };
+        CloseVenueDto: {
+            /**
+             * @description Shown on the venue card and, once LIFF exists, to every end user who tries to book the room. A blank or whitespace-only reason is a 400.
+             * @example ปิดปรับปรุงพื้นสนามถึง 30 ก.ย. 2569
+             */
+            reason: string;
         };
         VersionResponseDto: {
             /**
@@ -3526,6 +3762,496 @@ export interface operations {
             };
             /** @description Session store unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_list: {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive substring match on the venue NAME or LOCATION. Trimmed; empty/absent → no search filter. */
+                q?: string;
+                /** @description Filter by category id. The reserved tombstone id is accepted here (unlike on create/update), so orphaned venues can be found and re-filed. */
+                venueTypeId?: number;
+                /** @description `open` = เปิดให้จอง · `closed` = ปิดชั่วคราว. Absent → both. */
+                status?: "open" | "closed";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The venues. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueResponseDto"][];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVenueDto"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueResponseDto"];
+                };
+            };
+            /** @description Validation failed, or the category/an amenity does not exist or is not assignable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active venue with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_upload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description JPEG, PNG or WEBP. Max 5 MB.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenuePhotoUploadResponseDto"];
+                };
+            };
+            /** @description No file, wrong field name, unsupported/mismatched image type, or larger than 5 MB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The object store rejected the upload or was unreachable. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_discardPhoto: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscardVenuePhotoDto"];
+            };
+        };
+        responses: {
+            /** @description Discarded. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a URL in this deployment’s venue photo bucket. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The photo belongs to a venue. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Soft-deleted. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or already-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateVenueDto"];
+            };
+        };
+        responses: {
+            /** @description Updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueResponseDto"];
+                };
+            };
+            /** @description Validation failed (including any attempt to send `isOpen`), or the category/an amenity is not assignable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active venue with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_close: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CloseVenueDto"];
+            };
+        };
+        responses: {
+            /** @description Closed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueResponseDto"];
+                };
+            };
+            /** @description Missing or blank reason. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The venue is already closed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_reopen: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reopened. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The venue is already open. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
