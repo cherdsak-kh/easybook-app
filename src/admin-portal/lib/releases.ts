@@ -54,6 +54,47 @@ export interface Release {
 export const RELEASES: readonly Release[] = [
   {
     /*
+     * ⚠️ NOT RELEASED YET. `package.json` is still `0.6.0`, and the page renders
+     * `RELEASES.filter(r => compareVersions(r.v, APP.version) <= 0)` — so this entry is inert until
+     * someone runs `npm version minor`. That is the doctrine at the top of this file: notes are
+     * written by whoever ships the work at the moment they finish it, not reconstructed from a diff
+     * weeks later. The bump is the PO's call.
+     *
+     * ⚠️ THE DATE IS PROVISIONAL AND MUST BE CORRECTED IF THE RELEASE SLIPS. `0.6.0` shows exactly
+     * why: it sat here for three days reading `19 ส.ค.` — the day its first line was written — and
+     * had to be changed to `22 ส.ค.` when it actually shipped. A release date is a fact about the
+     * release.
+     *
+     * `x`, because this release adds two PAGES.
+     *
+     * ⚠️ WHAT IS DELIBERATELY ABSENT: a line about the options screen now serving four tables
+     * instead of two. It is the largest change in the diff and it is invisible — the two personnel
+     * pages render byte-identically before and after (measured), so a note would describe work
+     * rather than a difference anybody can meet. Same test that kept the VIEWER fix out of `0.5.0`.
+     */
+    v: '0.7.0',
+    date: '25 ส.ค. 2569',
+    groups: [
+      {
+        t: 'ใหม่',
+        items: [
+          'หน้าประเภทสถานที่ — หมวดหมู่ที่ใช้จัดกลุ่มสถานที่จัดกิจกรรม เพิ่ม แก้ไข ลบ และค้นหาได้เอง · ติดตั้งมาพร้อมห้าประเภทตั้งต้น (หอประชุม ห้องประชุม โรงยิม ลานกิจกรรม สนามกีฬา) ซึ่งแก้ไขหรือลบได้ทั้งหมด',
+          // ⚠️ THE EMPTY START IS STATED AS A DECISION, not left to be discovered. An operator who
+          // opens a brand-new screen and finds nothing in it reports a bug; one who was told the
+          // list is theirs to build starts typing. The reason is the true one (`Q18`).
+          'หน้าอุปกรณ์ที่ให้บริการ — รายการอุปกรณ์และสิ่งอำนวยความสะดวก เพิ่ม แก้ไข ลบ และค้นหาได้เอง · เริ่มจากรายการว่างโดยตั้งใจ เพราะของที่โรงเรียนมีจริงเป็นสิ่งที่เจ้าหน้าที่กรอกเอง ไม่ใช่สิ่งที่ระบบเดาให้',
+          // ⚠️ SAYS THE QUIET PART OUT LOUD, the same rule as 0.2.0's "เนื้อหาของแต่ละหน้าอยู่ระหว่าง
+          // การพัฒนา". Both screens print a count column that reads 0 on every row and will keep
+          // reading 0 until venues exist. Leaving that to be discovered would make a correct screen
+          // look broken on the day it ships.
+          'ทั้งสองหน้าเป็นรายการที่หน้าสถานที่จัดกิจกรรมจะเลือกใช้ · หน้านั้นยังอยู่ระหว่างการพัฒนา คอลัมน์จำนวนสถานที่จึงยังขึ้น 0 ทุกแถว',
+          'ทั้งสองหน้าเปิดได้เฉพาะผู้ดูแลระบบสูงสุดและเจ้าหน้าที่ดูแลระบบ · หัวหน้าฝ่ายจะไม่เห็นเมนูนี้',
+        ],
+      },
+    ],
+  },
+  {
+    /*
      * RELEASED 22 ส.ค. 2569, on the PO's word. It sat here inert for three days with
      * `package.json` on `0.5.0` — the page renders
      * `RELEASES.filter(r => compareVersions(r.v, APP.version) <= 0)`, so an unreleased entry
