@@ -212,7 +212,14 @@ export function OptionFormDialog({
           <p className="m-0 text-[14px] text-base-content">
             <span className="font-medium">
               {holders
-                ? `${copy.holdersSome} ${holders} คน — ผู้ใช้ LINE ${target.lineUsers} คน · เจ้าหน้าที่ระบบ ${target.staff} คน`
+                ? `${copy.holdersSome} ${holders} ${copy.unit}${
+                    // The breakdown exists only on tables shared between two populations. A venue
+                    // type holds venues and nothing else, so the em-dash clause would be the same
+                    // number said twice.
+                    target.parts
+                      ? ` — ${target.parts.map((p) => `${p.label} ${p.n} ${copy.unit}`).join(' · ')}`
+                      : ''
+                  }`
                 : copy.holdersNone}
             </span>
           </p>

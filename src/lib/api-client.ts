@@ -166,6 +166,24 @@ export type PersonnelRole = components['schemas']['PersonnelRoleResponseDto']
 export type OptionInput = components['schemas']['CreateDepartmentDto']
 
 /**
+ * The venue-side curated vocabularies — the same admin screen, two more tables.
+ *
+ * ⚠️ THEY DO NOT SHARE A RESPONSE TYPE WITH THE TWO ABOVE, and the difference is not cosmetic.
+ * `Department`/`PersonnelRole` carry `staffCount` + `registrationCount`, because those tables are
+ * shared between back-office accounts and LINE registrations and a delete moves both populations.
+ * A venue type holds only venues, so it carries `holderCount` alone; a second field could only
+ * ever repeat it.
+ *
+ * `Amenity` reports `isSystemReserved` and `isFallback` as permanent `false` — they are constants
+ * on the wire, not columns, so the screen can share one component. Do not branch on them for this
+ * table; the answer never changes.
+ */
+export type VenueType = components['schemas']['VenueTypeResponseDto']
+export type Amenity = components['schemas']['AmenityResponseDto']
+/** `DELETE /amenities/:id` answers 200 with a body, unlike the other three tables' 204. */
+export type AmenityDeleteResult = components['schemas']['DeleteAmenityResponseDto']
+
+/**
  * The two "quick" transitions an ADMIN's row buttons emit (Approve/Reinstate →
  * ALLOWED, Block → BLOCKED). SUPER_ADMIN's override picker is not limited to
  * these — it sends the full `AppAccess` — so `patchLineUserAccess` takes the
@@ -755,4 +773,106 @@ export async function deletePersonnelRole(id: number): Promise<void> {
     }),
   )
   if (!response.ok) throw new ApiError(response.status, messageFrom(error, response))
+}
+
+// ---------------------------------------------------------------------------
+// Venue options (VenueType / Amenity) — admin CRUD.
+//
+// Same guard stack and same status codes as the two above: cookie session +
+// `x-csrf-token`, SUPER_ADMIN/ADMIN only (VIEWER is a 403 on READ as well as on
+// write), soft delete, 409 on an active-name collision, 404 on an unknown or
+// already-deleted id.
+//
+// ⚠️ TWO PLACES THE SHAPE DELIBERATELY BREAKS, both on `/amenities`:
+//   · `DELETE` answers **200 with `{ releasedVenueCount }`**, not 204. The
+//     confirm dialog quotes that number BEFORE the click and another operator
+//     can change it in between, so the response says what actually happened.
+//   · `GET` is identical for every role — this is the one curated table with no
+//     reserved rows, so there is nothing for a SUPER_ADMIN to see extra.
+// ---------------------------------------------------------------------------
+
+export async function listVenueTypes(): Promise<VenueType[]> {
+  const { data, error, response } = await api.GET('/api/v1/venue-types')
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+export async function createVenueType(body: OptionInput): Promise<VenueType> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/venue-types', {
+      params: { header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+export async function patchVenueType(id: number, body: OptionInput): Promise<VenueType> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.PATCH('/api/v1/venue-types/{id}', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * Soft-delete a venue type. Returns nothing on 204.
+ *
+ * ⚠️ A 500 here is a real, documented outcome and not a bug in this call: the server re-points the
+ * category's venues to a reserved tombstone row, and refuses to proceed if that row was never
+ * seeded (`npm run venue-types:seed`). It moves no data when it fails.
+ */
+export async function deleteVenueType(id: number): Promise<void> {
+  const { error, response } = await withCsrfRetry(() =>
+    api.DELETE('/api/v1/venue-types/{id}', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+    }),
+  )
+  if (!response.ok) throw new ApiError(response.status, messageFrom(error, response))
+}
+
+export async function listAmenities(): Promise<Amenity[]> {
+  const { data, error, response } = await api.GET('/api/v1/amenities')
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+export async function createAmenity(body: OptionInput): Promise<Amenity> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/amenities', {
+      params: { header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+export async function patchAmenity(id: number, body: OptionInput): Promise<Amenity> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.PATCH('/api/v1/amenities/{id}', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * Delete an amenity and release its ticks. Answers **200 with a body**, unlike the other three
+ * option tables' 204 — hence a return value rather than `void`. See the block comment above.
+ */
+export async function deleteAmenity(id: number): Promise<AmenityDeleteResult> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.DELETE('/api/v1/amenities/{id}', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
 }

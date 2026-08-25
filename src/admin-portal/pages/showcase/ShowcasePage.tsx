@@ -197,12 +197,19 @@ const REG_EDIT_SEED: RegistrationEditValues = {
   access: 'PENDING',
 }
 
-/** ตัวเลือกบุคลากร fixture. The counts split LINE from staff because the dialog prints both. */
+/**
+ * ตัวเลือกบุคลากร fixture — a PERSONNEL table, so it carries the two-population breakdown the
+ * dialog prints. The two venue tables added on 25 ส.ค. 2569 pass `parts: null` instead, and the
+ * dialog then omits the em-dash clause entirely rather than printing the same number twice.
+ */
 const OPT_SEED: OptionRecord = {
   id: 4,
   name: 'เจ้าหน้าที่',
-  lineUsers: 7,
-  staff: 5,
+  holders: 12,
+  parts: [
+    { label: 'ผู้ใช้ LINE', n: 7 },
+    { label: 'เจ้าหน้าที่ระบบ', n: 5 },
+  ],
   createdAt: '14 ก.ค. 2569',
   updatedAt: '14 ก.ค. 2569',
 }
@@ -637,7 +644,14 @@ function ShowcaseBody() {
             model={optForm?.startsWith('department') ? 'department' : 'personnelRole'}
             target={
               optForm?.includes('edit-empty')
-                ? { ...OPT_SEED, lineUsers: 0, staff: 0 }
+                ? {
+                    ...OPT_SEED,
+                    holders: 0,
+                    parts: [
+                      { label: 'ผู้ใช้ LINE', n: 0 },
+                      { label: 'เจ้าหน้าที่ระบบ', n: 0 },
+                    ],
+                  }
                 : optForm?.includes('edit')
                   ? OPT_SEED
                   : null

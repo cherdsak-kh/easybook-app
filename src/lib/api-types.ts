@@ -496,6 +496,102 @@ export interface paths {
         patch: operations["PersonnelRolesController_update"];
         trace?: never;
     };
+    "/api/v1/venue-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List venue type options.
+         * @description Non-deleted options only, ordered `name ASC`. The reserved tombstone row is visible to SUPER_ADMIN only.
+         */
+        get: operations["VenueTypesController_list"];
+        put?: never;
+        /**
+         * Create a venue type option.
+         * @description A name that collides with an ACTIVE option is a 409; a name matching only soft-deleted rows succeeds (names are reusable after soft-delete).
+         */
+        post: operations["VenueTypesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/venue-types/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Soft-delete a venue type option.
+         * @description Sets `deletedAt`; never a hard delete. Venues filed under it are re-pointed to the reserved tombstone row in the same transaction. A second DELETE on the same id is a 404, as is the reserved row itself. Answers 500 if the tombstone row has never been seeded — run `npm run venue-types:seed`.
+         */
+        delete: operations["VenueTypesController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a venue type option.
+         * @description An unknown or soft-deleted id is a 404; an active-name collision is a 409. The reserved tombstone row is not editable and answers 404 for every role, SUPER_ADMIN included.
+         */
+        patch: operations["VenueTypesController_update"];
+        trace?: never;
+    };
+    "/api/v1/amenities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List amenity options.
+         * @description Non-deleted options only, ordered `name ASC`. Identical for every role — this table has no reserved rows. May legitimately be empty: amenities are optional on the venue form, and nothing is seeded.
+         */
+        get: operations["AmenitiesController_list"];
+        put?: never;
+        /**
+         * Create an amenity option.
+         * @description A name that collides with an ACTIVE option is a 409; a name matching only soft-deleted rows succeeds.
+         */
+        post: operations["AmenitiesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/amenities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Soft-delete an amenity option and release its ticks.
+         * @description Sets `deletedAt` on the amenity and removes it from every venue that provided it, in one transaction. The venues themselves are untouched and remain bookable. Returns how many venues lost the amenity. A second DELETE on the same id is a 404.
+         */
+        delete: operations["AmenitiesController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename an amenity option.
+         * @description An unknown or soft-deleted id is a 404; an active-name collision is a 409. Every row on this table is editable — there are no reserved rows to refuse.
+         */
+        patch: operations["AmenitiesController_update"];
+        trace?: never;
+    };
     "/api/v1/system/version": {
         parameters: {
             query?: never;
@@ -1091,6 +1187,85 @@ export interface components {
         UpdatePersonnelRoleDto: {
             /** @example Senior Lecturer */
             name: string;
+        };
+        VenueTypeResponseDto: {
+            /**
+             * @description Auto-increment integer id.
+             * @example 1
+             */
+            id: number;
+            /** @example โรงยิม */
+            name: string;
+            /**
+             * @description READ-ONLY. True only for the tombstone row (visible to SUPER_ADMIN only; always false for everyone else). Settable by no endpoint.
+             * @example false
+             */
+            isSystemReserved: boolean;
+            /** @example 2026-08-25T10:00:00.000Z */
+            createdAt: string;
+            /** @example 2026-08-25T10:00:00.000Z */
+            updatedAt: string;
+            /**
+             * @description Venues filed under this category, excluding soft-deleted ones. 0 for every row until the Venue table exists.
+             * @example 3
+             */
+            holderCount: number;
+            /**
+             * @description READ-ONLY. True only for the tombstone row that venues are re-pointed to when a category is deleted. Never offer it as a choice; show it only when it is already the current value.
+             * @example false
+             */
+            isFallback: boolean;
+        };
+        CreateVenueTypeDto: {
+            /** @example โรงยิม */
+            name: string;
+        };
+        UpdateVenueTypeDto: {
+            /** @example โรงยิมและสนามในร่ม */
+            name: string;
+        };
+        AmenityResponseDto: {
+            /**
+             * @description Auto-increment integer id.
+             * @example 1
+             */
+            id: number;
+            /** @example โปรเจกเตอร์ */
+            name: string;
+            /**
+             * @description ALWAYS false. This table has no reserved rows — no System Developer row and no tombstone. Present only so the curated-table screens share one response shape.
+             * @example false
+             */
+            isSystemReserved: boolean;
+            /**
+             * @description ALWAYS false. An amenity is a tick in a join table, so a delete removes ticks and orphans nothing; there is nothing to re-point and therefore no tombstone row.
+             * @example false
+             */
+            isFallback: boolean;
+            /** @example 2026-08-25T10:00:00.000Z */
+            createdAt: string;
+            /** @example 2026-08-25T10:00:00.000Z */
+            updatedAt: string;
+            /**
+             * @description Venues providing this amenity, excluding soft-deleted ones. 0 for every row until the Venue table exists.
+             * @example 6
+             */
+            holderCount: number;
+        };
+        CreateAmenityDto: {
+            /** @example ไมโครโฟนไร้สาย */
+            name: string;
+        };
+        UpdateAmenityDto: {
+            /** @example ไมโครโฟนไร้สาย (2 ตัว) */
+            name: string;
+        };
+        DeleteAmenityResponseDto: {
+            /**
+             * @description How many venues lost this amenity. 0 while the Venue table does not exist.
+             * @example 6
+             */
+            releasedVenueCount: number;
         };
         VersionResponseDto: {
             /**
@@ -2829,6 +3004,488 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PersonnelRoleResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenueTypesController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueTypeResponseDto"][];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER has no access. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenueTypesController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVenueTypeDto"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueTypeResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenueTypesController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Soft-deleted. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown, already-deleted, or reserved id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenueTypesController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateVenueTypeDto"];
+            };
+        };
+        responses: {
+            /** @description Renamed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueTypeResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown, soft-deleted, or reserved id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AmenitiesController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AmenityResponseDto"][];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER has no access. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AmenitiesController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAmenityDto"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AmenityResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AmenitiesController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Soft-deleted; reports how many venues lost the amenity. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteAmenityResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or already-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AmenitiesController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAmenityDto"];
+            };
+        };
+        responses: {
+            /** @description Renamed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AmenityResponseDto"];
                 };
             };
             /** @description No session. */

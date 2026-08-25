@@ -1,14 +1,34 @@
 /**
- * ตัวเลือกบุคลากร — ONE page serving TWO destinations, `ตำแหน่งบุคลากร` and `กลุ่ม/ฝ่ายบุคลากร`.
+ * ONE page serving FOUR destinations — `ตำแหน่งบุคลากร`, `กลุ่ม/ฝ่ายบุคลากร`, `ประเภทสถานที่` and
+ * `อุปกรณ์ที่ให้บริการ`.
  *
- * The record is `{ id, name, isSystemReserved, holderCount, … }` in both tables and every endpoint
- * is the same shape, so the screen, its dialog and its confirmation are shared and every word that
- * differs is a string in `option-model.ts`. That mirrors the server exactly: `OptionsService` is one
- * class taking a `model` discriminator, and `routes.ts` already says in a comment not to fork this
- * into two components.
+ * The record is `{ id, name, holderCount, … }` in all four tables and every endpoint is the same
+ * shape, so the screen, its dialog and its confirmation are shared and every word that differs is a
+ * string in `option-model.ts`.
  *
- * ⚠️ IF YOU REACH FOR `if (model === …)` ANYWHERE BELOW, the two screens have genuinely diverged —
- * and that is the moment they stop sharing a route, not the moment to add a branch.
+ * ⚠️ IF YOU REACH FOR `if (model === …)` ANYWHERE BELOW, the screens have genuinely diverged — and
+ * that is the moment they stop sharing a route, not the moment to add a branch.
+ *
+ * ── The two venue tables joined on 25 ส.ค. 2569 and they are NOT copies ──
+ * Three real differences arrived with them, and the rule above held because each became DATA rather
+ * than a branch:
+ *
+ *   · a venue table has ONE holder population, the personnel tables have two ⇒ `OptionRecord.parts`,
+ *     null where there is nothing to split, and detected from the PAYLOAD (`'staffCount' in r`) so
+ *     nothing here names a table;
+ *   · holders are counted in `แห่ง`, not `คน` ⇒ `copy.unit`, which used to be a literal in the JSX;
+ *   · `/amenities` answers its DELETE with a body instead of 204 ⇒ absorbed by one adapter in the
+ *     `API` table above, where the reason it can be discarded *today* is written down.
+ *
+ * Notably `amenity` has no reserved rows at all — no System Developer row, no tombstone — so the
+ * padlock path below is simply never reached for it. That needed no code: the server sends no
+ * flagged row because the column does not exist.
+ *
+ * ⚠️ The server is NOT one class taking a discriminator any more. `OptionsService` still serves the
+ * two personnel tables; `/venue-types` and `/amenities` have their own services, because the shared
+ * `OptionDelegate` hard-codes a `_count` and a delete that those tables contradict. The client
+ * sharing one screen while the server has three services is correct, not drift — what the four
+ * share is a RESPONSE SHAPE, which is exactly what a screen consumes.
  *
  * ── The list is fetched whole, filtered on the client ──
  * The endpoint returns everything (no pagination, no search parameter), so the footer states a
@@ -32,16 +52,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ApiError,
+  createAmenity,
   createDepartment,
   createPersonnelRole,
+  createVenueType,
+  deleteAmenity,
   deleteDepartment,
   deletePersonnelRole,
+  deleteVenueType,
+  listAmenities,
   listDepartments,
   listPersonnelRoles,
+  listVenueTypes,
+  patchAmenity,
   patchDepartment,
   patchPersonnelRole,
+  patchVenueType,
+  type Amenity,
   type Department,
   type PersonnelRole,
+  type VenueType,
 } from '@/lib/api-client'
 import { Btn } from '../../components/ui/Btn'
 import { ConfirmModal } from '../../components/feedback/ConfirmModal'
@@ -63,8 +93,26 @@ import {
 } from './option-model'
 import type { AdminRoute } from '../../routes'
 
-/** The four calls, chosen once by model so nothing below asks which table it is on. */
-const API = {
+/**
+ * The four calls per table, chosen once by model so nothing below asks which table it is on.
+ *
+ * ⚠️ `remove` IS TYPED `Promise<void>` AND `/amenities` ANSWERS 200 WITH A BODY. That endpoint
+ * reports `releasedVenueCount` — how many venues lost the tick — because its confirm dialog quotes
+ * that number BEFORE the click and another operator can change it in between. The adapter below
+ * discards it deliberately, and only because it is 0 for every row today: no `Venue` table exists,
+ * so nothing can hold an amenity. When VENUE-1 lands, this is where the count starts mattering —
+ * widen `remove` to `Promise<number | null>` and let the success toast confirm the promise rather
+ * than repeat it.
+ */
+const API: Record<
+  OptionModel,
+  {
+    list: () => Promise<(Department | PersonnelRole | VenueType | Amenity)[]>
+    create: (body: { name: string }) => Promise<unknown>
+    patch: (id: number, body: { name: string }) => Promise<unknown>
+    remove: (id: number) => Promise<void>
+  }
+> = {
   personnelRole: {
     list: listPersonnelRoles,
     create: createPersonnelRole,
@@ -77,7 +125,21 @@ const API = {
     patch: patchDepartment,
     remove: deleteDepartment,
   },
-} as const
+  venueType: {
+    list: listVenueTypes,
+    create: createVenueType,
+    patch: patchVenueType,
+    remove: deleteVenueType,
+  },
+  amenity: {
+    list: listAmenities,
+    create: createAmenity,
+    patch: patchAmenity,
+    remove: async (id) => {
+      await deleteAmenity(id)
+    },
+  },
+}
 
 /**
  * `DepartmentResponseDto` → the screen's own shape.
@@ -86,12 +148,29 @@ const API = {
  * `updatedAt` verbatim — it is props-only and knows nothing about locales — so handing it an ISO
  * string would put `2026-07-14T10:00:00.000Z` on screen in Thai copy.
  */
-const toRecord = (r: Department | PersonnelRole): OptionRecord => ({
+const toRecord = (
+  r: Department | PersonnelRole | VenueType | Amenity,
+): OptionRecord => ({
   id: r.id,
   name: r.name,
   reserved: r.isSystemReserved || undefined,
-  lineUsers: r.registrationCount,
-  staff: r.staffCount,
+  holders: r.holderCount,
+  /*
+   * ⚠️ THE SPLIT IS DETECTED ON THE PAYLOAD, NOT ON THE MODEL NAME, and that is what keeps the
+   * page's "no `if (model === …)`" rule intact. `staffCount` / `registrationCount` are the two
+   * populations the personnel tables are shared between; the venue tables have one population and
+   * therefore no such fields, so `parts` is null for them without anyone naming them here.
+   *
+   * If a fifth table arrives with two populations, it gets its breakdown for free. If one arrives
+   * with three, this is the line that changes — once.
+   */
+  parts:
+    'staffCount' in r && 'registrationCount' in r
+      ? [
+          { label: 'ผู้ใช้ LINE', n: r.registrationCount },
+          { label: 'เจ้าหน้าที่ระบบ', n: r.staffCount },
+        ]
+      : null,
   createdAt: thaiDate(r.createdAt),
   updatedAt: thaiDate(r.updatedAt),
 })
@@ -469,6 +548,7 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
                             rec={rec}
                             index={i + 1}
                             noun={copy.noun}
+                            unit={copy.unit}
                             write={acl.write}
                             onEdit={() => openEdit(rec)}
                           />
@@ -483,6 +563,7 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
                         key={rec.id}
                         rec={rec}
                         noun={copy.noun}
+                        unit={copy.unit}
                         write={acl.write}
                         onEdit={() => openEdit(rec)}
                       />
@@ -538,9 +619,13 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
         who={`${copy.noun} “${confirming?.name ?? ''}”`}
         // The count is not a warning decoration — it is the number of records this click is about
         // to rewrite, so it is stated BEFORE the verb and the destination is named in full.
+        // ⚠️ The breakdown in parentheses appears only where there IS one. Rendering
+        // "(ผู้ใช้ LINE 3 แห่ง, เจ้าหน้าที่ระบบ 0 แห่ง)" next to a venue count would be nonsense
+        // twice over — wrong populations and wrong unit — so `parts` being null is what removes it,
+        // not a check on which screen this is.
         description={
           held
-            ? `${copy.delLead} ${held} คน (ผู้ใช้ LINE ${confirming?.lineUsers ?? 0} คน, เจ้าหน้าที่ระบบ ${confirming?.staff ?? 0} คน) ${copy.holdersMove}`
+            ? `${copy.delLead} ${held} ${copy.unit}${partsOf(confirming, copy.unit)} ${copy.holdersMove}`
             : copy.holdersNone
         }
         tone="danger"
@@ -601,11 +686,27 @@ function Actions({
   )
 }
 
+/**
+ * ` (ผู้ใช้ LINE 8 คน, เจ้าหน้าที่ระบบ 5 คน)` — or an empty string where the total has no parts.
+ *
+ * Returns the leading space too, so the caller does not have to decide whether one is needed: a
+ * template that writes `${held} ${unit} ${partsOf(...)}` leaves a double space on the tables without
+ * a breakdown, and that is the kind of thing nobody notices until it is in a screenshot.
+ */
+function partsOf(rec: OptionRecord | null, unit: string): string {
+  if (!rec?.parts) return ''
+  return ` (${rec.parts.map((p) => `${p.label} ${p.n} ${unit}`).join(', ')})`
+}
+
 /** `0 คน` is MUTED, never an em-dash — a dash reads as "no data", and whether anybody holds this
  *  row is the single fact the delete decision turns on, so it must not look like a missing value. */
-function Usage({ rec }: { rec: OptionRecord }) {
+function Usage({ rec, unit }: { rec: OptionRecord; unit: string }) {
   const n = holdersOf(rec)
-  return <span className={n ? 'text-base-content/90' : 'text-base-content/70'}>{n} คน</span>
+  return (
+    <span className={n ? 'text-base-content/90' : 'text-base-content/70'}>
+      {n} {unit}
+    </span>
+  )
 }
 
 function ReservedChip() {
@@ -621,12 +722,14 @@ function Row({
   rec,
   index,
   noun,
+  unit,
   write,
   onEdit,
 }: {
   rec: OptionRecord
   index: number
   noun: string
+  unit: string
   write: boolean
   onEdit: () => void
 }) {
@@ -640,7 +743,7 @@ function Row({
         </span>
       </td>
       <td className="td-cell text-center tabular-nums">
-        <Usage rec={rec} />
+        <Usage rec={rec} unit={unit} />
       </td>
       <td className="td-cell whitespace-nowrap text-center text-[14px] text-base-content/80">
         {rec.updatedAt}
@@ -657,11 +760,13 @@ function Row({
 function Card({
   rec,
   noun,
+  unit,
   write,
   onEdit,
 }: {
   rec: OptionRecord
   noun: string
+  unit: string
   write: boolean
   onEdit: () => void
 }) {
@@ -673,7 +778,7 @@ function Card({
           {rec.reserved && <ReservedChip />}
         </span>
         <span className="mt-0.5 block text-[13px] text-base-content/70">
-          <Usage rec={rec} /> · แก้ไข {rec.updatedAt}
+          <Usage rec={rec} unit={unit} /> · แก้ไข {rec.updatedAt}
         </span>
       </span>
       <Actions rec={rec} noun={noun} write={write} onEdit={onEdit} />

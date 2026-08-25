@@ -55,9 +55,13 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   ข้อมูลเวอร์ชันระบบ: (route) => <VersionPage route={route} />,
   โปรไฟล์: (route) => <ProfilePage route={route} />,
   เปลี่ยนรหัสผ่าน: (route) => <ChangePasswordPage route={route} />,
-  // TWO labels, ONE component — see `OptionsPage`'s header and the comment in `routes.ts`.
+  // FOUR labels, ONE component — see `OptionsPage`'s header and the comment in `routes.ts`.
+  // The two venue vocabularies joined on 25 ส.ค. 2569; everything that differs between the four is
+  // a string (or a null) in `option-model.ts`, never a branch in the page.
   ตำแหน่งบุคลากร: (route) => <OptionsPage route={route} />,
   'กลุ่ม/ฝ่ายบุคลากร': (route) => <OptionsPage route={route} />,
+  ประเภทสถานที่: (route) => <OptionsPage route={route} />,
+  อุปกรณ์ที่ให้บริการ: (route) => <OptionsPage route={route} />,
   เจ้าหน้าที่ระบบ: (route) => <StaffPage route={route} />,
   การลงทะเบียน: (route) => <LineUsersPage route={route} />,
 }
