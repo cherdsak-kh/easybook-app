@@ -7,9 +7,10 @@
  * them moves.
  *
  * ⚠️ ORDER IS LOAD-BEARING. It is the sidebar's order, which is the PRODUCT's order (set by the
- * project on 11 ส.ค. 2569), and the prototype keeps its table in the same sequence for one
- * reason: this table is read as a picture of the menu, and a table that disagrees with the menu
- * is a table nobody can check against anything.
+ * project on 11 ส.ค. 2569, การบริหารจัดการ resequenced by the PO on 26 ส.ค. 2569), and the
+ * prototype keeps its table in the same sequence for one reason: this table is read as a picture
+ * of the menu, and a table that disagrees with the menu is a table nobody can check against
+ * anything.
  *
  * ⚠️ `label` IS THE JOIN KEY — for the sidebar row, the router, the breadcrumb and the ACL. One
  * string, one answer. Two copies of "what is this row called" is two answers waiting to diverge,
@@ -56,6 +57,20 @@ export const ADMIN_PORTAL_ROUTES = [
     desc: 'เผยแพร่ประกาศและข่าวสารไปยังผู้ใช้ผ่าน LINE',
   },
   {
+    // ⚠️ SECOND, NOT FIFTH (PO, 26 ส.ค. 2569). It sat after สถานที่จัดกิจกรรม, which put the three
+    // booking screens ahead of the gate that decides who may book at all — and registration is
+    // upstream of every one of them: an unapproved LINE user cannot raise a request, so a queue
+    // left unread here silently starves the queues below it.
+    //
+    // Moving it also RETIRED a measured cost recorded on the icon swap of 25 ส.ค. 2569: at position
+    // five this row sat directly above เจ้าหน้าที่ระบบ, and `user-plus` beside `users` made two
+    // adjacent person silhouettes. Three rows now separate them. Do not "restore" that pairing.
+    label: 'การลงทะเบียน',
+    path: 'line-users',
+    group: 'การบริหารจัดการ',
+    desc: 'ตรวจสอบและอนุมัติผู้ใช้ที่ลงทะเบียนผ่าน LINE',
+  },
+  {
     label: 'ปฏิทินการจอง',
     path: 'bookings/calendar',
     group: 'การบริหารจัดการ',
@@ -87,12 +102,6 @@ export const ADMIN_PORTAL_ROUTES = [
     path: 'venues',
     group: 'การบริหารจัดการ',
     desc: 'จัดการรายการสถานที่ ความจุ และอุปกรณ์ที่ให้บริการ',
-  },
-  {
-    label: 'การลงทะเบียน',
-    path: 'line-users',
-    group: 'การบริหารจัดการ',
-    desc: 'ตรวจสอบและอนุมัติผู้ใช้ที่ลงทะเบียนผ่าน LINE',
   },
   {
     label: 'เจ้าหน้าที่ระบบ',
