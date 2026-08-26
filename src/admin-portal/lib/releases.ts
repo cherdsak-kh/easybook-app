@@ -54,16 +54,17 @@ export interface Release {
 export const RELEASES: readonly Release[] = [
   {
     /*
-     * ⚠️ NOT RELEASED YET. `package.json` is still `0.6.0`, and the page renders
-     * `RELEASES.filter(r => compareVersions(r.v, APP.version) <= 0)` — so this entry is inert until
-     * someone runs `npm version minor`. That is the doctrine at the top of this file: notes are
+     * RELEASED 26 ส.ค. 2569, on the PO's word — `npm version minor` in the same breath as this
+     * edit. It sat here inert while `package.json` read `0.6.0`, because the page renders
+     * `RELEASES.filter(r => compareVersions(r.v, APP.version) <= 0)` and an unreleased entry shows
+     * to nobody. That is the doctrine at the top of this file working as intended: notes are
      * written by whoever ships the work at the moment they finish it, not reconstructed from a diff
      * weeks later. The bump is the PO's call.
      *
-     * ⚠️ THE DATE IS PROVISIONAL AND MUST BE CORRECTED IF THE RELEASE SLIPS. `0.6.0` shows exactly
-     * why: it sat here for three days reading `19 ส.ค.` — the day its first line was written — and
-     * had to be changed to `22 ส.ค.` when it actually shipped. A release date is a fact about the
-     * release.
+     * ⚠️ THE DATE WAS CORRECTED WHEN THE RELEASE SLIPPED — it read `25 ส.ค.`, the day its last line
+     * was written, and the bump happened on the 26th. `0.6.0` had to be moved the same way, by
+     * three days. A release date is a fact about the release, written down when it happens and
+     * never computed.
      *
      * `x`, because this release adds two PAGES.
      *
@@ -71,15 +72,26 @@ export const RELEASES: readonly Release[] = [
      * draft of this entry covered only the two new pages, and two earlier commits were already
      * sitting past the tag — the menu change and the forms/keyboard work. A release note is written
      * per RELEASE, so `git log v0.6.0..HEAD` is the input, not the branch you happen to be on. The
-     * PO caught this; the check costs one command and is worth running before every bump.
+     * PO caught this; the check costs one command and is worth running before every bump. It was
+     * run again at the bump and caught the menu resequence below.
      *
-     * ⚠️ WHAT IS DELIBERATELY ABSENT: a line about the options screen now serving four tables
-     * instead of two. It is the largest change in the diff and it is invisible — the two personnel
-     * pages render byte-identically before and after (measured), so a note would describe work
-     * rather than a difference anybody can meet. Same test that kept the VIEWER fix out of `0.5.0`.
+     * ⚠️ WHAT IS DELIBERATELY ABSENT, all three by the same test — can the reader MEET a difference:
+     *
+     *  · the options screen now serving four tables instead of two. Largest change in the diff and
+     *    completely invisible: the two personnel pages render byte-identically before and after
+     *    (measured), so a note would describe work rather than a difference. Same test that kept
+     *    the VIEWER fix out of `0.5.0`;
+     *  · two repairs to สถานที่จัดกิจกรรม — a scroll box that was scrolling twice, and ปิดชั่วคราว
+     *    rendered in the wrong theme colour. The page SHIPS IN THIS RELEASE, so nobody ever met
+     *    either defect. Announcing a fix to something the reader has never seen is the same failure
+     *    as announcing a feature nobody built;
+     *  · the swapped glyphs on ตำแหน่งบุคลากร and การลงทะเบียน. A menu row is found by its Thai
+     *    label, which did not change, and no action depends on the picture. The row's POSITION is
+     *    different — that is how a returning operator finds it, which is why the resequence one
+     *    line below DOES earn a note and the icons do not.
      */
     v: '0.7.0',
-    date: '25 ส.ค. 2569',
+    date: '26 ส.ค. 2569',
     groups: [
       {
         t: 'ใหม่',
@@ -123,6 +135,11 @@ export const RELEASES: readonly Release[] = [
           // จองสถานที่แล้ว" would be the changelog announcing work nobody built, which is the one
           // failure this file exists to prevent.
           'เมนู “วันหยุด/วันปิดปรับปรุง” ถูกยกเลิก · งานที่ตั้งใจให้หน้านั้นทำ — เจ้าหน้าที่จองเองหรือล็อกวันเวลาของสถานที่ไว้ล่วงหน้า — จะไปอยู่ในหน้าคำขอจองสถานที่ ซึ่งยังอยู่ระหว่างการพัฒนา',
+          // ⚠️ A LINE FOR A ROW THAT ONLY MOVED, and it earns one because an operator who has used
+          // `0.6.0` finds this menu by position — the row is not gone, it is somewhere else, and
+          // that is precisely the change most likely to be reported as "หาไม่เจอ". Says which row
+          // moved and where to, then the reason, because the reason is the answer to "ทำไมย้าย".
+          'เมนูหมวดการบริหารจัดการเรียงใหม่ — “การลงทะเบียน” ย้ายขึ้นมาเป็นลำดับที่สอง ถัดจาก “ประกาศและข่าวสาร” · เมนูอื่นเรียงเหมือนเดิมทุกอัน · คิวผู้รออนุมัติจึงอยู่เหนือหน้าการจอง เพราะผู้ใช้ที่ยังไม่ได้รับอนุมัติยื่นคำขอจองไม่ได้',
           // ⚠️ SAYS WHAT THE APP STOPPED DOING, not what the keyboard will now do — and the
           // difference is the whole reason this line is allowed to exist. Attribute presence was
           // measured in the DOM; real iOS/Android keyboard behaviour was NOT verified, because that
