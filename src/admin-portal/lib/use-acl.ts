@@ -41,7 +41,7 @@ import type { AdminRouteLabel } from '../routes'
 export const VIEWER_DENY: readonly AdminRouteLabel[] = [
   'ระบบการจอง',
   'ประเภทสถานที่',
-  'อุปกรณ์ที่ให้บริการ',
+  'สิ่งอำนวยความสะดวก',
   'กลุ่ม/ฝ่ายบุคลากร',
   'ตำแหน่งบุคลากร',
   'เทมเพลตข้อความ',

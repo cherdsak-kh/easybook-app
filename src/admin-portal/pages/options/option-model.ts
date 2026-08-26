@@ -1,6 +1,6 @@
 /**
  * ONE screen serving FOUR destinations — ตำแหน่งบุคลากร, กลุ่ม/ฝ่ายบุคลากร, ประเภทสถานที่ and
- * อุปกรณ์ที่ให้บริการ.
+ * สิ่งอำนวยความสะดวก.
  *
  * The record is `{ id, name, holderCount, … }` in all four tables and every endpoint is the same
  * shape, so the screen and its dialog are shared and every word that differs is a string in here.
@@ -157,7 +157,7 @@ export const OPTION_COPY: Record<OptionModel, OptionCopy> = {
   },
   amenity: {
     noun: 'อุปกรณ์',
-    desc: 'รายการอุปกรณ์และสิ่งอำนวยความสะดวกที่ติ๊กเลือกได้ตอนเพิ่มหรือแก้ไขสถานที่',
+    desc: 'รายการสิ่งอำนวยความสะดวกที่ติ๊กเลือกได้ตอนเพิ่มหรือแก้ไขสถานที่',
     colHolders: 'สถานที่ที่มีอุปกรณ์นี้',
     holdersSome: 'มีสถานที่ที่ให้บริการอุปกรณ์นี้',
     holdersNone: 'ยังไม่มีสถานที่ใดให้บริการอุปกรณ์นี้',
@@ -183,5 +183,5 @@ export const OPTION_OF: Record<string, OptionModel> = {
   ตำแหน่งบุคลากร: 'personnelRole',
   'กลุ่ม/ฝ่ายบุคลากร': 'department',
   ประเภทสถานที่: 'venueType',
-  อุปกรณ์ที่ให้บริการ: 'amenity',
+  สิ่งอำนวยความสะดวก: 'amenity',
 }

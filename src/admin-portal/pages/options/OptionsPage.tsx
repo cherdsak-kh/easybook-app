@@ -1,6 +1,6 @@
 /**
  * ONE page serving FOUR destinations — `ตำแหน่งบุคลากร`, `กลุ่ม/ฝ่ายบุคลากร`, `ประเภทสถานที่` and
- * `อุปกรณ์ที่ให้บริการ`.
+ * `สิ่งอำนวยความสะดวก`.
  *
  * The record is `{ id, name, holderCount, … }` in all four tables and every endpoint is the same
  * shape, so the screen, its dialog and its confirmation are shared and every word that differs is a

@@ -101,7 +101,7 @@ export const ADMIN_PORTAL_ROUTES = [
     label: 'สถานที่จัดกิจกรรม',
     path: 'venues',
     group: 'การบริหารจัดการ',
-    desc: 'จัดการรายการสถานที่ ความจุ และอุปกรณ์ที่ให้บริการ',
+    desc: 'จัดการรายการสถานที่ ความจุ และสิ่งอำนวยความสะดวก',
   },
   {
     label: 'เจ้าหน้าที่ระบบ',
@@ -173,7 +173,7 @@ export const ADMIN_PORTAL_ROUTES = [
   },
   {
     // A NEW destination (PO, 24 ส.ค. 2569), and it exists because of a question the
-    // สถานที่จัดกิจกรรม prototype could not answer: "อุปกรณ์ที่ให้บริการ เพิ่ม/ลบ/แก้ไข ต้องทำที่
+    // สถานที่จัดกิจกรรม prototype could not answer: "สิ่งอำนวยความสะดวก เพิ่ม/ลบ/แก้ไข ต้องทำที่
     // ไหน". The honest answer was "nowhere" — the vocabulary was hard-coded in the venue form.
     //
     // Directly under ประเภทสถานที่ because the two are read together: both are the lists that
@@ -184,10 +184,10 @@ export const ADMIN_PORTAL_ROUTES = [
     // table, so deleting one drops the ticks instead of moving holders to a `ไม่พบ…` tombstone.
     // That distinction has to survive the port; it is the difference between a `SET`-style
     // cleanup and a required-FK reassignment on the server too.
-    label: 'อุปกรณ์ที่ให้บริการ',
+    label: 'สิ่งอำนวยความสะดวก',
     path: 'settings/amenities',
     group: 'การตั้งค่าระบบ',
-    desc: 'จัดการรายการอุปกรณ์และสิ่งอำนวยความสะดวกที่ติ๊กเลือกได้ตอนเพิ่มสถานที่',
+    desc: 'จัดการรายการสิ่งอำนวยความสะดวกที่ติ๊กเลือกได้ตอนเพิ่มสถานที่',
   },
   {
     // TWO labels, ONE screen — `settings/positions` and `settings/departments` are the same page

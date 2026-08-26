@@ -655,7 +655,7 @@ export function VenueFormDialog({
         </p>
       </fieldset>
 
-      {/* ── อุปกรณ์ที่ให้บริการ ──
+      {/* ── สิ่งอำนวยความสะดวก ──
           Ticks over a CLOSED VOCABULARY, not a text box, and the vocabulary lives in its own
           admin-maintained table. The reason is one thing free text can never do: "หาที่ที่มี
           โปรเจกเตอร์" is a filter, and a filter needs the two people who typed "โปรเจกเตอร์" and
@@ -666,7 +666,7 @@ export function VenueFormDialog({
           `ไม่พบ…` tombstone. */}
       <fieldset className="mt-4 rounded-control border border-base-300 px-4 pb-4 pt-3">
         <legend className="px-1.5 text-[13px] font-semibold text-base-content/80">
-          อุปกรณ์ที่ให้บริการ{' '}
+          สิ่งอำนวยความสะดวก{' '}
           <span className="font-normal text-base-content/70">(ไม่บังคับ)</span>
         </legend>
         {amenities.length === 0 ? (
@@ -677,7 +677,7 @@ export function VenueFormDialog({
           <p className="m-0 text-[13px] leading-[1.55] text-base-content/70">
             ยังไม่มีอุปกรณ์ในระบบ — เพิ่มได้ที่หน้า{' '}
             <span className="font-medium text-base-content">
-              การตั้งค่าระบบ › อุปกรณ์ที่ให้บริการ
+              การตั้งค่าระบบ › สิ่งอำนวยความสะดวก
             </span>
           </p>
         ) : (

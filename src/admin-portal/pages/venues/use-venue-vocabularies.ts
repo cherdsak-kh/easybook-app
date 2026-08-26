@@ -1,9 +1,9 @@
 /**
- * The two curated lists this screen reads but does not own: `ประเภทสถานที่` and `อุปกรณ์ที่ให้บริการ`.
+ * The two curated lists this screen reads but does not own: `ประเภทสถานที่` and `สิ่งอำนวยความสะดวก`.
  *
  * ⚠️ READ LIVE, NEVER COPIED. This is the prototype's own rule, and it was learned the expensive way
  * there: the amenity vocabulary used to be a hard-coded array in the venues module, so adding a row
- * on `การตั้งค่าระบบ › อุปกรณ์ที่ให้บริการ` changed a table nothing on this screen read. Two records
+ * on `การตั้งค่าระบบ › สิ่งอำนวยความสะดวก` changed a table nothing on this screen read. Two records
  * of one fact is the same defect `Venue.venueTypeId` exists to avoid, one layer up.
  *
  * ⚠️ REFETCHED ON EVERY DIALOG OPEN, not once at mount — the same bug `useStaffOptions` documents.

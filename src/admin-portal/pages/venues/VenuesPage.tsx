@@ -427,7 +427,7 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
     <div className="card-shell" style={{ ['--vn-card' as string]: ZOOM[zoom] }}>
       <PageHeading
         route={route}
-        desc="รายการสถานที่ที่เปิดให้จองผ่าน LINE พร้อมรูปภาพ ความจุ และอุปกรณ์ที่ให้บริการ"
+        desc="รายการสถานที่ที่เปิดให้จองผ่าน LINE พร้อมรูปภาพ ความจุ และสิ่งอำนวยความสะดวก"
         descAtEveryWidth={false}
         actions={
           <div className="flex items-center gap-2">

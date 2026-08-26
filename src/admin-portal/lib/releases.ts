@@ -100,7 +100,7 @@ export const RELEASES: readonly Release[] = [
           // ⚠️ THE EMPTY START IS STATED AS A DECISION, not left to be discovered. An operator who
           // opens a brand-new screen and finds nothing in it reports a bug; one who was told the
           // list is theirs to build starts typing. The reason is the true one (`Q18`).
-          'หน้าอุปกรณ์ที่ให้บริการ — รายการอุปกรณ์และสิ่งอำนวยความสะดวก เพิ่ม แก้ไข ลบ และค้นหาได้เอง · เริ่มจากรายการว่างโดยตั้งใจ เพราะของที่โรงเรียนมีจริงเป็นสิ่งที่เจ้าหน้าที่กรอกเอง ไม่ใช่สิ่งที่ระบบเดาให้',
+          'หน้าสิ่งอำนวยความสะดวก — รายการสิ่งอำนวยความสะดวก เพิ่ม แก้ไข ลบ และค้นหาได้เอง · เริ่มจากรายการว่างโดยตั้งใจ เพราะของที่โรงเรียนมีจริงเป็นสิ่งที่เจ้าหน้าที่กรอกเอง ไม่ใช่สิ่งที่ระบบเดาให้',
           // ⚠️ THIS LINE USED TO END "…หน้านั้นยังอยู่ระหว่างการพัฒนา คอลัมน์จำนวนสถานที่จึงยังขึ้น 0
           // ทุกแถว", written when the count really was a hard-coded zero. The venues screen landed
           // in this same release and the count is real now, so the sentence had to change or the

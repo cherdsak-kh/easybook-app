@@ -62,7 +62,7 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   ตำแหน่งบุคลากร: (route) => <OptionsPage route={route} />,
   'กลุ่ม/ฝ่ายบุคลากร': (route) => <OptionsPage route={route} />,
   ประเภทสถานที่: (route) => <OptionsPage route={route} />,
-  อุปกรณ์ที่ให้บริการ: (route) => <OptionsPage route={route} />,
+  สิ่งอำนวยความสะดวก: (route) => <OptionsPage route={route} />,
   สถานที่จัดกิจกรรม: (route) => <VenuesPage route={route} />,
   เจ้าหน้าที่ระบบ: (route) => <StaffPage route={route} />,
   การลงทะเบียน: (route) => <LineUsersPage route={route} />,
