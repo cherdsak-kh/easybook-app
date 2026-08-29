@@ -294,6 +294,12 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
       setFieldErrors({ name: 'กรอกชื่อสถานที่' })
       return
     }
+    // ⚠️ THIS GUARD WAS DEAD CODE UNTIL 29 ส.ค. 2569, and nothing about it changed to fix that —
+    // the DIALOG did. `VenueFormDialog` used to pre-select `types[0]` on create, so `venueTypeId`
+    // was never empty and this branch could not be reached; the create form's default state was a
+    // category nobody had chosen. It now opens on an empty placeholder, `Number('')` is `NaN`, and
+    // `!NaN` is true — so an untouched select stops here instead of filing the venue under whichever
+    // ประเภทสถานที่ happens to sort first.
     if (!values.venueTypeId) {
       setFieldErrors({ venueTypeId: 'เลือกประเภทสถานที่' })
       return

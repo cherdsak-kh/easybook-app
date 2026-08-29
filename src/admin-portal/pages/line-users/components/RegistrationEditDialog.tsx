@@ -62,6 +62,27 @@ const SAVE_ICON =
 
 const nameOf = (rows: RegistrationOption[], id: number) => rows.find((r) => r.id === id)?.name ?? ''
 
+/**
+ * ⚠️ THIS IS THE SERVER'S REGEX, CHARACTER FOR CHARACTER — `CreateLineUserRegistrationDto.phone`'s
+ * `@Matches`, which the admin PATCH DTO inherits. Copying it is the point: a client rule that is
+ * merely "similar" produces the two failures that make validation worse than none — a value this
+ * form accepts and the API answers 400 for (an error with no field beside it), or one this form
+ * refuses that the API would have stored (a rule the operator cannot find written down anywhere).
+ *
+ * A GRAMMAR, not a widened charset: a phone-shaped prefix, then OPTIONALLY a Thai/English extension
+ * marker and its digits. "02-123-4567 ต่อ 101" is how a Thai office number is written, and the
+ * charset-only version this replaced answered 400 for it while naming no character — so the person
+ * retyped the number WITHOUT the extension and the data was lost at the keyboard. Widening the
+ * character class instead would accept "โทรหาผมสิ" as a phone number.
+ *
+ * ⚠️ IT IS NOT `StaffFormDialog`'s `PHONE_RE`, and the difference is the server's, not a drift here:
+ * `SystemUser.phoneNumber` also allows `#` and `.` (`/^[0-9+\-\s()#.]{6,20}…/`), because staff
+ * numbers were entered as "02-123-4567 #114" before the extension grammar existed. Two DTOs, two
+ * regexes; each screen mirrors the endpoint it posts to. Unifying them here would make one of the
+ * two screens lie.
+ */
+const PHONE_RE = /^[0-9+\-() ]{6,20}(?:\s*(?:ต่อ|ext\.?)\s*\d{1,6})?$/
+
 export function RegistrationEditDialog({
   open,
   onClose,
@@ -140,6 +161,15 @@ export function RegistrationEditDialog({
     if (!trimmed.firstName) next.firstName = 'กรอกชื่อ'
     else if (!trimmed.lastName) next.lastName = 'กรอกนามสกุล'
     else if (!trimmed.phone) next.phone = 'กรอกเบอร์โทรศัพท์'
+    // ⚠️ EMPTY AND MALFORMED ARE TWO ERRORS, hence `else if` rather than one combined test: "กรอก…"
+    // and "รูปแบบ…" ask for different things, and telling somebody who typed nothing that their
+    // format is wrong is a message about a value they never entered.
+    // Checked LAST because a required-field failure is the cheaper thing to say first — and because
+    // without this the only place the shape was ever enforced was the server, which answers 400 with
+    // an English DTO message that this dialog renders as a whole-form banner, not beside the field
+    // the operator has to fix.
+    else if (!PHONE_RE.test(trimmed.phone))
+      next.phone = 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง · ใช้ตัวเลข เว้นวรรค และ + - ( ) ความยาว 6–20 ตัว ต่อด้วย “ต่อ” หรือ “ext” และเลขต่อได้'
     setErrors(next)
     if (Object.keys(next).length) return
     onSubmit(trimmed, diff)

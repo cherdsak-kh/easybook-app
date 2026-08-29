@@ -31,6 +31,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
+  ApiError,
   discardVenuePhoto,
   uploadVenuePhoto,
   VENUE_PHOTOS_MAX,
@@ -94,6 +95,17 @@ function Glyph({ d, className = 'h-4.5 w-4.5 shrink-0' }: { d: string; className
 }
 
 const MB = (bytes: number) => Math.round(bytes / (1024 * 1024))
+
+/**
+ * The formats the upload endpoint accepts — the same set the `accept` attribute names on the input
+ * below, and the same one the server's magic-byte sniff enforces (`isAvatarImageType`).
+ *
+ * ⚠️ `accept` IS A FILE-PICKER HINT, NOT A CHECK. Every desktop file dialog offers "All Files" one
+ * dropdown away, and a drag-and-drop ignores `accept` entirely — so this list has to exist in code
+ * as well as in the attribute, or a .pdf reaches `uploadVenuePhoto` and comes back as a 400 the
+ * operator is told to "retry".
+ */
+const ACCEPTED_PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 export function VenueFormDialog({
   open,
@@ -163,13 +175,25 @@ export function VenueFormDialog({
   useEffect(() => {
     if (!open) return
     setName(target?.name ?? '')
-    // ⚠️ ON CREATE THIS PRE-SELECTS THE FIRST CATEGORY RATHER THAN LEAVING A BLANK. `venueTypeId` is
-    // a non-null FK, so "ไม่ระบุ" is not a value the server can store — a placeholder option would
-    // build a form whose DEFAULT STATE is a 400, caught only by a client-side check the server has to
-    // repeat anyway. The prototype states the same rule and does the same thing (its
-    // `fillTypeSelect(0)` sets no value, so the browser selects option 0).
-    // The page refuses to open this dialog at all when there are no categories, so `types[0]` exists.
-    setVenueTypeId(target ? String(target.venueType.id) : String(types[0]?.id ?? ''))
+    /*
+     * ⚠️ CREATE MODE STARTS WITH NOTHING SELECTED. This used to pre-select `types[0]`, on the
+     * reasoning that `venueTypeId` is a non-null FK so a blank is not a value the server can
+     * store — and that reasoning had the failure backwards. A pre-selected first option is not
+     * "a safe default", it is a CHOICE THE OPERATOR NEVER MADE, rendered identically to one they
+     * did: nothing on screen distinguishes "โรงยิม because I picked it" from "โรงยิม because it
+     * sorts first". The venue is then filed under the wrong category, silently, and the mistake
+     * is only ever found by someone looking for a venue that is not where they expect.
+     *
+     * It also made `VenuesPage`'s `if (!values.venueTypeId)` guard DEAD CODE — the value was
+     * never empty, so the one check written to catch this could never fire. `Number('')` is
+     * `NaN`, which is falsy, so an untouched select now reaches that guard and stops there.
+     * A blank is still never SENT: it is refused before the request, exactly as the name and
+     * capacity checks are.
+     *
+     * Edit/view keep preselecting the record's real category — there the venue HAS one, and
+     * offering "not chosen" would invent a state the FK cannot hold.
+     */
+    setVenueTypeId(target ? String(target.venueType.id) : '')
     setCapacity(target ? String(target.capacity) : '')
     setLocation(target?.location ?? '')
     setDescription(target?.description ?? '')
@@ -185,9 +209,10 @@ export function VenueFormDialog({
     // flipped the เปิดให้จอง switch. Identity of the RECORD is what should reset the form, and that
     // is its id.
     //
-    // `types` is read here and is deliberately not a dep either: the page refuses to open the create
-    // dialog while the list is empty, so it is already populated — and re-running on a refetch would
-    // reset a form somebody is typing into just because the vocabulary was reloaded.
+    // `types` USED to be read here, to pre-select `types[0]` on create. It no longer is — create
+    // now opens with the placeholder selected — which removes the one thing that ever tied this
+    // reset to the vocabulary list. One fewer reason for a refetch of ประเภทสถานที่ to be able to
+    // touch a form somebody is typing into.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, target?.id])
 
@@ -230,18 +255,56 @@ export function VenueFormDialog({
     onClose()
   }
 
+  /**
+   * ⚠️ A REFUSED FILE AND A FAILED REQUEST ARE DIFFERENT EVENTS AND MUST NOT SHARE A SENTENCE.
+   *
+   * They used to. `resizeForUpload` fails SOFT by design — it hands back the original file for
+   * anything it cannot decode — so a .pdf sailed past it, was POSTed, came back 400, and landed in
+   * the one `catch` alongside a dropped Wi-Fi connection. Both then printed
+   * "อัปโหลดไม่สำเร็จ · ลองใหม่อีกครั้ง", which for the .pdf is advice that cannot work: retrying
+   * uploads the same bytes to the same check. The operator retries twice, concludes the system is
+   * broken, and the actual fix — pick a different file — is never suggested.
+   *
+   * So the outcomes are separated by what the operator has to DO about them:
+   *   · not an image / unsupported format  → choose a DIFFERENT file
+   *   · larger than the cap                → the SAME file, made smaller
+   *   · more files than slots              → delete something first
+   *   · 4xx from the upload itself         → the bytes are wrong (corrupt, or the magic bytes do
+   *                                          not match the declared type) → a different file
+   *   · anything else (0 / 5xx / session)  → genuinely transient → RETRY, and only here
+   */
   const pickFiles = async (files: File[]) => {
+    // ⚠️ CONTENT IS CHECKED BEFORE THE CEILING, so a file that could never be uploaded does not
+    // spend one of the ten slots. The other order lets three PDFs eat three places and then reports
+    // "ไม่ได้เพิ่มอีก 3 รูป" about photos that were perfectly fine.
+    const notImage: File[] = []
+    const unsupported: File[] = []
+    const usable = files.filter((f) => {
+      // An empty `type` means the browser could not identify the file at all; "not an image" is the
+      // honest reading of that, and it points at the same fix.
+      if (!f.type || !f.type.startsWith('image/')) {
+        notImage.push(f)
+        return false
+      }
+      if (!ACCEPTED_PHOTO_TYPES.has(f.type)) {
+        unsupported.push(f)
+        return false
+      }
+      return true
+    })
+
     // ⚠️ TAKE WHAT FITS AND SAY WHAT WAS REFUSED. It does not truncate silently, and it does not
     // reject the whole selection either: somebody who multi-selects twelve photos into an empty
     // gallery meant to add photos, and rejecting all twelve to punish the last two is a worse answer
     // than the silent truncation this exists to prevent.
     const room = Math.max(0, VENUE_PHOTOS_MAX - draft.length)
-    const taken = files.slice(0, room)
-    const refusedForRoom = files.length - taken.length
+    const taken = usable.slice(0, room)
+    const refusedForRoom = usable.length - taken.length
 
     setUploading(true)
     const added: string[] = []
     const tooBig: string[] = []
+    const badBytes: string[] = []
     let failed = 0
     for (const file of taken) {
       try {
@@ -256,13 +319,25 @@ export function VenueFormDialog({
         const url = await uploadVenuePhoto(small)
         sessionUploads.current.add(url)
         added.push(url)
-      } catch {
-        failed += 1
+      } catch (err) {
+        const status = err instanceof ApiError ? err.status : 0
+        // 413 is the multer cap — the same fact as the local size check, so it joins that bucket
+        // rather than inventing a second way to say "too big".
+        if (status === 413) tooBig.push(file.name)
+        // 400/415 from THIS endpoint mean the bytes were refused: `VENUE_PHOTO_TYPE_UNSUPPORTED` is
+        // raised both for a declared type outside the allowlist and for a magic-byte sniff that
+        // disagrees with it — i.e. a renamed or truncated file. Neither improves on a second try.
+        else if (status === 400 || status === 415 || status === 422) badBytes.push(file.name)
+        // 0 (offline), 403 (CSRF/session), 5xx — the request never got a verdict on the file.
+        else failed += 1
       }
     }
     setUploading(false)
     if (added.length) setDraft((d) => [...d, ...added])
 
+    // Every refusal that happened gets its own sentence, joined by the ` · ` this portal uses
+    // everywhere else. One selection can hit several at once, and reporting only the first would
+    // leave the operator fixing one problem per attempt.
     const problems: string[] = []
     if (refusedForRoom > 0) {
       problems.push(
@@ -271,12 +346,29 @@ export function VenueFormDialog({
           : `ครบ ${VENUE_PHOTOS_MAX} รูปแล้ว — ลบรูปที่ไม่ใช้ออกก่อนจึงจะเพิ่มรูปใหม่ได้`,
       )
     }
-    if (tooBig.length) {
+    // Each of the next three names the FIX, not just the rule — that is the whole point of the split.
+    if (notImage.length) {
       problems.push(
-        `ไฟล์ใหญ่เกิน ${MB(VENUE_PHOTO_MAX_BYTES)} MB จึงไม่ได้เพิ่ม ${tooBig.length} รูป`,
+        `ไม่ใช่ไฟล์รูปภาพ ${notImage.length} ไฟล์ จึงไม่ได้เพิ่ม — เลือกไฟล์ .jpg .png หรือ .webp`,
       )
     }
-    if (failed) problems.push(`อัปโหลดไม่สำเร็จ ${failed} รูป ลองใหม่อีกครั้ง`)
+    if (unsupported.length) {
+      problems.push(
+        `รูปแบบไฟล์ที่ระบบไม่รองรับ ${unsupported.length} ไฟล์ จึงไม่ได้เพิ่ม — ใช้ได้เฉพาะ .jpg .png และ .webp`,
+      )
+    }
+    if (tooBig.length) {
+      problems.push(
+        `ไฟล์ใหญ่เกิน ${MB(VENUE_PHOTO_MAX_BYTES)} MB ${tooBig.length} ไฟล์ จึงไม่ได้เพิ่ม — ย่อขนาดรูปก่อนแล้วลองใหม่`,
+      )
+    }
+    if (badBytes.length) {
+      problems.push(
+        `ไฟล์เสียหรือไม่ใช่รูปภาพจริง ${badBytes.length} ไฟล์ จึงไม่ได้เพิ่ม — เลือกไฟล์อื่น`,
+      )
+    }
+    // ⚠️ THE ONLY LINE THAT SAYS "ลองใหม่", and it now says it only where a retry can help.
+    if (failed) problems.push(`อัปโหลดไม่สำเร็จ ${failed} รูป — ลองใหม่อีกครั้ง`)
     setPhotoErr(problems.join(' · '))
   }
 
@@ -444,11 +536,9 @@ export function VenueFormDialog({
           error={fieldErrors.name}
         />
 
-        {/* ⚠️ REQUIRED, AND THERE IS NO BLANK OPTION. `Venue.venueTypeId` is a non-null FK, so
-            "ไม่ระบุ" is not a value the server can store — offering it would build a form whose
-            default state is a 400. The reserved `ไม่พบประเภทสถานที่` row is not in this list either:
-            it exists to catch venues whose category was deleted, and letting an operator file one
-            there deliberately would make the tombstone mean two different things. */}
+        {/* ⚠️ REQUIRED. The reserved `ไม่พบประเภทสถานที่` row is not in this list: it exists to
+            catch venues whose category was deleted, and letting an operator file one there
+            deliberately would make the tombstone mean two different things. */}
         <SelectField
           label="ประเภทสถานที่"
           value={venueTypeId}
@@ -456,8 +546,14 @@ export function VenueFormDialog({
           disabled={readOnly}
           error={fieldErrors.venueTypeId}
         >
-          {/* No blank option — see the reset effect. The only extra entry that can appear here is the
-              record's CURRENT category when it is no longer assignable. */}
+          {/* ⚠️ THE EMPTY PLACEHOLDER IS CREATE-ONLY, and it is what makes "not chosen" a state
+              this form can be in at all. Without it the browser selects option 0 and the operator
+              cannot tell a default apart from a decision — see the reset effect for the whole
+              argument. It is NOT `disabled`/`hidden`: somebody who opened the list has to be able
+              to back out of a wrong pick and land on the same error as if they had never touched
+              it. In edit/view the record has a real category, so there is nothing to place-hold. */}
+          {!editing && <option value="">เลือกประเภทสถานที่</option>}
+          {/* The other extra entry: the record's CURRENT category when it is no longer assignable. */}
           {currentTypeMissing && target && (
             <option value={String(target.venueType.id)}>{target.venueType.name}</option>
           )}

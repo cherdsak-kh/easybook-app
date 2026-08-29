@@ -264,8 +264,20 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
     [rows, acl.role],
   )
   const trimmed = term.trim()
+  /*
+   * ⚠️ CASE-INSENSITIVE, ON BOTH SIDES. Thai has no case, which is exactly why this went
+   * unnoticed — every Thai row reads the same either way. The Latin fragments are not
+   * decoration though: `ผู้พัฒนาระบบ (System Developer)` and `ฝ่ายพัฒนาระบบ (System Development)`
+   * are real reserved rows, and `Wi-Fi` / `LED` / `VIP` are the shape สิ่งอำนวยความสะดวก takes.
+   * Typing "system developer" in lower case matched nothing while the row sat two lines below
+   * the box. Folding only ONE side just moves which of the two spellings fails.
+   *
+   * Client-side, like the rest of this screen: the endpoint returns everything and takes no
+   * search parameter, so this is the only place the term is applied. When one gains `?q=`, the
+   * fold moves to Postgres (`mode: 'insensitive'`) and this line goes with it.
+   */
   const shown = useMemo(
-    () => (trimmed ? all.filter((r) => r.name.includes(trimmed)) : all),
+    () => (trimmed ? all.filter((r) => r.name.toLowerCase().includes(trimmed.toLowerCase())) : all),
     [all, trimmed],
   )
 
@@ -343,7 +355,11 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
       // A rename can move a row out of the current filter, and then the operator sees nothing at
       // all where they expected their edit. Clearing the search is the only way the result of what
       // they just did is on screen.
-      if (trimmed && !name.includes(trimmed)) setTerm('')
+      // ⚠️ THE SAME FOLD AS `shown`, and it has to be: this is a prediction of that filter's
+      // answer. With a case-SENSITIVE test here and an insensitive one there, searching "led",
+      // renaming a row to "LED Wall" and saving would clear a search the row still matches — the
+      // operator's own filter thrown away for no reason. Two comparisons of one fact must agree.
+      if (trimmed && !name.toLowerCase().includes(trimmed.toLowerCase())) setTerm('')
       closeForm()
       toast(
         'success',

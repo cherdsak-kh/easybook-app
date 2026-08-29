@@ -98,9 +98,51 @@
      work that got the mobile card from 175px to 102px in the first place.
      A phone also does not have the problem this fixes: with the toolbar and
      five 102px cards the content is already 895px tall, so there is no dead
-     space under the card to remove. Below `lg` the page scrolls as before. */
+     space under the card to remove. Below `lg` the page scrolls as before.
+
+     ── SMART ADAPTIVE: the full-height card has a FLOOR, and gives up below it ──
+     Ported from the prototype, where it was measured. "Fill the viewport" and
+     "be usable" stop agreeing once the viewport is short: `lg:flex-1` on its
+     own is a pure ratio, so it hands the scroll area whatever is left after
+     127px of toolbar and 110px of pagination. On a 1280×600 window (a laptop
+     with devtools docked, a projector, a split screen) that remainder measured
+     202px — two 92px rows behind a 48px sticky header, in a box the operator
+     cannot make bigger. The card was technically "full height" and practically
+     a slot.
+     So it is two rules now:
+       · a 280px FLOOR on the scroll area. It REPLACES `lg:min-h-0` rather than
+         sitting beside it — same property, and `0` is precisely the permission
+         to collapse that this removes. `flex-1` still does all the work above
+         the floor, so a normal desktop is untouched: 462px at 1280×860 both
+         before and after.
+       · under 650px of viewport height the card stops being pinned at all
+         (`flex: none`, natural height) and `<main>` — which is already
+         `overflow-y-auto` at every width in `BackendLayout` — scrolls the page,
+         exactly as it does below `lg`. Rows keep their height, and the
+         pagination bar is reached by scrolling instead of by being pinned.
+     ⚠️ BOTH ARE `lg:`-GATED, like every other declaration in these two rules.
+     The floor only means anything where the card is PINNED; below `lg` it is
+     not, so `flex-1` never squeezes anything and the 280px buys nothing while
+     costing real screen — measured on a 375×812 phone, an ungated floor put
+     224px of empty card between a one-row filtered list and its count bar,
+     against 0 before. That is the same 29%-of-the-screen argument that made this
+     whole block desktop-only, so gating it is what keeps the rule and its own
+     comment agreeing.
+     Measured across the boundary (เจ้าหน้าที่ระบบ, 1280px wide, 13 rows):
+         h=860 → scroll box 462px, no page scrollbar   (identical to before)
+         h=720 → scroll box 322px, no page scrollbar
+         h=660 → scroll box 280px (floor binds), <main> begins to scroll
+         h=649 → shell unpins, scroll box 1239px, <main> scrolls
+     Row height was 92px at every one of those heights; before the change it was
+     202px of scroll box (two rows) at h=600 with no way to scroll to the rest. */
   .card-shell  { @apply lg:flex lg:min-h-0 lg:flex-1 lg:flex-col; }
-  .card-scroll { @apply lg:min-h-0 lg:flex-1 lg:overflow-y-auto; }
+  .card-scroll { @apply lg:min-h-[280px] lg:flex-1 lg:overflow-y-auto; }
+
+  @media (min-width: 64rem) and (max-height: 649px) {
+    /* Same layer, later in the file, so this beats the `lg:` rules above on
+       source order — no specificity bump and no `!important` needed. */
+    .card-shell { min-height: auto; flex: none; }
+  }
 
   /* `box-shadow`, not `border-b`. The header is sticky inside the scroll
      area, and with `border-collapse: collapse` a border on a sticky cell
