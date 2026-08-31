@@ -472,6 +472,92 @@
   .form-err       { @apply mt-1.5 flex items-start gap-1.5 text-[13px] leading-[1.45] text-error; }
   .form-err-ico   { @apply mt-0.5 h-4 w-4 shrink-0; }
 
+  /* ── Searchable combobox — the TRIGGER ────────────────────────────────
+     ตำแหน่ง and กลุ่ม/ฝ่าย are lists long enough that a native popup is a
+     scroll-and-hunt, so they get a filterable popper instead. Ported from the
+     prototype's `.cbx-*` block; `<Combobox>` (admin-portal/components/ui) is the
+     only consumer.
+
+     ⚠️ ADAPTED, NOT VERBATIM, AND THE ADAPTATION IS THE ONE THING TO READ. In
+     the prototype the trigger IS the field surface — its own fill, radius, 44px
+     floor and focus lift, with `.form-shell-err` toggled onto the BUTTON. Here
+     `<Combobox>` composes `Field` from FormField.tsx, which always wraps its
+     control in `.form-shell`, so the surface is the shell's and this button is
+     the control inside it — exactly the relationship `.form-select` has. Two
+     reasons it had to move: painting the fill on both draws two nested boxes
+     next to a plain <select> that has one, and an OPAQUE button background
+     hides `.form-shell-err`'s red tint underneath it. So this class declares NO
+     background at rest, and the error look stays where `Field` already puts it.
+
+     `w-full` with the shell's padding zeroed by `<Combobox>` (see `SHELL` in
+     that file): the hover wash and the 44px hit target have to reach the
+     field's edges, because a fill that stops 14px short of the border reads as
+     a rendering fault rather than as a state. */
+  .cbx-trigger { @apply flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-control px-3.5 py-2 text-left text-[15px] leading-[1.45] text-base-content/90 outline-none transition-colors; }
+  .cbx-trigger:not(:disabled):hover { @apply bg-base-content/10; }
+  /* Written as a bare selector rather than `disabled:` so the hover rule above
+     cannot win it on source order — equal specificity, later wins. */
+  .cbx-trigger:disabled { @apply cursor-not-allowed opacity-60; }
+  /* `outline-offset: -2px` — the ring is drawn INSIDE the button box, which is
+     the shell's content box. At a positive offset it would paint over the
+     neighbouring grid cell's field.
+
+     ⚠️ `outline-style: solid` IS LOAD-BEARING, and it is written raw because
+     `@apply outline-2` cannot supply it. In Tailwind v4 `outline-2` emits
+     `outline-style: var(--tw-outline-style)`, and `outline-none` on the base
+     rule above has already set that variable to `none` ON THIS ELEMENT — so the
+     focus ring compiles, matches, and paints nothing. Verified in the built
+     sheet, not assumed. */
+  .cbx-trigger:focus-visible { @apply outline-2 outline-primary; outline-style: solid; outline-offset: -2px; }
+  .cbx-text    { @apply min-w-0 flex-1 truncate; }
+  /* Same tone `.form-input` gives its placeholder — "nothing chosen yet" has to
+     look like an empty field, not like a value. */
+  .cbx-ph      { @apply text-base-content/60; }
+  .cbx-chev    { @apply h-4 w-4 shrink-0 text-base-content/60 transition-transform; }
+  .cbx-trigger[aria-expanded="true"] .cbx-chev { @apply rotate-180; }
+
+  /* ── Searchable combobox — the POPPER ─────────────────────────────────
+     ⚠️ IT IS A `popover`, IN THE TOP LAYER, and nothing else works here. Both
+     comboboxes live inside a modal <dialog> whose body is `overflow-y-auto`,
+     and this file additionally gives such a dialog `overflow: clip` (see the
+     TWO SCROLLBARS note in the plain sheet below). An in-flow dropdown is
+     therefore clipped twice over — once by the scrolling form body and once by
+     the dialog box — and no z-index reaches past either, because showModal()
+     puts the dialog in the TOP LAYER. `#toast-stack` already records the same
+     finding for the same reason.
+
+     The element is still a DOM CHILD OF THE <dialog> (React portals it there):
+     showModal() makes everything outside the dialog's subtree inert, and an
+     inert search box cannot be typed into. Top layer for painting, dialog
+     subtree for interaction.
+
+     NO `display` is set here on purpose — the UA's
+     `[popover]:not(:popover-open) { display: none }` is what hides it, and
+     declaring `flex` would silently override that. Position and width come from
+     JS in viewport coordinates; `inset-auto` undoes the UA's `inset: 0`. */
+  .cbx-pop     { @apply fixed inset-auto m-0 h-auto w-auto max-w-none overflow-hidden rounded-control border border-base-300 bg-base-100 p-0 text-base-content shadow-e2; }
+  .cbx-search  { @apply flex items-center gap-2 border-b border-base-300 px-3; }
+  .cbx-search-ico   { @apply h-4 w-4 shrink-0 text-base-content/60; }
+  .cbx-search-input { @apply min-h-11 w-full min-w-0 border-none bg-transparent text-[14px] text-base-content/90 outline-none placeholder:text-base-content/60; }
+  /* `relative` so a row's offsetTop is measured against THIS box — the keyboard
+     scroll-into-view does the arithmetic itself rather than calling
+     scrollIntoView(), which reaches past the box it is aimed at inside a
+     dialog. `overscroll-contain` stops a flick at the end of the list from
+     scrolling the form underneath. */
+  .cbx-list    { @apply relative max-h-60 overflow-y-auto overscroll-contain p-1.5; }
+  /* A heading, never a choice: no role="option", no hover, never highlighted,
+     and shown only while one of its own rows survives the filter. */
+  .cbx-group   { @apply px-2.5 pb-1 pt-2 text-[12px] font-semibold text-base-content/70; }
+  .cbx-opt     { @apply flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-control px-2.5 text-left text-[14px] leading-[1.45] text-base-content/90 transition-colors; }
+  /* Two different states that can coexist: `is-active` is where the KEYBOARD
+     is (aria-activedescendant), aria-selected is what the record holds. */
+  .cbx-opt.is-active { @apply bg-base-content/10 text-base-content; }
+  .cbx-opt[aria-selected="true"] { @apply bg-primary/10 font-medium text-primary; }
+  .cbx-opt[aria-selected="true"].is-active { @apply bg-primary/20; }
+  .cbx-check   { @apply ml-auto h-4 w-4 shrink-0 text-primary opacity-0; }
+  .cbx-opt[aria-selected="true"] .cbx-check { @apply opacity-100; }
+  .cbx-empty   { @apply m-0 px-3.5 py-6 text-center text-[14px] leading-[1.55] text-base-content/70; }
+
   /* ── Multi-select of a closed vocabulary (สถานที่จัดกิจกรรม → อุปกรณ์) ──
      A LABEL wrapping a real <input type="checkbox">, not a div listening for
      clicks: keyboard, Space and the accessibility tree all come for free, and
@@ -1070,6 +1156,16 @@
    because `Modal` always renders its body with `overflow-y-auto` — so there is no dialog whose
    content could become unreachable, which is the one case the prototype had to carve out. */
 [data-theme^="easybook-admin"] dialog:has(.overflow-y-auto) { overflow: clip; }
+
+/* ⚠️ …and `overflow: clip` above is exactly why the ตำแหน่ง / กลุ่ม/ฝ่าย combobox
+   popper is a top-layer `popover` rather than an absolutely-positioned child of
+   its field: it would be clipped by the dialog box itself before it was clipped
+   by the form body's own `overflow-y-auto`. Full reasoning on `.cbx-pop`.
+   Unlayered like the rules around it: `:popover-open` has to beat the `.cbx-pop`
+   utilities in `@layer components`, and the blanket
+   `prefers-reduced-motion` rule at the foot of this file already reduces it. */
+.cbx-pop:popover-open { animation: cbx-pop-in .12s ease-out; }
+@keyframes cbx-pop-in { from { opacity: 0; translate: 0 -4px; } to { opacity: 1; translate: 0 0; } }
 
 /* ═══ Toast stack ═══
    `popover="manual"` is not decoration — it is the only way this can sit above

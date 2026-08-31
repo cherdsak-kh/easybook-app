@@ -32,6 +32,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '../../../components/ui/Badge'
 import { Btn } from '../../../components/ui/Btn'
+import { Combobox } from '../../../components/ui/Combobox'
 import { FormField, SelectField } from '../../../components/ui/FormField'
 import { InlineAlert } from '../../../components/feedback/InlineAlert'
 import { Modal } from '../../../components/ui/Modal'
@@ -68,36 +69,13 @@ const PHONE_RE = /^[0-9+\-\s()#.]{6,20}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
- * ⚠️ TWO PASSES, and the order is the point. The source list is sorted by name, so a single pass
- * puts the reserved group wherever that row happens to sort — in ตำแหน่ง that is the MIDDLE,
- * directly under an ordinary "ผู้ดูแลระบบ", which splits the ordinary choices in half and drops a
- * heading nobody was looking for between two of them. Reserved options are the exception, so they
- * belong where an exception belongs: at the end.
+ * ⚠️ THE TWO-PASS GROUPING THAT USED TO LIVE HERE IS NOW `Combobox`'s, and it moved rather than
+ * changed: reserved rows still go under `สงวนของระบบ` at the END of the list (the source list is
+ * sorted by name, so a single pass drops that heading into the MIDDLE of ตำแหน่ง, directly under
+ * an ordinary "ผู้ดูแลระบบ"), and a tombstone still appears only when it is already the value.
+ * One copy, because การลงทะเบียน's edit dialog needs the same rule and two copies means one of
+ * them gets the next fix. See `ComboboxOption` and `use-staff-options.ts`.
  */
-function OptionList({ rows, current }: { rows: StaffOption[]; current: number }) {
-  const plain = rows.filter((r) => !r.reserved)
-  // A tombstone appears only when it is ALREADY the value — see `StaffOption.fallback`.
-  const reserved = rows.filter((r) => r.reserved && (!r.fallback || r.id === current))
-  return (
-    <>
-      {plain.map((r) => (
-        <option key={r.id} value={r.id}>
-          {r.name}
-        </option>
-      ))}
-      {reserved.length > 0 && (
-        <optgroup label="สงวนของระบบ">
-          {reserved.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </optgroup>
-      )}
-    </>
-  )
-}
-
 const nameOf = (rows: StaffOption[], id: number) => rows.find((r) => r.id === id)?.name ?? ''
 
 export function StaffFormDialog({
@@ -297,20 +275,20 @@ export function StaffFormDialog({
         />
 
         {/* ตำแหน่ง before กลุ่ม/ฝ่าย — the Thai civil-service order used everywhere else. */}
-        <SelectField
+        <Combobox
           label="ตำแหน่ง"
+          placeholder="เลือกตำแหน่ง"
+          options={positions}
           value={values.personnelRoleId}
-          onChange={(e) => set('personnelRoleId', Number(e.target.value))}
-        >
-          <OptionList rows={positions} current={values.personnelRoleId} />
-        </SelectField>
-        <SelectField
+          onChange={(v) => set('personnelRoleId', v)}
+        />
+        <Combobox
           label="กลุ่ม/ฝ่าย"
+          placeholder="เลือกกลุ่ม/ฝ่าย"
+          options={departments}
           value={values.departmentId}
-          onChange={(e) => set('departmentId', Number(e.target.value))}
-        >
-          <OptionList rows={departments} current={values.departmentId} />
-        </SelectField>
+          onChange={(v) => set('departmentId', v)}
+        />
 
         <FormField
           className="sm:col-span-2"

@@ -51,6 +51,7 @@ export function Field({
   error,
   hint,
   htmlFor,
+  labelId,
   errorId,
   children,
   className = '',
@@ -59,13 +60,25 @@ export function Field({
   error?: string
   hint?: ReactNode
   htmlFor: string
+  /**
+   * An id on the <label>, for a control whose accessible name cannot come from the label
+   * element itself.
+   *
+   * ⚠️ ONLY `Combobox` NEEDS THIS, and the reason is a rule of the name computation rather
+   * than a preference: its control is a <button>, and HTML-AAM names a button from its own
+   * SUBTREE — the associated <label> is skipped. Left alone, "ตำแหน่ง" is never announced
+   * and the field reads as just the value it currently holds. Pointing `aria-labelledby` at
+   * this id AND at the button gives "ตำแหน่ง อาจารย์", which is the pair a listener needs.
+   * `for` still points at the button, so the label stays a 44px click target.
+   */
+  labelId?: string
   errorId: string
   children: ReactNode
   className?: string
 }) {
   return (
     <div className={className}>
-      <label className="form-label" htmlFor={htmlFor}>
+      <label className="form-label" id={labelId} htmlFor={htmlFor}>
         {label}
       </label>
       <div className={`form-shell ${error ? 'form-shell-err' : ''}`.trim()}>{children}</div>

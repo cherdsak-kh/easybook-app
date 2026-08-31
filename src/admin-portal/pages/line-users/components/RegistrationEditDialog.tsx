@@ -22,6 +22,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '../../../components/ui/Badge'
 import { Btn } from '../../../components/ui/Btn'
+import { Combobox } from '../../../components/ui/Combobox'
 import { FormField, SelectField } from '../../../components/ui/FormField'
 import { InlineAlert } from '../../../components/feedback/InlineAlert'
 import { Modal } from '../../../components/ui/Modal'
@@ -263,28 +264,22 @@ export function RegistrationEditDialog({
           onChange={(e) => set('lastName', e.target.value)}
         />
 
-        <SelectField
+        {/* Searchable, because these two are school-maintained lists that grow — see `Combobox`.
+            สถานะ below stays a native <select>: five items is not a list you hunt through. */}
+        <Combobox
           label="ตำแหน่ง"
+          placeholder="เลือกตำแหน่ง"
+          options={positions}
           value={values.personnelRoleId}
-          onChange={(e) => set('personnelRoleId', Number(e.target.value))}
-        >
-          {positions.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField
+          onChange={(v) => set('personnelRoleId', v)}
+        />
+        <Combobox
           label="กลุ่ม/ฝ่าย"
+          placeholder="เลือกกลุ่ม/ฝ่าย"
+          options={departments}
           value={values.departmentId}
-          onChange={(e) => set('departmentId', Number(e.target.value))}
-        >
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </SelectField>
+          onChange={(v) => set('departmentId', v)}
+        />
 
         <FormField
           label="เบอร์โทรศัพท์"
