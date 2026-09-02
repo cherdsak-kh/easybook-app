@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 /**
  * A searchable select that opens as a bottom sheet.
@@ -33,9 +34,27 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
  * `close` event, which is where `aria-expanded`, the scroll lock and the focus restore are
  * undone. Cleaning up in the ✕ handler instead leaves the browser's own close paths stranding
  * `aria-expanded="true"` and a locked page — a bug that is hard to find because "it did close".
+ * ⚠️ The backdrop reaches that event through an explicit `close()` rather than through daisyUI's
+ * `<form method="dialog">`, because React 19 prevents that form's default — see the note on the
+ * backdrop element itself.
  *
  * ── The selected row is marked three ways ──
  * Colour, a checkmark, and `aria-selected`. Colour alone is nothing to a colour-blind reader.
+ *
+ * ── 🔴 THE `<dialog>` IS PORTALLED OUT OF WHEREVER THIS FIELD SITS, AND IT HAS TO BE ──
+ * daisyUI's backdrop is `<form method="dialog">`, so leaving the dialog inline puts a `<form>`
+ * inside whatever form the field belongs to. `#/register` is the first screen to do that, and it
+ * measured as **two nested `<form>` elements** plus a React console error saying so
+ * (2 ก.ย. 2569). The *behaviour* happened to survive — the backdrop still closed the sheet and did
+ * not submit the outer form — but nested forms are invalid HTML with no defined behaviour, and an
+ * error logged on every render of the app's most important form is what hides the next real one.
+ * The prototype has no such problem because its single `<dialog>` sits OUTSIDE `#reg-form`; the
+ * portal is how that structure is restored.
+ *
+ * ⚠️ IT PORTALS TO THE NEAREST `[data-theme]` ANCESTOR, **NOT** TO `document.body`. Both portals
+ * escape the form, but `document.body` is outside the element `ClientRoutes` stamps the theme on,
+ * so the sheet would render in daisyUI's default palette while the page behind it stayed in the
+ * portal's — the top layer changes where an element paints, not which tokens it inherits.
  */
 
 export type ComboboxOption = {
@@ -83,6 +102,13 @@ export function Combobox({
   const [expanded, setExpanded] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(-1)
+  /* Resolved after mount, because the trigger's ref is not available during the first render.
+     Until then the sheet simply is not in the tree — which is correct: it is closed anyway. */
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null)
+
+  useEffect(() => {
+    setPortalHost(triggerRef.current?.closest('[data-theme]') ?? document.body)
+  }, [])
 
   const labelId = `${id}-label`
   const errId = `${id}-err`
@@ -202,6 +228,12 @@ export function Combobox({
         aria-controls={listId}
         aria-labelledby={`${labelId} ${id}-btn`}
         aria-describedby={error ? errId : undefined}
+        /* ⚠️ `aria-invalid` AS WELL AS `select-error`, because they carry the same fact to two
+           different readers and only one of them can see a red ring. Measured missing while
+           wiring `#/register` (2 ก.ย. 2569): the three `<input>`s announced themselves as invalid
+           and these two did not, so a screen-reader user heard four failures out of five. The
+           prototype sets it on its trigger too (2678). */
+        aria-invalid={error ? true : undefined}
         className={`select select-lg cbx-trigger w-full ${error ? 'select-error' : ''}`.trim()}
       >
         <span className={`min-w-0 truncate ${chosen ? '' : 'opacity-60'}`}>
@@ -228,8 +260,12 @@ export function Combobox({
           animation is entirely daisyUI's (`transition: overlay .3s allow-discrete` holds the
           element in the top layer until the slide finishes), which is why nothing here ever adds
           `hidden` or `display:none` on top: that is the one thing that cuts the closing beat
-          short and makes the sheet blink out. */}
-      <dialog
+          short and makes the sheet blink out.
+          ⚠️ Portalled — see the header. React events still bubble through the component tree, so
+          nothing else about this markup changes. */}
+      {portalHost
+        ? createPortal(
+            <dialog
         ref={dialogRef}
         onClose={handleClose}
         className="cbx-sheet modal modal-bottom"
@@ -381,12 +417,33 @@ export function Combobox({
             ) : null}
           </div>
         </div>
-        {/* daisyUI's backdrop-as-a-form: tapping outside submits it and the dialog closes, with
-            no listener of ours involved — so that path lands on `close` like every other. */}
-        <form method="dialog" className="modal-backdrop">
-          <button>ปิด</button>
-        </form>
-      </dialog>
+        {/* ── 🔴 A `<div>` BACKDROP WITH AN EXPLICIT `close()`, NOT daisyUI'S `<form method="dialog">` ──
+            The canonical daisyUI markup is `<form method="dialog" class="modal-backdrop"><button>`,
+            which closes the dialog through the FORM's default action and needs no handler. Under
+            **React 19 that default is prevented**: measured 2 ก.ย. 2569 on `#/register`, the submit
+            event fired with `defaultPrevented === true` and the sheet stayed open — `dialog.open`
+            still `true`, `aria-expanded` still `"true"`, the scroll lock still on. React owns
+            `<form>` submits now (Actions), and a form with no `action` still does not reach the
+            browser's dialog behaviour.
+
+            ⚠️ IT LOOKED FINE UNTIL THE DIALOG WAS PORTALLED, WHICH IS THE WORST WAY FOR THIS TO
+            HAVE BEEN TRUE. While the sheet still rendered inline it was an invalid nested `<form>`,
+            React did not treat it as its own, and the native close ran — the broken markup was
+            masking the broken behaviour. Fixing the nesting is what exposed it.
+
+            daisyUI documents this `<div class="modal-backdrop"><button>` shape too, so the styling
+            is unchanged. The header's promise still holds: `close()` fires the dialog's own `close`
+            event, which is where `aria-expanded`, the scroll lock and the focus restore are undone,
+            so this path lands exactly where ✕, Escape and picking an option land. */}
+        <div className="modal-backdrop">
+          <button type="button" onClick={close}>
+            ปิด
+          </button>
+        </div>
+            </dialog>,
+            portalHost,
+          )
+        : null}
     </div>
   )
 }

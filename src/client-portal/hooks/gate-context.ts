@@ -48,6 +48,28 @@ export type GateValue = {
   status: LineUserStatus | null
   /** Re-run all four checks from the top. Sets `phase` back to `checking`. */
   recheck: () => void
+  /**
+   * How many times the checks have been re-run since the session started. `0` on the first pass.
+   *
+   * ⚠️ It exists for ONE sentence on ONE screen: `#/add-friend`'s hint (prototype 559) says the
+   * friendship still has not been found, and that is only true after a check has run again and
+   * still concluded `not-friend`. Being on that screen with `attempts > 0` IS that fact — the
+   * screen unmounts while `phase` is `checking`, so it cannot remember the button press itself.
+   */
+  attempts: number
+  /**
+   * Adopt a fresh status payload as the gate's verdict, without re-running the four checks.
+   *
+   * 🔴 THIS IS HOW `TRANSPORT.md` §3.1's RULE IS KEPT — *"the next screen is read from this
+   * response, never inferred from the action taken"*. `POST /line-users/register` and
+   * `PATCH /line-users/registration` both answer with the caller's refreshed
+   * `LineUserStatusResponseDto`, so the screen after a submit is whatever `access` that body
+   * carries. A submit handler that navigated to `/pending` on its own would be guessing, and
+   * would be wrong the first time the backend decides otherwise.
+   *
+   * ⚠️ It does NOT bump {@link attempts}: nothing was re-checked, a newer answer was handed over.
+   */
+  applyStatus: (status: LineUserStatus) => void
 }
 
 export const GateContext = createContext<GateValue | null>(null)

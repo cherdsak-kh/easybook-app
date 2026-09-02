@@ -4,6 +4,12 @@ import { LiffShell } from './components/shell/LiffShell'
 import { ComingSoonScreen } from './pages/ComingSoonScreen'
 import { GateErrorPage } from './pages/gate/GateErrorPage'
 import { GateLanding } from './pages/gate/GateLanding'
+import { AddFriendPage } from './pages/register/AddFriendPage'
+import { BlockedPage } from './pages/register/BlockedPage'
+import { LoginPage } from './pages/register/LoginPage'
+import { PendingPage } from './pages/register/PendingPage'
+import { RegistrationPage } from './pages/register/RegistrationPage'
+import { RejectedPage } from './pages/register/RejectedPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { useResolvedTheme } from '@/hooks/useResolvedTheme'
 import type { ScreenName } from './routes'
@@ -18,10 +24,13 @@ import type { ScreenName } from './routes'
  * here and a segment to `SEGMENT_SCREEN` in `routes.ts`, and nothing else.
  *
  * ── `COMING_SOON` is the answer to "which of the twenty are NOT real yet?" ──
- * Eighteen, in Phase 2. The two that are — the gate's landing redirect and the gate error screen
- * — are the two `<Route>`s written out by hand below it. Each later phase deletes its own rows
- * from the table and writes them out in their place, so the table shrinks to nothing and the file
- * ends up as a plain route list. One object to read rather than a branch hidden inside a loop.
+ * Twelve, after Phase 3 — eighteen in Phase 2, minus the six of the identity lifecycle. The built
+ * ones are the `<Route>`s written out by hand above it. Each phase deletes its own rows from the
+ * table and writes them out in their place, so the table shrinks to nothing and the file ends up
+ * as a plain route list. One object to read rather than a branch hidden inside a loop.
+ *
+ * ⚠️ `RESTART` HAS NO ROWS LEFT and that is why it is gone: every screen that offered "start the
+ * checks again" as its way out was a gate outcome, and all six are now real.
  *
  * ⚠️ PARAMETER VALIDATION IS NOT HERE, AND IS NOT MISSING. `PAGE_INDEX.md` §2.3 sends a bad
  * `/venue/:id` to `/venues` and a bad `/booking/:id` to `/bookings` — but "bad" means *not in the
@@ -38,20 +47,11 @@ type Stand = { path: string; screen: ScreenName; backTo: string; backLabel: stri
  * came from, and a gate-outcome screen goes back to `/` — which restarts the checks and lands the
  * user wherever they actually belong, the only thing that is true for all six of them.
  */
-const RESTART = { backTo: '/', backLabel: 'เริ่มการตรวจสอบใหม่' }
 const TO_SETTINGS = { backTo: '/settings', backLabel: 'กลับสู่หน้าตั้งค่า' }
 const TO_VENUES = { backTo: '/venues', backLabel: 'กลับสู่รายการสถานที่' }
 const TO_HOME = { backTo: '/home', backLabel: 'กลับสู่หน้าแรก' }
 
 const COMING_SOON: Stand[] = [
-  // P3 · the registration flow — six screens, all of them gate outcomes.
-  { path: '/login', screen: 'login', ...RESTART },
-  { path: '/add-friend', screen: 'add-friend', ...RESTART },
-  { path: '/register', screen: 'register', ...RESTART },
-  { path: '/pending', screen: 'pending', ...RESTART },
-  { path: '/rejected', screen: 'rejected', ...RESTART },
-  { path: '/blocked', screen: 'blocked', ...RESTART },
-
   // 🟠 Q-C7 · unassigned to any phase — the PO's call, not a phase's to adopt quietly.
   { path: '/home', screen: 'home', ...TO_VENUES },
   { path: '/settings', screen: 'settings', ...TO_HOME },
@@ -107,9 +107,20 @@ export function ClientRoutes() {
             </GateProvider>
           }
         >
-          {/* The two that are actually built in this phase. */}
+          {/* P2 · the gate. */}
           <Route index element={<GateLanding />} />
           <Route path="/gate-error" element={<GateErrorPage />} />
+
+          {/* P3 · the identity lifecycle. Six screens, all dockless — none of the dock's
+              destinations is reachable by somebody who is not yet `ALLOWED`, so the screen and the
+              rich menu underneath it agree (`PAGE_INDEX.md` §1.1). Nothing here opts out of the
+              dock by hand: `NAV_SCREENS` excludes all six, and `LiffShell` reads that. */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/add-friend" element={<AddFriendPage />} />
+          <Route path="/register" element={<RegistrationPage />} />
+          <Route path="/pending" element={<PendingPage />} />
+          <Route path="/rejected" element={<RejectedPage />} />
+          <Route path="/blocked" element={<BlockedPage />} />
 
           {COMING_SOON.map((route) => (
             <Route

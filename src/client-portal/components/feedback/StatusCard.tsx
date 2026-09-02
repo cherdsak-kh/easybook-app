@@ -19,6 +19,13 @@ import type { ReactNode } from 'react'
  * ⚠️ `role="alert"` IS OPT-IN, VIA `announce`. It interrupts a screen reader immediately, which
  * is right for "verification failed" and wrong for "welcome, sign in with LINE" — an assertive
  * region that fires on every neutral screen trains people to ignore the one that matters.
+ *
+ * ── ⚠️ `tone` DECIDES THE MEDALLION, NOT WHETHER THE GLYPH APPEARS ──
+ * `tone="none"` renders `icon` BARE, with no coloured disc behind it, because `#/login` (520) puts
+ * the EasyBook mark where the other five put a medallion. The heading's gap follows the same
+ * split, and both values are the prototype's own: `mt-4` under a 56px medallion, `mt-5` under the
+ * 64px mark. It used to drop `icon` entirely when `tone` was `none`, which is why the mark had
+ * nowhere to go — and a hand-built second card for one screen is how two cards start drifting.
  */
 
 /** Which semantic colour the icon medallion takes. `none` renders no medallion at all. */
@@ -44,7 +51,10 @@ export function StatusCard({
   actions,
 }: {
   tone?: StatusTone
-  /** The glyph inside the medallion. Sized by the caller — the prototype uses `h-7 w-7`. */
+  /**
+   * The glyph. Sized by the caller — `h-7 w-7` inside a medallion, `h-16 w-16` for the bare mark
+   * `tone="none"` renders.
+   */
   icon?: ReactNode
   title: ReactNode
   description?: ReactNode
@@ -63,19 +73,24 @@ export function StatusCard({
             className="card-body p-6 text-center text-base"
             {...(announce ? { role: 'alert' } : {})}
           >
-            {tone !== 'none' && icon ? (
-              <span
-                aria-hidden="true"
-                className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${MEDALLION[tone]}`}
-              >
-                {icon}
-              </span>
+            {icon ? (
+              tone === 'none' ? (
+                icon
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${MEDALLION[tone]}`}
+                >
+                  {icon}
+                </span>
+              )
             ) : null}
 
-            {/* `mt-4` only when a medallion sits above it, so a card without one does not open
-                with a gap that has nothing in it. */}
+            {/* A gap only when something sits above it, so a card with no glyph does not open with
+                empty space. The two values are the prototype's, and they differ because the things
+                above them differ in size — see the header note. */}
             <h1
-              className={`text-xl font-semibold ${tone !== 'none' && icon ? 'mt-4' : ''}`.trim()}
+              className={`text-xl font-semibold ${icon ? (tone === 'none' ? 'mt-5' : 'mt-4') : ''}`.trim()}
             >
               {title}
             </h1>

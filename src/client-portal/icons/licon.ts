@@ -38,9 +38,14 @@
  *   · `flag`, not `circleCheck`, heads the "ends at" field — `circleCheck` is taken, and
  *     `circleDot → flag` still reads as the pair "start line → finish line".
  *   · `hammer`, not `clock`, marks "under development" — `clock` means "the time an activity
- *     runs", in both the home card and the request form.
+ *     runs" (the home card and the request form) **and "a decision has not been made yet"**
+ *     (`#/pending`, added in P3). Those are one meaning, *time that has not elapsed*, drawn the
+ *     same way; "under development" is not, which is why it keeps its own glyph.
  *   · `circleX`, not `ban`, marks an unbookable span — the whole form is a `circle-*` family,
  *     and `ban` reads as "you are forbidden" rather than "this span cannot be requested".
+ *     ⚠️ `ban` EXISTS NOW (P3) and means exactly that: `#/blocked`, where "you are forbidden" is
+ *     the entire message. The rule above is unchanged — it says which glyph the *slot list* uses,
+ *     not that this shape has no home. Do not reach for it anywhere a `circle-*` is meant.
  */
 
 /** The raw inner markup of each glyph, exactly as lucide-static ships it. */
@@ -82,6 +87,7 @@ export const LICON = {
   mapPin: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/>',
   image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  ban: '<circle cx="12" cy="12" r="10"/><path d="M4.929 4.929 19.07 19.071"/>',
 } as const
 
 export type LIconName = keyof typeof LICON

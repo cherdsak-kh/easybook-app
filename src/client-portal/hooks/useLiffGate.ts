@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { BootStepKey, BootStepState, BootSteps, GateValue } from './gate-context'
 import type { GateAccess } from '@/client-portal/routes'
 import { getLineUserStatus } from '@/lib/api-client'
-import type { LineUserStatus } from '@/lib/api-client'
+import type { LineUserRegistration, LineUserStatus } from '@/lib/api-client'
 import { bootLiff, getFriendship, getIdToken, isLiffConfigured, isLoggedIn } from '@/lib/liff'
 
 /**
@@ -48,6 +48,20 @@ const ANSWER: Partial<Record<GateAccess, string>> = {
 type Outcome = { access: GateAccess; status: LineUserStatus | null }
 
 /**
+ * `AppAccess` (the wire enum) → `GateAccess` (the routing vocabulary). One table, two callers:
+ * the `status` step below, and {@link GateValue.applyStatus}, which adopts the body a register or
+ * edit submit answers with. Written out rather than lower-cased, so a new backend value is a
+ * compile error here instead of a route that silently does not exist.
+ */
+const ACCESS_OF: Record<LineUserStatus['access'], GateAccess> = {
+  UNREGISTERED: 'unregistered',
+  PENDING: 'pending',
+  REJECTED: 'rejected',
+  BLOCKED: 'blocked',
+  ALLOWED: 'allowed',
+}
+
+/**
  * ── DEV-ONLY CASE OVERRIDE: `?gate=<case>` ──────────────────────────────────────────────────
  *
  * The prototype has a review bar that plays any of the twelve cases on demand, and
@@ -71,6 +85,50 @@ type Outcome = { access: GateAccess; status: LineUserStatus | null }
  * would re-check for real and land somewhere else, which is a confusing way to discover that
  * your test instrument evaporated.
  */
+
+/**
+ * The registration the fixture cases below carry. Same person as the prototype's sample data
+ * (`ROLES[0]`, `DEPTS[0]`, 2634), so a screen measured here can be held against the drawing.
+ *
+ * ⚠️ `phone` is stored as TEN BARE DIGITS, which is what the form submits — the `081-234-5678`
+ * the prototype's summary shows is `fmtPhone()`'s doing, not the stored value. Keeping the
+ * separators here would have made the summary look right while hiding a broken formatter.
+ */
+const DEV_REGISTRATION: LineUserRegistration = {
+  id: 'dev-registration',
+  firstName: 'สมชาย',
+  lastName: 'ใจดี',
+  phone: '0812345678',
+  departmentId: 1,
+  department: 'กลุ่มบริหารงานวิชาการ',
+  personnelRoleId: 1,
+  personnelRole: 'ครูผู้สอน',
+  createdAt: '2026-09-01T03:00:00.000Z',
+  updatedAt: '2026-09-01T03:00:00.000Z',
+}
+
+/** The prototype's reason text (735), so the `#/rejected` panel has the copy it was drawn with. */
+const DEV_REJECTION = 'เบอร์โทรศัพท์ที่กรอกไม่สามารถติดต่อได้ กรุณาตรวจสอบและกรอกใหม่อีกครั้ง'
+
+/**
+ * ⚠️ A FIXTURE `status` IS PART OF THE OVERRIDE, NOT A SECOND MECHANISM. `/pending`, `/rejected`
+ * and `/register`-in-edit-mode all render the registration the status call returned; without a
+ * payload the override would reach those three screens and then show them empty, which measures
+ * nothing. It is the same object the real call produces, typed as `LineUserStatus`, so a shape
+ * that drifts from the contract is a compile error rather than a screen that quietly differs.
+ *
+ * 🔴 It is still NOT a backend. Nothing here proves a real `POST`/`PATCH` is accepted — that is
+ * the Phase 3 exit gate's "against the real API", and it needs a tunnelled LINE session.
+ */
+const DEV_STATUS: Record<string, LineUserStatus> = {
+  allowed: { access: 'ALLOWED', registration: DEV_REGISTRATION, rejectionReason: null },
+  pending: { access: 'PENDING', registration: DEV_REGISTRATION, rejectionReason: null },
+  rejected: { access: 'REJECTED', registration: DEV_REGISTRATION, rejectionReason: DEV_REJECTION },
+  blocked: { access: 'BLOCKED', registration: DEV_REGISTRATION, rejectionReason: null },
+  /* No registration yet — this is the case that must render an EMPTY form. */
+  unregistered: { access: 'UNREGISTERED', registration: null, rejectionReason: null },
+}
+
 const DEV_CASES: Record<string, { steps: BootSteps; access?: GateAccess }> = {
   allowed: { steps: { login: 'pass', friend: 'pass', register: 'pass', status: 'pass' }, access: 'allowed' },
   pending: { steps: { login: 'pass', friend: 'pass', register: 'pass', status: 'pass' }, access: 'pending' },
@@ -99,6 +157,24 @@ function readDevCase(): string | null {
     if (devCase) console.info(`[gate] dev override: ${devCase}`)
   }
   return devCase
+}
+
+/**
+ * Whether the DEV case override is driving this session.
+ *
+ * The registration screens ask, because under the override there is no ID token and therefore no
+ * bearer call they could make — `pages/register/registration-api.ts` answers from the same
+ * fixture instead. It is exported so that decision is made in ONE place with all three locks
+ * already applied, rather than re-derived (and re-weakened) at each call site.
+ */
+export function isDevGate(): boolean {
+  return readDevCase() !== null
+}
+
+/** The fixture status for the active override case, or `null` when there is none. */
+export function devStatus(): LineUserStatus | null {
+  const forced = readDevCase()
+  return forced ? (DEV_STATUS[forced] ?? null) : null
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -181,15 +257,7 @@ async function runChecks(setStep: (key: BootStepKey, state: BootStepState) => vo
      would put a spinner on a request that does not exist — the same invented fact the chain rule
      at the top of this file exists to prevent. Recorded in `CHECKLIST.md` Phase 2. */
   setStep('status', 'pass')
-  const access =
-    status.access === 'ALLOWED'
-      ? 'allowed'
-      : status.access === 'PENDING'
-        ? 'pending'
-        : status.access === 'REJECTED'
-          ? 'rejected'
-          : 'blocked'
-  return { access, status }
+  return { access: ACCESS_OF[status.access], status }
 }
 
 export function useLiffGate(): GateValue {
@@ -239,7 +307,7 @@ export function useLiffGate(): GateValue {
         /* A hang case has no verdict: leave `phase` on `checking` forever, exactly like a real
            `getFriendship()` that never settles. */
         if (!dev.access) return
-        outcome = { access: dev.access, status: null }
+        outcome = { access: dev.access, status: DEV_STATUS[forced] ?? null }
       } else {
         outcome = await runChecks(setStep)
       }
@@ -278,6 +346,20 @@ export function useLiffGate(): GateValue {
     setAttempt((n) => n + 1)
   }, [])
 
+  /**
+   * Adopt a newer status body — the one a register or edit submit answers with.
+   *
+   * 🔴 IT DOES NOT TOUCH `attempt`, WHICH IS THE POINT. Bumping it would restart the effect and
+   * run the four checks again, throwing away the answer the server just gave and replacing it
+   * with a second, slower one that can only agree. It would also put the splash back over a
+   * screen the user has already been sent to.
+   */
+  const applyStatus = useCallback((next: LineUserStatus) => {
+    setStatus(next)
+    setAccess(ACCESS_OF[next.access])
+    setPhase('settled')
+  }, [])
+
   return {
     phase,
     access,
@@ -285,5 +367,7 @@ export function useLiffGate(): GateValue {
     answer: access ? (ANSWER[access] ?? null) : null,
     status,
     recheck,
+    attempts: attempt,
+    applyStatus,
   }
 }
