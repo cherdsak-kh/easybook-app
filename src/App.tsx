@@ -1,10 +1,8 @@
 import { lazy, Suspense } from 'react'
 import { Route, Routes } from 'react-router-dom'
-// Eager (initial chunk): the anonymous LIFF client (`/` → HomePage) must paint without
-// waiting on a lazy chunk. It is dependency-light, so keeping it eager does not bloat the
-// initial download.
-import { HomePage } from '@/pages/client-portal/HomePage'
-import { ThemeLayout } from '@/components/client-portal/ThemeLayout'
+// Eager (initial chunk): the anonymous LIFF client (`/`) must paint without waiting on a
+// lazy chunk. Today that is a placeholder, and it is dependency-light either way.
+import { ClientPortalPlaceholder } from '@/client-portal/ClientPortalPlaceholder'
 
 const NotFoundPage = lazy(() =>
   import('@/pages/NotFoundPage').then((m) => ({
@@ -69,20 +67,34 @@ function RouteFallback() {
  * booking domain that has no schema, no endpoints and no prototype design, so every day they
  * stayed they read as a spec for a feature nobody had agreed to. Their record lives in git.
  *
+ * ⚠️ CLIENT PORTAL v1 IS GONE TOO, ON PURPOSE (2 ก.ย. 2569).
+ *
+ * `HomePage` (the 11-screen LIFF state machine), `RegistrationForm`, `ThemeLayout` and
+ * `ui-strings-client.ts` were deleted whole — the same clean-slate move the back-office made
+ * on 2026-08-16, for the same reason: nothing was in production to lose, and keeping a
+ * surface that is scheduled for replacement means paying to repair it after every contract
+ * change. Its two UI component specs went with it, per the standing policy of no UI
+ * component unit tests.
+ *
+ * v2 is built from `docs/prototypes/client-portal/client_portal_prototype.html` and lands
+ * under `src/client-portal/` as ONE folder — routes, gate, screens and dock together, the
+ * same shape `src/admin-portal/` uses and for the same reason (it can be reasoned about, and
+ * removed, in one piece).
+ *
  * Routes:
  *  - `/backend/*` → Admin Portal v2 (P2). It owns everything under that segment, including its
  *                   own in-shell 404, so this file never learns the back-office's 31 paths.
- *  - `/`          → the client LIFF surface (`HomePage`). Matched at the INDEX only —
- *                   `HomePage` is route-less (it swaps screens via internal state, not the
- *                   URL), so the client portal has exactly one real route.
+ *  - `/`          → the client LIFF surface. Matched at the INDEX only. Today it is
+ *                   `ClientPortalPlaceholder`, a stand-in with no product behaviour; v2's
+ *                   Phase 2 replaces it with the real gate + shell and the routes below it.
  *  - `path="*"`   → the ONE global 404, kept LAST. It is still the CLIENT's 404: the
  *                   prototype's full-page back-office 404 exists (`NotFound variant="full"`)
  *                   but has no correct home until P2-C decides who is "outside the shell",
  *                   and pointing an anonymous LIFF user at back-office chrome would advertise
  *                   the staff entrance to every mistyped address.
  *
- * The pathless `ThemeLayout` stamps the portal's daisyUI `data-theme` onto the subtree. It
- * is presentational only — it adds no path segment, so route specificity is unchanged.
+ * There is no pathless client theme layout any more — it was `ThemeLayout`, and it went with
+ * v1. Each client-side screen stamps its own `data-theme` until v2's shell owns that job.
  */
 function App() {
   return (
@@ -99,14 +111,12 @@ function App() {
             `data-theme`, and the two portals' themes must never reach each other. */}
         <Route path="/backend/*" element={<BackendRoutes />} />
 
-        <Route element={<ThemeLayout portal="client" />}>
-          {/* The client LIFF surface. `HomePage` is route-less (it swaps screens via
-              internal state, not the URL), so it matches only the INDEX (`/`); there is no
-              client sub-route to catch. */}
-          <Route index element={<HomePage />} />
-          {/* The single global 404, kept LAST. */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
+        {/* The client LIFF surface, at the INDEX only. v2's Phase 2 replaces this single
+            entry with the gate, the shell and the routes the dock navigates between. */}
+        <Route index element={<ClientPortalPlaceholder />} />
+
+        {/* The single global 404, kept LAST. */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
   )

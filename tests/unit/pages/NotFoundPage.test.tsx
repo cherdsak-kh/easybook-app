@@ -1,12 +1,15 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { ThemeLayout } from '@/components/client-portal/ThemeLayout'
 
 /**
- * Mirrors the route shape of `App.tsx` after the old back-office was deleted (2026-08-16):
- * ONE branch, the client theme layout, holding the client index and the single global
+ * Mirrors the route shape of `App.tsx`: the client index and the single global
  * `path="*"` → `NotFoundPage`, kept LAST.
+ *
+ * ⚠️ The pathless `ThemeLayout` wrapper this file used to render is GONE (2 ก.ย. 2569) —
+ * it was deleted with Client Portal v1. It was presentational only (it stamped
+ * `data-theme` and added no path segment), so every routing assertion below is unchanged
+ * and still describes the real route table.
  *
  * The two admin cases this file used to carry are gone with the branch they described — but
  * one of them is REPLACED rather than dropped, because the behaviour it guarded changed
@@ -15,8 +18,10 @@ import { ThemeLayout } from '@/components/client-portal/ThemeLayout'
  * different reason, and worth pinning: it is what stops a half-restored admin route from
  * quietly redirecting to a login screen that no longer exists.
  *
- * The client index is a lightweight STAND-IN (`HOME`) — the real `HomePage` runs LIFF and API
- * effects, so it is never mounted here.
+ * The client index is a lightweight STAND-IN (`HOME`). It stays a stand-in even now that the
+ * real index is only a placeholder: this file tests which route WINS, not what the winner
+ * renders, and pinning it to whatever occupies `/` this week would make it fail on the day v2
+ * puts the real gate there.
  *
  * The COPY changed on 2026-08-17: the ported DashWind placeholder was replaced by the
  * prototype's full-page 404 (PO ruling). The routing assertions below are the part worth
@@ -26,10 +31,8 @@ function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route element={<ThemeLayout portal="client" />}>
-          <Route index element={<div>HOME</div>} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
+        <Route index element={<div>HOME</div>} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </MemoryRouter>,
   )
