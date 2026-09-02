@@ -53,6 +53,66 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '0.11.0',
+    date: '2 ก.ย. 2569',
+    groups: [
+      {
+        t: 'ใหม่',
+        items: [
+          'ระบบค้นหาสถานที่สำหรับผู้ใช้งาน LINE (#/venues) — หน้ารายการสถานที่จัดกิจกรรม รองรับการค้นหา กรองหมวดหมู่แบบขึ้นบรรทัดใหม่ และสลับมุมมองการ์ด',
+          'หน้ารายละเอียดสถานที่ (#/venue/:id) — แสดงรูปภาพ Carousel พร้อมป้ายสิ่งอำนวยความสะดวก ปฏิทินเลือกวัน และแถบไทม์ไลน์ 24 ชั่วโมงคำนวณสัดส่วนเวลาจริง (BAR_MIN_PCT = 8%)',
+        ],
+      },
+    ],
+  },
+  {
+    v: '0.10.0',
+    date: '2 ก.ย. 2569',
+    groups: [
+      {
+        t: 'ใหม่',
+        items: [
+          'กระบวนการลงทะเบียนบุคลากรผ่าน LINE OA (#/register) — ฟอร์มลงทะเบียน 5 ช่อง พร้อม Combobox เชื่อมต่อกลุ่มสาระและตำแหน่งจากระบบกลาง',
+          'หน้าจอแสดงสถานะคำขอลงทะเบียน (#/pending, #/rejected, #/blocked) — ติดตามสถานะคำขอ แสดงเหตุผลการปฏิเสธของเจ้าหน้าที่ และรองรับการแก้ไขข้อมูลเดิม',
+          'หน้าจอเข้าสู่ระบบ (#/login) และหน้าจอเพิ่มเพื่อน Official Account (#/add-friend) พร้อม QR Code มาตรฐาน',
+        ],
+      },
+    ],
+  },
+  {
+    v: '0.9.0',
+    date: '2 ก.ย. 2569',
+    groups: [
+      {
+        t: 'ใหม่',
+        items: [
+          'ระบบ LIFF Shell และ Gatekeeper Engine — คัดกรองสิทธิ์ผู้ใช้งาน 12 สถานะอัตโนมัติ พร้อมระบบป้องกัน Deep Link ผิดสถานะ',
+          'หน้าจอต้อนรับ Splash Screen การันตีเวลาแสดงผล 1500ms พร้อมแอนิเมชัน Smooth Scale/Fade',
+          'หน้าจอแจ้งข้อผิดพลาด Gate Error (#/gate-error) และระบบ Visual Viewport (--vvh) รองรับคีย์บอร์ดมือถือ',
+        ],
+      },
+    ],
+  },
+  {
+    v: '0.8.0',
+    date: '2 ก.ย. 2569',
+    groups: [
+      {
+        t: 'ใหม่',
+        items: [
+          'ชุด Shared UI Components กลางสำหรับ Client Portal (ScreenHeader, Breadcrumbs, Dock, StatusCard, Combobox, Skeleton, Toast, Dropdown, EmptyState)',
+          'ระบบทะเบียนไอคอนมาตรฐาน (vicon, licon, rxicon) และฟังก์ชันจัดรูปแบบวันที่และเวลาไทย พ.ศ.',
+        ],
+      },
+      {
+        t: 'ปรับปรุง',
+        items: [
+          'ปรับปรุงสีประจำระบบ Primary เป็นสี Emerald (#047857 ในธีมสว่าง / #34d399 ในธีมมืด) ตามมาตรฐาน WCAG AA',
+        ],
+      },
+    ],
+  },
+  {
     /*
      * RELEASED 26 ส.ค. 2569, on the PO's word — `npm version minor` in the same breath as this
      * edit. It sat here inert while `package.json` read `0.6.0`, because the page renders
