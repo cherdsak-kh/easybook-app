@@ -10,6 +10,8 @@ import { LoginPage } from './pages/register/LoginPage'
 import { PendingPage } from './pages/register/PendingPage'
 import { RegistrationPage } from './pages/register/RegistrationPage'
 import { RejectedPage } from './pages/register/RejectedPage'
+import { VenueDetailPage } from './pages/venues/VenueDetailPage'
+import { VenuesCatalogPage } from './pages/venues/VenuesCatalogPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { useResolvedTheme } from '@/hooks/useResolvedTheme'
 import type { ScreenName } from './routes'
@@ -59,10 +61,6 @@ const COMING_SOON: Stand[] = [
   { path: '/version', screen: 'version', ...TO_SETTINGS },
   { path: '/manual', screen: 'manual', ...TO_SETTINGS },
   { path: '/rules', screen: 'rules', ...TO_SETTINGS },
-
-  // P4 · venue browsing.
-  { path: '/venues', screen: 'venues', ...TO_HOME },
-  { path: '/venue/:id', screen: 'venue', ...TO_VENUES },
 
   // P5 · the booking request.
   { path: '/request/:id', screen: 'request', ...TO_VENUES },
@@ -121,6 +119,12 @@ export function ClientRoutes() {
           <Route path="/pending" element={<PendingPage />} />
           <Route path="/rejected" element={<RejectedPage />} />
           <Route path="/blocked" element={<BlockedPage />} />
+
+          {/* P4 · discovery. `/venues` is a dock tab; `/venue/:id` is a step in a flow and is
+              dockless. Neither says so itself — `NAV_SCREENS` already lists `venues` and omits
+              `venue`, and `LiffShell` reads that, so the dock cannot disagree with the table. */}
+          <Route path="/venues" element={<VenuesCatalogPage />} />
+          <Route path="/venue/:id" element={<VenueDetailPage />} />
 
           {COMING_SOON.map((route) => (
             <Route

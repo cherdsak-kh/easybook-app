@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 /**
  * The trail above a screen title. Ported from `crumbs()`, prototype 3658–3664.
  *
@@ -36,9 +38,14 @@ export function Breadcrumbs({
         {trail.map((c) => (
           <li key={c.label}>
             {c.to ? (
-              <a href={c.to} className="truncate">
+              /* ⚠️ `Link`, NOT `<a href>`. A bare anchor to an in-app path is a FULL PAGE RELOAD:
+                 the LIFF boots again, the gate re-runs its four checks, and the reader watches the
+                 splash to get back to a screen the router could have shown immediately. It was an
+                 `<a>` until `#/venue/:id` became the first real caller (P4). Same correction
+                 `DockItem` needed in P2. */
+              <Link to={c.to} className="truncate">
                 {c.label}
-              </a>
+              </Link>
             ) : (
               /* `aria-current="page"` says in the accessibility tree what the weight and the
                  colour say visually — the same "one value drives both" rule the dock and the
