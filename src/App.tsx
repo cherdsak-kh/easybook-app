@@ -23,6 +23,24 @@ const ShowcasePage = lazy(() =>
 )
 
 /**
+ * The CLIENT portal's Phase 1 showcase — the same instrument for the other side, and for the same
+ * reason: the PO's ruling for this build is "measure in the browser, write no UI component unit
+ * tests", so this page is where every shared component's contrast, tap-target size and both-theme
+ * rendering actually get checked, at 390px and 820px.
+ *
+ * ⚠️ Path mirrors `/admin-portal/_showcase` rather than the bare `/showcase` the brief offered,
+ * so the two instruments sort together and neither can be mistaken for a product route.
+ *
+ * Lazy, so it never enters the client's initial chunk. It goes when Phase 1's components have
+ * been absorbed by real screens.
+ */
+const ClientShowcasePage = lazy(() =>
+  import('@/client-portal/pages/showcase/ShowcasePage').then((m) => ({
+    default: m.ShowcasePage,
+  })),
+)
+
+/**
  * The back-office, lazily loaded as ONE chunk.
  *
  * A LIFF user never signs in here, so none of it belongs in the initial download — and the
@@ -104,6 +122,10 @@ function App() {
             `data-theme` so it can flip between the two admin themes in place, which is how
             the contrast sweep gets run twice without a reload. */}
         <Route path="/admin-portal/_showcase" element={<ShowcasePage />} />
+
+        {/* The client's twin, and outside any theme layout for the same reason: it stamps its
+            own `data-theme` so the contrast sweep runs twice without a reload. */}
+        <Route path="/client-portal/_showcase" element={<ClientShowcasePage />} />
 
         {/* The back-office. `/*` because `BackendRoutes` owns everything below this segment —
             its own 31 destinations and its own in-shell 404 — and a nested `<Routes>` only
