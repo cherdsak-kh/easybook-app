@@ -130,24 +130,36 @@ export function getIdToken(): string | null {
 }
 
 /**
- * Initialise the LIFF SDK and return the signed-in user's profile.
+ * The three ways `liff.init()` can end, kept apart on purpose.
  *
- * Returns `null` (never throws) when:
- * - `VITE_LIFF_ID` is not configured (e.g. plain dev browser), or
- * - the user is not logged in (e.g. external browser outside the LINE client), or
- * - init/getProfile fails for any reason.
- *
- * Callers treat `null` as "anonymous" and fall back to a generic experience.
+ * - `ready`        — the SDK initialised against a real channel.
+ * - `unconfigured` — `VITE_LIFF_ID` is unset. A plain dev browser, not a failure.
+ * - `failed`       — configured, but init threw: no network, LINE unreachable, bad id.
  */
-export async function initLiff(): Promise<LiffProfile | null> {
+export type LiffBoot = 'ready' | 'unconfigured' | 'failed'
+
+/**
+ * Initialise the LIFF SDK, **reporting** how it went instead of swallowing it.
+ *
+ * 🔴 THE THREE OUTCOMES MUST STAY APART, and this replaced an `initLiff()` that collapsed them
+ * into `null` (2 ก.ย. 2569; it had no callers left after Client Portal v1 was deleted). The
+ * client portal's gate has to tell "there is no LIFF id here" from "LINE could not be reached":
+ * the first is a dev browser and lands on the login screen, the second is `line-down` and lands
+ * on the error screen with a retry button. One `null` for both makes a network outage look like
+ * a misconfigured `.env`, and the user is offered the wrong thing to do about it.
+ *
+ * ⚠️ It still never throws — the fail-soft contract every other helper in this module keeps.
+ * What changed is that the caller is now *told*, rather than left to guess from a `null`.
+ */
+export async function bootLiff(): Promise<LiffBoot> {
   const liffId = import.meta.env.VITE_LIFF_ID
-  if (!liffId) return null
+  if (!liffId) return 'unconfigured'
 
   try {
     await liff.init({ liffId })
-    return await getProfile()
+    return 'ready'
   } catch (error) {
-    console.warn('[liff] init failed; continuing anonymously:', error)
-    return null
+    console.warn('[liff] init failed:', error)
+    return 'failed'
   }
 }

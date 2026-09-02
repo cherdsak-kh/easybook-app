@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { LIcon } from '@/client-portal/icons/LucideIcon'
 import type { LIconName } from '@/client-portal/icons/licon'
 
@@ -28,9 +29,15 @@ import type { LIconName } from '@/client-portal/icons/licon'
  * come from one value and cannot end up in different states. It is a NEUTRAL wash, not
  * `primary`: this portal reads neutral by design.
  *
- * ⚠️ Renders an `<a href>` rather than a router `NavLink` — Phase 2 owns the router and will
- * swap the element without touching the geometry above. `D-C3` means the destination is a real
- * URL either way, so this is not a placeholder for navigation, only for the binding.
+ * ⚠️ NOW A ROUTER `Link` (P2, 2 ก.ย. 2569) — it was a bare `<a href>` while there was no router
+ * to bind to, and the geometry above is untouched by the swap. `Link` still renders a real
+ * `<a href>`, so `D-C3`'s point stands: the destination is a URL that can be middle-clicked,
+ * copied and restored by LINE. What changes is that following it no longer reloads the SPA and
+ * re-runs the whole gate.
+ *
+ * ⚠️ `NavLink` WAS NOT USED, DELIBERATELY. It would compute `active` from the URL itself — but
+ * the dock's rule is not "this tab's path equals the URL": `/venue/3` highlights จองสถานที่ and
+ * `/version` highlights ตั้งค่า (`NAV_TAB`). One table decides, and it is not this component.
  */
 export function DockItem({
   href,
@@ -46,15 +53,15 @@ export function DockItem({
 }) {
   return (
     <li>
-      <a
-        href={href}
+      <Link
+        to={href}
         aria-label={label}
         aria-current={active ? 'page' : undefined}
         className="dock-item flex min-h-11 w-[90px] min-w-[56px] flex-col items-center justify-center gap-1 rounded-full px-4 pb-1 pt-2 text-[12px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 motion-safe:transition-colors sm:w-[120px]"
       >
         <LIcon name={icon} className="h-5 w-5 shrink-0" />
         <span className="whitespace-nowrap">{label}</span>
-      </a>
+      </Link>
     </li>
   )
 }

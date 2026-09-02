@@ -1,14 +1,9 @@
 import { lazy, Suspense } from 'react'
 import { Route, Routes } from 'react-router-dom'
-// Eager (initial chunk): the anonymous LIFF client (`/`) must paint without waiting on a
-// lazy chunk. Today that is a placeholder, and it is dependency-light either way.
-import { ClientPortalPlaceholder } from '@/client-portal/ClientPortalPlaceholder'
-
-const NotFoundPage = lazy(() =>
-  import('@/pages/NotFoundPage').then((m) => ({
-    default: m.NotFoundPage,
-  })),
-)
+// Eager (initial chunk): the LIFF client is the surface an end user opens, and its first paint
+// is the splash the gate runs behind. Waiting on a lazy chunk to start the four checks would add
+// a download to the one screen whose whole job is to be quick.
+import { ClientRoutes } from '@/client-portal/ClientRoutes'
 
 /**
  * P1 SCAFFOLDING — the component showcase, and the only way Phase 1's components get
@@ -102,17 +97,19 @@ function RouteFallback() {
  * Routes:
  *  - `/backend/*` → Admin Portal v2 (P2). It owns everything under that segment, including its
  *                   own in-shell 404, so this file never learns the back-office's 31 paths.
- *  - `/`          → the client LIFF surface. Matched at the INDEX only. Today it is
- *                   `ClientPortalPlaceholder`, a stand-in with no product behaviour; v2's
- *                   Phase 2 replaces it with the real gate + shell and the routes below it.
- *  - `path="*"`   → the ONE global 404, kept LAST. It is still the CLIENT's 404: the
- *                   prototype's full-page back-office 404 exists (`NotFound variant="full"`)
- *                   but has no correct home until P2-C decides who is "outside the shell",
- *                   and pointing an anonymous LIFF user at back-office chrome would advertise
- *                   the staff entrance to every mistyped address.
+ *  - `/*`         → the client LIFF surface (P2, 2 ก.ย. 2569). `ClientRoutes` owns everything
+ *                   this file does not claim explicitly: its twenty routes, its gate, its shell
+ *                   **and the global 404**, which moved in there with the branch.
+ *
+ * ⚠️ THE GLOBAL 404 IS NO LONGER IN THIS FILE, and it is not gone. `path="*"` and `path="/*"`
+ * are the same pattern, so the client branch and a sibling catch-all cannot both exist; the
+ * catch-all is now the last route inside `ClientRoutes`, still the CLIENT's 404 and still
+ * outside the gate. The two more specific branches above it win on route ranking rather than on
+ * source order, so `/backend/staff` and the two showcases are unaffected.
  *
  * There is no pathless client theme layout any more — it was `ThemeLayout`, and it went with
- * v1. Each client-side screen stamps its own `data-theme` until v2's shell owns that job.
+ * v1. `LiffShell` stamps `data-theme` for the whole client subtree; the two showcases stamp
+ * their own because they sit outside every shell on purpose.
  */
 function App() {
   return (
@@ -133,12 +130,8 @@ function App() {
             `data-theme`, and the two portals' themes must never reach each other. */}
         <Route path="/backend/*" element={<BackendRoutes />} />
 
-        {/* The client LIFF surface, at the INDEX only. v2's Phase 2 replaces this single
-            entry with the gate, the shell and the routes the dock navigates between. */}
-        <Route index element={<ClientPortalPlaceholder />} />
-
-        {/* The single global 404, kept LAST. */}
-        <Route path="*" element={<NotFoundPage />} />
+        {/* The client LIFF surface — the gate, the shell, the twenty routes and the 404. */}
+        <Route path="/*" element={<ClientRoutes />} />
       </Routes>
     </Suspense>
   )

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { LIcon } from '@/client-portal/icons/LucideIcon'
 
 /**
@@ -41,9 +42,12 @@ export function UnderConstruction({
         <p className="mt-1 text-sm text-base-content/70">
           หน้านี้กำลังอยู่ระหว่างการพัฒนา และจะพร้อมให้ใช้งานเร็ว ๆ นี้
         </p>
-        <a href={backTo} className="btn btn-app btn-outline mt-6">
+        {/* A router `Link` since P2 — it still renders a real `<a href>`, so the exit is
+            copyable and middle-clickable, but following it no longer reloads the SPA and
+            re-runs the whole gate. */}
+        <Link to={backTo} className="btn btn-app btn-outline mt-6">
           {backLabel}
-        </a>
+        </Link>
       </div>
     </div>
   )

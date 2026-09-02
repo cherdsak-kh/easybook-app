@@ -371,6 +371,33 @@
 .no-sb { scrollbar-width: none; }
 .no-sb::-webkit-scrollbar { display: none; }
 
+/* ── The splash fade (P2) ─────────────────────────────────────────────────────
+   Prototype 274–283, where the selector is `#gate-splash`. A CLASS here for the same reason
+   Phase 1 turned `#cbx-sheet` into `.cbx-sheet`: in React the element is a component, and a
+   component that can only be rendered once is a component with a bug waiting in it.
+
+   🔴 HAND-WRITTEN CSS RATHER THAN `motion-safe:transition-all duration-1000`, which is what
+   `DECISIONS.md` §3.1 asks for and which this build could technically get away with. The
+   prototype's stated reason does not apply here — a compiled Tailwind has every class ready
+   before the first paint, unlike the CDN's MutationObserver JIT — but the ruling's real point
+   survives the change of runtime: this is the FIRST FRAME OF THE SESSION and the one animation
+   that has no second chance to play. It is also two declarations. There is nothing to gain by
+   making it depend on a build step, and one thing to lose.
+
+   ⚠️ `prefers-reduced-motion` REMOVES THE TRANSITION, NOT THE END STATE — note which side of
+   the rule the `opacity: 1` lives on. Written the other way round, somebody who has asked for
+   less motion gets a blank screen stuck at `opacity: 0` forever, which is not "reduced motion",
+   it is a broken app. They see the logo at full strength immediately, which is correct. */
+.gate-splash {
+  opacity: 0;
+  transform: scale(.95);
+  transition: opacity 1s ease-out, transform 1s ease-out;
+}
+.gate-splash[data-entered] { opacity: 1; transform: scale(1); }
+@media (prefers-reduced-motion: reduce) {
+  .gate-splash { transition: none; }
+}
+
 /* ── The "request sent" checkmark ─────────────────────────────────────────────
    Pure CSS, no animation library. The keyframes have to live in a stylesheet either way,
    so splitting the rest into a long arbitrary utility name would define one thing in two

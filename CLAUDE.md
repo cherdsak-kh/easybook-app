@@ -136,11 +136,19 @@ Two rules the deleted provider learned the hard way, recorded here so v2 does no
 
 ### LIFF integration is isolated and fails soft
 
-`src/lib/liff.ts` wraps `@line/liff` behind `initLiff()`, which **never throws** — it resolves to
-`null` when `VITE_LIFF_ID` is unset, the user isn't logged in, or LIFF init fails for any reason.
-Callers (e.g. `HomePage`) treat `null` as "anonymous" and fall back to generic behavior. Preserve this
-fail-soft contract when touching LIFF code: the app must remain usable in a plain dev browser with no
-LIFF id configured.
+`src/lib/liff.ts` wraps `@line/liff`. Every helper **never throws** — the app must stay usable in a
+plain dev browser with no LIFF id configured. Preserve that contract when touching LIFF code.
+
+⚠️ **`initLiff()` is gone (2 ก.ย. 2569); the entry point is `bootLiff()`.** The old function
+resolved to `null` for three different situations — no `VITE_LIFF_ID`, init failed, not logged in —
+and it had no callers left after Client Portal v1 was deleted. `bootLiff()` returns
+`'ready' | 'unconfigured' | 'failed'` instead, because the client portal's gate has to tell them
+apart: `unconfigured` is a dev browser and lands on the login screen, `failed` is `line-down` and
+lands on the error screen with a retry button. Collapsing them makes a network outage look like a
+misconfigured `.env`, and offers the user the wrong thing to do about it.
+
+The gate that consumes it is `src/client-portal/hooks/useLiffGate.ts` — four checks, twelve
+outcomes, documented in the plan folder's `PAGE_INDEX.md` §2.
 
 ### Path alias
 
