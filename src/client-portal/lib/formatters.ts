@@ -117,3 +117,29 @@ export function fmtDLong(dt: Date): string {
 export function fmtDDow(dt: Date): string {
   return `${TH_DOW[dt.getDay()]}. ${fmtD(dt)}`
 }
+
+/**
+ * How long a span lasts, in Thai. Prototype 5180 (`hmDur`).
+ *
+ * `3 ชม.` · `1.5 ชม.` · `1 วัน 8 ชม.` · `2 วัน`
+ *
+ * 🔴 IT SWITCHES TO DAYS AT 24 HOURS, and that is the rule this file exists to keep in one place.
+ * The prototype says so at the one caller that reworded it: a span over a day must read as
+ * `1 วัน 8 ชั่วโมง`, never `32 ชั่วโมง`. Writing a second formula at a second screen is how the
+ * request summary and the booking detail start reporting different durations for the same row on
+ * the day somebody edits one of them.
+ *
+ * ⚠️ ROUNDED TO ONE DECIMAL, so a 90-minute span is `1.5 ชม.` rather than `1.4999999999 ชม.`, and
+ * a whole number prints without a trailing `.0` because JavaScript drops it.
+ *
+ * ⚠️ THE UNIT IS ABBREVIATED. One screen wants the full word (`ชั่วโมง`) and swaps it itself —
+ * `#/sent/:id`, which is a receipt with room to spare, unlike the cards and calendar rows every
+ * other caller lives in.
+ */
+export function hmDur(start: Date, end: Date): string {
+  const hours = (end.getTime() - start.getTime()) / 3_600_000
+  if (hours < 24) return `${Math.round(hours * 10) / 10} ชม.`
+  const days = Math.floor(hours / 24)
+  const rest = Math.round((hours - days * 24) * 10) / 10
+  return `${days} วัน${rest ? ` ${rest} ชม.` : ''}`
+}

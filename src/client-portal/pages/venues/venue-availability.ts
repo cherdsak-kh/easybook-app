@@ -49,6 +49,45 @@ export function addDays(dt: Date, n: number): Date {
 }
 
 /**
+ * Do two spans overlap? Prototype 3639 (`overlaps`), and the single definition of the predicate
+ * every screen in this portal asks about.
+ *
+ * 🔴 HALF-OPEN, `[start, end)` — a span ending 12:00 and one starting 12:00 do NOT overlap. The
+ * schema comment on `BookingSlot` says the same thing and gives the reason: writing one of the
+ * several copies of this predicate with `<=` produces phantom conflicts nobody can reproduce. This
+ * is that one copy.
+ */
+export function overlaps(
+  a: { start: Date; end: Date },
+  b: { start: Date; end: Date },
+): boolean {
+  return a.start.getTime() < b.end.getTime() && b.start.getTime() < a.end.getTime()
+}
+
+/**
+ * How far back and forward a screen asks the availability endpoint to look.
+ *
+ * ⚠️ ONE WINDOW PER SCREEN VISIT, NOT ONE PER CALENDAR PAGE. The endpoint defaults to the current
+ * month, which is exactly what the calendar opens on — and then the first press of the "next month"
+ * arrow would show an empty month that is not empty. Fetching per page would fix that with a
+ * request on every arrow press and a spinner over a grid that was already correct; fetching a wide
+ * window once costs one query for a few dozen rows of one venue.
+ *
+ * ⚠️ IT STARTS IN THE PAST ON PURPOSE. A span that began yesterday still occupies today, and the
+ * server matches on OVERLAP rather than containment — so a window starting at today's midnight
+ * would drop a two-day camp from the day it is still running on.
+ *
+ * ⚠️ Well inside the server's 366-day ceiling (this is ~7 months), which is a 400 rather than a
+ * truncation. Widening it past a year turns every calendar into an error state.
+ */
+export function availabilityWindow(now = new Date()): { from: Date; to: Date } {
+  return {
+    from: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+    to: new Date(now.getFullYear(), now.getMonth() + 6, 1),
+  }
+}
+
+/**
  * Every slot that overlaps `day`, ordered by when it becomes visible **on that day**.
  *
  * ⚠️ A SPAN THAT CROSSES MIDNIGHT APPEARS ON EVERY DAY IT TOUCHES. A two-day scout camp has to be

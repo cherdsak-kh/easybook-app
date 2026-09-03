@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AvailabilityCalendar, type CalendarView } from './components/AvailabilityCalendar'
 import { SlotList } from './components/SlotList'
 import { VenueCarousel } from './components/VenueCarousel'
-import { addDays, midnight, type VenueSlot } from './venue-availability'
+import { addDays, availabilityWindow, midnight, type VenueSlot } from './venue-availability'
 import { getVenue, isNotFound, listAvailability, messageFor } from './venues-api'
 import { Skeleton } from '@/client-portal/components/feedback/Skeleton'
 import { Breadcrumbs } from '@/client-portal/components/ui/Breadcrumbs'
@@ -78,7 +78,11 @@ export function VenueDetailPage() {
            venue's own facts (where it is, how many fit) are still worth showing when the schedule
            cannot be read. */
         try {
-          const rows = await listAvailability(id)
+          /* ⚠️ AN EXPLICIT WINDOW, not the endpoint's default. Its default is the current month,
+             which is what the calendar opens on — and the first press of the "next month" arrow
+             would then draw an empty month that is not empty. See `availabilityWindow`. */
+          const { from, to } = availabilityWindow()
+          const rows = await listAvailability(id, from, to)
           if (!cancelled) setSlots(rows)
         } catch (error) {
           console.warn('[venue] availability failed:', error)
@@ -146,10 +150,20 @@ export function VenueDetailPage() {
         ) : (
           <>
             {/* ⚠️ ABOVE THE PHOTO, not below it — see the header note. */}
+            {/* 🔴 `text-base-content` ON THE WORDS, NOT ON THE ALERT (P5b). daisyUI's
+                  `alert-soft` colours its text with the semantic token, and in the LIGHT theme
+                  that measures **2.04:1** for `warning` — the worst reading in this portal, and it
+                  shipped in P4 unnoticed. The full sweep: success 3.45 · warning 2.04 · error 4.36
+                  · info 4.64, against 16.0–17.0 once the text is `base-content`. Dark passes on its
+                  own (4.97–7.76), which is why it hid.
+                  ⚠️ THE CLASS GOES ON THE `<span>` so the ICON KEEPS the semantic colour — moving
+                  it to the container greys the icon out and the alert levels stop being
+                  distinguishable at a glance. The icon is `aria-hidden` and decorative: the Thai
+                  beside it says the same thing, and the level is also carried by the background. */}
             {!venue.isOpen ? (
-              <div role="alert" className="alert alert-warning alert-soft mb-4 text-sm">
+                <div role="alert" className="alert alert-warning alert-soft mb-4 text-sm">
                 <LIcon name="circleAlert" className="h-5 w-5 shrink-0" />
-                <span>
+                <span className="text-base-content">
                   <span className="font-semibold">ปิดปรับปรุงชั่วคราว</span> —{' '}
                   {venue.closedReason || 'ปิดปรับปรุงชั่วคราว'}
                 </span>

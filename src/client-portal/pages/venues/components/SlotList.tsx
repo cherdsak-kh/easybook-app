@@ -82,7 +82,10 @@ export function SlotList({ slots, day }: { slots: readonly VenueSlot[]; day: Dat
                   {/* 🔴 `(ขอใช้ซ้อนได้)` IS P2 RULE 1 PRINTED WHERE IT CHANGES A DECISION. A pending
                       request reserves nothing, so a reader who sees the amber band and backs off to
                       another day is retreating from something that was never blocking them. */}
-                  {approved ? null : <span className="text-base-content/50">(ขอใช้ซ้อนได้)</span>}
+                  {/* ⚠️ `/60`, NOT `/50`. Measured at **3.41:1** in the light theme, which fails AA
+                      for text this size; `/60` clears it. `D-C17`'s 2.26 is a documented brand
+                      exception on one button — this was not one, it was a miss (P5b). */}
+                  {approved ? null : <span className="text-base-content/60">(ขอใช้ซ้อนได้)</span>}
                   {slot.mine ? (
                     <span className="badge badge-sm whitespace-nowrap border-primary/40 bg-primary/20 text-base-content">
                       คุณ

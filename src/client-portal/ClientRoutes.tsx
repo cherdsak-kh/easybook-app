@@ -10,6 +10,8 @@ import { LoginPage } from './pages/register/LoginPage'
 import { PendingPage } from './pages/register/PendingPage'
 import { RegistrationPage } from './pages/register/RegistrationPage'
 import { RejectedPage } from './pages/register/RejectedPage'
+import { BookingRequestPage } from './pages/request/BookingRequestPage'
+import { BookingSentPage } from './pages/request/BookingSentPage'
 import { VenueDetailPage } from './pages/venues/VenueDetailPage'
 import { VenuesCatalogPage } from './pages/venues/VenuesCatalogPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -61,10 +63,6 @@ const COMING_SOON: Stand[] = [
   { path: '/version', screen: 'version', ...TO_SETTINGS },
   { path: '/manual', screen: 'manual', ...TO_SETTINGS },
   { path: '/rules', screen: 'rules', ...TO_SETTINGS },
-
-  // P5 · the booking request.
-  { path: '/request/:id', screen: 'request', ...TO_VENUES },
-  { path: '/sent/:id', screen: 'sent', ...TO_VENUES },
 
   // P6 · my bookings.
   { path: '/bookings', screen: 'bookings', ...TO_HOME },
@@ -125,6 +123,15 @@ export function ClientRoutes() {
               `venue`, and `LiffShell` reads that, so the dock cannot disagree with the table. */}
           <Route path="/venues" element={<VenuesCatalogPage />} />
           <Route path="/venue/:id" element={<VenueDetailPage />} />
+
+          {/* P5 · the booking request. Both dockless for the same reason `/venue/:id` is: they are
+              steps in a flow with state in progress, and `NAV_SCREENS` omits both — nothing here
+              opts out by hand.
+              ⚠️ `/sent/:id` IS ADDRESSED BY THE BOOKING **CODE**, not the cuid — `BR-25690903-001`
+              is what a person can read off a screen and type back in, which is the whole reason the
+              column exists alongside `id`. */}
+          <Route path="/request/:id" element={<BookingRequestPage />} />
+          <Route path="/sent/:id" element={<BookingSentPage />} />
 
           {COMING_SOON.map((route) => (
             <Route

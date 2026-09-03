@@ -191,28 +191,60 @@ export async function getVenue(id: string): Promise<Venue> {
 }
 
 /**
- * ── 🔴 THE SEAM FOR AN ENDPOINT THAT DOES NOT EXIST YET ──
+ * A venue's occupied spans. **`CLIENT-BOOKING-1` landed, so this is a real call now** (P5b) — the
+ * `return []` seam that stood here through Phase 4 is gone, and the calendar reads live rows.
  *
- * `TRANSPORT.md` §3.1 assigns "`GET` venue availability for a date range" to **`CLIENT-BOOKING-1`**,
- * which is **Phase 5a**. `easybook-service` has the Prisma models but no `src/bookings/` module and
- * no route, so there is nothing to call.
+ * ── 🔴 THREE STATES, NOT TWO, AND THE MAPPING BELOW IS WHERE THAT SURVIVES ──
+ * `TRANSPORT.md` §3.1: red = taken, **amber = somebody else has asked**, green = free. The server
+ * returns `APPROVED` and `PENDING` as distinct values for exactly that reason. Folding them into
+ * one flag here would undo it at the last step: a reader would either walk away from a day nothing
+ * is holding, or submit without knowing they are competing.
  *
- * It returns `[]` rather than throwing, and that is the honest answer: with no bookings readable,
- * every day genuinely has nothing to show, and the calendar renders the empty-day card — the state
- * `paintVenueSlots` (3926) was written for and the most common answer even once the endpoint
- * exists. A throw here would paint an error over a screen that is not in error.
+ * ── ⚠️ `purpose` AND `requesterName` ARRIVE AS `null`, AND THAT IS THE PRIVACY RULE WORKING ──
+ * `D-C13`: an unapproved request never reveals who asked or what for. The SERVER omits both on
+ * somebody else's pending row — this file only has to not invent a replacement. `?? ''` is the
+ * right fill because {@link VenueSlot} types them as strings and the renderers already treat an
+ * empty string as "nothing to print"; a placeholder like "ไม่ระบุ" would be this file claiming to
+ * know something it was deliberately not told.
  *
- * ⚠️ WHAT IS NOT VERIFIED, AND CANNOT BE: that the real payload maps onto {@link VenueSlot}. The
- * shape below is this file's guess at Phase 5a's contract, and Phase 5a may choose differently —
- * when it lands, this function is the only place that has to change, which is the whole reason it
- * is a function and not a fetch inlined into the calendar.
+ * ── The window ──
+ * `from`/`to` are optional and the server defaults to the current Bangkok month. The calendar asks
+ * for the month it is showing, so a reader who pages to December does not get October's answer.
  */
-export async function listAvailability(venueId: string): Promise<VenueSlot[]> {
+export async function listAvailability(
+  venueId: string,
+  from?: Date,
+  to?: Date,
+): Promise<VenueSlot[]> {
   if (isDevGate()) {
     await sleep(DEV_LATENCY_MS)
     return devSlots(venueId)
   }
-  return Promise.resolve([])
+
+  const query: { from?: string; to?: string } = {}
+  if (from) query.from = from.toISOString()
+  if (to) query.to = to.toISOString()
+
+  const { data, error, response } = await api.GET(
+    '/api/v1/line-users/venues/{id}/availability',
+    {
+      headers: { Authorization: `Bearer ${bearerToken()}` },
+      params: { path: { id: venueId }, query },
+    },
+  )
+  if (!data) throw new ApiError(response.status, extract(error, response))
+
+  return data.map((slot) => ({
+    id: slot.id,
+    start: new Date(slot.startAt),
+    end: new Date(slot.endAt),
+    /* The one transform in this function. The wire speaks the Prisma enum; every screen in this
+       portal speaks the prototype's lowercase names, and `SlotStatus` is the type that says so. */
+    status: slot.status === 'APPROVED' ? 'approved' : 'pending',
+    purpose: slot.purpose ?? '',
+    requester: slot.requesterName ?? '',
+    mine: slot.isMine,
+  }))
 }
 
 function extract(error: unknown, response: Response): string {

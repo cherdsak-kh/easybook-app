@@ -27,7 +27,11 @@ import type { Venue } from '@/lib/api-client'
 
 /** Prototype `VN_TAG` behaviour — the amenity pill, dimmed when the venue is closed. */
 function amenityTag(open: boolean): string {
-  return `badge badge-xs border-none ${open ? 'bg-base-200 text-base-content/70' : 'bg-base-300 text-base-content/50'}`
+  /* ⚠️ THE CLOSED VARIANT IS `/70`, NOT `/50` (P5b). On `bg-base-300` it measured **3.24:1** in
+     the light theme — a closed venue's amenities are still facts somebody reads, and dimming
+     them below AA turns "quieter" into "unreadable". `/70` matches the open variant's weight
+     and the darker ground does the dimming on its own. */
+  return `badge badge-xs border-none ${open ? 'bg-base-200 text-base-content/70' : 'bg-base-300 text-base-content/70'}`
 }
 
 function Cover({ venue, open }: { venue: Venue; open: boolean }) {
@@ -69,12 +73,12 @@ function Body({ venue, open }: { venue: Venue; open: boolean }) {
         >
           <LIcon
             name="building2"
-            className={`h-4 w-4 shrink-0 ${open ? 'text-primary' : 'text-base-content/50'}`}
+            className={`h-4 w-4 shrink-0 ${open ? 'text-primary' : 'text-base-content/60'}`}
           />
           <span className="truncate">{venue.name}</span>
         </h2>
         <span
-          className={`badge badge-sm shrink-0 font-medium ${open ? 'border-base-content/20 bg-base-200 text-base-content/80' : 'border-base-content/20 bg-base-300 text-base-content/60'}`}
+          className={`badge badge-sm shrink-0 font-medium ${open ? 'border-base-content/20 bg-base-200 text-base-content/80' : 'border-base-content/20 bg-base-300 text-base-content/70'}`}
         >
           {venue.venueType.name}
         </span>
@@ -106,8 +110,10 @@ function Body({ venue, open }: { venue: Venue; open: boolean }) {
               {a.name}
             </span>
           ))}
+          {/* ⚠️ `/60`, NOT `/50`: measured at **3.36:1** on `bg-base-200` in light — below AA.
+              `/60` clears it and the badge still reads as the quietest thing in the row (P5b). */}
           {open && over > 0 ? (
-            <span className="badge badge-xs border-none bg-base-200 text-base-content/50">
+            <span className="badge badge-xs border-none bg-base-200 text-base-content/60">
               +{over}
             </span>
           ) : null}
