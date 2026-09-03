@@ -2,6 +2,8 @@ import { Route, Routes } from 'react-router-dom'
 import { GateProvider } from './components/shell/GateProvider'
 import { LiffShell } from './components/shell/LiffShell'
 import { ComingSoonScreen } from './pages/ComingSoonScreen'
+import { BookingDetailPage } from './pages/bookings/BookingDetailPage'
+import { MyBookingsPage } from './pages/bookings/MyBookingsPage'
 import { GateErrorPage } from './pages/gate/GateErrorPage'
 import { GateLanding } from './pages/gate/GateLanding'
 import { AddFriendPage } from './pages/register/AddFriendPage'
@@ -64,14 +66,6 @@ const COMING_SOON: Stand[] = [
   { path: '/manual', screen: 'manual', ...TO_SETTINGS },
   { path: '/rules', screen: 'rules', ...TO_SETTINGS },
 
-  // P6 · my bookings.
-  { path: '/bookings', screen: 'bookings', ...TO_HOME },
-  {
-    path: '/booking/:id',
-    screen: 'booking-detail',
-    backTo: '/bookings',
-    backLabel: 'กลับสู่การจองของฉัน',
-  },
 ]
 
 export function ClientRoutes() {
@@ -132,6 +126,17 @@ export function ClientRoutes() {
               column exists alongside `id`. */}
           <Route path="/request/:id" element={<BookingRequestPage />} />
           <Route path="/sent/:id" element={<BookingSentPage />} />
+
+          {/* P6 · my bookings. `/bookings` is a dock tab; `/booking/:id` is dockless — and the
+              difference is expressed in `NAV_SCREENS`, which lists the first and omits the second,
+              not by anything either page says about itself.
+              ⚠️ `/booking/:id` ACCEPTS THE CUID **OR** THE `BR-…` CODE. The list links by `id`; a
+              person pasting the number out of a LINE chat has the code, and the server resolves
+              both through one query. A bad value is a 404 and bounces to `/bookings`
+              (`PAGE_INDEX.md` §2.3) — the validator Phase 2 declined to guess at now exists,
+              because Phase 6 owns the data it would have been guessing about. */}
+          <Route path="/bookings" element={<MyBookingsPage />} />
+          <Route path="/booking/:id" element={<BookingDetailPage />} />
 
           {COMING_SOON.map((route) => (
             <Route

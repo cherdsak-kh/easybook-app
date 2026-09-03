@@ -4,6 +4,7 @@ import { Dock } from './Dock'
 import { DockItem } from './DockItem'
 import { GateGuard } from './GateGuard'
 import { NavScrim } from './NavScrim'
+import { ToastProvider } from '@/client-portal/components/feedback/Toast'
 import { useGate } from '@/client-portal/hooks/gate-context'
 import { useVisualViewport } from '@/client-portal/hooks/useVisualViewport'
 import { DOCK_TABS, NAV_SCREENS, NAV_TAB, screenOf } from '@/client-portal/routes'
@@ -47,7 +48,14 @@ export function LiffShell() {
   const activeTab = screen ? NAV_TAB[screen] : undefined
 
   return (
-    <>
+    /* 🔴 `ToastProvider` WRAPS THE WHOLE SHELL, AND IT WAS MISSING UNTIL PHASE 6b (3 ก.ย. 2569).
+       The component was built in Phase 1 and mounted **only inside the showcase page**, so
+       `useToast()` threw "must be used inside <ToastProvider>" the first time a real screen asked
+       for one — caught in the browser, not by `tsc`, because the error is a runtime context lookup.
+       It belongs here rather than in a page: the toast is fixed-position feedback about something
+       that just happened, and a provider per screen would unmount the queue on navigation, which is
+       exactly when a "cancelled successfully" message still needs to be on screen. */
+    <ToastProvider>
       <div className={showDock ? 'pad-nav' : undefined}>
         <GateGuard screen={screen}>
           <Outlet />
@@ -73,6 +81,6 @@ export function LiffShell() {
           </Dock>
         </>
       ) : null}
-    </>
+    </ToastProvider>
   )
 }
