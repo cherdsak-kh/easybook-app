@@ -207,7 +207,12 @@ function devResponse(body: {
       id: `dev-slot-${i}`,
       startAt: s.startAt,
       endAt: s.endAt,
+      // ⚠️ The cancellation triple travels together (Phase 6a). Nothing in the DEV gate cancels
+      // anything, so all three are their freshly-submitted values — but they are spelled out rather
+      // than omitted, because this fixture's whole job is to be shaped like the real response.
       isCancelled: false,
+      cancelledAt: null,
+      cancelReason: null,
     })),
     createdAt: now.toISOString(),
   }

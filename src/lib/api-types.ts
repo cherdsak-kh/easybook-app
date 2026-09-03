@@ -751,7 +751,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List the caller’s own booking requests (`#/bookings`).
+         * @description Scoped to the verified `sub` — there is no parameter that widens it, and ownership is part of the query rather than a filter applied afterwards. Unpaginated: this is one user’s own bookings, and the screen’s four accordion groups are counted over the whole set. 🔴 `status` filters the four STORED statuses; the screen paints SIX, deriving `สิ้นสุดแล้ว` and `หมดเวลาพิจารณา` from `status` + `lastEndAt` at read time. Nothing expires in the database.
+         */
+        get: operations["LineBookingsController_list"];
         put?: never;
         /**
          * Submit a booking request (always PENDING).
@@ -762,6 +766,66 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/bookings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one of the caller’s own bookings, by id **or** by code.
+         * @description `:id` accepts the cuid (what `#/booking/:id` navigates by) or the human-readable `code` with or without a leading `#` (what `#/sent/:id` has, and what a user pastes out of LINE). 🔴 Somebody else’s booking is a **404, never a 403** — `code` is a guessable label, so a distinguishable answer would be an enumeration oracle over every booking in the product. Carries `cancelLeadMinutes` so the client can both hide the cancel control and word its own Thai explanation with the real number.
+         */
+        get: operations["LineBookingsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/bookings/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Withdraw a PENDING request (`Q-C4`).
+         * @description Sets the request to `CANCELLED` and marks every live child slot cancelled in one transaction — `Q-C4` ② puts the truth at slot level, so flipping the parent alone would leave rows the venue calendar still paints. 🔴 `PENDING` only: an APPROVED booking is cancelled one slot at a time, and `REJECTED`/`CANCELLED` are terminal. The denormalised span is deliberately NOT recomputed — a fully cancelled request keeps its original dates so the history list still has something to sort it by.
+         */
+        patch: operations["LineBookingsController_cancel"];
+        trace?: never;
+    };
+    "/api/v1/line-users/bookings/{id}/slots/{slotId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Cancel ONE slot of an APPROVED booking (`Q-C4` ②).
+         * @description A three-slot request whose Monday has already begun can still have its Tuesday and Wednesday cancelled; the lead-time check runs against **that slot’s** `startAt`, never the request’s. 🔴 The slot frees the venue calendar **immediately** — availability filters `isCancelled` at slot level, so there is nothing to invalidate — and requests previously auto-rejected for it are NOT revived (`Q-C4`). When the last live slot goes, the request becomes `CANCELLED` by computation; otherwise `firstStartAt`/`lastEndAt` are recomputed over what remains, in the same transaction.
+         */
+        patch: operations["LineBookingsController_cancelSlot"];
         trace?: never;
     };
     "/api/v1/line-users/venues/{id}/availability": {
@@ -1624,6 +1688,13 @@ export interface components {
             endAt: string;
             /** @description Per-slot cancellation (`Q-C4`). Always `false` on a freshly submitted request; a three-slot request may later have one slot cancelled and keep the other two. */
             isCancelled: boolean;
+            /**
+             * Format: date-time
+             * @description When it was cancelled. Null unless `isCancelled` is true.
+             */
+            cancelledAt: string | null;
+            /** @description Free-text reason, written only by the staff cancellation path. Always null for a cancellation the user made themselves. */
+            cancelReason: string | null;
         };
         BookingRequestResponseDto: {
             /** @description The cuid primary key — what `/booking/:id` is addressed by. */
@@ -1654,6 +1725,78 @@ export interface components {
              */
             lastEndAt: string;
             slots: components["schemas"]["BookingSlotResponseDto"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        BookingVenueSummaryDto: {
+            id: string;
+            /** @example หอประชุมวารณ */
+            name: string;
+            /** @example อาคารหอประชุม ชั้น 1 */
+            location: string | null;
+            venueType: components["schemas"]["VenueTypeSummaryDto"];
+            /** @description Ordered. Index 0 is the cover. Empty for a venue with none. */
+            photos: components["schemas"]["VenuePhotoDto"][];
+        };
+        BookingListItemDto: {
+            id: string;
+            /** @example BR-25690902-001 */
+            code: string;
+            venue: components["schemas"]["BookingVenueSummaryDto"];
+            purpose: string;
+            attendees: number;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /** @description Why it was refused. Null unless `status` is `REJECTED`. */
+            rejectReason: string | null;
+            /** Format: date-time */
+            firstStartAt: string;
+            /** Format: date-time */
+            lastEndAt: string;
+            slots: components["schemas"]["BookingSlotResponseDto"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        BookingVenueDetailDto: {
+            id: string;
+            /** @example หอประชุมวารณ */
+            name: string;
+            /** @example อาคารหอประชุม ชั้น 1 */
+            location: string | null;
+            /** @example 900 */
+            capacity: number;
+            /** @example true */
+            isOpen: boolean;
+            venueType: components["schemas"]["VenueTypeSummaryDto"];
+            photos: components["schemas"]["VenuePhotoDto"][];
+            /** @description Ordered `name ASC`. */
+            amenities: components["schemas"]["VenueAmenityDto"][];
+        };
+        BookingDetailResponseDto: {
+            id: string;
+            /** @example BR-25690902-001 */
+            code: string;
+            venue: components["schemas"]["BookingVenueDetailDto"];
+            purpose: string;
+            attendees: number;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            rejectReason: string | null;
+            /** Format: date-time */
+            firstStartAt: string;
+            /** Format: date-time */
+            lastEndAt: string;
+            /**
+             * Format: date-time
+             * @description When the request was approved. Null while pending, and on a rejected or cancelled request.
+             */
+            approvedAt: string | null;
+            slots: components["schemas"]["BookingSlotResponseDto"][];
+            /**
+             * @description Cancellation lead time in minutes, from `app_settings`. A slot may be cancelled only while it starts more than this far in the future.
+             * @example 30
+             */
+            cancelLeadMinutes: number;
             /** Format: date-time */
             createdAt: string;
         };
@@ -4527,6 +4670,68 @@ export interface operations {
             };
         };
     };
+    LineBookingsController_list: {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive substring match across the booking `code`, the purpose, and the venue name and location. A leading `#` is stripped, so `#BR-25690903-001` and `BR-25690903-001` find the same row. Trimmed; empty/absent → no search filter. */
+                q?: string;
+                /** @description Narrows to one STORED status. The screen’s `ประวัติ` chip and its `สิ้นสุดแล้ว` / `หมดเวลาพิจารณา` badges are DERIVED from `status` + `lastEndAt` and cannot be passed here — see the class note. */
+                status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+                /** @description `created-*` orders by submission date, `event-*` by the date the room is used. Ties break on `code` ascending so the order is total and a re-fetch cannot shuffle two rows past each other. */
+                sort?: "created-desc" | "created-asc" | "event-asc" | "event-desc";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingListItemDto"][];
+                };
+            };
+            /** @description An unknown query parameter, an invalid `status` or `sort`, or a `q` longer than 100 characters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
     LineBookingsController_create: {
         parameters: {
             query?: never;
@@ -4587,6 +4792,198 @@ export interface operations {
             };
             /** @description The venue is closed, or a requested time collides with an already-APPROVED slot. The message names neither the holder nor their purpose (`D-C13`). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingDetailResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No such booking — or it belongs to somebody else. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The booking as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingDetailResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No such booking — or it belongs to somebody else. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The request is not `PENDING`. Approved bookings are cancelled per slot; rejected and cancelled ones are terminal. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_cancelSlot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                slotId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The booking as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingDetailResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No such booking (or it is somebody else’s), or no such slot on it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The booking is not `APPROVED`, the slot is already cancelled, or it starts within the cancellation lead time. 🔴 The lead time is enforced HERE — a hidden button is UX, never an authorisation boundary. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
