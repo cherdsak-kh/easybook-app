@@ -744,6 +744,46 @@ export interface paths {
         patch: operations["AmenitiesController_update"];
         trace?: never;
     };
+    "/api/v1/line-users/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a booking request (always PENDING).
+         * @description Creates one `BookingRequest` and its `BookingSlot` children in a single transaction. A continuous span and a repeat-across-days request differ only in how many slots are sent (`D-C13` rule 2) — there is no mode flag. The caller must be `ALLOWED`; the venue must exist and be OPEN. Status is `PENDING` and nothing is held: several people may hold overlapping pending requests, and the approver picks one (`D-C13` rule 4). There is no `lineUserId` body field — the identity is the verified `sub`.
+         */
+        post: operations["LineBookingsController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/venues/{id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a venue’s occupied spans for a date range.
+         * @description Feeds the `#/venue/:id` calendar and its proportional 24-hour timeline bar. Returns every non-cancelled slot of an APPROVED or PENDING request that OVERLAPS the window — a span crossing midnight appears on every day it touches. 🔴 Approved and pending are returned as distinct states and must not be collapsed: red = taken, amber = somebody else has asked (`TRANSPORT.md` §3.1). 🔴 `purpose` and `requesterName` are `null` on somebody else’s pending request (`D-C13`).
+         */
+        get: operations["LineBookingsController_availability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/version": {
         parameters: {
             query?: never;
@@ -1542,6 +1582,98 @@ export interface components {
              * @example 6
              */
             releasedVenueCount: number;
+        };
+        CreateLineBookingSlotDto: {
+            /**
+             * Format: date-time
+             * @description Inclusive start of the span, ISO 8601. Must be in the future (`D-C16`, checked per slot against the real clock, not against midnight).
+             * @example 2026-09-10T09:00:00.000Z
+             */
+            startAt: string;
+            /**
+             * Format: date-time
+             * @description Exclusive end of the span, ISO 8601. Strictly after `startAt`. The interval is half-open — a slot ending 12:00 and one starting 12:00 do NOT overlap.
+             * @example 2026-09-10T12:00:00.000Z
+             */
+            endAt: string;
+        };
+        CreateLineBookingDto: {
+            /**
+             * @description The venue being requested. Must exist, not be deleted, and be OPEN.
+             * @example clx0v3n0e0000abcd1234efgh
+             */
+            venueId: string;
+            /**
+             * @description วัตถุประสงค์ — what the room is for. Mandatory (`D-C13`): the approver chooses between overlapping requests and cannot do it from times alone.
+             * @example ประชุมเตรียมงานกีฬาสี
+             */
+            purpose: string;
+            /**
+             * @description จำนวนผู้เข้าร่วม. Mandatory, at least 1. Deliberately NOT validated against the venue capacity — that is the approver’s judgement.
+             * @example 25
+             */
+            attendees: number;
+            /** @description The requested spans. One entry is a continuous booking; several entries are the repeat-across-days shape. Same request either way (`D-C13` rule 2). */
+            slots: components["schemas"]["CreateLineBookingSlotDto"][];
+        };
+        BookingSlotResponseDto: {
+            id: string;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            /** @description Per-slot cancellation (`Q-C4`). Always `false` on a freshly submitted request; a three-slot request may later have one slot cancelled and keep the other two. */
+            isCancelled: boolean;
+        };
+        BookingRequestResponseDto: {
+            /** @description The cuid primary key — what `/booking/:id` is addressed by. */
+            id: string;
+            /**
+             * @description Human-readable booking number: `BR-` + the Buddhist-era Bangkok date + a per-day sequence. Unique, and quotable over the phone.
+             * @example BR-25690902-001
+             */
+            code: string;
+            venueId: string;
+            /** @description Convenience copy for the confirmation screen. Not a stored column. */
+            venueName: string;
+            purpose: string;
+            attendees: number;
+            /**
+             * @example PENDING
+             * @enum {string}
+             */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /**
+             * Format: date-time
+             * @description Earliest `startAt` across the slots.
+             */
+            firstStartAt: string;
+            /**
+             * Format: date-time
+             * @description Latest `endAt` across the slots.
+             */
+            lastEndAt: string;
+            slots: components["schemas"]["BookingSlotResponseDto"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        VenueAvailabilitySlotDto: {
+            id: string;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            /**
+             * @description `APPROVED` — the slot is taken. `PENDING` — somebody has requested it and nothing is holding it yet (`D-C13` rule 4).
+             * @enum {string}
+             */
+            status: "APPROVED" | "PENDING";
+            /** @description True when this slot belongs to the calling LINE user’s own request. Drives the `คุณ` badge, and unlocks `purpose`/`requesterName` on the caller’s own pending rows. */
+            isMine: boolean;
+            /** @description 🔴 `null` on somebody else’s PENDING request (`D-C13`). Non-null on an approved slot and on the caller’s own. */
+            purpose: string | null;
+            /** @description 🔴 `null` on somebody else’s PENDING request (`D-C13`). Also `null` on a staff-created booking with no LINE requester and no manual override — an unnamed approved slot is normal, not an error. */
+            requesterName: string | null;
         };
         VersionResponseDto: {
             /**
@@ -4386,6 +4518,156 @@ export interface operations {
             };
             /** @description Session store unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLineBookingDto"];
+            };
+        };
+        responses: {
+            /** @description The submitted request, with its human-readable `code`. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingRequestResponseDto"];
+                };
+            };
+            /** @description An unknown extra key, a slot ending before it starts, a slot in the past (`D-C16`), slots that overlap each other, or a missing/blank `purpose` / `attendees`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED (UNREGISTERED / PENDING / REJECTED / BLOCKED — one message for all four). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No such venue, or it has been deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The venue is closed, or a requested time collides with an already-APPROVED slot. The message names neither the holder nor their purpose (`D-C13`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_availability: {
+        parameters: {
+            query?: {
+                /** @description Inclusive start of the window, ISO 8601 (a bare `2026-09-01` is accepted and read as local midnight). Defaults to the first instant of the current month. */
+                from?: string;
+                /** @description Exclusive end of the window, ISO 8601. Defaults to the first instant of next month. Must not be earlier than `from`, and the window may not exceed 366 days. */
+                to?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Occupied spans, `startAt ASC`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueAvailabilitySlotDto"][];
+                };
+            };
+            /** @description A malformed date, `to` before `from`, or a range wider than 366 days. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No such venue, or it has been deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
