@@ -848,6 +848,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking-requests/direct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * จองแทน — staff book a room outright, already approved.
+         * @description Creates a request with `status = APPROVED` in one transaction: creation IS the approval (`D-C18`), so `createdById` and `approvedById` are both the caller and `approvedAt` is now. Two mutually exclusive shapes — (A) `lineUserId` for a LINE user who has an account, or (B) `requesterName` + `contactPhone` (both required) for an outside body, optionally with `departmentId`. Sending both shapes is a 400. ADR-001 applies exactly as it does to approve: every overlapping PENDING request is auto-rejected in this same transaction and reported in `autoRejected`. A CLOSED venue is accepted — `isOpen` refuses new REQUESTS and a staff lock is not a request; the response carries `venue.isOpen` so the screen can warn. `attendees` is deliberately NOT checked against the venue capacity.
+         */
+        post: operations["BookingRequestsController_createDirect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/preflight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview the conflicts of UNSAVED spans — the create dialog’s live banner.
+         * @description Answers two questions about spans that are not in the database yet: do they clash with an APPROVED booking (which would 409 on submit), and which PENDING requests would ADR-001 auto-reject if they were submitted — named, so the operator sees whom they are about to bump BEFORE committing. It shares one core with `GET /booking-requests/:id`’s `conflicts`, so the two can never disagree about the same venue and the same hour, and it validates its spans with the SAME function `direct` uses, so a preflight that says "clean" predicts a submit that succeeds. ⚠️ ADVISORY: read outside any transaction and with NO advisory lock (locking a venue while somebody types would block every approval on it), so a disabled submit button is UX and the `direct` transaction refuses again. `venueIsOpen` is informational — a closed venue still accepts a direct booking. 🔴 Writes NOTHING, despite the verb.
+         */
+        post: operations["BookingRequestsController_preflight"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List booking requests — the approval queue.
+         * @description Filtered, sorted AND paginated entirely by the server. `counts` carries the five tab totals and is computed with `search` and `venueId` applied but WITHOUT `status`, so selecting a tab does not zero the other four. Every row carries ALL its slots, cancelled ones included, and a server-computed `isExpired` (`status = PENDING && lastEndAt < now`) — there is no fifth stored status and no cron.
+         */
+        get: operations["BookingRequestsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One booking request, with its conflict picture.
+         * @description Addressed by CUID only — the admin screen opens this from a row that already carries the id, unlike the LIFF detail which also accepts a `BR-…` code. Adds `venue.capacity`/`isOpen`, `createdBy`, `approvedBy`, `approvedAt` and `conflicts` to the list shape. ⚠️ `conflicts` is ADVISORY: it is read outside the deciding transaction and may be stale a second later, so a disabled confirm button is UX and never the boundary — the approval transaction refuses again.
+         */
+        get: operations["BookingRequestsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * อนุมัติ — approve a pending request (ADR-001).
+         * @description NO BODY: any key at all is a 400, because there is nothing to say. One transaction sets this request APPROVED with `approvedById`/`approvedAt` and auto-rejects EVERY overlapping PENDING request, whose losers are collected BEFORE this request’s own status flips. `autoRejected` reports what actually happened, which can differ from the `conflicts.pendingLosers` the dialog showed if a new request arrived meanwhile. Overlapping an already-APPROVED slot is a hard 409 with NO write of any kind. The losers’ own slots are never touched — a rejected request stops occupying the calendar because the filter reads the parent’s status.
+         */
+        post: operations["BookingRequestsController_approve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ปฏิเสธ — refuse a pending request, with a reason.
+         * @description The reason is MANDATORY and is trimmed before it is checked, so whitespace-only is a 400 — it is shown RAW to the requester in My Bookings and in LINE. Only a PENDING request may be rejected: an APPROVED one is a 409, and the way back from an approval is `cancel`. ⚠️ This touches NO slot row. "Refused" and "cancelled" are different facts, and writing `isCancelled` here would produce rows with a null `cancelledAt` that the schema calls corrupt.
+         */
+        post: operations["BookingRequestsController_reject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ยกเลิก — cancel an approved booking, whole or by slot.
+         * @description Omit `slotIds` to cancel every live slot; supply them to drop only those days. The reason is mandatory either way. `firstStartAt`/`lastEndAt` are recomputed from the SURVIVING slots in the same transaction, and cancelling the last live slot turns the request CANCELLED (its span is then left as-is — the history list still needs a date to sort by). A cancelled span frees the room immediately, with nothing to invalidate. ⚠️ The `booking.cancel_lead_minutes` rule is NOT applied here: it governs what an END USER may do, and staff cancelling this afternoon’s event because a pipe burst is what this route is for.
+         */
+        post: operations["BookingRequestsController_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/version": {
         parameters: {
             query?: never;
@@ -1817,6 +1957,246 @@ export interface components {
             purpose: string | null;
             /** @description 🔴 `null` on somebody else’s PENDING request (`D-C13`). Also `null` on a staff-created booking with no LINE requester and no manual override — an unnamed approved slot is normal, not an error. */
             requesterName: string | null;
+        };
+        BookingSlotInputDto: {
+            /**
+             * Format: date-time
+             * @description Inclusive start of the span, ISO 8601. Must be in the future (`D-C16`, checked per slot against the real clock).
+             * @example 2026-09-10T09:00:00.000Z
+             */
+            startAt: string;
+            /**
+             * Format: date-time
+             * @description Exclusive end of the span, ISO 8601. Strictly after `startAt`. Half-open — a slot ending 12:00 and one starting 12:00 do NOT overlap.
+             * @example 2026-09-10T12:00:00.000Z
+             */
+            endAt: string;
+        };
+        CreateDirectBookingDto: {
+            /**
+             * @description The venue to lock. Must exist and not be soft-deleted.
+             * @example clx0v3n0e0000abcd1234efgh
+             */
+            venueId: string;
+            /**
+             * @description วัตถุประสงค์ — what the room is for. Mandatory.
+             * @example ประชุมคณะกรรมการสถานศึกษา
+             */
+            purpose: string;
+            /**
+             * @description จำนวนผู้เข้าร่วม. Deliberately NOT checked against the venue capacity — that is the approver’s judgement, and here the approver is the caller.
+             * @example 25
+             */
+            attendees: number;
+            /** @description The spans to lock. One entry is a continuous booking; several are the repeat-across-days shape — the same request either way (`D-C13` rule 2). */
+            slots: components["schemas"]["BookingSlotInputDto"][];
+            /** @description Path (A): `LineUser.id` (a CUID — NOT the `U…` LINE identifier). The booking appears in that user’s My Bookings. Mutually exclusive with the three override fields below. An unknown, soft-deleted or non-ALLOWED user is a 400. */
+            lineUserId?: string;
+            /**
+             * @description Path (B): who the booking is for. REQUIRED when `lineUserId` is omitted; a 400 when sent alongside `lineUserId` (it is an override, not a second profile store).
+             * @example สำนักงานเขตพื้นที่การศึกษา
+             */
+            requesterName?: string;
+            /**
+             * @description Path (B): a contact number. REQUIRED when `lineUserId` is omitted — path (B) receives no LINE notification, so this is the only way to reach them. A 400 when sent alongside `lineUserId`.
+             * @example 081-234-5678
+             */
+            contactPhone?: string;
+            /** @description Path (B): the department the booking is for — NOT the caller’s. Optional. Must be an ACTIVE (`deletedAt: null`) department; anything else is the SAME 400 an unknown id gets. A 400 when sent alongside `lineUserId`. */
+            departmentId?: number;
+        };
+        AdminBookingRequesterDto: {
+            name: string | null;
+            phone: string | null;
+            departmentName: string | null;
+        };
+        AdminBookingVenueDetailDto: {
+            id: string;
+            /** @example หอประชุมวารณ */
+            name: string;
+            location: string | null;
+            capacity: number;
+            /** @description A closed venue still accepts a DIRECT booking — `isOpen` refuses new REQUESTS, and a staff lock is not a request. The screen warns; the server does not refuse. */
+            isOpen: boolean;
+        };
+        AdminBookingSlotDto: {
+            id: string;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            /** @description Per-slot cancellation (`Q-C4`). Cancelled slots are RETURNED, never filtered out — the detail dialog has to show that Wednesday was dropped and why. */
+            isCancelled: boolean;
+            /** Format: date-time */
+            cancelledAt: string | null;
+            cancelReason: string | null;
+            /**
+             * @description Which domain cancelled it: `LINE_USER` for a self-service cancellation, or the staff member’s real `SystemRole`. The matching id is deliberately NOT exposed — it points into one of two unbridged tables.
+             * @enum {string|null}
+             */
+            cancelledByRole: "LINE_USER" | "SUPER_ADMIN" | "ADMIN" | null;
+        };
+        AdminBookingStaffDto: {
+            id: string;
+            firstName: string;
+            lastName: string;
+        };
+        BookingConflictItemDto: {
+            id: string;
+            code: string;
+            /** @description Revealed on purpose: the confirm dialog must list every request it is about to reject, with its code, requester and times. An admin is the permitted viewer. */
+            requesterName: string | null;
+            /** Format: date-time */
+            firstStartAt: string;
+            /** Format: date-time */
+            lastEndAt: string;
+        };
+        BookingConflictsDto: {
+            /** @description True when an APPROVED, non-cancelled slot already overlaps this request — approving it would be a 409. The dialog disables its confirm button on this. ⚠️ Advisory only: the server refuses again inside the transaction. */
+            approvedClash: boolean;
+            /** @description The PENDING requests that approving this one would auto-reject. Empty when this request is not PENDING. */
+            pendingLosers: components["schemas"]["BookingConflictItemDto"][];
+        };
+        AdminBookingRequestDetailDto: {
+            id: string;
+            /** @example BR-25690903-001 */
+            code: string;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /**
+             * @description Where the request came from: `LINE` when `createdById` is null, otherwise `ADMIN`. It answers "who TYPED it" — a staff booking made on behalf of a LINE user reads `ADMIN`.
+             * @enum {string}
+             */
+            origin: "LINE" | "ADMIN";
+            /** @description `status === PENDING && lastEndAt < now`, evaluated by the SERVER at read time. Not a stored status and not a cron — the client should not recompute it against its own clock. */
+            isExpired: boolean;
+            requester: components["schemas"]["AdminBookingRequesterDto"];
+            venue: components["schemas"]["AdminBookingVenueDetailDto"];
+            /** @description วัตถุประสงค์. Returned in EVERY status including PENDING — see the file note; this is the input the approval decision is made from. */
+            purpose: string;
+            attendees: number;
+            /** Format: date-time */
+            firstStartAt: string;
+            /** Format: date-time */
+            lastEndAt: string;
+            slots: components["schemas"]["AdminBookingSlotDto"][];
+            rejectReason: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Who TYPED it. Null on a LINE-origin request. */
+            createdBy: components["schemas"]["AdminBookingStaffDto"] | null;
+            /** @description Who RULED on it. Null until approved. Resolved as history — never filtered by `deletedAt` (DD-4). ⚠️ The LIFF detail deliberately omits this; the admin surface is the permitted viewer. */
+            approvedBy: components["schemas"]["AdminBookingStaffDto"] | null;
+            /** Format: date-time */
+            approvedAt: string | null;
+            conflicts: components["schemas"]["BookingConflictsDto"];
+        };
+        AutoRejectedBookingDto: {
+            id: string;
+            /** @example BR-25690903-002 */
+            code: string;
+        };
+        ApproveBookingResponseDto: {
+            booking: components["schemas"]["AdminBookingRequestDetailDto"];
+            /** @description The requests actually auto-rejected inside this transaction (ADR-001). May differ from the `conflicts.pendingLosers` the dialog was showing — report THIS one. Code and id only: the screen shows a confirmation, not a second dossier on other people’s requests. */
+            autoRejected: components["schemas"]["AutoRejectedBookingDto"][];
+        };
+        BookingPreflightDto: {
+            /**
+             * @description The venue the spans would be booked at. Must exist and not be soft-deleted — anything else is a 404, exactly as on `direct`.
+             * @example clx0v3n0e0000abcd1234efgh
+             */
+            venueId: string;
+            /** @description The spans to test. NOT YET SAVED — this is the whole point: `GET /venues/:id/availability` can only answer about rows that exist, and it is behind the LIFF id-token guard besides. */
+            slots: components["schemas"]["BookingSlotInputDto"][];
+        };
+        BookingPreflightPendingDto: {
+            id: string;
+            /** @example BR-25690903-002 */
+            code: string;
+            /** @description วัตถุประสงค์ of the request that would be bumped. Shown so the operator can weigh what they are about to displace. */
+            purpose: string;
+            requesterName: string | null;
+        };
+        BookingPreflightResponseDto: {
+            /** @description True when an APPROVED, non-cancelled slot already overlaps one of the spans — submitting them would be a 409. The create dialog disables its submit button on this. */
+            hasApprovedClash: boolean;
+            /**
+             * @description How many APPROVED, non-cancelled **SLOTS** overlap the requested spans. ⚠️ SLOTS, not bookings — one three-day booking across three requested days is 3, not 1. `0` exactly when `hasApprovedClash` is false.
+             * @example 2
+             */
+            approvedClashCount: number;
+            /** @description The PENDING requests these spans overlap — ADR-001 would auto-reject every one of them on submit, so the operator sees whom they are about to bump BEFORE committing. One entry per request however many of its slots overlap. */
+            overlappingPendingRequests: components["schemas"]["BookingPreflightPendingDto"][];
+            /** @description `Venue.isOpen`. Informational only: a CLOSED venue still accepts a direct booking, so the dialog shows an override note rather than blocking. */
+            venueIsOpen: boolean;
+        };
+        AdminBookingVenueDto: {
+            id: string;
+            /** @example หอประชุมวารณ */
+            name: string;
+            location: string | null;
+        };
+        AdminBookingRequestListItemDto: {
+            id: string;
+            /** @example BR-25690903-001 */
+            code: string;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /**
+             * @description Where the request came from: `LINE` when `createdById` is null, otherwise `ADMIN`. It answers "who TYPED it" — a staff booking made on behalf of a LINE user reads `ADMIN`.
+             * @enum {string}
+             */
+            origin: "LINE" | "ADMIN";
+            /** @description `status === PENDING && lastEndAt < now`, evaluated by the SERVER at read time. Not a stored status and not a cron — the client should not recompute it against its own clock. */
+            isExpired: boolean;
+            requester: components["schemas"]["AdminBookingRequesterDto"];
+            venue: components["schemas"]["AdminBookingVenueDto"];
+            /** @description วัตถุประสงค์. Returned in EVERY status including PENDING — see the file note; this is the input the approval decision is made from. */
+            purpose: string;
+            attendees: number;
+            /** Format: date-time */
+            firstStartAt: string;
+            /** Format: date-time */
+            lastEndAt: string;
+            slots: components["schemas"]["AdminBookingSlotDto"][];
+            rejectReason: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        BookingStatusCountsDto: {
+            /** @example 42 */
+            all: number;
+            /** @example 7 */
+            pending: number;
+            /** @example 30 */
+            approved: number;
+            /** @example 3 */
+            rejected: number;
+            /** @example 2 */
+            cancelled: number;
+        };
+        PaginatedBookingRequestsResponseDto: {
+            data: components["schemas"]["AdminBookingRequestListItemDto"][];
+            meta: components["schemas"]["PaginationMetaDto"];
+            /** @description Tab counts. Computed with `search` and `venueId` applied but WITHOUT `status` — otherwise selecting a tab would zero the other four. A status with no rows is `0`, never absent. */
+            counts: components["schemas"]["BookingStatusCountsDto"];
+        };
+        RejectBookingRequestDto: {
+            /**
+             * @description Why the request is refused. Mandatory — a blank or whitespace-only reason is a 400. Shown RAW to the requester on My Bookings and in LINE, so it is written for them, not for the audit log.
+             * @example ห้องถูกจัดสรรให้กิจกรรมของโรงเรียนในวันดังกล่าว
+             */
+            reason: string;
+        };
+        CancelBookingRequestDto: {
+            /**
+             * @description Why the booking (or the named slots) is being cancelled. Mandatory for BOTH shapes — blank or whitespace-only is a 400.
+             * @example ห้องประชุมอยู่ระหว่างซ่อมระบบปรับอากาศ
+             */
+            reason: string;
+            /** @description Omit to cancel the WHOLE booking; supply ids to cancel only those slots. `[]` is a 400 (say what you mean), a duplicate id is a 400, an id belonging to another booking is a 400, and an id already cancelled is a 409. Explicit `null` is a 400 — it is not "omitted". */
+            slotIds?: string[];
         };
         VersionResponseDto: {
             /**
@@ -5065,6 +5445,508 @@ export interface operations {
             };
             /** @description LINE verification endpoint unreachable (retryable). */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_createDirect: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDirectBookingDto"];
+            };
+        };
+        responses: {
+            /** @description Created and approved. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApproveBookingResponseDto"];
+                };
+            };
+            /** @description Validation failed, both origin shapes sent at once, a slot ending before it starts / starting in the past / overlapping another slot of the same request, or an unusable `lineUserId` / `departmentId`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted venue. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A requested span overlaps an APPROVED, non-cancelled slot, or two decisions on this venue collided. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_preflight: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingPreflightDto"];
+            };
+        };
+        responses: {
+            /** @description The conflict picture for these spans. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPreflightResponseDto"];
+                };
+            };
+            /** @description Validation failed, or a span ends before it starts / starts in the past / overlaps another span of the same list — the same three refusals `direct` makes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted venue. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_list: {
+        parameters: {
+            query?: {
+                /** @description 1-based page number. */
+                page?: number;
+                /** @description Rows per page. Exactly 10, 20 or 50 — any other value is a 400 rather than a silent clamp, because the screen computes each row’s ordinal from the value it sent. */
+                limit?: 10 | 20 | 50;
+                /** @description Case-insensitive substring match across the booking `code`, the purpose, the venue name, and the requester’s name — which has TWO sources: `requesterName` on a staff-created booking, or the LINE user’s registered first/last name. A leading `#` is stripped. ⚠️ It cannot match across the space between a first and last name ("สมชาย ใจดี" finds nothing), the same limitation `GET /line-users` documents. Trimmed; empty/absent → no search filter. */
+                search?: string;
+                /** @description Narrows to one venue. An unknown id yields an empty list with `total: 0`, not a 404 — it is a filter, not the addressed resource. */
+                venueId?: string;
+                /** @description Narrows to one stored status; absent means the `ทั้งหมด` tab. The screen’s "หมดอายุ" state is NOT a value here — it is derived (`status = PENDING && lastEndAt < now`) and returned as `isExpired`. */
+                status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+                /** @description `created-*` orders by submission date, `event-*` by the date the room is used (`firstStartAt`, an indexed scalar — never an aggregate over the slots). Ties break on `code` ascending so the order is total and a re-fetch cannot shuffle two rows past each other. */
+                sort?: "created-desc" | "event-asc" | "created-asc" | "event-desc";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedBookingRequestsResponseDto"];
+                };
+            };
+            /** @description Invalid query — an unknown `sort`, a `limit` outside 10/20/50, or an unrecognised parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The booking request. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBookingRequestDetailDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_approve: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApproveBookingResponseDto"];
+                };
+            };
+            /** @description A body was sent. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Not PENDING, every slot already cancelled, an overlap with an APPROVED slot, or two decisions on this venue collided. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_reject: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectBookingRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Rejected. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBookingRequestDetailDto"];
+                };
+            };
+            /** @description Missing, blank or over-long reason, or an unknown key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The request is not PENDING (an APPROVED one included). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_cancel: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelBookingRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Cancelled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBookingRequestDetailDto"];
+                };
+            };
+            /** @description Missing or blank reason, an empty/duplicated `slotIds`, or a slot id that belongs to another booking (refused, never skipped). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The request is not APPROVED, every slot is already cancelled, or a named slot was cancelled already. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
