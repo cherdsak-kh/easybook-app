@@ -20,6 +20,12 @@
  * This dialog never infers it: it reports the scope, and the page re-reads the record afterwards.
  *
  * ⚠️ NO DISMISS BUTTON IN THE FOOTER (PO). See the approve dialog.
+ *
+ * ⚠️ `stale` DISARMS THE CONFIRM (`ADMIN-REALTIME-BOOKINGS-1`) — somebody else cancelled or moved
+ * this booking while the scope was being chosen, so the slot ids ticked below may already be
+ * cancelled (a 409) and the whole-booking option may be about a booking that no longer holds
+ * anything. The two `MISSING_*` complaints still never disable anything: those are things the
+ * operator can fix in this dialog, and this is not.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -27,7 +33,7 @@ import { InlineAlert } from '../../../components/feedback/InlineAlert'
 import { Modal } from '../../../components/ui/Modal'
 import { Btn } from '../../../components/ui/Btn'
 import { Spinner } from '../../../components/feedback/Spinner'
-import { liveSlots, requestLine, slotLine } from '../booking-detail'
+import { DISARMED, liveSlots, requestLine, slotLine } from '../booking-detail'
 import { ReasonField } from './ReasonField'
 import { Glyph } from './BookingGlyph'
 import { ICON } from './booking-icons'
@@ -44,6 +50,7 @@ export function BookingCancelDialog({
   detail,
   alert = null,
   busy,
+  stale = false,
   onConfirm,
 }: {
   open: boolean
@@ -51,6 +58,8 @@ export function BookingCancelDialog({
   detail: BookingRequestDetail | null
   alert?: string | null
   busy: boolean
+  /** The socket says this booking moved under the dialog. See the header. */
+  stale?: boolean
   /**
    * `slotIds` OMITTED means the whole booking, which is not the same as sending every id: the
    * contract answers 400 to `[]` and to an explicit `null`, and "cancel everything" is expressed by
@@ -125,8 +134,8 @@ export function BookingCancelDialog({
       footer={
         <Btn
           variant="danger-solid"
-          className="w-full sm:w-auto"
-          disabled={busy}
+          className={`w-full sm:w-auto ${DISARMED}`}
+          disabled={busy || stale}
           aria-busy={busy || undefined}
           aria-label={busy ? 'กำลังบันทึกการยกเลิก' : undefined}
           onClick={submit}

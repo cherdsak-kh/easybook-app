@@ -7,11 +7,15 @@
  * `only-export-components` says so), which on a page whose interesting states take a minute to
  * reach is a real cost. The component lives alone; everything that is not a component lives here.
  *
- * ⚠️ IT LIVES AT THE SHELL RATHER THAN ON การลงทะเบียน BECAUSE THE SIDEBAR COUNT OUTLIVES THE PAGE.
+ * ⚠️ IT LIVES AT THE SHELL RATHER THAN ON การลงทะเบียน BECAUSE THE SIDEBAR COUNTS OUTLIVE THE PAGE.
  * A hook owned by the page opens its socket on arrival and closes it on the way out, which is fine
  * for a table you are looking at and useless for a number you are meant to notice from somewhere
  * else: `รออนุมัติ` has to move while the operator is on โปรไฟล์. The first version of this was
  * that page-scoped hook; hoisting it is what made the count real, not a refactor for tidiness.
+ *
+ * That is now load-bearing TWICE — `usePendingRegistrations` and `usePendingBookings` are both
+ * ordinary subscribers of this one socket, and BOTH of their pills have to move while the operator
+ * is standing somewhere else. A page-scoped connection cannot do it for either.
  *
  * ⚠️ SUBSCRIBERS ARE HELD AS REFS, NOT AS VALUES. Each subscriber re-points its own ref on every
  * render, so a handler always closes over today's state while the socket is never re-subscribed.
@@ -19,7 +23,7 @@
  */
 
 import { createContext, useContext, useEffect, useRef, type RefObject } from 'react'
-import type { LineUser } from '@/lib/api-client'
+import type { BookingRequestListItem, LineUser } from '@/lib/api-client'
 
 /**
  * What a connection indicator may render.
@@ -38,6 +42,25 @@ export interface RealtimeHandlers {
   onUpdated?: (user: LineUser) => void
   /** `lineUser.deleted` — a row left the operator's list. */
   onDeleted?: (id: string) => void
+  /**
+   * `bookingRequest.created` — a request now exists in the approval queue. Either a LINE user
+   * submitted one through LIFF, or an operator filed a booking directly (born `APPROVED`).
+   *
+   * ⚠️ THE THREE OLDER HANDLERS ARE การลงทะเบียน'S AND THESE TWO ARE คำขอจองสถานที่'S, which is why
+   * they are named after the RECORD rather than after the verb. `onCreated` was named before there
+   * was a second live table; renaming it now would be a rename across a working screen for no gain,
+   * so the rule is simply that anything added from here on carries its record's name.
+   */
+  onBookingCreated?: (booking: BookingRequestListItem) => void
+  /**
+   * `bookingRequest.updated` — a request was approved, rejected, cancelled, **or auto-rejected by
+   * ADR-001** because somebody else's overlapping request won the room.
+   *
+   * 🔴 EXPECT A BURST, NOT ONE CALL PER OPERATION: one approval fires this once for the subject and
+   * once for EVERY displaced loser. That is the whole point of the event — the losers are rows on
+   * other operators' screens.
+   */
+  onBookingUpdated?: (booking: BookingRequestListItem) => void
   /**
    * Called on every RE-connect, never on the first. Events emitted while the socket was down are
    * gone forever — the gateway has no replay and no sequence — so a subscriber must be told its
@@ -76,7 +99,14 @@ export function useRealtimeEvents(handlers: RealtimeHandlers): void {
   }, [subscribe])
 }
 
-/** For the one control that renders the connection state: การลงทะเบียน's offline chip. */
+/**
+ * For the controls that render the connection state: the `อัปเดตอัตโนมัติหยุด` chip in the header of
+ * การลงทะเบียน and of คำขอจองสถานที่ — the two live tables.
+ *
+ * ⚠️ ONLY `offline` MAY DRAW ANYTHING. `disabled` is a VIEWER (or the rollback flag), and telling
+ * somebody that automatic updates stopped, when their role was never issued a socket, is a warning
+ * they can do nothing with.
+ */
 export function useRealtimeStatus(): RealtimeStatus {
   return useContext(RealtimeContext)?.status ?? 'disabled'
 }

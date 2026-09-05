@@ -1,10 +1,10 @@
 /**
- * The three facts the four dialogs of คำขอจองสถานที่ keep asking a request for.
+ * The facts the four dialogs of คำขอจองสถานที่ keep asking a request for — plus the one class token
+ * they all need for a button that has been taken out of service.
  *
  * They live here rather than in `booking-summary.ts` because that module answers ONE question — how
  * a slot array collapses into a table cell — and these answer a different one: how a single record
- * introduces itself inside a dialog. Mixing them would put "the row's summary" and "the dialog's
- * detail" in one file, which is the distinction the whole screen is built on.
+ * introduces itself inside a dialog, and how a dialog says "not this one, not now".
  *
  * ⚠️ NO COMPONENT LIVES HERE. `.ts`, so the constants and helpers can be imported without tripping
  * `react/only-export-components` — the same split `booking-icons.ts` / `BookingGlyph.tsx` records.
@@ -12,6 +12,22 @@
 
 import type { BookingRequestDetail, BookingRequestSlot } from '@/lib/api-client'
 import { NO_VALUE, thaiDate, thaiTime } from '../../lib/thai-date'
+
+/**
+ * What a confirm button wears while it is DISARMED — greyed, and refusing the pointer.
+ *
+ * ⚠️ IT IS THE CALLER'S JOB AND NOT `Btn`'S, which says so at its own header: the shared classes
+ * deliberately carry no `:disabled` treatment, because every modal's confirm is also disabled for
+ * the ~1s of a write and greying it for that long flickers. This is the OTHER case — a button
+ * disabled for as long as the record stays out of date — and one that does not LOOK disabled is
+ * worse than one that is missing: the operator presses it and nothing happens.
+ *
+ * ⚠️ AND IT IS ONLY EVER WORN NEXT TO A SENTENCE THAT EXPLAINS IT (`conflicts.approvedClash`, or the
+ * realtime staleness banner). A disabled control is dishonest exactly when it cannot speak for
+ * itself — which is why the mandatory-reason fields on this screen never disable anything.
+ */
+export const DISARMED =
+  'disabled:cursor-not-allowed disabled:bg-base-300 disabled:text-base-content/70 disabled:hover:brightness-100'
 
 /**
  * The spans this booking still holds.

@@ -22,6 +22,7 @@ import { Sidebar, type SidebarUser } from './components/shell/Sidebar'
 import { Topbar } from './components/shell/Topbar'
 import { RealtimeProvider } from './lib/RealtimeProvider'
 import { useAcl, type Acl } from './lib/use-acl'
+import { usePendingBookings } from './lib/use-pending-bookings'
 import { usePendingRegistrations } from './lib/use-pending-registrations'
 import { useTheme, type ThemeChoice } from './lib/use-theme'
 import type { Notification as NotificationItem } from './lib/notifications'
@@ -166,10 +167,12 @@ export function BackendLayout() {
           find itself outside this one. It wraps the whole shell so a toast raised anywhere,
           including from a dialog in the top layer, lands in the same corner. */}
       <ToastProvider>
-        {/* ⚠️ THE SOCKET BELONGS TO THE SHELL, NOT TO การลงทะเบียน — see `realtime-context.tsx`.
-            The sidebar's รออนุมัติ count has to move while the operator is on another page, which a
+        {/* ⚠️ THE SOCKET BELONGS TO THE SHELL, NOT TO ANY ONE PAGE — see `realtime-context.ts`.
+            BOTH sidebar counts have to move while the operator is on another page, which a
             page-scoped connection cannot do; and one connection per session is also one handshake
-            and one revalidation entry per session instead of one per visit.
+            and one revalidation entry per session instead of one per visit. Two live tables now
+            depend on that (การลงทะเบียน and คำขอจองสถานที่) and they SUBSCRIBE — neither opens a
+            socket of its own, and neither may be given one.
             `acl.write` is the gateway's own rule mirrored: `isRealtimeEligible` admits SUPER_ADMIN
             and ADMIN only, so starting one for a VIEWER would open a socket guaranteed to be
             refused. They still read every screen over HTTP. */}
@@ -193,9 +196,9 @@ export function BackendLayout() {
 }
 
 /**
- * The shell's chrome, split out for ONE reason: `usePendingRegistrations` subscribes to the socket,
- * so it has to be called from INSIDE `RealtimeProvider`, and `BackendLayout` is what renders the
- * provider. Everything here was inline until the count became real.
+ * The shell's chrome, split out for ONE reason: the two pending-count hooks subscribe to the socket,
+ * so they have to be called from INSIDE `RealtimeProvider`, and `BackendLayout` is what renders the
+ * provider. Everything here was inline until the first count became real.
  */
 function ShellBody({
   me,
@@ -221,11 +224,16 @@ function ShellBody({
   setNotifications: Dispatch<SetStateAction<NotificationItem[]>>
 }) {
   /**
-   * ⚠️ ONE REAL COUNT, AND THE OTHER TWO ARE GONE RATHER THAN LEFT AS DECORATION. ปฏิทินการจอง's
-   * "12" and คำขอจองสถานที่'s "3" were fixtures for pages that do not exist and have no model; a
-   * menu that carries one true number beside two invented ones teaches the operator that none of
-   * them are worth reading. They come back when those screens do.
+   * ⚠️ TWO REAL COUNTS NOW, AND ปฏิทินการจอง'S IS STILL GONE RATHER THAN LEFT AS DECORATION.
+   * ปฏิทินการจอง's "12" and คำขอจองสถานที่'s "3" were fixtures for pages that did not exist; a menu
+   * that carries one true number beside two invented ones teaches the operator that none of them are
+   * worth reading. คำขอจองสถานที่'s came back when its SCREEN did — as a fetched number, wired to the
+   * same socket — which is the only way any of them may return. ปฏิทินการจอง waits its turn.
+   *
+   * ⚠️ EACH HOOK ASKS ITS OWN ENDPOINT AND NEITHER DERIVES FROM THE OTHER. They are two facts about
+   * two queues that happen to be rendered as two pills of the same colour.
    */
+  const pendingBookings = usePendingBookings()
   const pendingRegistrations = usePendingRegistrations()
 
   return (
@@ -233,7 +241,7 @@ function ShellBody({
       <Sidebar
         me={me}
         acl={acl}
-        counts={{ การลงทะเบียน: pendingRegistrations }}
+        counts={{ 'คำขอจองสถานที่': pendingBookings, 'การลงทะเบียน': pendingRegistrations }}
         drawerOpen={drawerOpen}
         onDrawerChange={onDrawerChange}
         onLogout={onLogout}

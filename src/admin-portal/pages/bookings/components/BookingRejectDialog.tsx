@@ -10,8 +10,13 @@
  * the operator finds out; a disabled button cannot fire `click`, so there is no moment at which to
  * say anything, and it reads as broken. `guard()` shows the field error, moves focus into the field
  * and refuses the write — the prototype's behaviour, in this portal's error style rather than a
- * native bubble. `busy` is the only thing that disables it, because that is a state in which
- * pressing again WOULD be wrong.
+ * native bubble.
+ *
+ * ⚠️ TWO THINGS DO DISABLE IT, AND NEITHER CONTRADICTS THAT RULE. `busy` is a state in which pressing
+ * again WOULD be wrong. `stale` (`ADMIN-REALTIME-BOOKINGS-1`) is one in which the write cannot land
+ * at all — the socket has said this request is no longer PENDING. The empty-reason case is different
+ * from both because the button has NOTHING TO SAY for itself there; these two arrive with the
+ * sentence that explains them already on screen, in `alert` right above.
  *
  * ⚠️ NO DISMISS BUTTON IN THE FOOTER (PO). See the approve dialog.
  */
@@ -21,7 +26,7 @@ import { InlineAlert } from '../../../components/feedback/InlineAlert'
 import { Modal } from '../../../components/ui/Modal'
 import { Btn } from '../../../components/ui/Btn'
 import { Spinner } from '../../../components/feedback/Spinner'
-import { requestLine } from '../booking-detail'
+import { DISARMED, requestLine } from '../booking-detail'
 import { ReasonField } from './ReasonField'
 import { Glyph } from './BookingGlyph'
 import { ICON } from './booking-icons'
@@ -35,6 +40,7 @@ export function BookingRejectDialog({
   detail,
   alert = null,
   busy,
+  stale = false,
   onConfirm,
 }: {
   open: boolean
@@ -42,6 +48,8 @@ export function BookingRejectDialog({
   detail: BookingRequestDetail | null
   alert?: string | null
   busy: boolean
+  /** The socket says this record's status moved under the dialog. See the header. */
+  stale?: boolean
   /** The trimmed reason. Trimmed again in `api-client`, and again by the server before it checks. */
   onConfirm: (reason: string) => void
 }) {
@@ -91,8 +99,8 @@ export function BookingRejectDialog({
       footer={
         <Btn
           variant="warn-solid"
-          className="w-full sm:w-auto"
-          disabled={busy}
+          className={`w-full sm:w-auto ${DISARMED}`}
+          disabled={busy || stale}
           aria-busy={busy || undefined}
           aria-label={busy ? 'กำลังบันทึกการปฏิเสธ' : undefined}
           onClick={() => {

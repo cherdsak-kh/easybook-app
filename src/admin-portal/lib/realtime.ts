@@ -16,19 +16,21 @@
  *  · `withCredentials: true` — the handshake authenticates from the EXISTING `eb.sid` httpOnly
  *    session cookie. There is no token to pass, none to store, and none to log.
  *
- * Strictly server → client: it subscribes to four events and sends none. That is also why no CSRF
+ * Strictly server → client: it subscribes to six events and sends none. That is also why no CSRF
  * token is involved — the handshake is a GET that changes nothing, and the socket-shaped threat
  * (CSWSH) is answered server-side by `Origin` validation.
  *
  * ⚠️ A VIEWER IS REFUSED HERE, and that is the server's rule, not a preference: `isRealtimeEligible`
  * admits only SUPER_ADMIN and ADMIN (and never a `mustChangePassword` session). Since 19 ส.ค. 2569 a
- * VIEWER may READ การลงทะเบียน over HTTP, so the socket's audience is now a strict SUBSET of the
- * list's. The page must therefore not open one for a VIEWER — see `useLineUsersRealtime`'s
- * `enabled`, and the offline chip that deliberately stays hidden for them.
+ * VIEWER may READ การลงทะเบียน over HTTP — and since 4 ก.ย. 2569 they read คำขอจองสถานที่ too — so
+ * the socket's audience is a strict SUBSET of both lists'. The shell must therefore not open one for
+ * a VIEWER (`RealtimeProvider enabled={acl.write}`), and every screen that renders a live affordance
+ * — the offline chip, the "there is news" bar — must be silent for a role that was never going to
+ * receive an event. Their screen is CORRECT and STATIC; nothing on it may imply otherwise.
  */
 
 import { io, type Socket } from 'socket.io-client'
-import type { LineUser } from '@/lib/api-client'
+import type { BookingRequestListItem, LineUser } from '@/lib/api-client'
 
 /** The admin fan-out namespace. Membership IS the authorization boundary — there are no rooms. */
 export const REALTIME_NAMESPACE = '/admin'
@@ -48,6 +50,8 @@ export const REALTIME_EVENTS = {
   lineUserCreated: 'lineUser.created',
   lineUserUpdated: 'lineUser.updated',
   lineUserDeleted: 'lineUser.deleted',
+  bookingRequestCreated: 'bookingRequest.created',
+  bookingRequestUpdated: 'bookingRequest.updated',
   sessionClosed: 'session.closed',
 } as const
 
@@ -99,10 +103,35 @@ export interface LineUserDeletedPayload {
   actor: RealtimeActor | null
 }
 
+/**
+ * `bookingRequest.created` / `bookingRequest.updated` — one row of the approval queue, byte-identical
+ * to one element of `GET /booking-requests`'s `data[]` (the server maps both through the same
+ * `toBookingListDto`). So again there is NO new row type here: `BookingRequestListItem` IS
+ * `AdminBookingRequestListItemDto`, the generated shape `api-client.ts` re-exports.
+ *
+ * ⚠️ DELIBERATELY THE SAME `{ record, actor }` ENVELOPE AS `LineUserEventPayload`, with `booking`
+ * where that one says `user`. Two envelopes for one transport is how a handler starts reading
+ * `payload.data` on one event and `payload.booking` on another.
+ *
+ * `actor` is `null` when a LINE user submitted the request through LIFF; it names the operator for
+ * approve / reject / cancel / direct-create.
+ *
+ * 🔴 ONE EVENT PER ROW THAT CHANGED, NEVER ONE PER OPERATION. An approval that displaces two
+ * overlapping requests under ADR-001 sends THREE `updated` events — the subject and both losers —
+ * because the losers are rows on OTHER operators' screens and they changed. A subscriber must
+ * therefore expect a burst, and must never treat one event as "one operation finished".
+ */
+export interface BookingRequestEventPayload {
+  booking: BookingRequestListItem
+  actor: RealtimeActor | null
+}
+
 export interface RealtimeServerEvents {
   [REALTIME_EVENTS.lineUserCreated]: (payload: LineUserEventPayload) => void
   [REALTIME_EVENTS.lineUserUpdated]: (payload: LineUserEventPayload) => void
   [REALTIME_EVENTS.lineUserDeleted]: (payload: LineUserDeletedPayload) => void
+  [REALTIME_EVENTS.bookingRequestCreated]: (payload: BookingRequestEventPayload) => void
+  [REALTIME_EVENTS.bookingRequestUpdated]: (payload: BookingRequestEventPayload) => void
   [REALTIME_EVENTS.sessionClosed]: (payload: SessionClosedPayload) => void
 }
 

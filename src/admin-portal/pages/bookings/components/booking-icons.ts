@@ -43,6 +43,15 @@ export const ICON = {
   ban: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636',
   /** The circled `!` every field error and every `.inline-alert` in this portal carries. */
   alert: 'M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z',
+  /**
+   * The circled `i` on the "there is news" bar. NOT `alert`'s `!`: a request arriving while you read
+   * the queue is information, not a fault — the same path and the same reasoning การลงทะเบียน's bar
+   * uses, so the two live tables interrupt with one vocabulary.
+   */
+  info: 'M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z',
+  /** The struck-through signal on the `อัปเดตอัตโนมัติหยุด` chip — the socket dropped, the rows did not. */
+  offline:
+    'M3 3l18 18M8.288 8.29a10.5 10.5 0 00-2.65 1.86m12.724 0a10.5 10.5 0 00-4.6-2.634M12 20.25h.008v.008H12v-.008zM9.348 14.652a3.75 3.75 0 015.304 0M2.25 6.75a16.5 16.5 0 014.263-2.94',
   /** ADR-001's triangle. Warning, never error — nobody did anything wrong by choosing a winner. */
   warning:
     'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z',

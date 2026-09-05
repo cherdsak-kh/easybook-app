@@ -28,16 +28,23 @@ import type { BookingRequestListItem } from '@/lib/api-client'
 
 export function RequestCard({
   request,
+  flash = false,
   onView,
 }: {
   request: BookingRequestListItem
+  /**
+   * Same rail as the desktop row, and it lands on the same element by the same rule: `.row-flash`
+   * styles `> :first-child`, which is the `<tr>`'s first `<td>` there and this card's `<button>`
+   * here. One CSS rule, two layouts, no second vocabulary.
+   */
+  flash?: boolean
   onView: () => void
 }) {
   const who = request.requester.name ?? NO_VALUE
   const label = BOOKING_STATUS_LABEL[request.status]
 
   return (
-    <li>
+    <li className={flash ? 'row-flash' : undefined}>
       <button
         type="button"
         onClick={onView}

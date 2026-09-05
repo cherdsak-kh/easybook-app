@@ -21,6 +21,13 @@
  *
  * ⚠️ WHAT THIS DIALOG SHOWS IS A FORECAST, AND THE TOAST AFTERWARDS IS THE FACT. The page reports
  * `autoRejected` from the response, never this list — see the page's `runApprove`.
+ *
+ * 🔴 `stale` IS THE SECOND WALL, AND IT IS THE ONE THIS SCREEN WAS ALWAYS GOING TO NEED
+ * (`ADMIN-REALTIME-BOOKINGS-1`). ADR-001 cuts both ways: while this dialog is open, ANOTHER operator
+ * may approve an overlapping request and this one is auto-rejected underneath it. The socket says so
+ * the moment it happens, and the confirm is disarmed — pressing อนุมัติ on a record that is already
+ * REJECTED must not be reachable, and "the server would 409 anyway" is not an answer when we already
+ * know. Same treatment as `blocked` for the same reason: the sentence explaining it is right there.
  */
 
 import { InlineAlert } from '../../../components/feedback/InlineAlert'
@@ -28,7 +35,7 @@ import { Modal } from '../../../components/ui/Modal'
 import { Btn } from '../../../components/ui/Btn'
 import { Spinner } from '../../../components/feedback/Spinner'
 import { NO_VALUE, dayNumber, thaiDateShort, thaiTime } from '../../../lib/thai-date'
-import { attendeesText, requestLine } from '../booking-detail'
+import { DISARMED, attendeesText, requestLine } from '../booking-detail'
 import { BookingSlotList } from './BookingSlotList'
 import { Glyph } from './BookingGlyph'
 import { ICON } from './booking-icons'
@@ -57,6 +64,7 @@ export function BookingApproveDialog({
   detail,
   alert = null,
   busy,
+  stale = false,
   onConfirm,
 }: {
   open: boolean
@@ -67,6 +75,8 @@ export function BookingApproveDialog({
   /** A failed attempt on this record. The dialog stays open so the operator can read it and retry. */
   alert?: string | null
   busy: boolean
+  /** The socket says this record's status moved under the dialog. See the header — second wall. */
+  stale?: boolean
   onConfirm: () => void
 }) {
   if (!detail) {
@@ -94,8 +104,8 @@ export function BookingApproveDialog({
       footer={
         <Btn
           variant="primary"
-          className="w-full disabled:cursor-not-allowed disabled:bg-base-300 disabled:text-base-content/70 disabled:hover:brightness-100 sm:w-auto"
-          disabled={blocked || busy}
+          className={`w-full sm:w-auto ${DISARMED}`}
+          disabled={blocked || stale || busy}
           aria-busy={busy || undefined}
           aria-label={busy ? 'กำลังบันทึกการอนุมัติ' : undefined}
           onClick={onConfirm}

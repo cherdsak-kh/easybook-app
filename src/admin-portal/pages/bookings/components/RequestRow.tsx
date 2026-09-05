@@ -44,6 +44,7 @@ import type { BookingRequestListItem } from '@/lib/api-client'
 export function RequestRow({
   request,
   index,
+  flash = false,
   onView,
 }: {
   request: BookingRequestListItem
@@ -54,13 +55,24 @@ export function RequestRow({
    * at different records. The page computes it; this component only prints it.
    */
   index: number
+  /**
+   * This row changed underneath the reader a moment ago — somebody else approved it, or ADR-001
+   * auto-rejected it. `.row-flash` paints a left rail on it for 2.5s and NOTHING ELSE MOVES: the row
+   * is updated in place, in its existing position, because reordering under a hand that is already
+   * travelling toward a button is the one thing this screen refuses to do without a click.
+   */
+  flash?: boolean
   onView: () => void
 }) {
   const who = request.requester.name ?? NO_VALUE
   const label = BOOKING_STATUS_LABEL[request.status]
 
   return (
-    <tr className="group border-b border-base-300/60 transition-colors hover:bg-base-content/5">
+    <tr
+      className={`group border-b border-base-300/60 transition-colors hover:bg-base-content/5 ${
+        flash ? 'row-flash' : ''
+      }`.trim()}
+    >
       <td className="td-cell td-cell-tight text-center text-base-content/70 tabular-nums">
         {index}
       </td>

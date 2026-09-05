@@ -12,6 +12,7 @@ import {
   TERMINAL_CONNECT_ERRORS,
   createRealtimeSocket,
   isRealtimeEnabled,
+  type BookingRequestEventPayload,
   type LineUserDeletedPayload,
   type LineUserEventPayload,
   type SessionClosedPayload,
@@ -149,12 +150,30 @@ export function RealtimeProvider({
       if (payload?.id) fanOut('onDeleted', payload.id)
     }
 
+    /*
+     * ⚠️ THE SAME `payload?.record` GUARD AS THE THREE ABOVE, and it is not defensive noise: the
+     * gateway is fail-soft, so a half-built payload reaches the wire rather than throwing on the
+     * server. Fanning out `undefined` would put `booking.id` inside every subscriber's handler.
+     *
+     * The envelope is unwrapped HERE, once, so no subscriber has to know that the row travels under
+     * a key — and so `actor` has exactly one place to be rendered from if the design ever asks for
+     * it (`NEEDS_DESIGN.md`; nothing renders it today).
+     */
+    const onBookingCreated = (payload: BookingRequestEventPayload) => {
+      if (payload?.booking) fanOut('onBookingCreated', payload.booking)
+    }
+    const onBookingUpdated = (payload: BookingRequestEventPayload) => {
+      if (payload?.booking) fanOut('onBookingUpdated', payload.booking)
+    }
+
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('connect_error', onConnectError)
     socket.on(REALTIME_EVENTS.lineUserCreated, onCreated)
     socket.on(REALTIME_EVENTS.lineUserUpdated, onUpdated)
     socket.on(REALTIME_EVENTS.lineUserDeleted, onDeleted)
+    socket.on(REALTIME_EVENTS.bookingRequestCreated, onBookingCreated)
+    socket.on(REALTIME_EVENTS.bookingRequestUpdated, onBookingUpdated)
     socket.on(REALTIME_EVENTS.sessionClosed, onSessionClosed)
 
     socket.connect()

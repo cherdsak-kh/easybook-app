@@ -20,6 +20,16 @@
  *
  * ⚠️ THE SLOT LIST SHOWS CANCELLED SPANS. See `BookingSlotList` — the dialog's job is to say that
  * Wednesday was dropped and why, which is precisely what the table cell cannot.
+ *
+ * ⚠️ `stale` DISARMS THE BAR, IT DOES NOT REMOVE IT (`ADMIN-REALTIME-BOOKINGS-1`). When the socket
+ * says this record changed status while it was open, the buttons underneath aim at a state that no
+ * longer exists — but a button that VANISHES takes the explanation with it, and the record would
+ * look like a closed one rather than one that just moved. It is greyed instead, next to the banner
+ * the caller puts in `alert`, which is the sentence that makes the greying honest.
+ *
+ * ⛔ That is NOT the same thing as a VIEWER's missing bar. There the capability will never exist, so
+ * there is nothing to explain and no bar at all; here it existed a second ago and the operator needs
+ * to be told why it stopped.
  */
 
 import type { ReactNode } from 'react'
@@ -31,7 +41,7 @@ import { Modal } from '../../../components/ui/Modal'
 import { Skeleton, SkeletonRegion } from '../../../components/feedback/Skeleton'
 import { BOOKING_STATUS_LABEL, BOOKING_STATUS_TONE } from '../../../labels'
 import { NO_VALUE, thaiDate, thaiTime } from '../../../lib/thai-date'
-import { attendeesText, liveSlots } from '../booking-detail'
+import { DISARMED, attendeesText, liveSlots } from '../booking-detail'
 import { BookingSlotList } from './BookingSlotList'
 import { Glyph } from './BookingGlyph'
 import { ICON } from './booking-icons'
@@ -73,6 +83,7 @@ export function BookingDetailDialog({
   onRetry,
   canWrite,
   alert = null,
+  stale = false,
   onAction,
 }: {
   open: boolean
@@ -92,6 +103,11 @@ export function BookingDetailDialog({
   canWrite: boolean
   /** A failed write on THIS record, or a note about it. Cleared by the caller on reopen. */
   alert?: string | null
+  /**
+   * The socket says this record's status moved while the dialog was open. Disarms the transitions in
+   * place; the caller is responsible for putting the reason in `alert` beside them.
+   */
+  stale?: boolean
   onAction: (action: BookingAction) => void
 }) {
   const live = detail ? liveSlots(detail.slots) : []
@@ -120,7 +136,11 @@ export function BookingDetailDialog({
         <Btn
           key={a.action}
           variant={a.variant}
-          className="w-full sm:w-auto"
+          className={`w-full sm:w-auto ${DISARMED}`}
+          // The transitions listed above were computed from a status the server has since replaced.
+          // `onAction` is guarded again by the page, because a disabled button is UX and never a
+          // boundary — and the server refuses the write regardless of both.
+          disabled={stale}
           onClick={() => onAction(a.action)}
         >
           <Glyph d={a.icon} className="cm-btn-ico" />

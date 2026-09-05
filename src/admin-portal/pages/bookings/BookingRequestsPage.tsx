@@ -40,6 +40,41 @@
  * computed with `search` and `venueId` applied but WITHOUT `status`. One fact, rendered once. Do not
  * "fix" a badge by counting `rows`: that would count the PAGE, and the page is ten of them.
  *
+ * ── 🔴 THE LIVE LAYER (`ADMIN-REALTIME-BOOKINGS-1`) — one rule, taken from การลงทะเบียน ──
+ *   Anything that would MOVE a row waits for a click.
+ *   Anything that does not move a row happens immediately.
+ *
+ * This screen is why the rule matters more here than anywhere else: two operators can be looking at
+ * the same queue, and ADR-001 means one of them approving a request REFUSES rows the other is
+ * reading. So:
+ *
+ *  · `bookingRequest.created` → the bar (`มีคำขอใหม่ N รายการ`), never an insert. The one exception
+ *    falls out of the rule instead of bending it: with an EMPTY, UNFILTERED table there is nothing
+ *    to displace, so it loads at once — which is also the promise the inbox-zero panel already makes
+ *    in as many words ("คำขอใหม่จากผู้ใช้ LINE จะขึ้นที่นี่ทันที").
+ *  · `bookingRequest.updated` → the row is replaced IN PLACE and flashed. No reordering, no scroll
+ *    jump, no removal — a row that has drifted out of the selected tab stays exactly where it was
+ *    being read, and the bar counts it (`driftCount`) instead of moving it.
+ *  · a dialog open on a record that just changed status is DISARMED, not closed. See `staleStatus`.
+ *
+ * ⚠️ THE TAB BADGES AND THE `แสดง x–y จาก z` LINE DO NOT MOVE LIVE, AND THAT IS THE RULE, NOT A GAP.
+ * `counts`, `meta.total` and the rows all come out of ONE request, so there is no way to refresh a
+ * badge without refreshing the rows underneath it — which is the move this screen defers. The bar is
+ * what carries that news in the meantime, which is why it counts drift as well as arrivals. (The
+ * SIDEBAR pill is different and does move on its own: it is a single number with no row attached to
+ * it, fetched by its own request — `use-pending-bookings.ts`.)
+ *
+ * ⚠️ THE SOCKET IS THE SHELL'S. This page SUBSCRIBES (`useRealtimeEvents`); it must never open a
+ * connection of its own, or the sidebar's คำขอจองสถานที่ pill would stop moving the moment the
+ * operator navigated away — which is the entire reason the socket was hoisted in the first place.
+ *
+ * ⚠️ AND A VIEWER HAS NO SOCKET AT ALL. The `/admin` namespace refuses that role
+ * (`REALTIME_ERRORS.forbidden`) while the LIST is readable by all three, so a VIEWER gets a screen
+ * that is CORRECT AND STATIC: no bar, no flash, no offline chip, nothing that claims to be live.
+ * That is a known, accepted limitation of the transport — identical to การลงทะเบียน's — and NOT a
+ * bug to fix on this page. What would be a bug is a live-looking affordance rendered for them, so
+ * every one of the controls below is behind news that only an event can produce.
+ *
  * ── Three roles ──
  * A VIEWER reads this table, searches it, filters it, sorts it, pages through it, and opens any
  * record and reads all of it — and gets NO ACTION BAR AT ALL in the detail dialog, not disabled
@@ -60,6 +95,7 @@ import {
   type BookingRequestLimit,
   type BookingRequestListItem,
   type BookingRequestSort,
+  type BookingStatus,
   type BookingStatusCounts,
   type CreateDirectBookingBody,
 } from '@/lib/api-client'
@@ -72,6 +108,7 @@ import { Pagination } from '../../components/ui/Pagination'
 import { BOOKING_STATUS_LABEL } from '../../labels'
 import { useAcl } from '../../lib/use-acl'
 import { useAuth } from '../../lib/auth-context'
+import { useRealtimeEvents, useRealtimeStatus } from '../../lib/realtime-context'
 import { useToast } from '../../lib/toast-context'
 import { liveSlots } from './booking-detail'
 import { BookingApproveDialog } from './components/BookingApproveDialog'
@@ -184,6 +221,26 @@ const CONFLICT: Record<BookingAction, string> = {
 }
 
 /**
+ * 🔴 THE STALE-DIALOG BANNER — the sentence that makes disarming the action bar honest.
+ *
+ * The scenario it exists for is the ticket's own: two operators, one approves a request, and ADR-001
+ * auto-rejects the overlapping one the other has open. Without this, that second operator presses
+ * อนุมัติ on a record that is already REJECTED and gets a 409 they cannot explain; with it, the
+ * buttons are greyed and this line is directly above them.
+ *
+ * ⚠️ IT NAMES NOBODY, and that is not squeamishness: `actor` IS on the payload, but nothing in this
+ * portal has been designed to render "สมหญิง เปลี่ยนรายการนี้" yet — it is written up in
+ * `NEEDS_DESIGN.md` rather than invented per screen. `เจ้าหน้าที่ท่านอื่น` is what we can say
+ * truthfully today: every `bookingRequest.updated` comes from an operator's write (the LIFF app
+ * raises requests, it does not decide them).
+ *
+ * ⚠️ AND IT SAYS WHAT TO DO NEXT. "This is out of date" with no way forward is a dead end; reopening
+ * the record re-fetches it, which is one click and puts a live action bar back.
+ */
+const STALE_MSG = (label: string) =>
+  `รายการนี้ถูกเปลี่ยนสถานะเป็น “${label}” โดยเจ้าหน้าที่ท่านอื่นแล้ว · ปิดหน้าต่างนี้แล้วเปิดใหม่เพื่อดูข้อมูลล่าสุด`
+
+/**
  * The create dialog's two record-level failures.
  *
  * ⚠️ NEITHER CLOSES THE DIALOG. A booking form holds several minutes of typing, and both of these
@@ -227,6 +284,26 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
 
   /** The first load is not news; every load after it changed the table under the reader. */
   const announced = useRef(false)
+
+  /* ── The live layer's three pieces of deferred news ─────────────────────────────────────────── */
+
+  /**
+   * Ids of requests CREATED since the last load. A set of ids rather than the records themselves,
+   * because the catch-up is a refetch — the payloads are never spliced in, or a row would appear
+   * that the filters above it exclude.
+   *
+   * ⚠️ IT COUNTS ARRIVALS, NOT MATCHES. With a search term typed or a tab selected, some of them may
+   * not come back when the list reloads. Deciding otherwise would mean re-implementing the server's
+   * four-field search in the browser to guess at it. An over-count says "your view is behind" one
+   * time too often; an under-count hides work in an approval queue.
+   */
+  const [queued, setQueued] = useState<Set<string>>(() => new Set())
+  /** Reconnected, and there is no replay: we know there was a gap and cannot know how big. */
+  const [missed, setMissed] = useState(false)
+  /** Rows to paint the 2.5s left rail on. */
+  const [flashing, setFlashing] = useState<Set<string>>(() => new Set())
+
+  const flashTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
 
   /* 300ms after the last keystroke, not on every one — each one would otherwise be a request.
      Matches การลงทะเบียน exactly, because a search box that behaves differently per screen is a
@@ -281,10 +358,33 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
     void load()
   }, [load])
 
+  /** Everything the live layer was holding is answered by a fresh page of rows. */
+  const clearNews = useCallback(() => {
+    setQueued(new Set())
+    setMissed(false)
+  }, [])
+
   const refresh = async () => {
     setRows(null)
+    clearNews()
     setReloadKey((k) => k + 1)
     if (await load()) toast('success', 'อัปเดตข้อมูลล่าสุดแล้ว')
+  }
+
+  /**
+   * `โหลดข้อมูลล่าสุด` — deliberately the SAME sequence as รีเฟรช, skeleton first. The rows are about
+   * to change, and a list that mutates in place while being read is what the deferral exists to
+   * prevent; that applies to the catch-up too.
+   *
+   * ⚠️ NO TOAST. รีเฟรช is unprompted and its receipt confirms that the button did something; this
+   * one was pressed BECAUSE the screen said there was news, and the news disappearing is the receipt.
+   * `load` announces the new total to the live region on its own.
+   */
+  const catchUp = async () => {
+    setRows(null)
+    clearNews()
+    setReloadKey((k) => k + 1)
+    await load()
   }
 
   /* ── Every filter change goes back to page 1 ───────────────────────────────────────────────── */
@@ -367,6 +467,14 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
   /** A failed write, shown INSIDE the dialog that failed, next to the button that will retry it. */
   const [dialogAlert, setDialogAlert] = useState<string | null>(null)
   const [writing, setWriting] = useState(false)
+  /**
+   * 🔴 THE OPEN RECORD MOVED UNDER THE DIALOG — the status the socket says it now has.
+   *
+   * Non-null disarms every action in the stack (detail's footer AND whichever action dialog is up)
+   * and puts `STALE_MSG` where the failure banner would go. ⚠️ IT DOES NOT CLOSE ANYTHING: shutting
+   * a dialog in somebody's face loses whatever they had typed and tells them nothing about why.
+   */
+  const [staleStatus, setStaleStatus] = useState<BookingStatus | null>(null)
 
   /**
    * Which id the in-flight detail fetch belongs to.
@@ -412,10 +520,13 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
     // records for its own opener.)
     anchor.current = from instanceof HTMLElement && from !== document.body ? from : null
     setTarget(request)
-    // A previous record's data and a previous record's failure are not this one's.
+    // A previous record's data, a previous record's failure and a previous record's staleness are
+    // not this one's. Reopening the SAME record clears it too — and correctly so: `loadDetail` is
+    // about to re-read it, which is exactly what `STALE_MSG` told the operator to do.
     setDetail(null)
     setDetailFailed(false)
     setDialogAlert(null)
+    setStaleStatus(null)
     setView('detail')
     void loadDetail(request.id)
   }
@@ -488,6 +599,7 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
   const finishWrite = async (message: string) => {
     setView(null)
     setDialogAlert(null)
+    setStaleStatus(null)
     // The toast is itself a live region, so this is announced without a second copy in `live`.
     toast('success', message)
     await load()
@@ -497,6 +609,7 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
     const status = err instanceof ApiError ? err.status : 0
     if (status === 404 || status === 409 || status === 403) {
       setView(null)
+      setStaleStatus(null)
       toast('error', status === 403 ? MSG.forbidden : status === 404 ? MSG.gone : CONFLICT[kind])
       await load()
       return
@@ -640,6 +753,142 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
     }
   }
 
+  /* ── The live layer ────────────────────────────────────────────────────────────────────────────
+     It sits HERE, after the dialog state and the writes, for one non-negotiable reason: the handlers
+     read `rows`, `view`, `detail`, `target` and `writing` DIRECTLY, so every one of them has to be
+     declared above. That is safe — and the only reason it is safe — because `useRealtimeEvents`
+     holds the handlers in a ref that is re-pointed on every render while the socket is never
+     re-subscribed. ⛔ Do not "optimise" them into `useCallback`s with dependency arrays: a handler
+     closed over a stale `rows` would patch the page the operator was looking at three filters ago,
+     and nothing would ever say so. */
+
+  const flash = useCallback((id: string) => {
+    setFlashing((s) => new Set(s).add(id))
+    const timers = flashTimers.current
+    clearTimeout(timers.get(id))
+    timers.set(
+      id,
+      setTimeout(() => {
+        timers.delete(id)
+        setFlashing((s) => {
+          const next = new Set(s)
+          next.delete(id)
+          return next
+        })
+      }, 2500),
+    )
+  }, [])
+
+  // Every pending flash timer is cleared on unmount — a `setFlashing` after the page is gone is a
+  // React warning at best and a leak at worst.
+  useEffect(() => {
+    const timers = flashTimers.current
+    return () => {
+      timers.forEach((t) => clearTimeout(t))
+      timers.clear()
+    }
+  }, [])
+
+  const realtime = useRealtimeStatus()
+
+  useRealtimeEvents({
+    onBookingCreated: (booking) => {
+      /* THE EXCEPTION, and it falls out of the rule rather than bending it: with nothing on screen
+         there is nothing to displace, so the queue appears at once instead of behind a button — and
+         a bar reading "มีคำขอใหม่ 1 รายการ" over the words "ไม่มีคำขอรอพิจารณา" would be the screen
+         arguing with itself.
+         ⚠️ The TAB is deliberately NOT part of `anyFilter` here. A request that arrives APPROVED
+         (another operator's direct booking) while รอพิจารณา is empty costs one wasted fetch and
+         refreshes the tab badges, which is the honest picture; testing the tab instead would mean
+         predicting what the server is about to return. Nothing is displaced either way. */
+      if (rows !== null && rows.length === 0 && !anyFilter) {
+        setLive('มีคำขอจองใหม่เข้ามา')
+        void load()
+        return
+      }
+      // Not spliced in: the catch-up re-runs the CURRENT query, so what appears is what the filters
+      // above actually ask for.
+      setQueued((s) => new Set(s).add(booking.id))
+    },
+
+    onBookingUpdated: (booking) => {
+      /* IN PLACE, AND ONLY IF IT IS ON SCREEN. Replacing the row costs the reader nothing — same
+         index, same height, a status chip that now says something else — and the rail says where to
+         look. An event for one of the other ninety rows in the queue is deliberately SILENT: it is
+         news the operator cannot see and cannot act on. */
+      const onScreen = rows?.some((r) => r.id === booking.id) ?? false
+      if (onScreen) {
+        setRows((current) => current?.map((r) => (r.id === booking.id ? booking : r)) ?? current)
+        flash(booking.id)
+        setLive(`คำขอ ${booking.code} เปลี่ยนสถานะเป็น ${BOOKING_STATUS_LABEL[booking.status]}`)
+      }
+
+      /* 🔴 THE STALE-DIALOG GUARD — the whole reason this ticket exists.
+         Three conditions, and each one earns its place:
+          · the stack is OPEN on this id — `view === null` means there is nothing to disarm, and
+            `target`/`detail` may still hold the last record read;
+          · the STATUS actually differs from what the dialog is showing. A partial cancel leaves an
+            APPROVED booking APPROVED and emits `updated` all the same; announcing "ถูกเปลี่ยนสถานะ
+            เป็น อนุมัติแล้ว" to somebody already looking at อนุมัติแล้ว is a false alarm, and false
+            alarms are how a real one stops being read. `detail` first, `target` as the fallback
+            while the detail fetch is still in flight;
+          · no write of OURS is in flight. Our own approve emits this event, and the emit usually
+            beats the HTTP response back — without this the operator would watch their own click
+            raise a banner accusing somebody else. A write already disables every button through
+            `busy`, and its own 404/409/403 path re-reads the table and says what happened. */
+      const openStatus = view === null ? null : (detail?.status ?? target?.status ?? null)
+      const openId = view === null ? null : (detail?.id ?? target?.id ?? null)
+      if (openId === booking.id && !writing && openStatus !== null && openStatus !== booking.status) {
+        setStaleStatus(booking.status)
+      }
+    },
+
+    /* There was a gap and the gateway has no replay, so the number of rows that changed during it is
+       unknowable — which is why the bar's reconnect clause states no number. */
+    onResync: () => setMissed(true),
+  })
+
+  /**
+   * ⚠️ DRIFT IS DERIVED, NOT REMEMBERED, and that is what makes it self-correcting. A row that
+   * changed OUT of the selected tab cannot be allowed to vanish — that moves every row under it —
+   * but leaving it silent makes the tab strip look broken: รอพิจารณา is selected and a row plainly
+   * reads "ปฏิเสธ". Since every load and every filter change re-asks the server, a row on screen that
+   * contradicts the tab IS the whole definition, and there is no set to forget to clear.
+   *
+   * It matters more here than on การลงทะเบียน: ADR-001's losers drift out of รอพิจารณา in a burst,
+   * without anybody on this screen having touched them.
+   */
+  const driftCount = useMemo(
+    () => (status ? (rows ?? []).filter((r) => r.status !== status).length : 0),
+    [rows, status],
+  )
+
+  /**
+   * The bar's sentence, assembled from whatever is currently true.
+   *
+   * ⚠️ THE RECONNECT CLAUSE STATES NO NUMBER AND MUST NOT. The gateway has no replay and no
+   * sequence, so "3 รายการ" after a gap would be a guess dressed as a fact. What we know is that
+   * there WAS a gap.
+   */
+  const barParts: string[] = []
+  if (queued.size) barParts.push(`มีคำขอใหม่ ${queued.size} รายการ`)
+  if (driftCount) barParts.push(`มี ${driftCount} รายการที่ไม่ตรงกับแท็บนี้แล้ว`)
+  if (missed) barParts.push('เชื่อมต่อใหม่แล้ว · ข้อมูลระหว่างที่ขาดการเชื่อมต่ออาจไม่ครบ')
+  const barMessage = barParts.join(' · ')
+
+  /**
+   * What the four dialogs put in their alert slot.
+   *
+   * ⚠️ STALENESS OUTRANKS A FAILED WRITE, and the order is the point: while `staleStatus` is set the
+   * confirm buttons are greyed, so if the older `WRITE_FAILED` were shown instead the operator would
+   * be looking at a dead button next to a message telling them to try again. `dialogAlert` is not
+   * lost — retrying is simply not the next move, reopening the record is, and that is what this
+   * sentence says.
+   */
+  const dialogNotice =
+    staleStatus !== null ? STALE_MSG(BOOKING_STATUS_LABEL[staleStatus]) : dialogAlert
+  const stale = staleStatus !== null
+
   return (
     <div className="card-shell">
       <PageHeading
@@ -648,6 +897,28 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
         descAtEveryWidth={false}
         actions={
           <div className="flex items-center gap-2">
+            {/* ══ อัปเดตอัตโนมัติหยุด ══
+                The dangerous state on a live page is not "disconnected" — it is being disconnected
+                AND NOT KNOWING, because the rows still look authoritative. This says the automatic
+                half stopped; รีเฟรช beside it still fetches perfectly good data, which is why it is
+                a quiet grey chip and not a red banner. Nothing is broken; one convenience is.
+                ⚠️ `offline` ONLY. `disabled` — a VIEWER, or the `VITE_WS_ENABLED` rollback — renders
+                NOTHING: warning somebody that live updates stopped, when their role was never going
+                to be issued a socket, is a warning they can do nothing about, and it is the one
+                thing that would make a correct static screen look broken.
+                Same chip, same copy and same rule as การลงทะเบียน — two live tables, one vocabulary. */}
+            {realtime === 'offline' && (
+              <span
+                aria-live="polite"
+                data-tip="ข้อมูลจะไม่อัปเดตเองจนกว่าจะเชื่อมต่อได้อีกครั้ง · กดรีเฟรชเพื่อดึงข้อมูลล่าสุด"
+                data-tip-pos="bottom"
+                className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-control border border-base-content/20 bg-base-200 px-2.5 text-[13px] font-medium text-base-content/70"
+              >
+                <Glyph d={ICON.offline} className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">อัปเดตอัตโนมัติหยุด</span>
+                <span className="sm:hidden">ออฟไลน์</span>
+              </span>
+            )}
             <button
               type="button"
               onClick={() => void refresh()}
@@ -785,6 +1056,29 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
           </div>
         ) : (
           <div className="card-shell">
+            {/* ══ แถบข้อมูลใหม่ — the one place this list may interrupt ══
+                THE BAR IS THE BUTTON, and that is measured on การลงทะเบียน: as a strip with a button
+                inside it, it stood 65px and pushed every row down by that much the first time it
+                appeared. A notice that moves five rows in order to promise that rows will not move is
+                self-defeating. Collapsed into one full-width target it is 44px, and the 44px IS the
+                bar.
+                It sits INSIDE the list panel and above the scroller, so it never scrolls away from
+                the rows it describes — and it is inside the branch that has rows or a filter miss,
+                so it can never appear over "ยังไม่มีคำขอจองในระบบ", which loads at once instead. */}
+            {barMessage && (
+              <button
+                type="button"
+                onClick={() => void catchUp()}
+                className="flex min-h-11 w-full shrink-0 items-center gap-2.5 border-b border-info/35 bg-info/10 px-3 py-2 text-left text-[14px] leading-[1.55] text-info transition-colors hover:bg-info/20 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-info sm:px-4"
+              >
+                <Glyph d={ICON.info} className="h-5 w-5 shrink-0" />
+                <span className="min-w-0 flex-1">{barMessage}</span>
+                <span className="shrink-0 font-medium underline underline-offset-2">
+                  โหลดข้อมูลล่าสุด
+                </span>
+              </button>
+            )}
+
             <div className="card-scroll nav-scroll">
               {miss ? (
                 <EmptyState
@@ -876,6 +1170,7 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
                             key={r.id}
                             request={r}
                             index={from + i}
+                            flash={flashing.has(r.id)}
                             onView={() => openDetail(r)}
                           />
                         ))}
@@ -885,7 +1180,12 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
 
                   <ul className="m-0 list-none divide-y divide-base-300/60 p-0 lg:hidden">
                     {rows.map((r) => (
-                      <RequestCard key={r.id} request={r} onView={() => openDetail(r)} />
+                      <RequestCard
+                        key={r.id}
+                        request={r}
+                        flash={flashing.has(r.id)}
+                        onView={() => openDetail(r)}
+                      />
                     ))}
                   </ul>
                 </>
@@ -984,23 +1284,31 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
         }}
         // A VIEWER reads every field here and gets NO action bar — not disabled buttons.
         canWrite={acl.write}
-        // The prototype's `#rq-d-alert`: the place a record-level message goes. Today only the three
-        // action dialogs raise one, and they hold it themselves — this stays wired so a message
-        // about the RECORD never has to invent a home.
-        alert={dialogAlert}
+        // The prototype's `#rq-d-alert`: the place a record-level message goes. It carries the
+        // three action dialogs' failures and — outranking them — the realtime staleness banner,
+        // which is the sentence that explains the greyed buttons below it.
+        alert={dialogNotice}
+        stale={stale}
         onAction={(action) => {
-          if (!detail) return
+          // Guarded again, and not redundantly: the disabled attribute is UX, the server is the
+          // boundary, and this is the one line that keeps a keyboard or a stray event from
+          // launching an action dialog onto a record we already know has moved.
+          if (!detail || stale) return
           setDialogAlert(null)
           setView(ACTION_VIEW[action])
         }}
       />
 
+      {/* ⚠️ ALL THREE GET `stale`, not just the detail hub. The operator can be standing INSIDE the
+          approve dialog when ADR-001 refuses their request out from under them — that is the exact
+          scenario this ticket names — and the footer they are reaching for is the one in here. */}
       <BookingApproveDialog
         open={view === 'approve'}
         onClose={backToDetail('approve')}
         detail={detail}
-        alert={dialogAlert}
+        alert={dialogNotice}
         busy={writing}
+        stale={stale}
         onConfirm={() => void runApprove()}
       />
 
@@ -1008,8 +1316,9 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
         open={view === 'reject'}
         onClose={backToDetail('reject')}
         detail={detail}
-        alert={dialogAlert}
+        alert={dialogNotice}
         busy={writing}
+        stale={stale}
         onConfirm={(reason) => void runReject(reason)}
       />
 
@@ -1017,8 +1326,9 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
         open={view === 'cancel'}
         onClose={backToDetail('cancel')}
         detail={detail}
-        alert={dialogAlert}
+        alert={dialogNotice}
         busy={writing}
+        stale={stale}
         onConfirm={(reason, slotIds) => void runCancel(reason, slotIds)}
       />
 
