@@ -79,12 +79,19 @@ export function RequestRow({
 
       <td className="td-cell td-cell-tight whitespace-nowrap">
         {/* The code is a second way into the same record. Underlined rather than styled as a
-            button, because it is the record's NAME and reads as one in a column of them. */}
+            button, because it is the record's NAME and reads as one in a column of them.
+
+            ⚠️ `min-h-[44px] inline-flex items-center` is an a11y divergence from the prototype,
+            which renders this target at 110.3 × 23.5 — under the project's 44px rule AND half a
+            pixel under WCAG 2.5.8 AA's 24px floor. HEIGHT ONLY: the cell is `whitespace-nowrap`
+            and the รหัสคำขอ column is measured at 138.3px, so horizontal padding must not move.
+            The row does not grow — the two `h-[63px]` columns set 63+28=91px, and 44+28=72 stays
+            under it. `pm` to sync the prototype; it is not a separate defect. */}
         <button
           type="button"
           onClick={onView}
           aria-label={`ดูรายละเอียดคำขอ ${request.code}`}
-          className="rq-code rounded-control px-1 py-0.5 underline decoration-base-content/25 underline-offset-4 transition-colors hover:bg-info/10 hover:text-info hover:decoration-info focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="rq-code inline-flex min-h-[44px] items-center rounded-control px-1 py-0.5 underline decoration-base-content/25 underline-offset-4 transition-colors hover:bg-info/10 hover:text-info hover:decoration-info focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {request.code}
         </button>
@@ -128,15 +135,30 @@ export function RequestRow({
         </span>
       </td>
 
+      {/* 🔴 `max-w-[126px]` is an INTENTIONAL, PO-APPROVED DIVERGENCE from the prototype, which
+          still caps this wrapper at 168px. That cap was baselined on a short demo name
+          (`หอประชุมวารณ`); with a REAL venue name (`โดมเขียว (สนามฟุตซอล)`) it fills to the cap and
+          the cell becomes 168+2×14=196px — which puts the table at 969px inside a 932px
+          `.card-scroll`, i.e. 37px of horizontal scroll under the rows. The prototype has the SAME
+          defect with the same data (it measures 41px over), so do NOT "correct" this back to 168 to
+          match it. 126 hands 42px back and lands the table at ~927.
+          ⚠️ THE NUMBER TO PRESERVE IS THE TABLE FITTING 932, NOT 126 ITSELF — if a column's content
+          budget changes, re-measure and re-derive this cap rather than defending the literal. The
+          name truncates; `title` on the truncating span is how the full one stays recoverable. */}
       <td className="td-cell td-cell-tight">
-        <span className="flex min-w-0 max-w-[168px] items-center gap-2">
+        <span className="flex min-w-0 max-w-[126px] items-center gap-2">
           <span
             aria-hidden="true"
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-base-content/8 text-base-content/70"
           >
             <Glyph d={ICON.building} className="h-4 w-4" />
           </span>
-          <span className="min-w-0 truncate text-[14px] text-base-content/90">
+          {/* `title` sits on the element that ACTUALLY truncates, not the flex wrapper — a tooltip
+              on a container the text overflows out of points the user at the wrong box. */}
+          <span
+            title={request.venue.name}
+            className="min-w-0 truncate text-[14px] text-base-content/90"
+          >
             {request.venue.name}
           </span>
         </span>
