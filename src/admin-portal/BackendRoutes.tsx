@@ -24,6 +24,7 @@ import { AuthProvider } from './AuthProvider'
 import { BackendLayout } from './BackendLayout'
 import { NotFound } from '@/components/shared/NotFound'
 import { useAuth } from './lib/auth-context'
+import { BookingRequestsPage } from './pages/bookings/BookingRequestsPage'
 import { BootScreen } from './pages/login/BootScreen'
 import { ComingSoonPage } from './pages/ComingSoonPage'
 import { ForcePasswordChangePage } from './pages/password/ForcePasswordChangePage'
@@ -66,6 +67,9 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   สถานที่จัดกิจกรรม: (route) => <VenuesPage route={route} />,
   เจ้าหน้าที่ระบบ: (route) => <StaffPage route={route} />,
   การลงทะเบียน: (route) => <LineUsersPage route={route} />,
+  // Stage A of three: the shell (toolbar, table, cards, pager). The five dialogs land in B/C, in
+  // this same component — the route does not change again.
+  คำขอจองสถานที่: (route) => <BookingRequestsPage route={route} />,
 }
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */

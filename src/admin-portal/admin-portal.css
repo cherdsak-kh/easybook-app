@@ -150,6 +150,27 @@
      the header floating over the rows with nothing under it. */
   .th-cell { @apply sticky top-0 z-10 bg-base-100 px-4 py-3 text-[13px] font-semibold leading-[1.45] text-base-content/70 shadow-[inset_0_-1px_0_var(--color-base-300)] lg:px-5; }
   .td-cell { @apply px-4 py-3.5 align-middle text-[14px] lg:px-5; }
+  /* ── The EIGHT-column exception — คำขอจองสถานที่ ──────────────────
+     ⚠️ MEASURED, not preferred. `.th-cell`/`.td-cell`'s 20px lg gutter spends
+     320px of horizontal budget across eight columns, and the content box of
+     that card is 932px at a 1280 viewport. The queue table wanted 1128px and
+     put a horizontal scrollbar under its own rows — the exact outcome the
+     registration table's column note records fighting off at a mere 8px.
+     14px instead of 20px hands 96px back, which is most of what was missing;
+     dropping `whitespace-nowrap` from the two date columns supplied the rest.
+     These MUST be declared after the two above: same specificity, so the
+     cascade is decided by order, and swapping them would silently restore the
+     scrollbar. Only this table uses them — a six-column table has the room. */
+  .th-cell-tight { @apply px-3 lg:px-3.5; }
+  .td-cell-tight { @apply px-3 lg:px-3.5; }
+  /* The จัดการ cell on that table, and only there. Its action grid is exactly
+     two 44px rows (92px), which is also the row height every other cell
+     produces (63px of content plus `py-3.5`) — so the vertical padding has to
+     come off, or the cell asks for 92+28 and drags every row 28px taller.
+     ⚠️ KEPT even though the column is down to ONE 44px button (see the row's
+     own note): the two multi-line columns still set the 92px, and a cell that
+     re-adds `py-3.5` around a 44px button asks for 100px. */
+  .td-cell-act { @apply py-0; }
 
   /* Base only — the hover colour is set per action below, because two buttons
      sitting 4px apart that light up identically give no feedback about WHICH
@@ -162,6 +183,15 @@
   }
   .icon-btn-view { @apply hover:bg-info/10 hover:text-info; }
   .icon-btn-edit { @apply hover:bg-primary/10 hover:text-primary; }
+  /* คำขอจองสถานที่'s third action tone. ⚠️ The hover colour of an ACTION is not
+     the badge colour of the STATE it produces, and this is the one row where
+     the two could be confused: ปฏิเสธ lands a `badge-sky` record, but sky is
+     already what `.icon-btn-view` means four pixels to the left — two buttons
+     in one row lighting up the same colour is exactly what the note above
+     forbids. Rose here says "this one refuses something", which is true of
+     both ปฏิเสธ and ยกเลิก, and neither of them is reversible from this
+     table. */
+  .icon-btn-no   { @apply hover:bg-error/10 hover:text-error; }
   /* Actions stay reachable by keyboard even while visually de-emphasised —
      hiding them behind `group-hover` alone would strand keyboard users. */
   /* A GRID of two fixed 44px slots, not a flex row. With flex + text-right the
@@ -225,6 +255,98 @@
   /* ⚠️ THE SIX BADGE RULES MOVED OUT OF THIS LAYER — see "Badges" in the plain-CSS block
      at the bottom of this file. They are the one place the prototype's class names collide
      with daisyUI 5, and `@layer components` is exactly where they lose. */
+
+  /* ── Status tab strip — คำขอจองสถานที่ ────────────────────────────
+     A `tablist`, not five toggle buttons: the five sets are mutually exclusive
+     and `aria-selected` says so, which five independent `aria-pressed` buttons
+     would not. Same reasoning as the ขนาดการ์ด radiogroup on สถานที่จัดกิจกรรม.
+
+     It is a TAB STRIP and not a sixth `<select>` because the first tab carries
+     a COUNT, and the count is the reason the screen exists — "3 คำขอรอ
+     พิจารณา" collapsed into a closed dropdown is a number nobody sees until
+     they go looking for it. The other four are there so the strip is one
+     control rather than a badge plus a filter.
+
+     `min-h-11` on the button, not padding alone: at 13px the tabs measured
+     34px tall and every one of them is a tap target. */
+  .rq-tab {
+    @apply flex min-h-11 shrink-0 items-center gap-2 rounded-control px-3 text-[14px] font-medium
+           text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+  }
+  .rq-tab[aria-selected="true"] { @apply bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary; }
+  /* The count inside a tab. Neutral by default; the PENDING tab's is amber
+     because that one is a WORKLOAD, not a total — it is the same alert
+     treatment the sidebar row carries, and the two numbers are the same fact
+     rendered twice. */
+  .rq-tab-n { @apply shrink-0 rounded-full px-1.5 py-0.5 text-[12px] font-semibold tabular-nums; }
+  /* ⚠️ OPAQUE FILLS, NOT WASHES, and that is the one decision in this block.
+     The obvious spelling is `bg-warning/15 text-warning` — a tint of the hue
+     under the hue — and it is what every badge in this file does. It cannot be
+     what these do, because a pill on the SELECTED tab sits on that tab's own
+     `bg-primary/10`, which sits on base-100: three translucent layers, and a
+     wash composites against whatever is beneath it. Measured that way the
+     amber pill read **4.44:1** and the emerald and rose ones were no better
+     once the primary tint was under them.
+     `-content` on the token is white for all four hues, and each hue was
+     already chosen at the 700/800 step to carry white. So the pill is the
+     solid hue with its own content colour, and it measures the same on a
+     selected tab as on an unselected one because nothing shows through.
+     ทั้งหมด is the exception: it is not a status, so it stays the neutral
+     `base-content/10` wash — and that one is safe BECAUSE its text is
+     `base-content`, which is near-black on every ground in both themes. */
+  .rq-tab-n-slate   { @apply bg-base-content/10 text-base-content; }
+  .rq-tab-n-amber   { @apply bg-warning text-warning-content; }
+  .rq-tab-n-emerald { @apply bg-success text-success-content; }
+  .rq-tab-n-sky     { @apply bg-info    text-info-content; }
+  .rq-tab-n-rose    { @apply bg-error   text-error-content; }
+  /* ⚠️ THERE IS DELIBERATELY NO `[aria-selected] .rq-tab-n` OVERRIDE.
+     There was one, and it repainted every pill primary — which un-did the
+     whole point of giving each status its own hue the moment a tab was
+     selected, and made the selected tab the one place the count disagreed
+     with the badges it counts. Selection is carried by the TAB (tinted
+     ground, primary label); the pill carries the STATUS. Two facts, two
+     elements, no fight. */
+
+  /* The booking code. Monospace and tabular so a column of them lines up
+     digit-under-digit — the code is scanned, not read, and `BR-25690903-001`
+     against `BR-25690903-011` differs by one glyph in the middle. */
+  .rq-code { @apply font-mono text-[13px] tracking-tight text-base-content tabular-nums; }
+
+  /* Where the request came from. Outlined, like `.role-chip` and for the same
+     reason: สถานะ is already a filled chip in this table, and a second filled
+     chip column would give the eye two things to scan when the question is
+     always "what state is this in". */
+  .rq-src       { @apply inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[12px] font-medium whitespace-nowrap; }
+  .rq-src-line  { @apply border-success/35 bg-success/5 text-success; }
+  .rq-src-staff { @apply border-base-content/20 bg-base-content/5 text-base-content/70; }
+
+  /* One date+time line, in the detail dialog and in the create form's preview.
+     A booking is a LIST of slots even when it has one, so there is one row
+     style and no special case for the single-day request.
+     ⚠️ Ported now, rendered in Stage B — the five dialogs are the only
+     consumers, and porting the stylesheet in two halves is how a ported screen
+     silently loses rules. */
+  .rq-slot     { @apply flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-base-300/60 py-2 last:border-0; }
+  .rq-slot-day { @apply min-w-[150px] text-[14px] text-base-content; }
+  .rq-slot-time{ @apply text-[14px] text-base-content/80 tabular-nums; }
+
+  /* One conflicting request inside the approve dialog's warning. Bordered
+     rather than a bare line: these are RECORDS about to be rejected on the
+     operator's behalf, and a list of sentences reads as prose you skim. */
+  .rq-conflict { @apply flex flex-col gap-0.5 rounded-control border border-warning/30 bg-base-100 px-3 py-2 text-[13px] leading-[1.5]; }
+
+  /* Segmented switch — ผู้ขอจอง mode and วัน-เวลา mode in the create form.
+     Radios, not two buttons, for the same reason as the tab strip; the native
+     input carries the value and this only dresses it, so a form read with
+     FormData sees an ordinary radio group.
+     ⚠️ `shadow-e1` on the checked half is the SAME lift `.vn-zoom[aria-checked]`
+     uses — one vocabulary for "this segment is the live one". */
+  .rq-seg     { @apply grid grid-cols-2 gap-1 rounded-control bg-base-200 p-1; }
+  .rq-seg-btn { @apply flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-control px-3 text-center text-[14px] font-medium leading-[1.35] text-base-content/70 transition-colors hover:bg-base-content/5; }
+  .rq-seg input:checked ~ .rq-seg-btn,
+  .rq-seg-btn:has(input:checked) { @apply bg-base-100 text-primary shadow-e1; }
+  .rq-seg-btn:has(input:focus-visible) { @apply outline-2 outline-offset-2 outline-primary; }
 
   /* ── Role chip — `SystemRole`, on เจ้าหน้าที่ระบบ only ──────────────
      OUTLINED, where every `.badge` above is FILLED, and that difference is the
@@ -401,6 +523,21 @@
   .inline-alert     { @apply mb-4 flex items-start gap-2.5 rounded-control border border-error/30 bg-error/10 px-3.5 py-3 text-[14px] leading-[1.55] text-base-content; }
   .inline-alert-ico { @apply mt-0.5 h-5 w-5 shrink-0 text-error; }
 
+  /* ── Warning + success alerts, matching `.inline-alert` (error) ──────
+     `.inline-alert` is the error tone and was the only one in the file, so the
+     ADR-001 overlap notice — which is not an error, it is a consequence the
+     operator is about to accept — had nowhere to render except red. Three
+     tones now, one shape.
+     ⚠️ The prototype declares these inside its `.rq-*` block; they live here
+     instead because this file already groups the alert family in one place
+     (`.inline-note` did the same). Same rules, same order relative to each
+     other, no specificity change — only the neighbourhood differs.
+     ⚠️ Ported now, rendered in Stage B (the approve/create dialogs). */
+  .inline-warn     { @apply mb-4 flex items-start gap-2.5 rounded-control border border-warning/30 bg-warning/10 px-3.5 py-3 text-[14px] leading-[1.55] text-base-content; }
+  .inline-warn-ico { @apply mt-0.5 h-5 w-5 shrink-0 text-warning; }
+  .inline-ok       { @apply mb-4 flex items-start gap-2.5 rounded-control border border-success/30 bg-success/10 px-3.5 py-3 text-[14px] leading-[1.55] text-base-content; }
+  .inline-ok-ico   { @apply mt-0.5 h-5 w-5 shrink-0 text-success; }
+
   /* The neutral sibling of .inline-alert. Used for a consequence the operator
      needs to read but that is not itself a failure — "unsaved work will be
      lost" on the session dialog. Rendering that in the error palette would put
@@ -574,6 +711,12 @@
   .chk:has(input:checked)       { @apply border-primary/50 bg-primary/10; }
   .chk:has(input:focus-visible) { @apply outline-2 outline-offset-2 outline-primary; }
   .chk:has(input:disabled)      { @apply cursor-default opacity-60 hover:border-base-300 hover:bg-base-100; }
+  /* Same row, round box. A radio drawn as a square is the one place a control
+     lies about its own behaviour — a square promises "tick as many as you
+     like" — and the ยกเลิกการจอง scope is exactly one choice. Shape only:
+     everything else about the row, including the check glyph, is `.chk`.
+     ⚠️ Ported now, rendered in Stage B (`#rq-cancel-modal`'s scope picker). */
+  .chk-radio .chk-box { @apply rounded-full; }
 
   /* ── Switch (สถานที่จัดกิจกรรม → เปิดให้จอง) ──────────────────────────
      A <button role="switch">, deliberately NOT daisyUI's `.toggle` and NOT the

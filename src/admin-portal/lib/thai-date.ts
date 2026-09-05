@@ -55,3 +55,57 @@ export function thaiDateTime(value: Date | string | null | undefined): string {
   if (!d) return NO_VALUE
   return `${thaiDate(d)} ${two(d.getHours())}:${two(d.getMinutes())}`
 }
+
+/**
+ * `10 ก.ย. 69` — the same date with a TWO-DIGIT Buddhist year.
+ *
+ * ⚠️ IT EXISTS FOR ONE COLUMN, and the reason is width rather than taste. คำขอจองสถานที่'s
+ * `วัน-เวลาใช้งาน` cell can hold a RANGE (`8 ก.ย. – 22 ก.ย. 69 (3 วัน, ไม่ต่อเนื่อง)`), which
+ * prints the year twice; at four digits that cell was the widest in an eight-column table already
+ * measured 196px over its card. Two digits are unambiguous in a school calendar that never reaches
+ * back a century.
+ *
+ * ⚠️ `.slice(-2)` on the BE year, never `% 100`: they agree for 2569 and disagree for any year
+ * under 100, where `%` yields a bare digit and the slice yields the string the eye expects.
+ */
+export function thaiDateShort(value: Date | string | null | undefined): string {
+  const d = parse(value)
+  if (!d) return NO_VALUE
+  return `${d.getDate()} ${TH_MONTHS[d.getMonth()]} ${String(d.getFullYear() + 543).slice(-2)}`
+}
+
+/**
+ * `ก.ย. 69` — the tail of `thaiDateShort`, for a same-month range that prints the month once
+ * (`10–12 ก.ย. 69`). Spelling it out on both ends is the same fact written twice in the widest
+ * cell of the table.
+ */
+export function thaiMonthYearShort(value: Date | string | null | undefined): string {
+  const d = parse(value)
+  if (!d) return NO_VALUE
+  return `${TH_MONTHS[d.getMonth()]} ${String(d.getFullYear() + 543).slice(-2)}`
+}
+
+/** `08:30` — 24-hour, zero-padded, no date. The clock half of `thaiDateTime`, on its own. */
+export function thaiTime(value: Date | string | null | undefined): string {
+  const d = parse(value)
+  if (!d) return NO_VALUE
+  return `${two(d.getHours())}:${two(d.getMinutes())}`
+}
+
+/**
+ * Which calendar day a timestamp falls on, as an integer, so "are these two days adjacent" is a
+ * subtraction.
+ *
+ * ⚠️ LOCAL PARTS, ASSEMBLED WITH `Date.UTC`. The parts have to be local — the API sends UTC and
+ * the school reads Bangkok time, so a 20:00 slot is the same day as its 08:00 one only in local
+ * terms. The ARITHMETIC has to be UTC — building `new Date(y, m, d)` twice and subtracting puts a
+ * DST transition between two midnights and returns 0.958 days, which rounds a run of dates into a
+ * gap. Both halves are needed and neither is interchangeable.
+ *
+ * Returns `null` for anything unparseable, so a caller cannot silently compare against `NaN`.
+ */
+export function dayNumber(value: Date | string | null | undefined): number | null {
+  const d = parse(value)
+  if (!d) return null
+  return Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000)
+}

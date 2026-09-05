@@ -197,6 +197,97 @@ export type CreateVenueBody = components['schemas']['CreateVenueDto']
 export type UpdateVenueBody = components['schemas']['UpdateVenueDto']
 
 /**
+ * `คำขอจองสถานที่` — the approval queue. One request is one row, however many days it spans.
+ *
+ * ⚠️ `slots` CARRIES CANCELLED SPANS TOO, and that is the contract's decision, not an oversight:
+ * the detail dialog has to be able to say that Wednesday was dropped and why. Anything summarising
+ * the array for a table cell has to state which population it is summarising.
+ *
+ * ⚠️ `isExpired` IS THE SERVER'S ANSWER, not a comparison to do here. It is
+ * `status === PENDING && lastEndAt < now` evaluated at read time — there is no fifth stored status
+ * and no cron — and recomputing it against the browser's clock is how two screens start disagreeing
+ * about the same row.
+ */
+export type BookingRequestListItem =
+  components['schemas']['AdminBookingRequestListItemDto']
+export type BookingRequestSlot = components['schemas']['AdminBookingSlotDto']
+export type BookingStatus = BookingRequestListItem['status']
+export type BookingOrigin = BookingRequestListItem['origin']
+export type BookingStatusCounts = components['schemas']['BookingStatusCountsDto']
+export type PaginatedBookingRequests =
+  components['schemas']['PaginatedBookingRequestsResponseDto']
+
+/**
+ * One request in full — the list shape PLUS `venue.capacity`/`isOpen`, `createdBy`, `approvedBy`,
+ * `approvedAt` and `conflicts`. What `#rq-detail-modal` reads, and the only surface every write on
+ * this screen is launched from.
+ */
+export type BookingRequestDetail = components['schemas']['AdminBookingRequestDetailDto']
+
+/**
+ * One request that approving THIS one would auto-reject (ADR-001), named so the operator can see
+ * whom they are about to bump before they commit.
+ *
+ * ⚠️ IT CARRIES THE OUTER BOUNDS (`firstStartAt`/`lastEndAt`), NOT A SLOT LIST. The prototype's
+ * conflict line printed the loser's whole span text because it held the entire record locally; here
+ * the contract deliberately sends a summary — code, requester and when — and the dialog prints
+ * exactly what it was given rather than implying per-day hours it does not have.
+ */
+export type BookingConflictItem = components['schemas']['BookingConflictItemDto']
+
+/**
+ * What `approve` answers with.
+ *
+ * ⚠️ `autoRejected` IS THE ONLY HONEST COUNT, and it can differ from the `conflicts.pendingLosers`
+ * the dialog was showing: that list was read outside the deciding transaction, and another operator
+ * may have moved one of those requests in between. Report THIS.
+ */
+export type ApproveBookingResult = components['schemas']['ApproveBookingResponseDto']
+
+/** One span, as `direct` and `preflight` both take it. Half-open: `[startAt, endAt)`. */
+export type BookingSlotInput = components['schemas']['BookingSlotInputDto']
+
+/**
+ * `POST /booking-requests/direct` — จองแทน. Creation IS the approval.
+ *
+ * ⚠️ TWO MUTUALLY EXCLUSIVE ORIGIN SHAPES, and sending both is a 400. (A) `lineUserId` alone, for a
+ * requester who has an account; (B) `requesterName` + `contactPhone` (both required) and optionally
+ * `departmentId`, for an outside body with no account. The three (B) fields are OVERRIDES, not a
+ * second profile store — on a request that carries `lineUserId` the name, phone and department must
+ * resolve through the registration, at one place.
+ */
+export type CreateDirectBookingBody = components['schemas']['CreateDirectBookingDto']
+
+/**
+ * What `preflight` answers about spans that are NOT SAVED YET — the create dialog's live banner.
+ *
+ * ⚠️ IT IS A FORECAST, NOT A RULING. It is read outside any transaction and takes no lock, so a
+ * disabled submit button is UX; `direct` refuses again inside its own transaction. Report what
+ * `direct` answered, never what this predicted.
+ *
+ * ⚠️ `approvedClashCount` COUNTS SLOTS, NOT BOOKINGS — one three-day booking across three requested
+ * days is 3, not 1. A screen that prints it as "3 รายการ" is wrong about a single booking.
+ *
+ * ⚠️ `venueIsOpen: false` IS INFORMATIONAL AND NEVER A BLOCK. `isOpen` refuses new REQUESTS, and a
+ * staff lock is not a request — the server accepts a direct booking on a closed venue by design.
+ */
+export type BookingPreflight = components['schemas']['BookingPreflightResponseDto']
+
+/** One PENDING request the spans overlap — ADR-001 would auto-reject it on submit. */
+export type BookingPreflightPending = components['schemas']['BookingPreflightPendingDto']
+
+/** The four orderings the queue offers. Absent → `created-desc`, which is what the server defaults to. */
+export type BookingRequestSort = 'created-desc' | 'event-asc' | 'created-asc' | 'event-desc'
+
+/**
+ * ⚠️ THREE VALUES, AND THE SERVER 400s ON A FOURTH rather than clamping — because the screen
+ * computes each row's ordinal as `(page - 1) * limit + i + 1` from the value it SENT, and a silent
+ * clamp would make every one of those numbers wrong with no signal anywhere. The type is what stops
+ * a caller reaching that 400.
+ */
+export type BookingRequestLimit = 10 | 20 | 50
+
+/**
  * The two "quick" transitions an ADMIN's row buttons emit (Approve/Reinstate →
  * ALLOWED, Block → BLOCKED). SUPER_ADMIN's override picker is not limited to
  * these — it sends the full `AppAccess` — so `patchLineUserAccess` takes the
@@ -1038,4 +1129,203 @@ export async function discardVenuePhoto(url: string): Promise<void> {
     }),
   )
   if (!response.ok) throw new ApiError(response.status, messageFrom(error, response))
+}
+
+// ---------------------------------------------------------------------------
+// Booking requests (คำขอจองสถานที่) — the approval queue.
+//
+// ⚠️ THE ADMIN SURFACE, NOT THE LIFF ONE. `/booking-requests` is behind the
+// cookie session + `RolesGuard`; the end-user's own bookings live under a
+// different prefix behind the LINE id-token guard. The two never share a call.
+//
+// ⚠️ EVERYTHING IS FILTERED, SORTED AND PAGED BY THE SERVER. This table is the
+// whole school across every term — fetching it and slicing in the browser is
+// the failure that arrives quietly, and the endpoint already refuses to answer
+// that way (`limit` is 10/20/50 or a 400).
+// ---------------------------------------------------------------------------
+
+export interface ListBookingRequestsParams {
+  page?: number
+  limit?: BookingRequestLimit
+  /**
+   * One box, four fields server-side: the booking `code`, the purpose, the venue name, and the
+   * requester's name — which has two sources (`requesterName` on a staff-raised booking, or the
+   * LINE user's registered first/last name).
+   *
+   * ⚠️ It cannot match across the space between a first and last name ("สมชาย ใจดี" finds nothing),
+   * the same limitation `GET /line-users` documents. A leading `#` is stripped server-side, so an
+   * operator pasting `#BR-…` out of a chat still finds the row.
+   */
+  search?: string
+  /** An unknown id yields an empty list with `total: 0`, not a 404 — it is a filter, not a resource. */
+  venueId?: string
+  /** Absent = the `ทั้งหมด` tab. ⛔ There is no `EXPIRED` value; see `isExpired` on the row. */
+  status?: BookingStatus
+  sort?: BookingRequestSort
+}
+
+/**
+ * One page of the queue, plus `counts`.
+ *
+ * ⚠️ `counts` IS COMPUTED WITHOUT `status` (but WITH `search` and `venueId`), so the five tab
+ * badges do not all drop to zero the moment a tab is selected. It is one fact rendered once — the
+ * screen must not recount the page it is holding.
+ */
+export async function listBookingRequests(
+  params: ListBookingRequestsParams = {},
+): Promise<PaginatedBookingRequests> {
+  const query: NonNullable<
+    paths['/api/v1/booking-requests']['get']['parameters']['query']
+  > = {}
+  if (params.page != null) query.page = params.page
+  if (params.limit != null) query.limit = params.limit
+  if (params.search && params.search.trim().length > 0) query.search = params.search.trim()
+  if (params.venueId) query.venueId = params.venueId
+  if (params.status) query.status = params.status
+  if (params.sort) query.sort = params.sort
+
+  const { data, error, response } = await api.GET('/api/v1/booking-requests', {
+    params: { query },
+  })
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * One request, with its conflict picture (`GET /booking-requests/:id`).
+ *
+ * ⚠️ CUID ONLY. The LIFF detail also accepts a `BR-…` code; this one does not, and it does not need
+ * to — the dialog is always opened from a row that already carries the id.
+ *
+ * ⚠️ `conflicts` IS ADVISORY. It is read outside the deciding transaction, so a disabled confirm
+ * button is UX and never the boundary: the approval transaction refuses again, with a 409.
+ */
+export async function getBookingRequest(id: string): Promise<BookingRequestDetail> {
+  const { data, error, response } = await api.GET('/api/v1/booking-requests/{id}', {
+    params: { path: { id } },
+  })
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * อนุมัติ (`POST /booking-requests/:id/approve`) — ADR-001's write.
+ *
+ * ⚠️ NO BODY AT ALL. There is nothing to say, and `forbidNonWhitelisted` answers 400 to any key —
+ * so this must not grow an empty object "for symmetry" with the two below.
+ *
+ * `409` is the answer to a request that is no longer PENDING, and to one whose slots an APPROVED
+ * booking already holds; nothing is written in either case.
+ */
+export async function approveBookingRequest(id: string): Promise<ApproveBookingResult> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/booking-requests/{id}/approve', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * ปฏิเสธ (`POST /booking-requests/:id/reject`).
+ *
+ * ⚠️ THE REASON IS TRIMMED HERE AS WELL AS THERE. The server trims before it checks, so a
+ * whitespace-only string is a 400 — sending it would be this layer forwarding a value it can already
+ * see is empty. It reaches the requester RAW, in LINE and on My Bookings.
+ */
+export async function rejectBookingRequest(
+  id: string,
+  reason: string,
+): Promise<BookingRequestDetail> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/booking-requests/{id}/reject', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+      body: { reason: reason.trim() },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * ยกเลิก (`POST /booking-requests/:id/cancel`) — the whole booking, or named slots.
+ *
+ * ⚠️ OMITTED IS NOT `[]` AND NOT `null`. Leaving `slotIds` out cancels every live slot; an empty
+ * array is a 400 ("say what you mean") and so is an explicit `null`. That is why the argument is
+ * optional and the key is only added when there is something in it.
+ *
+ * The response is the request as it now stands — including whether cancelling the last live slot
+ * turned it `CANCELLED`. ⚠️ That is the SERVER's ruling: never infer it from the ids that were sent.
+ */
+export async function cancelBookingRequest(
+  id: string,
+  reason: string,
+  slotIds?: readonly string[],
+): Promise<BookingRequestDetail> {
+  const body: components['schemas']['CancelBookingRequestDto'] =
+    slotIds && slotIds.length > 0
+      ? { reason: reason.trim(), slotIds: [...slotIds] }
+      : { reason: reason.trim() }
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/booking-requests/{id}/cancel', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * The create dialog's live conflict banner (`POST /booking-requests/preflight`).
+ *
+ * ⚠️ A POST THAT WRITES NOTHING, and the verb is the payload's fault rather than a mistake: up to
+ * sixty spans do not belong in a query string. It answers `200`, all three roles may call it, and it
+ * still carries CSRF because it is still a POST.
+ *
+ * ⚠️ IT VALIDATES THROUGH THE SAME FUNCTION `direct` DOES, so a `400` here PREDICTS a `400` there —
+ * a span in the past, reversed, or overlapping another span of the same submission. Surface that
+ * message rather than swallowing it: a banner that says "clean" and then fails on submit is a banner
+ * the operator stops reading.
+ *
+ * ⚠️ CALLERS MUST DISCARD A STALE ANSWER. It runs while somebody is typing, so a reply can land
+ * after its own question has been replaced.
+ */
+export async function preflightBooking(body: {
+  venueId: string
+  slots: readonly BookingSlotInput[]
+}): Promise<BookingPreflight> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/booking-requests/preflight', {
+      params: { header: { 'x-csrf-token': '' } },
+      body: { venueId: body.venueId, slots: [...body.slots] },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * จองแทน (`POST /booking-requests/direct`) — the booking lands `APPROVED`, approved by the caller.
+ *
+ * ⚠️ THE RESPONSE IS WHAT HAPPENED; the preflight was only what was expected to. `autoRejected` is
+ * the ADR-001 list the deciding transaction actually refused, and it can differ from the
+ * `overlappingPendingRequests` the dialog was showing — report THIS one.
+ *
+ * `409` is an APPROVED booking already holding one of the spans (nothing is written). `400` covers
+ * both origin shapes at once, an unusable `lineUserId`/`departmentId`, and every span rule.
+ * A CLOSED venue is NOT an error — see `BookingPreflight`.
+ */
+export async function createDirectBooking(
+  body: CreateDirectBookingBody,
+): Promise<ApproveBookingResult> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/booking-requests/direct', {
+      params: { header: { 'x-csrf-token': '' } },
+      body,
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
 }

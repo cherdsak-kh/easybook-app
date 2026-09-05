@@ -44,6 +44,20 @@
  * to the platform's close-request handling, so an un-prevented Escape goes straight to the
  * <dialog> — and the operator loses the whole half-typed form on their first attempt to dismiss a
  * dropdown.
+ *
+ * ── `searchable={false}` — the same control WITHOUT the filter box ──
+ * Added for คำขอจองสถานที่'s เรียงลำดับ field, and it is a real distinction rather than a
+ * preference: a search box over FOUR fixed sort options is a control that can only ever return you
+ * to where you started, and it puts a text cursor in front of a list nobody needs to narrow. What
+ * that screen needed was the LOOK — the same 44px trigger, border, chevron, popover, tick and hover
+ * as the venue field beside it — because a native <select> next to a `.cbx-trigger` is the one place
+ * in that toolbar the operating system shows through.
+ *
+ * ⚠️ IT IS A FLAG, NOT A SECOND COMPONENT (the prototype's `data-cbx-nosearch`, same decision).
+ * Everything below is shared; the search row simply is not rendered, and the LIST takes the focus
+ * and the `aria-activedescendant` the input would have held. That hand-off is the whole trick —
+ * miss it and the popper opens with focus still on the trigger, OUTSIDE the popper, where the
+ * keydown handler never fires and the arrow keys do nothing.
  */
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -106,8 +120,11 @@ export function Combobox<T extends number | string>({
   label,
   placeholder = 'เลือก…',
   error,
+  hint,
   disabled = false,
   required = false,
+  searchable = true,
+  icon,
   className = '',
   id,
 }: {
@@ -118,8 +135,32 @@ export function Combobox<T extends number | string>({
   label: ReactNode
   placeholder?: string
   error?: string
+  /**
+   * The standing advice under the field — `Field` renders it AFTER the error, at the measured
+   * spacing, so an invalid field is corrected first and read second.
+   *
+   * ⚠️ IT IS A PASS-THROUGH, NOT A NEW IDEA. `Field` has always owned this slot; the prop was simply
+   * never forwarded, so the venue picker in `#rq-create-modal` would otherwise have had to hand-roll
+   * a `<p>` and pick its own margin — which is the drift `Field` exists to prevent.
+   */
+  hint?: ReactNode
   disabled?: boolean
   required?: boolean
+  /**
+   * `false` drops the filter box and hands the keyboard to the listbox instead. For a CLOSED,
+   * SHORT vocabulary that cannot usefully be narrowed — see the header. Everything else about the
+   * control is identical, which is the point.
+   */
+  searchable?: boolean
+  /**
+   * A glyph before the caption, inside the trigger.
+   *
+   * ⚠️ It exists because a value long enough to TRUNCATE cannot identify itself:
+   * "วันที่ยื่นคำขอ (ใหม่…" with the tail cut off is indistinguishable from its own opposite. The
+   * icon says which AXIS at a glance; the text says which end of it. Decorative — pass an
+   * `aria-hidden` node, because the accessible name is the label plus the caption.
+   */
+  icon?: ReactNode
   className?: string
   id?: string
 }) {
@@ -285,9 +326,17 @@ export function Combobox<T extends number | string>({
     else if (t + h > list.scrollTop + list.clientHeight) list.scrollTop = t + h - list.clientHeight
   }, [open, active, rows])
 
+  /**
+   * ⚠️ FOCUS MUST LAND INSIDE THE POPPER, whichever half of the control is present. With the search
+   * box it is the input; without it the listbox itself, which is why the list carries `tabIndex={-1}`
+   * in that mode. Leave focus on the trigger and every arrow key below is dead, because the handler
+   * lives on the popper and the event never reaches it.
+   */
   useEffect(() => {
-    if (open) searchRef.current?.focus()
-  }, [open])
+    if (!open) return
+    if (searchable) searchRef.current?.focus()
+    else listRef.current?.focus()
+  }, [open, searchable])
 
   // Capture, and `pointerdown` rather than `click`: this has to run BEFORE the browser moves focus
   // to whatever was pressed, so an outside click never strands focus on <body> inside a modal and
@@ -361,6 +410,7 @@ export function Combobox<T extends number | string>({
     <Field
       label={label}
       error={error}
+      hint={hint}
       htmlFor={fieldId}
       labelId={labelId}
       errorId={errorId}
@@ -398,6 +448,7 @@ export function Combobox<T extends number | string>({
           setOpen(true)
         }}
       >
+        {icon}
         <span className={`cbx-text${selected ? '' : ' cbx-ph'}`}>
           {selected ? selected.name : placeholder}
         </span>
@@ -462,52 +513,62 @@ export function Combobox<T extends number | string>({
               if (e.key === 'Tab') close(true)
             }}
           >
-            <div className="cbx-search">
-              <svg
-                aria-hidden="true"
-                className="cbx-search-ico"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"
+            {searchable && (
+              <div className="cbx-search">
+                <svg
+                  aria-hidden="true"
+                  className="cbx-search-ico"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"
+                  />
+                </svg>
+                {/* Once focus is IN here this is the combobox the screen reader is on, and the
+                    highlight is an ACTIVE DESCENDANT rather than a focus move — the list must not
+                    take focus or typing stops working. */}
+                <input
+                  ref={searchRef}
+                  type="search"
+                  className="cbx-search-input"
+                  placeholder={SEARCH_PLACEHOLDER}
+                  aria-label={labelText ? `ค้นหา${labelText}` : 'ค้นหาตัวเลือก'}
+                  role="combobox"
+                  aria-expanded
+                  aria-autocomplete="list"
+                  aria-controls={listId}
+                  aria-activedescendant={rows.flat.length ? optionId(active) : undefined}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
                 />
-              </svg>
-              {/* Once focus is IN here this is the combobox the screen reader is on, and the
-                  highlight is an ACTIVE DESCENDANT rather than a focus move — the list must not
-                  take focus or typing stops working. */}
-              <input
-                ref={searchRef}
-                type="search"
-                className="cbx-search-input"
-                placeholder={SEARCH_PLACEHOLDER}
-                aria-label={labelText ? `ค้นหา${labelText}` : 'ค้นหาตัวเลือก'}
-                role="combobox"
-                aria-expanded
-                aria-autocomplete="list"
-                aria-controls={listId}
-                aria-activedescendant={rows.flat.length ? optionId(active) : undefined}
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
+              </div>
+            )}
 
             {/* The listbox is hidden rather than left as an empty padded strip — a 12px gap above
                 "ไม่พบตัวเลือก…" reads as a rendering fault. `mousedown` is refused so the caret
-                stays in the search box while a row is pressed. */}
+                stays in the search box while a row is pressed.
+
+                ⚠️ WITHOUT THE SEARCH BOX THIS BOX IS THE KEYBOARD TARGET, so it takes `tabIndex`
+                and the `aria-activedescendant` the input would otherwise hold. With the search box
+                it must NOT be focusable — stealing focus there stops typing working. */}
             <div
               ref={listRef}
               id={listId}
               role="listbox"
               aria-labelledby={labelId}
+              aria-activedescendant={
+                !searchable && rows.flat.length ? optionId(active) : undefined
+              }
+              tabIndex={searchable ? undefined : -1}
               className="cbx-list"
               hidden={rows.flat.length === 0}
               onMouseDown={(e) => e.preventDefault()}

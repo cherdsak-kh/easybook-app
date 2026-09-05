@@ -61,3 +61,67 @@ export const ACCESS_TONE: Record<AppAccess, 'emerald' | 'amber' | 'sky' | 'rose'
   BLOCKED: 'rose',
   UNREGISTERED: 'slate',
 }
+
+/** `BookingStatus` — the four states a booking request moves through. */
+export type BookingStatus = components['schemas']['AdminBookingRequestListItemDto']['status']
+
+/** Where the request was TYPED: `LINE` (the LIFF form) or `ADMIN` (raised in the back office). */
+export type BookingOrigin = components['schemas']['AdminBookingRequestListItemDto']['origin']
+
+/**
+ * ⚠️ FOUR STATES, NOT FIVE. "หมดอายุ" is not one of them: the server returns it as a derived
+ * `isExpired` boolean on a row that is still `PENDING`, and adding a fifth entry here would be the
+ * screen inventing a status the contract does not have.
+ *
+ * ⚠️ `ปฏิเสธ`/`ยกเลิก` are the tab labels too, and deliberately the same words — a count pill that
+ * says ปฏิเสธ must name the same set as the badge in the สถานะ column, or the strip is describing a
+ * table it does not match.
+ */
+export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
+  PENDING: 'รอพิจารณา',
+  APPROVED: 'อนุมัติแล้ว',
+  REJECTED: 'ปฏิเสธ',
+  CANCELLED: 'ยกเลิก',
+}
+
+/**
+ * The four hues, and they are shared with the tab strip's count pills on purpose: a count and the
+ * rows it counts are one colour. Same reason `ACCESS_TONE` exists — `<Badge>` takes a tone and must
+ * not learn what a `BookingStatus` is.
+ */
+export const BOOKING_STATUS_TONE: Record<BookingStatus, 'emerald' | 'amber' | 'sky' | 'rose'> = {
+  PENDING: 'amber',
+  APPROVED: 'emerald',
+  REJECTED: 'sky',
+  CANCELLED: 'rose',
+}
+
+/**
+ * Who cancelled a slot — the enum `AdminBookingSlotDto.cancelledByRole` carries.
+ *
+ * ⚠️ THE TWO STAFF ROLES SHARE ONE WORD, and that is the contract's own framing rather than a
+ * shortcut: the field answers "which DOMAIN cancelled this", the requester or the school, and the
+ * matching id is deliberately not exposed (it points into one of two unbridged tables), so there is
+ * no person to name. Printing `ผู้ดูแลระบบสูงสุด` here would announce a privilege level to answer a
+ * question nobody asked — and it would read as the NAME of the person who dropped that Wednesday.
+ */
+export type BookingCancelledByRole = NonNullable<
+  components['schemas']['AdminBookingSlotDto']['cancelledByRole']
+>
+
+export const BOOKING_CANCELLED_BY_LABEL: Record<BookingCancelledByRole, string> = {
+  LINE_USER: 'ผู้จองยกเลิกเองผ่าน LINE',
+  SUPER_ADMIN: 'เจ้าหน้าที่',
+  ADMIN: 'เจ้าหน้าที่',
+}
+
+/**
+ * The source chip in the ผู้ขอจอง column.
+ *
+ * ⚠️ `LINE` STAYS IN LATIN. It is the product's own name, not a word to translate, and the LIFF
+ * surface, the sidebar and the registration screen all spell it that way.
+ */
+export const BOOKING_ORIGIN_LABEL: Record<BookingOrigin, string> = {
+  LINE: 'LINE',
+  ADMIN: 'เจ้าหน้าที่',
+}
