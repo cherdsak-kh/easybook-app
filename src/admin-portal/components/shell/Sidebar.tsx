@@ -187,9 +187,12 @@ export function Sidebar({
             <p className="m-0 text-[18px] font-semibold leading-tight tracking-wide text-base-content">
               EasyBook
             </p>
-            {/* The SHORT wording. Measured at 12px Kanit the full name is 290px against a 196px
-                column, so it wraps to three lines in the one piece of chrome on screen every
-                second of every session. The boot screen states it in full. */}
+            {/* The SHORT wording. The full name does not fit the column, and that survived the
+                typeface swap: measured at 12px it runs 290px in KANIT (the original figure, taken
+                before 6 ก.ย. 2569) and 284px in NOTO SANS THAI 400 (re-measured from the shipped
+                woff by summing advance widths, same method), against a 196px column. Either way
+                it wraps to three lines in the one piece of chrome on screen every second of every
+                session. The boot screen states it in full. */}
             <p className="m-0 mt-0.5 text-[12px] leading-snug text-base-content/70 th-tight">
               ระบบจองสถานที่จัดกิจกรรม
             </p>

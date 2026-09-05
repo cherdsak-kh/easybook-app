@@ -978,7 +978,8 @@
 /* Plain CSS: only things Tailwind has no utility for (scrollbar, mask, marker). */
 
 /* ⚠️ THE PROTOTYPE'S `body` RULE IS DELIBERATELY NOT HERE.
-   It read:
+   It read, AT PORT TIME (the quote is historical — this file does not track the
+   prototype, and the app's own face changed on 6 ก.ย. 2569, see below):
      body { font-family: 'Kanit', sans-serif;
             background-color: var(--color-base-200);
             color: var(--color-base-content); }
@@ -989,9 +990,12 @@
    allowed to touch.
 
    Split three ways instead, each to the place that already owns it:
-     · font-family → `@theme --font-sans` in index.css. It was already there (Kanit,
-       self-hosted via @fontsource, with a Noto Sans Thai fallback the prototype's
-       Google-Fonts link did not need). Re-declaring it here would fight that.
+     · font-family → `@theme --font-sans` in index.css. It was already there, self-hosted
+       via @fontsource where the prototype used a Google-Fonts link. The family is now
+       **Noto Sans Thai** (6 ก.ย. 2569); it was Kanit at port time, which is why the rule
+       quoted above still names Kanit. Re-declaring it here would fight index.css either
+       way. ⚠️ Any width in this file's comments dated before that swap was measured in
+       Kanit: Thai runs ~1–2% narrower in the new face, digits and Latin 5–8% wider.
      · background + colour → the admin shell's own wrapper element (`bg-base-200
        text-base-content`), which is markup, and lands with the shell in P2.
 

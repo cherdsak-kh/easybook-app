@@ -26,8 +26,17 @@ import type { ReactNode } from 'react'
  * matters most here, where 12px Thai labels with stacked tone marks sit over moving content.
  *
  * ── All four labels show at every width ──
- * Measured from the font file (Kanit 500 advance widths at 12px), the four items come to roughly
- * 303px including gaps, padding and border. At 375px the `<nav>` offers 343px, so nothing wraps.
+ * 🕰️ KANIT-ERA FIGURE, NOT RE-VERIFIED AS A TOTAL. Measured from the font file (Kanit 500 advance
+ * widths at 12px), the four items came to roughly 303px including gaps, padding and border; at
+ * 375px the `<nav>` offers 343px, so nothing wraps. The app moved to Noto Sans Thai on
+ * 6 ก.ย. 2569 and that 303px total was NOT recomputed — its padding/gap accounting could not be
+ * reproduced from the current markup, so it is kept as history rather than restated with a number
+ * nobody measured. Treat it as "was true in Kanit", and re-measure in the browser before leaning
+ * on it for a new label.
+ * What WAS re-measured, same method, both faces, LABELS ONLY at 12px/500: the four come to
+ * 196.1px in Kanit and 194.1px in Noto Sans Thai (widest single label, การจองของฉัน: 73.7px →
+ * 73.3px). Thai text is ~1% narrower in the new face, so the swap moves this fit in the safe
+ * direction — but note the reverse holds for digits and Latin, which run 5–8% WIDER.
  * The earlier "four labels overflow" figure was computed from the old horizontal layout, where an
  * item was icon PLUS label wide; stacked, it is max(icon, label), and the labels are free.
  *

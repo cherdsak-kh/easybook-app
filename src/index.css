@@ -13,13 +13,22 @@
       Preflight's html/body default, every `font-sans` utility, and every daisyUI
       component at once — a `body { font-family }` rule would lose to any explicit
       `font-sans` utility and leave the two out of sync. The faces themselves are
-      self-hosted and imported in `src/main.tsx` (@fontsource/kanit).
-      Fallbacks, in order: Kanit → Noto Sans Thai (Thai-capable, pre-installed on
-      Android/most Thai devices, so a font-load failure still renders Thai sanely)
-      → the system sans stack. Font is NOT a daisyUI theme token — the theme blocks
-      below stay untouched. */
+      self-hosted and imported in `src/main.tsx` (@fontsource/noto-sans-thai).
+
+      Fallbacks, in order: Noto Sans Thai → the system sans stack. Noto Sans Thai
+      used to be the SECOND entry here, behind Kanit, precisely because it is
+      Thai-capable and pre-installed on Android/most Thai devices. Now that it is
+      the primary it must appear exactly ONCE: naming it twice buys nothing, and the
+      old safety net moves INSIDE the first entry — if the self-hosted woff2 fails to
+      load, the device's own copy of the same family answers under the same name, so
+      Thai still renders in the intended face rather than a substitute. `ui-sans-serif`
+      / `system-ui` remain as the last resort for a device that has neither.
+      ⚠️ Do NOT re-add a second Thai-capable family "for safety" — a fallback that
+      renders at different advance widths is how a layout tuned to one font silently
+      reflows on the devices that use the other.
+      Font is NOT a daisyUI theme token — the theme blocks below stay untouched. */
 @theme {
-  --font-sans: 'Kanit', 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
 }
 
 /* 2c. Admin Portal v2's NON-COLOUR scale, lifted from the prototype's `@theme static`
