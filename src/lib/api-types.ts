@@ -164,6 +164,50 @@ export interface paths {
         patch: operations["LineRegistrationController_updateRegistration"];
         trace?: never;
     };
+    "/api/v1/line-users/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the caller's client-portal settings.
+         * @description Header-derived and param-less: the caller reads only their own settings (identity = the verified `sub`). ⚠️ A user who has never saved anything HAS NO ROW and gets the documented defaults with `updatedAt: null` — this read never writes, so a follower who never opens the settings screen costs zero rows forever (`Q-C9`).
+         */
+        get: operations["LineSettingsController_getSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update the caller's client-portal settings (partial, merged).
+         * @description Every field is optional and **absence means unchanged**. `notifications` is merged PER KEY, so sending `{"notifications":{"decisions":false}}` leaves `announcements` and `reminders` exactly as they were. The row is created on first save. Unknown keys, a theme outside `light|dark|system`, and a non-boolean (or explicitly `null`) toggle are all `400`. There is no `lineUserId` body field — the identity is the verified `sub`.
+         */
+        patch: operations["LineSettingsController_patchSettings"];
+        trace?: never;
+    };
+    "/api/v1/line-users/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The version this API is running, for the `#/version` screen.
+         * @description The consumer counterpart of the admin `GET /system/version`, which is behind the cookie session the client portal does not have (`NEEDS_DESIGN.md` §3). Authenticated on purpose and deliberately NOT on the public `/health` probe: publishing an exact build to the open internet is how a scanner matches a CVE to a deployment. Carries no per-user data — every caller gets the identical answer.
+         */
+        get: operations["LineSettingsController_getVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/line-users": {
         parameters: {
             query?: never;
@@ -1221,6 +1265,67 @@ export interface components {
              * @example 1
              */
             personnelRoleId: number;
+        };
+        NotificationPreferencesDto: {
+            /**
+             * @description ประกาศและข่าวประชาสัมพันธ์ — announcements, activity news and system updates from the admins.
+             * @example true
+             */
+            announcements: boolean;
+            /**
+             * @description ผลการพิจารณาคำขอจองสถานที่ — approved, rejected, or auto-rejected because somebody else was approved first.
+             * @example true
+             */
+            decisions: boolean;
+            /**
+             * @description เตือนความจำก่อนถึงเวลาเข้าใช้งาน — 24 hours before, and again 1 hour before.
+             * @example true
+             */
+            reminders: boolean;
+        };
+        LineUserSettingsResponseDto: {
+            /**
+             * @description One of `light` · `dark` · `system`. ⚠️ The CLIENT-LOCAL value stays authoritative for first paint (`Q-C9`); this is the cross-device sync, never a reason to block the first render on a fetch.
+             * @example system
+             */
+            theme: string;
+            notifications: components["schemas"]["NotificationPreferencesDto"];
+            /**
+             * Format: date-time
+             * @description When the user last saved their settings, or **null** when they never have — in which case every value above is a default and no row exists. Serialised as ISO 8601.
+             * @example 2026-09-07T12:51:05.000Z
+             */
+            updatedAt: string | null;
+        };
+        UpdateNotificationPreferencesDto: {
+            /** @example false */
+            announcements?: boolean;
+            /** @example false */
+            decisions?: boolean;
+            /** @example false */
+            reminders?: boolean;
+        };
+        UpdateLineUserSettingsDto: {
+            /**
+             * @description Absent = unchanged. Anything outside the three values is a 400.
+             * @example dark
+             * @enum {string}
+             */
+            theme?: "light" | "dark" | "system";
+            /** @description Merged PER KEY into the stored object — an absent key is unchanged, never reset to its default. */
+            notifications?: components["schemas"]["UpdateNotificationPreferencesDto"];
+        };
+        LineUserVersionResponseDto: {
+            /**
+             * @description The release train both repositories share (`Q-C8`). `0.x.y` while in development; `1.0.0` on the day the school starts using it.
+             * @example 0.14.0
+             */
+            version: string;
+            /**
+             * @description Always `ok` when the request reached this handler — the client uses it as a liveness marker beside the version comparison.
+             * @example ok
+             */
+            status: string;
         };
         LineUserRegistrationSummaryDto: {
             /** @example Somchai */
@@ -2352,7 +2457,7 @@ export interface operations {
     LineRegistrationController_listVenues: {
         parameters: {
             query?: {
-                /** @description Case-insensitive substring match on the venue NAME or LOCATION. Trimmed; empty/absent → no search filter. */
+                /** @description Case-insensitive substring match on the venue NAME or LOCATION. Normalised with the same Thai sanitiser the venue name is stored with (double SARA E → SARA AE, tone reordering, zero-widths stripped, trimmed), so a search matches what was written; empty/absent → no search filter. */
                 q?: string;
                 /** @description Filter by category id. The reserved tombstone id is accepted here (unlike on create/update), so orphaned venues can be found and re-filed. */
                 venueTypeId?: number;
@@ -2563,13 +2668,140 @@ export interface operations {
             };
         };
     };
+    LineSettingsController_getSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller’s settings, or the defaults when they have none. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserSettingsResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineSettingsController_patchSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLineUserSettingsDto"];
+            };
+        };
+        responses: {
+            /** @description The caller’s settings after the merge. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserSettingsResponseDto"];
+                };
+            };
+            /** @description An unknown key, an unsupported theme, or a non-boolean notification value. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineSettingsController_getVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The running version. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserVersionResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
     LineUsersController_list: {
         parameters: {
             query?: {
                 /** @description 1-based page number. */
                 page?: number;
                 limit?: number;
-                /** @description Case-insensitive substring match across the LINE display name, the registered first and last name, the resolved position and department names, and the phone number. A query of three or more digits also matches the phone with its separators removed, so "0812345678" finds "081-234-5678". Trimmed; empty/absent → no search filter. */
+                /** @description Case-insensitive substring match across the LINE display name, the registered first and last name, the resolved position and department names, and the phone number. A query of three or more digits also matches the phone with its separators removed, so "0812345678" finds "081-234-5678". Trimmed and Thai-normalised (a double SARA E, a NIKHAHIT+SARA AA, a misordered tone mark or a pasted zero-width character all still match); empty/absent → no search filter. */
                 search?: string;
                 /** @description Narrows the list to a single access state. An invalid value is a 400. `UNREGISTERED` is the "ยังไม่ลงทะเบียน" filter — a real state, not the absence of one. */
                 access?: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED" | "REJECTED";
@@ -2769,7 +3001,7 @@ export interface operations {
     VenuesController_list: {
         parameters: {
             query?: {
-                /** @description Case-insensitive substring match on the venue NAME or LOCATION. Trimmed; empty/absent → no search filter. */
+                /** @description Case-insensitive substring match on the venue NAME or LOCATION. Normalised with the same Thai sanitiser the venue name is stored with (double SARA E → SARA AE, tone reordering, zero-widths stripped, trimmed), so a search matches what was written; empty/absent → no search filter. */
                 q?: string;
                 /** @description Filter by category id. The reserved tombstone id is accepted here (unlike on create/update), so orphaned venues can be found and re-filed. */
                 venueTypeId?: number;
@@ -3639,7 +3871,7 @@ export interface operations {
                 /** @description 1-based page number. */
                 page?: number;
                 limit?: number;
-                /** @description Case-insensitive substring match on the first name, last name, email or phone number. Trimmed; empty/absent → no search filter. The phone match is on the number **as stored**, so it is format-sensitive: `0812345678` does not match a stored `081-234-5678`. */
+                /** @description Case-insensitive substring match on the first name, last name, email or phone number. Trimmed and Thai-normalised (a double SARA E, a NIKHAHIT+SARA AA, a misordered tone mark or a pasted zero-width character all still match); empty/absent → no search filter. The phone match is on the number **as stored**, so it is format-sensitive: `0812345678` does not match a stored `081-234-5678`. */
                 search?: string;
                 /** @description Narrows to a single role. An invalid value is a 400. */
                 role?: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
