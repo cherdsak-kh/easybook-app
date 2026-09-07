@@ -892,6 +892,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/line-users/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read org-wide approved booking schedule across all venues.
+         * @description Feeds `#/home` — both the calendar’s day dots and the activity list, from ONE round trip, which is why the window defaults to a whole Bangkok month rather than a day. 🔴 **APPROVED only, and there is no parameter that widens it**: a PENDING request is not a fact about the school, several people may hold overlapping ones (`D-C13` rule 4), and painting one on the organisation’s calendar reads to its own author as *my request was granted*. Cancelled slots and soft-deleted venues are excluded too. Returns every matching slot that OVERLAPS the window, `startAt ASC`; `isMine` marks the caller’s own rows for the `คุณ` badge.
+         */
+        get: operations["LineBookingsController_getMasterSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/booking-requests/direct": {
         parameters: {
             query?: never;
@@ -2062,6 +2082,37 @@ export interface components {
             purpose: string | null;
             /** @description 🔴 `null` on somebody else’s PENDING request (`D-C13`). Also `null` on a staff-created booking with no LINE requester and no manual override — an unnamed approved slot is normal, not an error. */
             requesterName: string | null;
+        };
+        LineScheduleSlotDto: {
+            /** @description The `BookingSlot` cuid — one span, not a request. */
+            id: string;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            /** @description The venue cuid, for the link into `#/venue/:id`. */
+            venueId: string;
+            /** @example หอประชุมวารณ */
+            venueName: string;
+            /** @description The venue’s category id, for the shared type-filter row. Always populated today. */
+            venueTypeId: number | null;
+            /**
+             * @description The venue’s category name. Always populated today.
+             * @example หอประชุม
+             */
+            venueTypeName: string | null;
+            /**
+             * @description Never blanked — every row on this endpoint is APPROVED.
+             * @example ประชุมผู้ปกครองระดับชั้น ม.3
+             */
+            purpose: string;
+            /**
+             * @description From the LINE registration, or the staff requester override. Null when a staff booking named nobody.
+             * @example สมชาย ใจดี
+             */
+            requesterName: string | null;
+            /** @description True when this activity belongs to the calling LINE user. */
+            isMine: boolean;
         };
         BookingSlotInputDto: {
             /**
@@ -5668,6 +5719,67 @@ export interface operations {
             };
             /** @description No such venue, or it has been deleted. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_getMasterSchedule: {
+        parameters: {
+            query?: {
+                /** @description Inclusive start of the window, ISO 8601 (a bare `2026-09-01` is accepted). Defaults to the first instant of the current Bangkok month. */
+                from?: string;
+                /** @description Exclusive end of the window, ISO 8601. Defaults to the first instant of next month. Must not be earlier than `from`, and the window may not exceed 366 days. */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved activity spans, `startAt ASC`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineScheduleSlotDto"][];
+                };
+            };
+            /** @description An unknown query parameter, a malformed date, `to` before `from`, or a range wider than 366 days. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
