@@ -96,6 +96,7 @@ export function Dropdown({
    */
   triggerClassName = 'btn h-12 min-h-12 w-12 border-base-300 bg-base-100 px-0 font-normal shadow-2xs hover:bg-base-200/60 sm:w-auto sm:gap-2 sm:px-4',
   label,
+  closeOnSelect = false,
 }: {
   /** What sits inside the `<summary>` — text, an icon, or both. */
   trigger: ReactNode
@@ -106,6 +107,20 @@ export function Dropdown({
   triggerClassName?: string
   /** Announced name for the trigger, when the visible content is an icon alone. */
   label?: string
+  /**
+   * Close the menu as soon as one of its rows is activated (prototype 5512: `dd.open = false`).
+   *
+   * ⚠️ `<details>` DOES NOT CLOSE ITSELF WHEN SOMETHING INSIDE IT IS CLICKED, and neither does the
+   * document handler above — a click on a row is *contained* by this dropdown, which is exactly the
+   * case that handler is written to skip. Left open, the menu stays parked over the list it just
+   * re-filtered, so the reader never sees the effect of what they pressed and reads it as "nothing
+   * happened".
+   *
+   * ⚠️ OPT-IN, DEFAULT `false`. `#/venues` and `#/bookings` shipped without it; turning it on for
+   * everyone from here would change three screens this change was not asked to touch. It is the
+   * prototype's rule for all four menus, so those two are worth a look — but as their own change.
+   */
+  closeOnSelect?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const rootRef = useRef<HTMLDetailsElement>(null)
@@ -147,6 +162,16 @@ export function Dropdown({
       </summary>
       <ul
         id={contentId}
+        /* Delegated, so a caller writes plain `<li><button>` rows exactly as daisyUI's `menu`
+           wants them and nothing has to remember to close anything. `closest('button')` rather
+           than a target check: the click can land on a glyph inside the row. */
+        onClick={
+          closeOnSelect
+            ? (e) => {
+                if ((e.target as HTMLElement).closest('button')) close()
+              }
+            : undefined
+        }
         className={`dropdown-content menu z-40 mt-2 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg ${contentClassName}`}
       >
         {children}

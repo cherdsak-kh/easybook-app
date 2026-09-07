@@ -6,6 +6,7 @@ import { BookingDetailPage } from './pages/bookings/BookingDetailPage'
 import { MyBookingsPage } from './pages/bookings/MyBookingsPage'
 import { GateErrorPage } from './pages/gate/GateErrorPage'
 import { GateLanding } from './pages/gate/GateLanding'
+import { HomePage } from './pages/home/HomePage'
 import { AddFriendPage } from './pages/register/AddFriendPage'
 import { BlockedPage } from './pages/register/BlockedPage'
 import { LoginPage } from './pages/register/LoginPage'
@@ -33,11 +34,16 @@ import type { ScreenName } from './routes'
  * here and a segment to `SEGMENT_SCREEN` in `routes.ts`, and nothing else.
  *
  * ── `COMING_SOON` is the answer to "which of the twenty are NOT real yet?" ──
- * **One, after Phase 7a** — eighteen in Phase 2, then six deleted by Phase 3 and the rest by
- * Phases 4–7a. The built ones are the `<Route>`s written out by hand above it. Each phase deletes
- * its own rows from the table and writes them out in their place, so the table shrinks to nothing
- * and the file ends up as a plain route list. One object to read rather than a branch hidden
- * inside a loop.
+ * **None, after Phase 7b.** Eighteen in Phase 2, then six deleted by Phase 3 and the rest by
+ * Phases 4–7b: `#/home` was the last row and 7b wrote it out. The table has shrunk to nothing
+ * exactly as designed, and the file is now the plain route list it was always heading for.
+ *
+ * 🟠 `COMING_SOON`, `Stand`, `TO_VENUES` and the `ComingSoonScreen`/`UnderConstruction` pair are
+ * therefore **dead as of this phase, and are deliberately left in place** rather than deleted here.
+ * They are shared machinery, `#/issues` is still an "under development" screen by ruling (`Q-C5`)
+ * and renders `UnderConstruction` for real, and pruning the scaffold is a decision for whoever
+ * closes the phase — not a side effect of adding the last route. Recorded so nobody has to
+ * rediscover that the empty array is intentional.
  *
  * ⚠️ `RESTART` HAS NO ROWS LEFT and that is why it is gone: every screen that offered "start the
  * checks again" as its way out was a gate outcome, and all six are now real.
@@ -51,24 +57,18 @@ import type { ScreenName } from './routes'
 type Stand = { path: string; screen: ScreenName; backTo: string; backLabel: string }
 
 /**
- * ⚠️ THE EXIT IS PART OF THE STAND-IN. `UnderConstruction`'s contract is that a dead end always
- * offers a labelled way out, and the honest destination differs by screen. The two other spellings
- * this constant used to have — *กลับสู่หน้าตั้งค่า* and *กลับสู่หน้าแรก* — went out with the rows
- * that used them, not because the rule changed: the settings sub-screens now say the first of them
- * for real, from inside `UnderConstruction`'s own default.
- */
-const TO_VENUES = { backTo: '/venues', backLabel: 'กลับสู่รายการสถานที่' }
-
-/**
- * ⚠️ ONE ROW LEFT, AND IT EMPTIES IN 7b. Phase 7a wrote out the five settings screens
- * (`/settings` `/issues` `/version` `/manual` `/rules`), so only `#/home` is still a stand-in.
+ * 🔴 **EMPTY — the twenty screens are all real.** Phase 7b wrote out `#/home`, the last stand-in,
+ * so this renders nothing and the `.map()` below emits no routes.
  *
- * 🟠 `#/home`'s EXIT STILL POINTS AT `/venues` and that is now the only honest destination left:
- * every other screen this array used to hold is real, so "back to the start" would land on the
- * screen the visitor is already looking at. 7b deletes this row and, with it, the P5b decision that
- * pointed `#/sent/:id`'s กลับหน้าแรก button at `/venues` for the same reason.
+ * ⚠️ THE `TO_VENUES` CONSTANT WENT WITH THE ROW THAT USED IT, because `noUnusedLocals` leaves no
+ * choice — not because the rule it carried changed. The rule was: a stand-in always offers a
+ * *labelled* way out, and the honest destination differs by screen. `UnderConstruction` still owns
+ * that contract and still has a live caller, the settings sub-screens.
+ *
+ * ⚠️ The type and the `.map()` are kept: an empty table with the machinery still attached is one
+ * line to fill in, and deleting shared scaffolding is a separate decision from adding a route.
  */
-const COMING_SOON: Stand[] = [{ path: '/home', screen: 'home', ...TO_VENUES }]
+const COMING_SOON: Stand[] = []
 
 export function ClientRoutes() {
   /**
@@ -102,6 +102,15 @@ export function ClientRoutes() {
           {/* P2 · the gate. */}
           <Route index element={<GateLanding />} />
           <Route path="/gate-error" element={<GateErrorPage />} />
+
+          {/* P7b · the home screen — the org-wide approved schedule, and the landing screen for
+              every `ALLOWED` user (`LANDING.allowed`). A dock tab: `NAV_SCREENS` lists `home` and
+              `NAV_TAB` maps it to `/home`, so the หน้าแรก pill highlights itself and nothing on the
+              page says so.
+              ⚠️ IT IS NOT THE INDEX ROUTE. `/` is the GATE (`routes.ts` `screenOf`), because the
+              four checks need a route of their own — otherwise every unpermitted deep link, which
+              bounces to `/` to re-check, becomes an unchecked entry into the app. */}
+          <Route path="/home" element={<HomePage />} />
 
           {/* P3 · the identity lifecycle. Six screens, all dockless — none of the dock's
               destinations is reachable by somebody who is not yet `ALLOWED`, so the screen and the
