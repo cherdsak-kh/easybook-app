@@ -21,6 +21,8 @@
  *   - GET  line-users                       — SUPER_ADMIN|ADMIN|VIEWER
  *   - GET  system-users, system-users/:id   — SUPER_ADMIN|ADMIN|VIEWER
  *   - GET  system/version                   — every role (no `@Roles`, session only)
+ *                                             DEFAULT AGREES WITH `package.json`; drive the
+ *                                             disagreement state via `POST /__control/version`
  *   - booking-requests (list/detail/approve/reject/cancel/preflight/direct) — as before
  *
  * What this stub does NOT serve (a 404 here is expected, not a bug):
@@ -33,9 +35,10 @@
  * — that is a genuinely unimplemented corner of the stub, not a contract mismatch.
  *
  * Control plane (not part of the real contract, prefixed `__`):
- *   POST /__control/role      { role }                     — switch the signed-in role
- *   POST /__control/emit      { event, id, status, actor } — push a realtime event
- *   POST /__control/reset                                   — restore the seed
+ *   POST /__control/role      { role }                       — switch the signed-in role
+ *   POST /__control/emit      { event, id, status, actor }   — push a realtime event
+ *   POST /__control/version   { version, build?, releasedAt? } — set what GET system/version reports
+ *   POST /__control/reset                                     — restore the seed AND the version
  *
  * ── How to run this (the full recipe) ─────────────────────────────────────
  *
@@ -47,7 +50,7 @@
  *
  * Then open http://localhost:2201 and drive the admin portal against fake data.
  *
- * Worked `curl` examples for the three control routes:
+ * Worked `curl` examples for the four control routes:
  *
  *   # Switch the signed-in role (try VIEWER to hit the 403/handshake-refusal paths)
  *   curl -s -X POST http://localhost:3301/__control/role \
@@ -59,13 +62,30 @@
  *     -H "Content-Type: application/json" \
  *     -d '{"event":"bookingRequest.updated","id":"b1","status":"APPROVED"}'
  *
- *   # Restore the original seed
+ *   # Downgrade the server behind the app, then reload /backend/help/version:
+ *   # the status line turns amber and names BOTH numbers. `build`/`releasedAt` are
+ *   # optional and keep their current values when omitted.
+ *   curl -s -X POST http://localhost:3301/__control/version \
+ *     -H "Content-Type: application/json" \
+ *     -d '{"version":"0.4.0"}'
+ *   # → {"version":"0.4.0","build":"stub0000","releasedAt":"2026-09-06T12:00:00.000Z"}
+ *
+ *   # …and the reset that undoes it — back to agreeing with `package.json`
  *   curl -s -X POST http://localhost:3301/__control/reset \
  *     -H "Content-Type: application/json" -d '{}'
+ *   # → {"ok":true,"rows":96,"version":"0.13.0"}
+ *
+ *   # A bad body is REFUSED rather than half-applied, so `/api/v1/system/version` can never
+ *   # serve `{"version":undefined}` and turn a stub typo into a phantom frontend bug.
+ *   curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3301/__control/version \
+ *     -H "Content-Type: application/json" -d '{}'
+ *   # → 400
  */
 import express from 'express';
 import cors from 'cors';
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
 
 const PORT = 3301;
@@ -117,6 +137,36 @@ const findAmenities = (ids) =>
 /* ── state ─────────────────────────────────────────────────────────────── */
 
 let role = 'SUPER_ADMIN';
+
+/**
+ * What `GET /api/v1/system/version` reports, and it starts out AGREEING with the app.
+ *
+ * ⚠️ The default is read from `package.json` at startup rather than written here as a literal,
+ * because the app's own number comes from the same file (`vite.config.ts` → `__APP_VERSION__`) and
+ * a literal only agrees with it until the next bump. This stub previously hard-coded `0.4.0`
+ * against a `0.13.0` app, so `/backend/help/version` opened on an amber disagreement banner on a
+ * perfectly healthy stub — a warning state as the DEFAULT teaches the next reader to distrust the
+ * colour, in a tool whose whole job is to not produce false failures.
+ *
+ * Resolved from this file's own location, not `process.cwd()`, so the stub is correct no matter
+ * where it is started from. A missing/unreadable `package.json` throws here, at startup, loudly —
+ * far better than silently serving a stale number nobody would think to question.
+ *
+ * The disagreement branch is still one curl away — see `POST /__control/version` below. It drives
+ * the versions apart in EITHER direction, which matches how the page reads them: the status line
+ * keys off disagreement, not off the app being ahead.
+ */
+const APP_PACKAGE_VERSION = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'),
+).version;
+
+const DEFAULT_SYSTEM_VERSION = {
+  version: APP_PACKAGE_VERSION,
+  build: 'stub0000',
+  releasedAt: '2026-09-06T12:00:00.000Z',
+};
+
+let systemVersion = { ...DEFAULT_SYSTEM_VERSION };
 
 const VENUES = [
   {
@@ -313,9 +363,8 @@ app.get('/api/v1/personnel-roles', denyViewerRead, (_req, res) => res.json(PERSO
 app.get('/api/v1/venue-types', denyViewerRead, (_req, res) => res.json(VENUE_TYPES));
 app.get('/api/v1/amenities', denyViewerRead, (_req, res) => res.json(AMENITIES));
 
-app.get('/api/v1/system/version', (_req, res) =>
-  res.json({ version: '0.4.0', build: 'stub0000', releasedAt: '2026-09-01T02:00:00.000Z' }),
-);
+// Mirrors `SystemVersionResponseDto`. The value is state, not a literal — see `systemVersion`.
+app.get('/api/v1/system/version', (_req, res) => res.json(systemVersion));
 
 /**
  * Seed for `GET /line-users`. Fields mirror `LineUserResponseDto` + the nested
@@ -641,9 +690,47 @@ app.post('/__control/role', (req, res) => {
   role = req.body.role;
   res.json({ role });
 });
+/**
+ * Set what `GET /api/v1/system/version` reports, so the version screen's disagreement state can be
+ * exercised without editing this file.
+ *
+ * `version` is REQUIRED; `build` and `releasedAt` are optional and keep their current value when
+ * omitted. All three must be non-empty strings.
+ *
+ * ⚠️ VALIDATED, AND APPLIED ALL-OR-NOTHING. A control route that stores whatever it is handed sets
+ * `version: undefined` on a typo'd body, and `/api/v1/system/version` then serves a malformed
+ * payload — which reads as a frontend bug on a screen that is actually fine. Building into `next`
+ * and swapping at the end is what keeps a rejected `build` from leaving a half-applied `version`
+ * behind.
+ */
+app.post('/__control/version', (req, res) => {
+  const body = req.body ?? {};
+  const next = { ...systemVersion };
+
+  for (const field of ['version', 'build', 'releasedAt']) {
+    const given = body[field];
+    if (given === undefined) {
+      if (field === 'version') {
+        return res.status(400).json({ error: '`version` is required and must be a non-empty string' });
+      }
+      continue;
+    }
+    if (typeof given !== 'string' || given.trim() === '') {
+      return res.status(400).json({ error: `\`${field}\` must be a non-empty string` });
+    }
+    next[field] = given.trim();
+  }
+
+  systemVersion = next;
+  res.json(systemVersion);
+});
+
 app.post('/__control/reset', (_req, res) => {
   ROWS = seed();
-  res.json({ ok: true, rows: ROWS.length });
+  // The version is state too, so it comes back with the seed — otherwise a downgrade driven for
+  // one check survives into the next one and quietly repaints an unrelated screen amber.
+  systemVersion = { ...DEFAULT_SYSTEM_VERSION };
+  res.json({ ok: true, rows: ROWS.length, version: systemVersion.version });
 });
 app.post('/__control/emit', (req, res) => {
   const { event, id, status } = req.body;
@@ -677,5 +764,7 @@ function emit(event, payload) {
 }
 
 server.listen(PORT, () =>
-  console.log(`[stub] :${PORT} — role=${role}, ${ROWS.length} booking rows`),
+  console.log(
+    `[stub] :${PORT} — role=${role}, ${ROWS.length} booking rows, version=${systemVersion.version} (from package.json)`,
+  ),
 );
