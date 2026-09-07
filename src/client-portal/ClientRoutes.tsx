@@ -14,6 +14,9 @@ import { RegistrationPage } from './pages/register/RegistrationPage'
 import { RejectedPage } from './pages/register/RejectedPage'
 import { BookingRequestPage } from './pages/request/BookingRequestPage'
 import { BookingSentPage } from './pages/request/BookingSentPage'
+import { SettingsPage } from './pages/settings/SettingsPage'
+import { IssuesPage, ManualPage, RulesPage } from './pages/settings/SubScreenTemplate'
+import { VersionPage } from './pages/settings/VersionPage'
 import { VenueDetailPage } from './pages/venues/VenueDetailPage'
 import { VenuesCatalogPage } from './pages/venues/VenuesCatalogPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -30,10 +33,11 @@ import type { ScreenName } from './routes'
  * here and a segment to `SEGMENT_SCREEN` in `routes.ts`, and nothing else.
  *
  * ── `COMING_SOON` is the answer to "which of the twenty are NOT real yet?" ──
- * Twelve, after Phase 3 — eighteen in Phase 2, minus the six of the identity lifecycle. The built
- * ones are the `<Route>`s written out by hand above it. Each phase deletes its own rows from the
- * table and writes them out in their place, so the table shrinks to nothing and the file ends up
- * as a plain route list. One object to read rather than a branch hidden inside a loop.
+ * **One, after Phase 7a** — eighteen in Phase 2, then six deleted by Phase 3 and the rest by
+ * Phases 4–7a. The built ones are the `<Route>`s written out by hand above it. Each phase deletes
+ * its own rows from the table and writes them out in their place, so the table shrinks to nothing
+ * and the file ends up as a plain route list. One object to read rather than a branch hidden
+ * inside a loop.
  *
  * ⚠️ `RESTART` HAS NO ROWS LEFT and that is why it is gone: every screen that offered "start the
  * checks again" as its way out was a gate outcome, and all six are now real.
@@ -47,26 +51,24 @@ import type { ScreenName } from './routes'
 type Stand = { path: string; screen: ScreenName; backTo: string; backLabel: string }
 
 /**
- * ⚠️ THE EXITS ARE PART OF THE STAND-IN. `UnderConstruction`'s contract is that a dead end always
- * offers a labelled way out, and the honest destination differs by screen: a settings sub-screen
- * goes back to Settings (which is what the prototype draws), a flow step goes back to the list it
- * came from, and a gate-outcome screen goes back to `/` — which restarts the checks and lands the
- * user wherever they actually belong, the only thing that is true for all six of them.
+ * ⚠️ THE EXIT IS PART OF THE STAND-IN. `UnderConstruction`'s contract is that a dead end always
+ * offers a labelled way out, and the honest destination differs by screen. The two other spellings
+ * this constant used to have — *กลับสู่หน้าตั้งค่า* and *กลับสู่หน้าแรก* — went out with the rows
+ * that used them, not because the rule changed: the settings sub-screens now say the first of them
+ * for real, from inside `UnderConstruction`'s own default.
  */
-const TO_SETTINGS = { backTo: '/settings', backLabel: 'กลับสู่หน้าตั้งค่า' }
 const TO_VENUES = { backTo: '/venues', backLabel: 'กลับสู่รายการสถานที่' }
-const TO_HOME = { backTo: '/home', backLabel: 'กลับสู่หน้าแรก' }
 
-const COMING_SOON: Stand[] = [
-  // 🟠 Q-C7 · unassigned to any phase — the PO's call, not a phase's to adopt quietly.
-  { path: '/home', screen: 'home', ...TO_VENUES },
-  { path: '/settings', screen: 'settings', ...TO_HOME },
-  { path: '/issues', screen: 'issues', ...TO_SETTINGS },
-  { path: '/version', screen: 'version', ...TO_SETTINGS },
-  { path: '/manual', screen: 'manual', ...TO_SETTINGS },
-  { path: '/rules', screen: 'rules', ...TO_SETTINGS },
-
-]
+/**
+ * ⚠️ ONE ROW LEFT, AND IT EMPTIES IN 7b. Phase 7a wrote out the five settings screens
+ * (`/settings` `/issues` `/version` `/manual` `/rules`), so only `#/home` is still a stand-in.
+ *
+ * 🟠 `#/home`'s EXIT STILL POINTS AT `/venues` and that is now the only honest destination left:
+ * every other screen this array used to hold is real, so "back to the start" would land on the
+ * screen the visitor is already looking at. 7b deletes this row and, with it, the P5b decision that
+ * pointed `#/sent/:id`'s กลับหน้าแรก button at `/venues` for the same reason.
+ */
+const COMING_SOON: Stand[] = [{ path: '/home', screen: 'home', ...TO_VENUES }]
 
 export function ClientRoutes() {
   /**
@@ -137,6 +139,19 @@ export function ClientRoutes() {
               because Phase 6 owns the data it would have been guessing about. */}
           <Route path="/bookings" element={<MyBookingsPage />} />
           <Route path="/booking/:id" element={<BookingDetailPage />} />
+
+          {/* P7a · settings and its four sub-screens. All five keep the DOCK — `NAV_SCREENS` lists
+              every one of them and `NAV_TAB` points all four sub-screens back at `/settings`, so
+              the ตั้งค่า tab stays highlighted while the reader is inside the branch. They are
+              *reading destinations*, not steps with state in progress, which is why they differ
+              from `/venue/:id` and `/request/:id` here.
+              ⚠️ Nothing below says any of that: the tables in `routes.ts` do, and `LiffShell`
+              reads them. */}
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/version" element={<VersionPage />} />
+          <Route path="/issues" element={<IssuesPage />} />
+          <Route path="/manual" element={<ManualPage />} />
+          <Route path="/rules" element={<RulesPage />} />
 
           {COMING_SOON.map((route) => (
             <Route
