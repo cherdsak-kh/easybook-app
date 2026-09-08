@@ -53,8 +53,9 @@ cp .env.example .env.local   # set VITE_LIFF_ID (optional in a plain browser)
 npm run dev          # start dev server on :2200 (proxies /api -> :3300)
 npm run build         # tsc -b && vite build   (tsc -b IS the type-check; there is no `typecheck` script)
 npm run preview       # preview the production build
-npm run test          # vitest run (single run)
+npm run test          # vitest run (single run) — 1 file / 6 tests; see Testing for why that is policy
 npm run test:watch    # vitest (watch mode)
+npm run stub          # QA stub backend on :3301 (tests/stubs/stub-server.mjs), paired with .env.stub
 npm run lint          # oxlint
 npm run gen:api       # regenerate src/lib/api-types.ts from the backend's OpenAPI spec (backend must be up on :3300)
 ```
@@ -63,8 +64,9 @@ There is **no `typecheck` script** — `tsc -b` (via `npm run build`, or `tsc -b
 real type gate. The IDE may bundle an older TypeScript than the installed one (6.x); verify a
 compiler-option warning against `node_modules/typescript` before "fixing" a tsconfig to silence it.
 
-To run a single test file: `npx vitest run tests/unit/pages/client-portal/HomePage.test.tsx`.
-To run tests matching a name: `npx vitest run -t "renders a healthy status"`.
+To run a single test file: `npx vitest run tests/unit/pages/NotFoundPage.test.tsx` — which is
+currently the *only* test file (see Testing below; that is deliberate).
+To run tests matching a name: `npx vitest run -t "renders the global 404"`.
 
 A husky pre-commit hook runs `lint-staged`: for staged `*.{ts,tsx}` it runs oxlint, then
 `vitest related --run` — i.e. only the tests **related to the staged files**, not the full suite, so
@@ -183,21 +185,45 @@ Vitest + Testing Library + jsdom, configured in `vite.config.ts` (`test` block) 
 matchers.
 
 Tests live **outside** `src/`, mirroring the source hierarchy: unit specs in `tests/unit/**` (e.g.
-`src/components/shared/HealthStatus.tsx` -> `tests/unit/components/shared/HealthStatus.test.tsx`), e2e specs in
-`tests/e2e/**`, and shared fixtures/factories in `tests/helpers/` (imported via the `@tests/*`
-alias). `src/` holds production code only. Vitest collects `tests/unit/**/*.test.{ts,tsx}` and
-`tests/e2e/**/*.e2e.{ts,tsx}`, so files under `tests/helpers/` are never picked up as suites.
+`src/pages/NotFoundPage.tsx` -> `tests/unit/pages/NotFoundPage.test.tsx`). `src/` holds production
+code only. Vitest collects `tests/unit/**/*.test.{ts,tsx}` and `tests/e2e/**/*.e2e.{ts,tsx}`; the
+`@tests/*` alias (`vite.config.ts`, `tsconfig.app.json`) is there for shared fixtures when a suite
+needs them. ⚠️ **Neither `tests/e2e/` nor `tests/helpers/` exists right now** — the e2e `.gitkeep`
+placeholder went in `ca56b08` and no fixtures have been needed since. The globs and the alias stay
+so that adding either back is a directory, not a config change. `tests/stubs/` is infrastructure,
+not a suite (`npm run stub` serves the QA stub backend on :3301); neither glob collects it.
 
-The suite is **4 files / 48 tests** — it was 18 / 426 until the back-office was deleted, and the
-difference was all its. ⚠️ v2 does not rebuild that coverage: the PO's testing ruling for this
-phase is **measure in the browser, do not write new unit tests** (the reasoning, and what it trades
-away, are in the plan folder's `CONVENTIONS.md` §2). Keep the surviving specs green; do not read the
-small number as permission to skip verification.
+🔴 **The suite is ONE file / SIX tests, and the number is a policy, not a gap.** `npm test` reports
+`Test Files 1 passed (1) · Tests 6 passed (6)`. The file is
+`tests/unit/pages/NotFoundPage.test.tsx`, and what it pins is *route ranking* — that the client
+index beats the global `path="*"`, that an unknown path (including anything under the deleted
+`/admin-portal`) reaches the 404, that the 404 quotes the URL which missed, and that its one way out
+is a public `<a href="/">` rather than a button.
 
-Convention used throughout: mock dependency modules at the import boundary with `vi.mock('@/lib/...')`
-rather than mocking `fetch`/network calls directly — see `HealthStatus.test.tsx` and
-`HomePage.test.tsx` for the pattern (mock the `lib` module, assert on rendered states: loading /
-ok / error).
+⚠️ **There are ZERO UI component unit tests, by PO ruling, and "restoring coverage" by writing some
+is the wrong instinct.** What replaces them:
+
+- **`npm run build`** (`tsc -b`) is the type gate — there is no `npm run typecheck` script — and
+  **`npm run lint`** (oxlint) is the correctness gate. Both run on every change; between them they
+  catch the class of defect a shallow render test catches.
+- **Presentation is verified by measuring a running browser**, at 390 and 820 px in both themes, not
+  by asserting on jsdom — because the properties that matter here (tap-target size, contrast, header
+  geometry, overflow) are computed values jsdom does not compute. The reasoning, and what it trades
+  away, is in the client plan folder's `CONVENTIONS.md` §2.
+- **Unit tests are reserved for pure functions** — a formatter, a validator, a route resolver —
+  where there is a return value to assert and no DOM to measure. Write one there without asking.
+
+The count is not decay: 18 files / 426 tests → 4 / 48 when the back-office was deleted (2026-08-16),
+→ 2 / 12 when Client Portal v1 was purged and took its two component specs with it (2 ก.ย. 2569),
+→ 1 / 6 when `ca56b08` removed the unmounted `HealthStatus` component and its spec the same day.
+Every drop deleted specs for code that no longer exists. Do not read the small number as permission
+to skip verification — read it as an instruction to verify in the browser instead.
+
+Convention for the specs that DO get written: mock dependency modules at the import boundary with
+`vi.mock('@/lib/...')` rather than mocking `fetch`/network calls directly — mock the `lib` module and
+assert on the rendered states (loading / ok / error). The two specs that demonstrated it,
+`HealthStatus.test.tsx` and `HomePage.test.tsx`, were deleted with their components; the rule
+outlived them because it is about where the seam goes, not about those two screens.
 
 ### Styling — daisyUI is the UI source of truth
 
