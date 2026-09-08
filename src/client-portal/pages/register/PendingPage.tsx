@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { summaryRows } from './registration-form'
 import { StatusCard } from '@/client-portal/components/feedback/StatusCard'
 import { useGate } from '@/client-portal/hooks/gate-context'
@@ -25,8 +25,17 @@ import { LIcon } from '@/client-portal/icons/LucideIcon'
  * `DockItem` is a `Link`.
  */
 export function PendingPage() {
-  const { status } = useGate()
+  const { status, recheck } = useGate()
+  const navigate = useNavigate()
   const registration = status?.registration ?? null
+
+  const handleRecheck = () => {
+    /* Order matters: restart the gate checks, then route to `/`.
+       GateGuard displays SplashScreen while phase is 'checking',
+       and GateLanding redirects to LANDING[access] once settled. */
+    recheck()
+    void navigate('/', { replace: true })
+  }
 
   return (
     <StatusCard
@@ -41,9 +50,18 @@ export function PendingPage() {
           : 'ระบบได้รับข้อมูลการลงทะเบียนของคุณแล้ว โปรดรอเจ้าหน้าที่พิจารณาอนุมัติสิทธิ์การเข้าใช้งาน'
       }
       actions={
-        <Link to="/register" className="btn btn-app btn-outline w-full">
-          แก้ไขข้อมูลลงทะเบียน
-        </Link>
+        <div className="flex w-full flex-col gap-2">
+          <button
+            type="button"
+            className="btn btn-app btn-primary w-full shadow-sm"
+            onClick={handleRecheck}
+          >
+            ตรวจสอบสถานะล่าสุด
+          </button>
+          <Link to="/register" className="btn btn-app btn-outline w-full">
+            แก้ไขข้อมูลลงทะเบียน
+          </Link>
+        </div>
       }
     >
       {/* 🟠 THE SUMMARY IS OMITTED WHEN THERE IS NO RECORD, RATHER THAN DRAWN EMPTY. `PENDING`
