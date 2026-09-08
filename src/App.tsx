@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { isInLineClient } from '@/lib/liff'
 // Eager (initial chunk): the LIFF client is the surface an end user opens, and its first paint
 // is the splash the gate runs behind. Waiting on a lazy chunk to start the four checks would add
 // a download to the one screen whose whole job is to be quick.
@@ -47,6 +48,22 @@ const BackendRoutes = lazy(() =>
     default: m.BackendRoutes,
   })),
 )
+
+/**
+ * The escape hatch for the QA measurement runs: those drive the client gate from desktop Chrome
+ * with `?gate=<case>`, which the external-browser redirect below would otherwise swallow. Gated
+ * on `import.meta.env.DEV`, so a production URL can never opt itself back into the client portal.
+ *
+ * 🔴 PINNED AT LOAD, on purpose, and it must stay module-level. The gate navigates away from the
+ * URL that carried the parameter (`/?gate=allowed` → `/login`), so a value recomputed on every
+ * render of `App` would read an empty query string on the second render and bounce the run to
+ * `/backend` mid-measurement. Today `App` happens to render once per page load — `BrowserRouter`
+ * passes the same `children` element on a location change, so React bails out — but that is a
+ * reconciliation detail, not a contract: adding one `useState` to `App` would silently break every
+ * QA run. `useLiffGate.readDevCase()` caches the same parameter for the same reason.
+ */
+const IS_DEV_GATE_BYPASS =
+  import.meta.env.DEV && Boolean(new URLSearchParams(window.location.search).get('gate'))
 
 /** The single Suspense fallback for a lazily-loaded route chunk. */
 function RouteFallback() {
@@ -110,8 +127,26 @@ function RouteFallback() {
  * There is no pathless client theme layout any more — it was `ThemeLayout`, and it went with
  * v1. `LiffShell` stamps `data-theme` for the whole client subtree; the two showcases stamp
  * their own because they sit outside every shell on purpose.
+ *
+ * ⚠️ `/*` IS ENVIRONMENT-DEPENDENT (9 ก.ย. 2569, PO Option B). Outside LINE, the client branch
+ * is replaced by a redirect to `/backend`. Before this, a desktop browser opening the domain
+ * root landed in the LIFF gate, found no LINE session and stopped at the client login screen —
+ * a dead end for the only people who use a desktop browser here, since the back-office has no
+ * link from that screen and staff read it as an outage. The two portals now separate by
+ * environment rather than by the user knowing which URL to type.
  */
 function App() {
+  /**
+   * Two signals, because either alone has a hole: `isInLineClient()` reads the LIFF SDK, which
+   * answers `false` whenever `VITE_LIFF_ID` is unset or the SDK has not initialised yet (it
+   * fails soft by contract), and this runs during the first render — before `bootLiff()`. The
+   * User-Agent check (`Line/x.y.z`) is what covers that window, and it is why a LINE user never
+   * sees the redirect on a cold start.
+   */
+  const inLine =
+    isInLineClient() ||
+    (typeof navigator !== 'undefined' && /Line\/[0-9.]+/i.test(navigator.userAgent))
+
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
@@ -129,6 +164,19 @@ function App() {
             sees the remainder of the path. Also outside `ThemeLayout`: it stamps its own
             `data-theme`, and the two portals' themes must never reach each other. */}
         <Route path="/backend/*" element={<BackendRoutes />} />
+
+        {/* External browser gateway. Outside LINE, and not a dev-gate probe, every path this
+            file has not already claimed goes to the back-office instead of the LIFF client —
+            `/backend` renders its own login when unauthenticated, so no redirect loop: the
+            three routes above are matched first and this one never sees `/backend/*`.
+
+            It sits ABOVE the client branch for readability only. Both patterns are `/*`, so
+            react-router ranks them equal and the FIRST wins — which is why this is rendered
+            conditionally rather than always present: when the condition is false the element
+            is `false`, the route does not exist, and the client branch below is the only `/*`. */}
+        {!inLine && !IS_DEV_GATE_BYPASS && (
+          <Route path="/*" element={<Navigate to="/backend" replace />} />
+        )}
 
         {/* The client LIFF surface — the gate, the shell, the twenty routes and the 404. */}
         <Route path="/*" element={<ClientRoutes />} />
