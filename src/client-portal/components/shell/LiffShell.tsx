@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
+import { ClientRealtimeProvider } from './ClientRealtimeProvider'
 import { Dock } from './Dock'
 import { DockItem } from './DockItem'
 import { GateGuard } from './GateGuard'
@@ -47,6 +48,13 @@ export function LiffShell() {
     phase === 'settled' && access === 'allowed' && screen !== null && NAV_SCREENS.includes(screen)
   const activeTab = screen ? NAV_TAB[screen] : undefined
 
+  /* 🔴 THE SAME CONDITION THE DOCK'S FIRST TWO CLAUSES USE, AND NOT THE SAME EXPRESSION. The socket
+     does not care which screen is showing — it has to stay open across every one of them, which is
+     the entire reason it lives at the shell — so it must not inherit `showDock`'s `NAV_SCREENS`
+     test. The gateway refuses anyone whose `AppAccess` is not `ALLOWED`, and a session that is still
+     `checking` has no verdict to act on; both are covered here rather than by a failed handshake. */
+  const realtime = phase === 'settled' && access === 'allowed'
+
   return (
     /* 🔴 `ToastProvider` WRAPS THE WHOLE SHELL, AND IT WAS MISSING UNTIL PHASE 6b (3 ก.ย. 2569).
        The component was built in Phase 1 and mounted **only inside the showcase page**, so
@@ -56,31 +64,38 @@ export function LiffShell() {
        that just happened, and a provider per screen would unmount the queue on navigation, which is
        exactly when a "cancelled successfully" message still needs to be on screen. */
     <ToastProvider>
-      <div className={showDock ? 'pad-nav' : undefined}>
-        <GateGuard screen={screen}>
-          <Outlet />
-        </GateGuard>
-      </div>
+      {/* 🔴 INSIDE `ToastProvider`, NEVER OUTSIDE IT. The provider raises the global toast for an
+          approval or a refusal arriving over the socket, so it calls `useToast()` — which THROWS
+          rather than no-oping when there is no provider above it, on the reasoning in
+          `toast-context.ts` (a portal whose notices silently go nowhere looks exactly like one where
+          nothing has happened). Swapping these two lines is a blank screen, not a missing toast. */}
+      <ClientRealtimeProvider enabled={realtime}>
+        <div className={showDock ? 'pad-nav' : undefined}>
+          <GateGuard screen={screen}>
+            <Outlet />
+          </GateGuard>
+        </div>
 
-      {/* 🔴 THE SCRIM AND THE DOCK ARE ONE DECISION. Left behind on a screen with no dock, the
-          fade covers the bottom of the page with nothing under it — and the submit button at the
-          end of a form looks disabled while being perfectly clickable. */}
-      {showDock ? (
-        <>
-          <NavScrim />
-          <Dock>
-            {DOCK_TABS.map((tab) => (
-              <DockItem
-                key={tab.href}
-                href={tab.href}
-                label={tab.label}
-                icon={tab.icon}
-                active={activeTab === tab.href}
-              />
-            ))}
-          </Dock>
-        </>
-      ) : null}
+        {/* 🔴 THE SCRIM AND THE DOCK ARE ONE DECISION. Left behind on a screen with no dock, the
+            fade covers the bottom of the page with nothing under it — and the submit button at the
+            end of a form looks disabled while being perfectly clickable. */}
+        {showDock ? (
+          <>
+            <NavScrim />
+            <Dock>
+              {DOCK_TABS.map((tab) => (
+                <DockItem
+                  key={tab.href}
+                  href={tab.href}
+                  label={tab.label}
+                  icon={tab.icon}
+                  active={activeTab === tab.href}
+                />
+              ))}
+            </Dock>
+          </>
+        ) : null}
+      </ClientRealtimeProvider>
     </ToastProvider>
   )
 }

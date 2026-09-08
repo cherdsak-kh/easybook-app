@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AvailabilityCalendar, type CalendarView } from './components/AvailabilityCalendar'
 import { SlotList } from './components/SlotList'
@@ -7,6 +7,7 @@ import { addDays, availabilityWindow, midnight, type VenueSlot } from './venue-a
 import { getVenue, isNotFound, listAvailability, messageFor } from './venues-api'
 import { Skeleton } from '@/client-portal/components/feedback/Skeleton'
 import { Breadcrumbs } from '@/client-portal/components/ui/Breadcrumbs'
+import { useWatchVenue } from '@/client-portal/hooks/useClientRealtime'
 import { LIcon } from '@/client-portal/icons/LucideIcon'
 import { TH_DOW_FULL, fmtD } from '@/client-portal/lib/formatters'
 import type { Venue } from '@/lib/api-client'
@@ -64,11 +65,26 @@ export function VenueDetailPage() {
     setAnchor({ week: addDays(t, -t.getDay()), month: new Date(t.getFullYear(), t.getMonth(), 1) })
   }, [id])
 
+  /**
+   * The window the availability currently on screen was read for, tagged with the venue it belongs
+   * to. Written when the load runs, cleared the moment `:id` changes.
+   *
+   * 🔴 THE LIVE REFETCH MUST USE **THIS**, NOT A FRESHLY COMPUTED WINDOW. `availabilityWindow()`
+   * derives from `new Date()`, so a socket event arriving after midnight — or after the app sat
+   * backgrounded in LINE for a day — would re-read a window shifted a month from the one the
+   * calendar is painting, and the reader would watch approved bookings quietly vanish off the far
+   * end. Storing what was asked for is the only version of "refetch what is on screen" that stays
+   * true. `id` rides along so a refetch fired for the venue the reader just left cannot land in the
+   * new one's calendar (an in-flight request survives the navigation; the ref does not).
+   */
+  const loaded = useRef<{ id: string; from: Date; to: Date } | null>(null)
+
   useEffect(() => {
     if (!id) return
     let cancelled = false
     setVenue(null)
     setFailure(null)
+    loaded.current = null
     void (async () => {
       try {
         const found = await getVenue(id)
@@ -82,6 +98,7 @@ export function VenueDetailPage() {
              which is what the calendar opens on — and the first press of the "next month" arrow
              would then draw an empty month that is not empty. See `availabilityWindow`. */
           const { from, to } = availabilityWindow()
+          loaded.current = { id, from, to }
           const rows = await listAvailability(id, from, to)
           if (!cancelled) setSlots(rows)
         } catch (error) {
@@ -105,6 +122,38 @@ export function VenueDetailPage() {
       cancelled = true
     }
   }, [id, navigate])
+
+  /**
+   * Re-read the availability for the window on screen, quietly.
+   *
+   * ⚠️ NO LOADING STATE AND NO ERROR STATE, ON PURPOSE. `slots` is replaced in one commit, so the
+   * calendar repaints without ever passing through an empty frame — a spinner here would blank the
+   * grid the reader is looking at for the length of a round trip, which is the entire thing a live
+   * update is supposed to prevent. A failure leaves the previous slots up: they are one event
+   * stale, which is exactly what they were before the event arrived, and the alternative is turning
+   * a working calendar into an error card over news nobody asked for. It is logged, not silent.
+   */
+  const refreshAvailability = useCallback(async () => {
+    const win = loaded.current
+    if (!win || win.id !== id) return
+    try {
+      const rows = await listAvailability(win.id, win.from, win.to)
+      /* The reader may have walked to another venue while this was in flight. */
+      if (loaded.current?.id === win.id) setSlots(rows)
+    } catch (error) {
+      console.warn('[venue] availability refresh failed:', error)
+    }
+  }, [id])
+
+  /* ── The venue room (`CLIENT-REALTIME-1`) ────────────────────────────────────────────────────
+     Joins `venue:<id>` while this screen is mounted — and rejoins it after every reconnect, which
+     the provider handles.
+     🔴 `client.venueAvailabilityChanged` CARRIES ONLY THE VENUE ID (`D-C13`), so a refetch is the
+     only correct response: the event does not say which hours moved, whose, or in which direction,
+     and it fires for `PENDING` as well as `APPROVED` because a pending request occupies the
+     calendar. That is what makes this screen's live update matter — somebody else asking for the
+     hour this reader is about to request has to turn amber before they submit for it. */
+  useWatchVenue(id, () => void refreshAvailability())
 
   if (failure) {
     return (

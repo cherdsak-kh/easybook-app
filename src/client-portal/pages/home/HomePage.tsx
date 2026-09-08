@@ -6,6 +6,7 @@ import { Skeleton } from '@/client-portal/components/feedback/Skeleton'
 import { Dropdown } from '@/client-portal/components/ui/Dropdown'
 import { SCREEN_WIDTH } from '@/client-portal/components/ui/ScreenHeader'
 import { useGate } from '@/client-portal/hooks/gate-context'
+import { useScheduleRealtime } from '@/client-portal/hooks/useClientRealtime'
 import { LIcon } from '@/client-portal/icons/LucideIcon'
 import {
   TH_DOW,
@@ -115,7 +116,16 @@ export function HomePage() {
 
   const [rows, setRows] = useState<Row[] | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
-  const [reload, setReload] = useState(0)
+  /**
+   * The refetch trigger, and **`silent` travels WITH the counter rather than in a ref**.
+   *
+   * 🔴 A `useRef` FLAG CONSUMED INSIDE THE EFFECT IS WRONG UNDER `StrictMode`, which `main.tsx`
+   * enables: the effect is invoked twice in development, the first run consumes the flag and the
+   * second one takes the loud branch — so a live update would flash the skeleton on a dev machine
+   * and nowhere else, which is the worst place for a difference to live. As state, both invocations
+   * read the same value.
+   */
+  const [reload, setReload] = useState({ n: 0, silent: false })
   const [lineName, setLineName] = useState<string | null>(null)
 
   /* The 42-cell grid the month view paints. Sunday-on-or-before the 1st, because the grid opens on
@@ -166,12 +176,17 @@ export function HomePage() {
 
   useEffect(() => {
     let cancelled = false
-    setFailure(null)
-    /* Cleared rather than kept: a new window means the rows in hand describe a month nobody is
-       looking at any more, and showing them would put stale dots on the new grid and — worse — let
-       the "ทุกแห่งว่าง" card claim a day is free that simply has not been read yet. `null` is the
-       skeleton, which says "not known yet" instead. */
-    setRows(null)
+    /* 🔴 A LIVE UPDATE MUST NOT BLANK THE SCREEN. On a reader-initiated run (a new window, the retry
+       button) the rows in hand describe a month nobody is looking at any more, so they are cleared
+       and `null` puts the skeleton up — it says "not known yet" instead of letting the
+       "ทุกแห่งว่าง" card claim a day is free that simply has not been read. On a socket-driven run
+       the window has NOT moved and what is on screen is still very nearly right; replacing it with
+       grey boxes for the length of a round trip is the exact flash a background refresh exists to
+       avoid, and it moves the page under a thumb that is mid-scroll. */
+    if (!reload.silent) {
+      setFailure(null)
+      setRows(null)
+    }
     void (async () => {
       try {
         const data = await fetchMasterSchedule(
@@ -179,6 +194,9 @@ export function HomePage() {
           new Date(toKey).toISOString(),
         )
         if (cancelled) return
+        /* Cleared on success rather than only at the top, so a silent refetch also takes down a
+           failure banner the reader never dismissed. */
+        setFailure(null)
         setRows(
           data.map((s: ScheduleSlot) => ({
             id: s.id,
@@ -193,16 +211,28 @@ export function HomePage() {
         )
       } catch (error) {
         console.warn('[home] schedule read failed:', error)
-        if (!cancelled) {
-          setFailure(messageFor(error))
-          setRows([])
-        }
+        if (cancelled) return
+        /* ⚠️ A FAILED **BACKGROUND** REFETCH LEAVES THE SCREEN ALONE, and this is the one place this
+           file departs from "every failed request is visible". Nobody asked for this read: swapping
+           a correct-looking schedule for an error card, because an event the reader never saw could
+           not be followed up, degrades a working screen for news they cannot act on. The data is
+           merely as fresh as the last successful read — which is what it was a second ago — and the
+           next pulse, or any navigation, corrects it. A read the reader DID ask for still reports. */
+        if (reload.silent) return
+        setFailure(messageFor(error))
+        setRows([])
       }
     })()
     return () => {
       cancelled = true
     }
   }, [fromKey, toKey, reload])
+
+  /* ── The live schedule pulse (`CLIENT-REALTIME-1`) ──────────────────────────────────────────
+     `client.scheduleUpdated` is payload-free and fires for `APPROVED`/`CANCELLED` only — exactly
+     the two transitions that add or remove a block from this screen. There is nothing to patch from
+     it, so the response is a refetch of the window already on show. */
+  useScheduleRealtime(() => setReload((r) => ({ n: r.n + 1, silent: true })))
 
   /* The greeting's fallback. `getProfile()` never throws and answers `null` in a plain dev browser,
      so this quietly does nothing there and the registration name (or the generic word) stands. */
@@ -621,10 +651,9 @@ export function HomePage() {
             <p className="text-sm font-medium text-base-content">{failure}</p>
             <button
               type="button"
-              onClick={() => {
-                setRows(null)
-                setReload((n) => n + 1)
-              }}
+              /* `silent: false` — the reader pressed this, so the skeleton is the right answer and
+                 a second failure has to be reported. The effect clears the rows itself. */
+              onClick={() => setReload((r) => ({ n: r.n + 1, silent: false }))}
               className="btn btn-app btn-outline mt-3"
             >
               ลองใหม่อีกครั้ง

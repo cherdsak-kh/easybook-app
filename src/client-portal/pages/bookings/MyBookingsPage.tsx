@@ -15,6 +15,7 @@ import { EmptyState } from '@/client-portal/components/feedback/EmptyState'
 import { Skeleton } from '@/client-portal/components/feedback/Skeleton'
 import { Dropdown } from '@/client-portal/components/ui/Dropdown'
 import { SCREEN_WIDTH, ScreenHeader } from '@/client-portal/components/ui/ScreenHeader'
+import { useBookingRealtime } from '@/client-portal/hooks/useClientRealtime'
 import { LIcon } from '@/client-portal/icons/LucideIcon'
 
 /**
@@ -62,7 +63,13 @@ export function MyBookingsPage() {
   const [sort, setSort] = useState<BookingSort>('created-desc')
   const [rows, setRows] = useState<Booking[] | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
-  const [reload, setReload] = useState(0)
+  /**
+   * The refetch trigger. `silent` travels WITH the counter rather than in a ref, because `main.tsx`
+   * enables `StrictMode`: a ref consumed inside the effect is read twice in development, the second
+   * invocation takes the loud branch, and a live update would then behave differently on a dev
+   * machine than in LINE. As state, both invocations see the same value.
+   */
+  const [reload, setReload] = useState({ n: 0, silent: false })
 
   /* ⚠️ THE DEBOUNCE IS ON THE VALUE SENT, NOT ON THE INPUT — the field stays fully controlled and
      echoes every keystroke immediately; only the request waits. Debouncing the input itself is how
@@ -74,23 +81,41 @@ export function MyBookingsPage() {
 
   useEffect(() => {
     let cancelled = false
-    setFailure(null)
+    if (!reload.silent) setFailure(null)
     void (async () => {
       try {
         const data = await listMyBookings({ q: debounced || undefined, sort })
-        if (!cancelled) setRows(data)
+        if (cancelled) return
+        /* Cleared on success rather than only at the top, so a silent refetch also takes down a
+           failure banner the reader never dismissed. */
+        setFailure(null)
+        setRows(data)
       } catch (error) {
         console.warn('[bookings] list failed:', error)
-        if (!cancelled) {
-          setFailure(messageFor(error))
-          setRows([])
-        }
+        if (cancelled) return
+        /* ⚠️ A FAILED **BACKGROUND** REFETCH LEAVES THE LIST ALONE. `setRows([])` below is what
+           makes the "ยังไม่มีคำขอใช้สถานที่" empty state legal after a reader-initiated read that
+           failed — running it for a socket event nobody saw would wipe a correct list off the screen
+           and tell a person with eight bookings that they have never made one. Stale beats wrong. */
+        if (reload.silent) return
+        setFailure(messageFor(error))
+        setRows([])
       }
     })()
     return () => {
       cancelled = true
     }
   }, [debounced, sort, reload])
+
+  /* ── Live status changes (`CLIENT-REALTIME-1`) ───────────────────────────────────────────────
+     `client.bookingUpdated` reaches `user:<cuid>` — this reader's own room — so every event it
+     carries is about a row on this list, and there is nothing to match against. The payload holds
+     four fields where a card needs the venue, the slots and the derived state, so the list is
+     re-read rather than patched: a card assembled from the event would disagree with the same card
+     after a refresh, which is the drift that makes two producers of one shape a bad idea.
+     ⚠️ NO SKELETON. The rows already on screen stay up until the new ones land — the placeholder is
+     entry-only (`rows === null`), and a background refresh never sets that back to `null`. */
+  useBookingRealtime(() => setReload((r) => ({ n: r.n + 1, silent: true })))
 
   /* 🔴 THE TYPE LIST COMES FROM THE BOOKINGS THAT EXIST, NOT FROM A WRITTEN-DOWN LIST — the same
      rule `#/venues` follows. An option that matches nothing is a dead end, and a hard-coded
@@ -296,9 +321,11 @@ export function MyBookingsPage() {
             <p className="text-sm font-medium text-base-content">{failure}</p>
             <button
               type="button"
+              /* `silent: false` — the reader pressed this, so the skeleton is the right answer and
+                 a second failure has to be reported. */
               onClick={() => {
                 setRows(null)
-                setReload((n) => n + 1)
+                setReload((r) => ({ n: r.n + 1, silent: false }))
               }}
               className="btn btn-app btn-outline mt-3"
             >

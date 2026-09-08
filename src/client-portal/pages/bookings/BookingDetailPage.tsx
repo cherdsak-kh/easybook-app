@@ -21,6 +21,10 @@ import {
 import { BookingSubject, StateBadge } from './components/BookingCard'
 import { useToast } from '@/client-portal/components/feedback/toast-context'
 import { SCREEN_WIDTH, ScreenHeader } from '@/client-portal/components/ui/ScreenHeader'
+import {
+  useBookingRealtime,
+  useMarkSelfBookingAction,
+} from '@/client-portal/hooks/useClientRealtime'
 import { LIcon } from '@/client-portal/icons/LucideIcon'
 import type { LIconName } from '@/client-portal/icons/licon'
 import { TH_DOW_FULL, fmtD, fmtSlot, fmtT, fmtTe } from '@/client-portal/lib/formatters'
@@ -84,6 +88,7 @@ export function BookingDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const showToast = useToast()
+  const markSelfAction = useMarkSelfBookingAction()
 
   const [booking, setBooking] = useState<BookingDetail | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
@@ -117,6 +122,47 @@ export function BookingDetailPage() {
     }
   }, [id, navigate])
 
+  /**
+   * ── Live status changes for THIS request (`CLIENT-REALTIME-1`) ────────────────────────────────
+   *
+   * 🔴 THE MATCH IS AGAINST THE **LOADED** BOOKING, NOT THE ROUTE PARAM. `:id` is whichever string
+   * the caller had — the list links by cuid, somebody pasting the number out of a LINE chat has the
+   * `BR-…` code, and the server resolves both — so comparing `payload.id` to it misses half the
+   * arrivals. The loaded row carries both spellings and is the only place they are known together.
+   * The route param is only consulted before the first read lands, where the leading `#` a person
+   * may have pasted has to come off, exactly as the server strips it.
+   *
+   * ⚠️ THE EVENT REACHES EVERY ONE OF THE READER'S REQUESTS, not only the open one — that is what
+   * `user:<cuid>` means. Without this guard, an approval on a different booking would silently
+   * re-read this screen; the toast (raised once, by the provider) would still be right, but the
+   * screen would flicker for a row nobody is looking at.
+   *
+   * ⚠️ IT REFETCHES INSTEAD OF PATCHING `status` FROM THE PAYLOAD. The four fields on the wire
+   * cannot answer what this screen renders: `cancelLeadMinutes`, `approvedAt` and the per-slot
+   * `isCancelled` flags all move with an approval or a cancellation, and the derived state
+   * (`done` · `expired`) is computed from the slots. Patching the badge alone would leave a screen
+   * that says "อนุมัติแล้ว" above buttons the server has already stopped accepting.
+   *
+   * ⚠️ SILENT: `booking` is never set back to `null`, so the full-page spinner — which is gated on
+   * exactly that — cannot reappear. The card is replaced in one commit.
+   */
+  useBookingRealtime((payload) => {
+    const mine = booking
+      ? payload.id === booking.id || payload.code === booking.code
+      : payload.id === id || payload.code === id.trim().replace(/^#/, '')
+    if (!mine) return
+    void (async () => {
+      try {
+        setBooking(await getMyBookingDetail(id))
+      } catch (error) {
+        /* Leave the current render standing. It is one event stale rather than wrong, and the
+           reader did not ask for this read — an error card in place of a working screen would be a
+           worse answer than the slightly old one. */
+        console.warn('[booking] live refresh failed:', error)
+      }
+    })()
+  })
+
   const ask = useCallback((slot: BookingSlot | null) => {
     setPending({ slot })
     dialogRef.current?.showModal()
@@ -135,6 +181,29 @@ export function BookingDetailPage() {
     const route = cancelRouteFor(state)
     const target = pending.slot ?? liveSlots(booking)[0]
     setBusy(true)
+    /**
+     * 🔴 MARKED **BEFORE** THE AWAIT, AND MOVING IT BELOW WOULD BREAK IT INTERMITTENTLY. The server
+     * publishes `client.bookingUpdated` while it is still answering this `PATCH`, so the socket
+     * frame and the HTTP response are in a genuine race — on the dev proxy the frame usually wins.
+     * A mark set from `updated` would land after the event it exists to silence, and the reader
+     * would get the success toast below *plus* the global "ถูกยกเลิกแล้ว" warning, which is the
+     * whole bug. Marking here costs nothing when the call fails: an unconsumed mark expires by
+     * itself.
+     *
+     * ⚠️ THE **CUID** IS WHAT IS MARKED, NOT THE ROUTE PARAM. `payload.id` on the wire is
+     * `BookingRequest.id`, and `:id` may be the `BR-…` code somebody pasted out of a LINE chat —
+     * `booking.id` is the loaded row's cuid either way. (`markSelfAction` accepts a code too and the
+     * provider tries both spellings, so this stays correct if the payload is ever addressed by code.)
+     *
+     * ⚠️ ONE MARK, BOTH ROUTES, AND IT IS ABOVE THE BRANCH FOR A REASON. `cancelWholeBooking` and
+     * `cancelSlot` are the only two cancellation calls in this portal and both are awaited inside
+     * the `try` below, so marking here — before either — is what makes the coverage total rather
+     * than case-by-case. The two do NOT echo the same status: the whole-request path (and a per-slot
+     * cancel that takes the LAST live slot) settles at `CANCELLED`, while cancelling one day of a
+     * multi-day approved booking leaves the request `APPROVED` and echoes exactly that. The
+     * provider's suppression is status-blind precisely so this call site never has to predict which.
+     */
+    markSelfAction(booking.id)
     try {
       const updated =
         route === 'whole'
@@ -168,7 +237,7 @@ export function BookingDetailPage() {
       setBusy(false)
       setPending(null)
     }
-  }, [booking, pending, busy, id, showToast])
+  }, [booking, pending, busy, id, showToast, markSelfAction])
 
   if (failure) {
     return (
