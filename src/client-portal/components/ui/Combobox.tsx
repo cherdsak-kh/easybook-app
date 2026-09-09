@@ -13,10 +13,18 @@ import { createPortal } from 'react-dom'
  * ── 🔴 THE BOTTOM SHEET IS THE ONE DOCUMENTED EXCEPTION TO "DIALOGS ARE ALWAYS CENTRED" ──
  * (`DECISIONS.md` §3.5.) That rule came from a CONFIRMATION box whose buttons kept being covered
  * by the URL bar — what lost was "a button you cannot reach". This is a VALUE PICKER that has to
- * open under the thumb with a scrollable list, so it is a different bet, and its bottom edge is
- * defended in two layers rather than fleeing to the middle: the height comes from `--vvh`, so
- * the sheet lifts above the keyboard on its own, and the list has a real floor of
- * `max(env(safe-area-inset-bottom), 1rem)`. Both live in `index.css`.
+ * open under the thumb with a scrollable list, so it is a different bet, and the exception still
+ * stands.
+ * ⚠️ HOW ITS BOTTOM EDGE IS DEFENDED CHANGED ON 9 SEP 2026 — the old note here said the height
+ * came from `--vvh` so the sheet "lifts above the keyboard on its own". That is no longer true and
+ * must not be re-derived from this file. The sheet is now a real edge-to-edge bottom sheet: the
+ * `<dialog>` is `inset: 0` with `align-items: flex-end`, and the box is capped at `80dvh` and
+ * pinned flush to the screen bottom (square bottom corners, no bottom border). It is explicitly
+ * excluded from the app-wide `--vvh` height binding by `dialog.modal:not(.modal-bottom)` in
+ * `index.css`. When the keyboard opens, the BROWSER's native visual-viewport panning is what keeps
+ * the search row visible — deliberately, because binding a height AND letting the browser pan
+ * double-displaced the header off-screen. The list keeps a real floor of
+ * `max(env(safe-area-inset-bottom), 1.25rem)`. All of it lives in `index.css`.
  *
  * ── ⚠️ "ONE `<dialog>`, NOT ONE PER FIELD" — how that rule is met here ──
  * The prototype has a single `<dialog>` shared by every field, because a second COPY OF THE
@@ -152,10 +160,10 @@ export function Combobox({
     setExpanded(true)
     document.documentElement.setAttribute('data-sheet-open', '')
     dlg.showModal()
-    /* `showModal()` focuses the first focusable child, which is the ✕ — not what someone who
-       opened a searchable list came to do. The keyboard it raises does not cover the list,
-       because the sheet's height is bound to the visual viewport. */
-    searchRef.current?.focus()
+    /* ⚠️ THE SEARCH FIELD IS DELIBERATELY NOT FOCUSED HERE. `showModal()` leaves focus on the
+       first focusable child — the ✕ — and that is now the wanted behaviour: the virtual keyboard
+       stays down until the user taps the search field, so the list can be BROWSED first instead
+       of half the screen disappearing the instant the sheet opens (PO, on-device, 9 Sep 2026). */
   }, [disabled])
 
   /* ⚠️ Navigating away while the sheet is open (LIFF's back button reaches us this way, per
@@ -262,17 +270,67 @@ export function Combobox({
           `hidden` or `display:none` on top: that is the one thing that cuts the closing beat
           short and makes the sheet blink out.
           ⚠️ Portalled — see the header. React events still bubble through the component tree, so
-          nothing else about this markup changes. */}
+          nothing else about this markup changes.
+
+          ── 🔴 THE SHEET'S GEOMETRY IS HELD BY `index.css`, NOT BY THE CLASSES BELOW ──
+          `dialog.cbx-sheet.modal-bottom` / `dialog.cbx-sheet .modal-box` carry `!important` on
+          every property that matters. DO NOT DELETE THEM believing this markup covers it: the
+          classes here set only margin / padding / width / max-width / radius, while the
+          stylesheet also sets `position`, `inset`, `display: grid`, `place-items`, the `80dvh`
+          cap, `border-bottom: none`, the lifted `box-shadow` and the transparent backdrop
+          colour — none of which any utility here provides. Removing the CSS puts the floating
+          centred dialog with side gaps straight back.
+          ⚠️ THREE LAYERS SAY THE SAME THING, ON PURPOSE, AND THEY DO NOT ALL CARRY EQUAL
+          WEIGHT — measured in the built `dist/assets/*.css` (Tailwind 4.3.2, 9 Sep 2026):
+            · `!m-0 !p-0 !w-full !max-w-full !rounded-t-3xl !rounded-b-none` — the v3-style `!`
+              PREFIX. It is legacy syntax (v4 prefers the suffix, `m-0!`) but Tailwind 4.3 still
+              emits it: `.\!m-0{margin:0!important}` and friends are all in the bundle, so these
+              are live and important. They agree with the stylesheet value for value, and the
+              stylesheet outranks them on specificity anyway, so nothing here conflicts.
+            · the inline `style` — React silently DROPS `!important` from the `style` prop, so
+              these land at normal priority. That still beats daisyUI's `.modal-box` and the
+              WebKit UA `<dialog>` defaults; it loses only to the `!important` rules above.
+            · `shadow-2xl` — genuinely inert: no `!important`, so the stylesheet's
+              `box-shadow: … !important` (a shadow cast UPWARD, which a bottom sheet needs and
+              `shadow-2xl` does not give) wins.
+          The redundancy is kept because it keeps this markup byte-comparable with
+          `docs/prototypes/client-portal/client_portal_prototype.html`, and a prototype-vs-
+          production diff that means something is worth more than a few duplicated tokens. */}
       {portalHost
         ? createPortal(
             <dialog
         ref={dialogRef}
         onClose={handleClose}
-        className="cbx-sheet modal modal-bottom"
+        className="cbx-sheet modal modal-bottom !m-0 !p-0"
+        style={{
+          margin: 0,
+          padding: 0,
+          width: '100%',
+          maxWidth: '100%',
+          alignItems: 'flex-end',
+          justifyItems: 'stretch',
+        }}
         aria-labelledby={`${id}-sheet-title`}
       >
-        <div className="modal-box">
-          <div className="flex items-center gap-2 border-b border-base-300 px-5 py-3">
+        <div
+          className="modal-box !m-0 !w-full !max-w-full !rounded-t-3xl !rounded-b-none !p-0 shadow-2xl flex flex-col"
+          style={{
+            width: '100%',
+            maxWidth: '100%',
+            borderBottomLeftRadius: 0,
+            borderBottomRightRadius: 0,
+            borderBottom: 'none',
+            margin: 0,
+          }}
+        >
+          {/* The grab handle — the universal "this is a sheet" cue. It is scenery, not a control:
+              nothing is wired to it and there is no drag gesture, and being two empty `<div>`s it
+              exposes nothing to a screen reader either. The title row below gives up its top
+              padding for it (`py-3` → `pb-3 pt-1`), or handle and title read double-spaced. */}
+          <div className="flex justify-center pt-3 pb-1">
+            <div className="h-1.5 w-10 rounded-full bg-base-content/20" />
+          </div>
+          <div className="flex items-center gap-2 border-b border-base-300 px-5 pb-3 pt-1">
             <h2 id={`${id}-sheet-title`} className="grow truncate text-base font-semibold">
               {sheetTitle ?? placeholder}
             </h2>

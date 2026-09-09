@@ -478,7 +478,8 @@
    things we do not control. The middle of the screen is contested by nobody.
    ⚠️ THE ONE DOCUMENTED EXCEPTION is the combobox sheet (`.cbx-sheet`, further down): it is
    a VALUE PICKER that must open under the thumb and scroll, not a confirmation whose buttons
-   can end up unreachable. Its bottom edge is defended twice instead of fleeing upward.
+   can end up unreachable. It sits flush ON that bottom edge on purpose and owns its own
+   geometry, which is why the two rules below explicitly exclude it.
 
    ⚠️ The two rules below are still required even though dialogs are centred — they are not
    leftovers. daisyUI's `.modal` is `position: fixed; inset: 0`, and on iOS Safari a fixed
@@ -488,16 +489,23 @@
    browser chrome; `100dvh` is the pre-JS fallback) makes "centre" mean the centre of what is
    actually visible.
    ⚠️ `dialog.modal` — element AND class — is deliberate: it beats daisyUI's `.modal` on
-   specificity, so it does not depend on stylesheet order. */
-dialog.modal { top: 0; bottom: auto; height: var(--vvh, 100dvh); }
+   specificity, so it does not depend on stylesheet order.
+   ⚠️ `:not(.modal-bottom)` EXCLUDES THE COMBOBOX SHEET, and is not decoration. That sheet is
+   pinned to the screen bottom and sized by its own `!important` block further down; a `--vvh`
+   height here would fight it, and the fight is what produced the double-displacement that threw
+   the sheet's header off-screen when the keyboard opened. Ported verbatim from the prototype,
+   which chose this guard over an `!important` war. */
+dialog.modal:not(.modal-bottom) { top: 0; bottom: auto; height: var(--vvh, 100dvh); }
 /* daisyUI's backdrop is a grid item inside `.modal`'s own grid, so it shrinks with the new
    height and leaves an uncovered strip. Pin it. */
 dialog.modal .modal-backdrop { position: fixed; inset: 0; }
 /* 🔴 The box's height CEILING has to come from `--vvh` too, or a long dialog grows past the
    visible area and its bottom edge sinks under the bar again — the original bug, resurfacing
    under a different condition. `5em` is daisyUI's own value, unchanged; what changed is which
-   viewport it is measured against. */
-dialog.modal .modal-box { max-height: calc(var(--vvh, 100dvh) - 5em); }
+   viewport it is measured against.
+   ⚠️ Same `:not(.modal-bottom)` exclusion as above — the combobox sheet's box has its own
+   `80dvh` ceiling. */
+dialog.modal:not(.modal-bottom) .modal-box { max-height: calc(var(--vvh, 100dvh) - 5em); }
 
 /* ── daisyUI OVERRIDE 1 of 2 · `.btn` ─────────────────────────────────────────
    WHY THIS OVERRIDE EXISTS: daisyUI's buttons are too heavy for this portal (PO). Measured,
@@ -571,33 +579,89 @@ dialog.modal .modal-box { max-height: calc(var(--vvh, 100dvh) - 5em); }
    🔴 THE DOCUMENTED EXCEPTION to "dialogs are always centred" (PO, 30 Aug 2026), not a
    forgetting of it. That rule came from a CONFIRMATION box whose buttons were being hidden by
    the URL bar — what lost was "a button you cannot reach". This is a VALUE PICKER that must
-   open under the thumb with a scrollable list, so it is a different bet, and its bottom edge is
-   defended in two layers instead of retreating to the middle:
-     1) its height comes from `--vvh`, so when the keyboard opens the value shrinks and the
-        sheet lifts above it with no extra JS;
-     2) the list has a real minimum floor, `max(env(safe-area-inset-bottom), 1rem)` — `env()`
-        knows only the OS bars, never the URL bar, so it can only be a MINIMUM.
+   open under the thumb with a scrollable list, so it is a different bet. The ruling stands; the
+   MECHANISM under it was replaced on 9 Sep 2026 after the PO tested the sheet on a real device
+   in LINE, and the old description (height from `--vvh`, "the sheet lifts above the keyboard on
+   its own") is gone because it was no longer true. What it is now:
+     1) the `<dialog>` is `inset: 0` and lays its box out with `align-items: flex-end`, so the
+        sheet is edge-to-edge and FLUSH with the bottom — no side gaps from daisyUI's
+        `width: 91.6667%; max-width: 32rem`, no rounded bottom corners with the form showing
+        through underneath. It is excluded from the app-wide `--vvh` height binding by the
+        `:not(.modal-bottom)` guards further up;
+     2) the box is capped at `80dvh`, a fixed ceiling rather than a viewport-tracking one. When
+        the keyboard opens, the BROWSER's own visual-viewport panning brings the focused search
+        field into view. Doing both — binding the height AND letting the browser pan — is what
+        double-displaced the header off the top of the screen, so exactly one of them may run;
+     3) the list still has a real minimum floor, now `max(env(safe-area-inset-bottom), 1.25rem)`
+        — `env()` knows only the OS bars, never the URL bar, so it can only ever be a MINIMUM.
+   ⚠️ `!important` on every declaration, and `dialog.cbx-sheet…` (element + class) for
+   specificity: this has to beat daisyUI's `.modal-bottom .modal-box` AND the WebKit UA defaults
+   on `<dialog>` (`margin: auto; max-width: calc(100% - 2em - 6px)`), which are what put the gaps
+   there in the first place.
+   ⚠️ THIS BLOCK IS WHAT HOLDS THE GEOMETRY — do not delete it because `Combobox.tsx` "already
+   says `!w-full`". Those utilities do compile (checked in the built CSS: Tailwind 4.3 still
+   emits the legacy `!` prefix as `.\!m-0{margin:0!important}`), but they only cover margin,
+   padding, width, max-width and radius. `position`, `inset`, `display: grid`, `place-items`,
+   the `80dvh` cap, `border-bottom: none`, the upward `box-shadow` and the transparent backdrop
+   colour exist ONLY here, and without them the sheet is a floating centred dialog again.
    ⚠️ The enter/exit animation belongs entirely to daisyUI's `.modal` + `.modal-bottom`
    (translate + opacity, plus `transition: overlay .3s allow-discrete` holding the element in
    the top layer until the slide finishes). Never add `hidden` or `display:none` on top of it —
    that is the one thing that cuts the closing beat short and makes the sheet blink out. */
-.cbx-sheet .modal-box {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  overflow: hidden;
-  max-height: min(85dvh, calc(var(--vvh, 100dvh) - 4rem));
+dialog.cbx-sheet.modal-bottom {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background-color: transparent !important;
+  display: grid !important;
+  align-items: flex-end !important;
+  justify-items: stretch !important;
+}
+dialog.cbx-sheet .modal-box {
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  border-top-left-radius: 1.5rem !important;
+  border-top-right-radius: 1.5rem !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-bottom: none !important;
+  max-height: 80dvh !important;
+  margin: 0 !important;
+  box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.15) !important;
 }
 /* The scroller is the LIST, not the box: the title and the search field must stay put while
    the user scrolls looking for an option. (daisyUI's `.modal-box` is `overflow-y: auto`, which
-   is why it is switched off above.) */
+   is why it is switched off above.)
+   ⚠️ `calc(3rem * 5.5)` IS THE SCROLL AFFORDANCE, not a round number: `.cbx-opt` is `3rem`
+   tall, so five and a half rows fit and the sixth is BISECTED by the fold. A list clipped
+   cleanly on a row boundary reads as a complete list — users did not know there was more.
+   The thin scrollbar is the second cue, for the platforms that draw one at all. */
 .cbx-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-top: .25rem;
-  padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+  padding-bottom: max(env(safe-area-inset-bottom), 1.25rem);
+  max-height: calc(3rem * 5.5);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-base-content) 25%, transparent) transparent;
 }
+.cbx-scroll::-webkit-scrollbar { width: 5px; }
+.cbx-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-base-content) 25%, transparent);
+  border-radius: 9999px;
+}
+.cbx-scroll::-webkit-scrollbar-track { background: transparent; }
 /* ⚠️ daisyUI has NO listbox component — `menu` is navigation links and `list` is data rows,
    and both are the wrong meaning for "pick one value". Composing this one by hand is what
    rule 4 of the daisyUI usage guide is for. 48px tall because it is a thumb target. */

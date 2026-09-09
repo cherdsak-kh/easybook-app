@@ -4,10 +4,20 @@ import { useEffect } from 'react'
  * Keeps `--vvh` on `<html>` equal to `window.visualViewport.height`.
  *
  * ── What reads it ──
- * `index.css` §5: `dialog.modal { height: var(--vvh, 100dvh) }` and
- * `dialog.modal .modal-box { max-height: calc(var(--vvh, 100dvh) - 5em) }`. Until this hook
- * existed those rules ran on the fallback, which is why Phase 1 could not verify the sheet's
- * keyboard behaviour at all.
+ * The "Dialog geometry" block in `index.css`: `dialog.modal:not(.modal-bottom) { height:
+ * var(--vvh, 100dvh) }` (`:498`) and `dialog.modal:not(.modal-bottom) .modal-box { max-height:
+ * calc(var(--vvh, 100dvh) - 5em) }` (`:508`). Until this hook existed both ran on the `100dvh`
+ * fallback, so every centred dialog was sized from the layout viewport.
+ *
+ * ── 🔴 THE COMBOBOX BOTTOM SHEET IS DELIBERATELY OUTSIDE THIS MECHANISM ──
+ * `:not(.modal-bottom)` is a guard, not decoration. `.cbx-sheet` is the only `modal-bottom`
+ * dialog in `src/`, and it is excluded on purpose (9 Sep 2026): it is `fixed; inset: 0` with
+ * `align-items: flex-end` and a box capped at a fixed `80dvh`, and it leaves the keyboard to the
+ * browser's own visual-viewport panning, which brings the focused search field into view. Do NOT
+ * "restore" a `--vvh` height for it — binding the height AND letting the browser pan is the
+ * double-displacement that threw that sheet's header off the top of the screen. The reasoning
+ * lives in `Combobox.tsx`'s header and the `.cbx-sheet` block in `index.css`; this hook is for
+ * every OTHER dialog, all of which are centred.
  *
  * ── 🔴 WHY NOT `100dvh` ──
  * `dvh` tracks the browser's *layout* viewport, which the virtual keyboard does not shrink. Open
