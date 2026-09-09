@@ -53,6 +53,18 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '0.15.0',
+    date: 'อยู่ระหว่างพัฒนา',
+    groups: [
+      {
+        t: 'แก้ไข',
+        items: [
+          'การแสดงผลตัวเลือก Combobox บนหน้าคำขอจองสถานที่ — แก้ไขปัญหาเมนูดรอปดาวน์แสดงผลเป็นธีมมืดเมื่อเปิดใช้งานธีมสว่างบนอุปกรณ์ที่เปิดโหมดมืด โดยปรับตำแหน่งการ Portal ให้เกาะกับ Wrapper ของธีมโดยตรง',
+        ],
+      },
+    ],
+  },
+  {
     v: '0.14.0',
     date: '7 ก.ย. 2569',
     groups: [

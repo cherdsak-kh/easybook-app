@@ -35,6 +35,23 @@
  * marks everything OUTSIDE the dialog's subtree inert, and an inert search box cannot be typed
  * into. Top layer for painting, dialog subtree for interaction.
  *
+ * ⚠️ AND WITH NO <dialog> ABOVE IT, IT PORTALS TO THE NEAREST `[data-theme]` — STILL NOT <body>.
+ * `#rq-venue-f` and `#rq-sort` on คำขอจองสถานที่ sit in a page toolbar, so `closest('dialog')` is
+ * null for them. `BackendLayout` stamps `data-theme` on a wrapper <div> rather than on <html>, on
+ * purpose and for a good reason of its own — which leaves <body> OUTSIDE the themed subtree. A
+ * popper portalled there resolves its tokens against `:root`, and `@plugin "daisyui" { themes: light
+ * --default, dark --prefersdark }` makes `:root` DARK the moment the operating system is. The
+ * operator then reads a light portal with one black dropdown in it, while every rule in
+ * `admin-portal.css` is doing exactly what it says. The theme wrapper keeps the popper in the
+ * same token scope as the trigger it belongs to (the client portal's Combobox portals this way
+ * for the same reason).
+ *
+ * ⚠️ THE ORDER IS `dialog` FIRST, THEN `[data-theme]`, and it does not commute. A modal caller
+ * gives up nothing by taking the dialog — the dialogs are themselves inside the theme wrapper, so
+ * the tokens come along — whereas a `[data-theme]`-first host would put the search box back
+ * outside the inert boundary, which is a control that cannot be typed into rather than a control
+ * of the wrong colour.
+ *
  * ⚠️ `manual`, NOT `auto`. An auto popover light-dismisses on any outside pointerdown — including
  * the one on the trigger, which would close it a tick before the trigger's own click reopened it.
  * The outside-click close is done here instead, on `pointerdown` in the CAPTURE phase, so it runs
@@ -176,8 +193,10 @@ export function Combobox<T extends number | string>({
   /** Where the KEYBOARD is. Distinct from `value`, which is what the record holds. */
   const [active, setActive] = useState(0)
   /**
-   * The <dialog> to portal into, resolved once from the mounted trigger. `document.body` is the
-   * honest fallback for a caller that is not inside a modal.
+   * Where the popper is portalled, resolved once from the mounted trigger: the <dialog> for a
+   * modal caller, otherwise the nearest `[data-theme]` so the tokens follow the trigger — see the
+   * top of the file. `document.body` is the last resort, and reachable only from outside the
+   * portal shell entirely.
    */
   const [host, setHost] = useState<HTMLElement | null>(null)
 
@@ -188,7 +207,7 @@ export function Combobox<T extends number | string>({
 
   useEffect(() => {
     const el = triggerRef.current
-    if (el) setHost(el.closest('dialog') ?? document.body)
+    if (el) setHost(el.closest('dialog') ?? el.closest('[data-theme]') ?? document.body)
   }, [])
 
   const selected = options.find((o) => o.id === value)
@@ -369,8 +388,11 @@ export function Combobox<T extends number | string>({
   // Esc or a backdrop click can close the dialog out from under an open popper, which would
   // otherwise leave it stranded in the top layer over a page it no longer belongs to. No refocus:
   // the trigger is going away with the dialog, and `Modal` owns the restore.
+  // ⚠️ The guard is an `instanceof` test, not `host !== document.body`: since the host may now be
+  // the theme wrapper <div>, "not <body>" no longer means "is a dialog", and only a dialog fires
+  // `close`.
   useEffect(() => {
-    if (!open || !host || host === document.body) return
+    if (!open || !host || !(host instanceof HTMLDialogElement)) return
     const onHostClose = () => close(false)
     host.addEventListener('close', onHostClose)
     return () => host.removeEventListener('close', onHostClose)
