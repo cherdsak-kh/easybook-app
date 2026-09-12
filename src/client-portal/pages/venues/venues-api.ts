@@ -119,13 +119,18 @@ function devSlots(venueId: string): VenueSlot[] {
   return [
     { id: 'BR-1001', start: at(0, 9), end: at(0, 12), status: 'approved', purpose: 'ประชุมครูประจำเดือน', requester: 'สมหญิง เก่งกาจ', mine: false },
     { id: 'BR-1002', start: at(0, 13), end: at(0, 16), status: 'approved', purpose: 'อบรมเชิงปฏิบัติการ', requester: 'สมชาย ใจดี', mine: true },
-    /* Overlaps BR-1002 on purpose — a pending request holds nothing, so both are legal. */
-    { id: 'BR-1003', start: at(0, 14), end: at(0, 17), status: 'pending', purpose: 'ซ้อมการแสดง', requester: '', mine: false },
+    /* Overlaps BR-1002 on purpose — a pending request holds nothing, so both are legal.
+       ⚠️ IT CARRIES A NAME SINCE `#ISSUE-01`. It was `''` to mimic `D-C13`'s server-side redaction;
+       with that gone, a blank here would exercise the `ไม่ระบุ` fallback on every dev run and the
+       prototype's actual pending card — name plus `(ขอใช้ซ้อนได้)` — would never be seen locally. */
+    { id: 'BR-1003', start: at(0, 14), end: at(0, 17), status: 'pending', purpose: 'ซ้อมการแสดง', requester: 'ประเสริฐ สุขใจ', mine: false },
     /* 30 minutes = 2.08 % of a day; the bar must floor it at 8 %. */
     { id: 'BR-1004', start: at(1, 7, 30), end: at(1, 8), status: 'approved', purpose: 'ประชุมสายชั้น', requester: 'วิภา สุขใจ', mine: false },
     /* Crosses midnight into day 3 — must show on BOTH days, filling day 3 from the far left. */
     { id: 'BR-1005', start: at(2, 15), end: at(3, 2), status: 'approved', purpose: 'ค่ายลูกเสือ', requester: 'ประเสริฐ มั่นคง', mine: false },
-    /* Ends exactly at midnight: the right-edge case the floor must pull leftward, not clip. */
+    /* Ends exactly at midnight: the right-edge case the floor must pull leftward, not clip.
+       ⚠️ THE ONE ROW LEFT UNNAMED, AND NOW FOR THE ONLY REASON THAT SURVIVES — `D-C18`'s staff
+       booking with no requester. It is what keeps `ผู้ขอใช้งาน` reachable in a dev browser. */
     { id: 'BR-1006', start: at(4, 23, 30), end: at(5, 0), status: 'pending', purpose: 'เตรียมงานกีฬาสี', requester: '', mine: false },
   ]
 }
@@ -200,12 +205,14 @@ export async function getVenue(id: string): Promise<Venue> {
  * one flag here would undo it at the last step: a reader would either walk away from a day nothing
  * is holding, or submit without knowing they are competing.
  *
- * ── ⚠️ `purpose` AND `requesterName` ARRIVE AS `null`, AND THAT IS THE PRIVACY RULE WORKING ──
- * `D-C13`: an unapproved request never reveals who asked or what for. The SERVER omits both on
- * somebody else's pending row — this file only has to not invent a replacement. `?? ''` is the
- * right fill because {@link VenueSlot} types them as strings and the renderers already treat an
- * empty string as "nothing to print"; a placeholder like "ไม่ระบุ" would be this file claiming to
- * know something it was deliberately not told.
+ * ── ⚠️ `purpose` AND `requesterName` ARE NOW SENT FOR EVERY ROW (`#ISSUE-01`, 12 ก.ย. 2569) ──
+ * They used to arrive `null` on somebody else's pending request, which was `D-C13`'s redaction
+ * working; the PO retired it so the live screen matches the prototype, which prints both on every
+ * card it draws. `?? ''` stays, because the columns are still nullable for a staff booking that
+ * names nobody (`D-C18`) — what changed is why an empty string turns up, not that it can.
+ * ⚠️ THE FILL IS STILL `''`, NOT A PLACEHOLDER. {@link VenueSlot} types both as strings and
+ * `SlotList` owns the words it prints when one is blank; inventing "ไม่ระบุ" here would put the
+ * same decision in two files.
  *
  * ── The window ──
  * `from`/`to` are optional and the server defaults to the current Bangkok month. The calendar asks

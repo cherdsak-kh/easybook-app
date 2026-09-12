@@ -43,7 +43,7 @@ export type ScreenName =
   | 'rules'
 
 /**
- * What the four boot checks concluded. These are the ten values `ALLOWED_SCREENS` is keyed by
+ * What the four boot checks concluded. These are the eleven values `ALLOWED_SCREENS` is keyed by
  * — the prototype's `CASES` names minus the two hang cases, which are not outcomes at all:
  * they are the checks never finishing, so the portal stays on the splash and `access` stays
  * `null` (`PAGE_INDEX.md` §2.1, rows 11 and 12).
@@ -58,10 +58,25 @@ export type GateAccess =
   | 'not-logged-in'
   | 'line-down'
   | 'status-down'
+  /**
+   * 🔴 A 401 FROM `/line-users/status` IS ITS OWN OUTCOME, NOT A FLAVOUR OF `status-down`
+   * (`#ISSUE-08`, 12 ก.ย. 2569). Both fail on the same row of the tape, which is why they were one
+   * value — but they are two different things to be told and two different things to do. A
+   * `status-down` is the server or the network; waiting and retrying is the whole answer. A 401 is
+   * an ID token that expired while the phone was locked, and **no amount of retrying inside this
+   * page can fix it**: the token was minted when the webview opened and lives in the JS context,
+   * so the only cures are a hard reload or closing the LIFF window. Told apart, the error screen
+   * can name the real cause and offer both. The prototype carries the case as `session-expired`
+   * (2294, 2365) with `retry` AND `close`.
+   */
+  | 'session-expired'
   | 'obs2'
 
-/** The three gate failures, which are the three faces of `/gate-error`. */
-export type GateErrorReason = Extract<GateAccess, 'line-down' | 'status-down' | 'obs2'>
+/** The four gate failures, which are the four faces of `/gate-error`. */
+export type GateErrorReason = Extract<
+  GateAccess,
+  'line-down' | 'status-down' | 'session-expired' | 'obs2'
+>
 
 /**
  * 🔴 ROUTE SEGMENT → SCREEN NAME. Exactly one entry, and it earns its table.
@@ -178,6 +193,7 @@ export const ALLOWED_SCREENS: Record<GateAccess, readonly ScreenName[]> = {
      the app with a status nobody has read. */
   'line-down': ['gate-error'],
   'status-down': ['gate-error'],
+  'session-expired': ['gate-error'],
   obs2: ['gate-error'],
 }
 
@@ -192,6 +208,7 @@ export const LANDING: Record<GateAccess, string> = {
   'not-logged-in': '/login',
   'line-down': '/gate-error',
   'status-down': '/gate-error',
+  'session-expired': '/gate-error',
   obs2: '/gate-error',
 }
 

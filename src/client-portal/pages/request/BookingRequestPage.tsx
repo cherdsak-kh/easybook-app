@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { messageFor as bookingMessageFor, rememberSent, submitBooking } from './booking-api'
 import {
   addDay,
@@ -50,7 +50,9 @@ import type { Venue } from '@/lib/api-client'
  * `409` that follows is handled at the bottom of `submit` rather than treated as impossible.
  *
  * ── 🟠 NO IN-PAGE BACK ARROW (`D-C3`) ──
- * The way back is the breadcrumb, which names its destination (`D-C14`).
+ * The way back is the breadcrumb, which names its destination (`D-C14`) — and, since `#ISSUE-04`, a
+ * "ย้อนกลับ" link at the end of the form that walks to `/venue/:id`. Neither is a history control:
+ * both name where they go, which is exactly why they can sit beside LIFF's own arrow.
  *
  * ⚠️ DOCKLESS, and nothing here says so: `NAV_SCREENS` omits `request` and `LiffShell` reads that
  * table. A screen that opted out by hand would be a second place the answer lives.
@@ -605,14 +607,37 @@ export function BookingRequestPage() {
           </div>
         </div>
 
+        {/* 🔴 THE NOTE IS A FOOTNOTE TO THE TIME CARD, NOT A LINE BETWEEN TWO BUTTONS
+            (`#ISSUE-04`, 12 ก.ย. 2569). It is the same move `#/venue/:id` makes and for the same
+            reason: once a "ย้อนกลับ" joined the submit, a caveat sitting under the first button
+            was wedged *inside* the action block, and a button group with a paragraph in the middle
+            stops reading as one set of choices. Prototype 1474.
+            🟠 IT NO LONGER SWAPS TO THE REASON THE BUTTON IS DEAD, and that is the prototype's
+            ruling rather than an oversight (1476–1483, where `#rq-block` was deleted whole): every
+            blocking condition already states itself where it is fixed — `input-error` /
+            `textarea-error` with a line under the offending field, and the `#rq-slots` check boxes
+            for a time clash or an empty day list. A second, summarised copy above the button made
+            people read the same warning twice before learning where to scroll. `blocked` still
+            gates the button and still routes focus on a failed submit; what went is the sentence,
+            not the guard.
+            ⚠️ `aria-describedby` STAYS, now pointing at the standing caveat, so a screen reader
+            landing on a disabled control is not left with a bare "dimmed button". */}
+        <p id="rq-note" className="mt-3 text-start text-xs text-base-content/60">
+          หมายเหตุ: คำขอจะถูกส่งให้เจ้าหน้าที่พิจารณา ยังไม่ถือเป็นการจองที่ได้รับอนุมัติ
+        </p>
+
         {submitError ? (
-          <div role="alert" className="alert alert-error alert-soft mt-6 text-sm">
+          <div role="alert" className="alert alert-error alert-soft mt-4 text-sm">
             <LIcon name="circleX" className="h-5 w-5 shrink-0" />
             <span className="text-base-content">{submitError}</span>
           </div>
         ) : null}
 
-        <div className="mt-6">
+        {/* ⚠️ "ย้อนกลับ" GOES TO THE VENUE, NOT BACK THROUGH HISTORY — a written-down destination at
+            the end of the content, which is what keeps it clear of `D-C3`'s ban on chrome that
+            races LIFF's own arrow. It falls back to the catalogue while the venue is still loading,
+            so the button is never a dead link during the first round trip. */}
+        <div className="mb-8 mt-4 flex flex-col gap-2">
           <button
             type="submit"
             disabled={!canSubmit}
@@ -621,22 +646,12 @@ export function BookingRequestPage() {
           >
             {saving ? 'กำลังยื่นคำขอ…' : 'ยื่นคำขอใช้สถานที่'}
           </button>
-          {/* 🔴 ONE LINE, AND IT SWAPS. While the button is live it is the standing caveat that a
-              request is not an approved booking; while the button is dead it says what is missing.
-              `aria-describedby` on the button, so the explanation reaches a screen reader that
-              lands on a disabled control instead of leaving it silent. */}
-          <p
-            id="rq-note"
-            /* ⚠️ `text-base-content`, NOT `text-warning`. The first attempt used the warning token
-               and measured **2.05:1** in the light theme — the reason-for-a-dead-button is the one
-               line on this screen that MUST be readable, so colouring it "cautionary" made it the
-               least readable thing here. Weight carries the emphasis instead: `font-medium` at full
-               strength against the `/60` of the standing note. Red was never an option either — the
-               prototype deleted its red panel because it made a half-filled form read as broken. */
-            className={`mb-8 mt-2 text-center text-xs ${blocked ? 'font-medium text-base-content' : 'text-base-content/60'}`}
+          <Link
+            to={venue ? `/venue/${venue.id}` : '/venues'}
+            className="btn btn-app btn-outline w-full border-base-300 text-base-content/80"
           >
-            {blocked || 'คำขอจะถูกส่งให้เจ้าหน้าที่พิจารณา ยังไม่ถือเป็นการจองที่ได้รับอนุมัติ'}
-          </p>
+            ย้อนกลับ
+          </Link>
         </div>
       </form>
     </section>

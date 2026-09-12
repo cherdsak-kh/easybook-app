@@ -13,6 +13,7 @@ import {
   TH_DOW_FULL,
   TH_MON_FULL,
   fmtD,
+  fmtDShort,
   fmtSlot,
   fmtT,
   fmtTe,
@@ -48,7 +49,8 @@ import { getProfile } from '@/lib/liff'
  * also covers the 7-day strip in every case, because the strip is anchored to the selected day's
  * week and the selected day is always inside the month the grid is drawn for.
  * ⚠️ 42 DAYS IS COMFORTABLY INSIDE THE SERVER'S TWO 400s (`to` before `from`; wider than 366 days).
- * Nothing on this screen can widen it — the arrows step one month at a time.
+ * The arrows step one month (or, in the week view, seven days) at a time, and what they can pull
+ * apart — the grid and the selected day's week — is clamped to `MAX_WINDOW_DAYS` below.
  *
  * ── ⚠️ FIVE PIECES OF STATE, NONE OF THEM IN THE URL (`D-C3`) ──
  * selected day · view · month on show · type filter · search text. Picking a day is reading the same
@@ -332,6 +334,18 @@ export function HomePage() {
   const stepMonth = (dir: -1 | 1) =>
     setMonth((m) => new Date(m.getFullYear(), m.getMonth() + dir, 1))
 
+  /**
+   * ±7 days on the SELECTED day, which is what moves the strip — the strip is the selected day's
+   * week, so there is no separate week anchor to step and inventing one would give the screen two
+   * ideas of "which week am I looking at". Prototype 5290/5302 does exactly this (`hmPick ± 7`).
+   *
+   * ⚠️ IT DELIBERATELY LEAVES `month` ALONE, the mirror of what the month arrows do to `pick`. The
+   * รายเดือน button already re-anchors the month on the selected day when the reader switches, so
+   * dragging it along here would only make the fetch window travel twice as fast toward the 360-day
+   * clamp for no visible gain.
+   */
+  const stepWeek = (dir: -1 | 1) => setPick((d) => addDays(d, dir * 7))
+
   /* ⚠️ CLEARS THE VISIBLE BOX, NOT ONLY THE STATE BEHIND IT. The input is controlled, so resetting
      `query` empties what the reader can see — the prototype has to say `hm-q.value = ''` out loud
      because its box is not. Leaving text in the field while the full list returns is a screen that
@@ -343,11 +357,12 @@ export function HomePage() {
 
   /* Week: the seven days of the SELECTED day's week — not "seven days from today". Tap the 18th in
      the month grid, switch back, and the 18th must still be in the strip; snapping back to this week
-     throws away the work the reader just did. There are no arrows here on purpose: the way to
-     another week is the month view (prototype 827). */
+     throws away the work the reader just did. */
+  const weekStart = addDays(pick, -pick.getDay())
+  const weekEnd = addDays(weekStart, 6)
+
   const days: { day: Date; dim: boolean }[] = []
   if (view === 'week') {
-    const weekStart = addDays(pick, -pick.getDay())
     for (let i = 0; i < 7; i++) days.push({ day: addDays(weekStart, i), dim: false })
   } else {
     for (let k = 0; k < 42; k++) {
@@ -450,37 +465,52 @@ export function HomePage() {
 
             <div className="divider my-3" />
 
-            {/* ⚠️ ARROWS EXIST IN THE MONTH VIEW ONLY. A month grid that cannot change month is a
-                calendar that does not work; the 7-day strip reaches other weeks through the month
-                view, so a second pair of arrows there would be a second way to do one thing.
+            {/* 🔴 ARROWS EXIST IN **BOTH** VIEWS (`#ISSUE-02`, 12 ก.ย. 2569). They used to be drawn
+                for the month grid only, on the reasoning that the strip reached other weeks through
+                the month view — which is a route, not an answer: it costs two taps and a change of
+                view to see next week, and a reader who never opens รายเดือน is simply stuck on this
+                week with two visible controls that do not respond. The prototype draws its own pair
+                on the strip (5283–5307) and this matches it, label included.
+                ⚠️ ONE ROW, NOT TWO BRANCHES. The arrows, the 44 px targets and the centred label are
+                identical in both views; only the step, the label and the two `aria-label`s differ.
+                Written as two blocks they drift the first time somebody edits one.
                 ⚠️ A FULL 44 px on both — an icon-only button has no text width to make up the
                 target — and `min-h-11` must accompany `h-11` because daisyUI's `.btn` sets its own
                 `min-height` and would otherwise win.
                 ⚠️ `flex-1 text-center` ON THE LABEL, with `justify-between` kept: the two arrows are
-                exactly the same width, so the label's centre is the row's centre. */}
-            {view === 'month' ? (
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => stepMonth(-1)}
-                  className="btn btn-ghost btn-square h-11 min-h-11 w-11"
-                  aria-label="เดือนก่อนหน้า"
-                >
-                  <LIcon name="chevronLeft" className="h-4 w-4" />
-                </button>
-                <p className="min-w-0 flex-1 truncate text-center text-sm font-semibold">
-                  {TH_MON_FULL[month.getMonth()]} {month.getFullYear() + 543}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => stepMonth(1)}
-                  className="btn btn-ghost btn-square h-11 min-h-11 w-11"
-                  aria-label="เดือนถัดไป"
-                >
-                  <LIcon name="chevronRight" className="h-4 w-4" />
-                </button>
-              </div>
-            ) : null}
+                exactly the same width, so the label's centre is the row's centre.
+                ⚠️ `mb-2` IN THE WEEK VIEW ONLY. The month view's gap comes from the `mt-2` its
+                weekday header already carries; the strip has no header, so the space has to be paid
+                for here or the row sits flush against the cells (prototype 5284). */}
+            <div
+              className={`flex items-center justify-between gap-2${view === 'week' ? ' mb-2' : ''}`}
+            >
+              <button
+                type="button"
+                onClick={() => (view === 'week' ? stepWeek(-1) : stepMonth(-1))}
+                className="btn btn-ghost btn-square h-11 min-h-11 w-11"
+                aria-label={view === 'week' ? 'สัปดาห์ก่อนหน้า' : 'เดือนก่อนหน้า'}
+              >
+                <LIcon name="chevronLeft" className="h-4 w-4" />
+              </button>
+              {/* ⚠️ A WEEK PRINTS ITS REAL SPAN, NOT THE MONTH IT MOSTLY FALLS IN — the same rule
+                  `AvailabilityCalendar` follows, because "กันยายน" over a row that starts on
+                  31 ส.ค. is a label that lies about half the cells under it. The year is printed
+                  once, at the end: a week cannot straddle two years in a way that confuses. */}
+              <p className="min-w-0 flex-1 truncate text-center text-sm font-semibold">
+                {view === 'week'
+                  ? `${fmtDShort(weekStart)} – ${fmtDShort(weekEnd)} ${weekEnd.getFullYear() + 543}`
+                  : `${TH_MON_FULL[month.getMonth()]} ${month.getFullYear() + 543}`}
+              </p>
+              <button
+                type="button"
+                onClick={() => (view === 'week' ? stepWeek(1) : stepMonth(1))}
+                className="btn btn-ghost btn-square h-11 min-h-11 w-11"
+                aria-label={view === 'week' ? 'สัปดาห์ถัดไป' : 'เดือนถัดไป'}
+              >
+                <LIcon name="chevronRight" className="h-4 w-4" />
+              </button>
+            </div>
 
             {/* ⚠️ THE WEEKDAY HEADER ROW EXISTS ONLY IN THE MONTH VIEW — in the strip each cell
                 prints its own weekday, and having both is one label stacked twice. It must carry

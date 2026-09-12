@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { BootStepKey, BootStepState, BootSteps, GateValue } from './gate-context'
 import type { GateAccess } from '@/client-portal/routes'
-import { getLineUserStatus } from '@/lib/api-client'
+import { ApiError, getLineUserStatus } from '@/lib/api-client'
 import type { LineUserRegistration, LineUserStatus } from '@/lib/api-client'
 import { bootLiff, getFriendship, getIdToken, isLiffConfigured, isLoggedIn } from '@/lib/liff'
 
@@ -20,12 +20,12 @@ import { bootLiff, getFriendship, getIdToken, isLiffConfigured, isLoggedIn } fro
  * version shipped exactly that.
  *
  * ── The four checks and what each can conclude ──
- * | # | Step       | Call                     | Not-`pass` outcomes                     |
- * |---|------------|--------------------------|-----------------------------------------|
- * | 1 | `login`    | `bootLiff()` + session   | `line-down` · `not-logged-in` · `obs2`  |
- * | 2 | `friend`   | `getFriendship()`        | `not-friend`                            |
- * | 3 | `register` | `GET /line-users/status` | `status-down` · `unregistered`          |
- * | 4 | `status`   | (reads the response)     | `pending` · `rejected` · `blocked`      |
+ * | # | Step       | Call                     | Not-`pass` outcomes                                       |
+ * |---|------------|--------------------------|-----------------------------------------------------------|
+ * | 1 | `login`    | `bootLiff()` + session   | `line-down` · `not-logged-in` · `obs2`                    |
+ * | 2 | `friend`   | `getFriendship()`        | `not-friend`                                              |
+ * | 3 | `register` | `GET /line-users/status` | `status-down` · `session-expired` · `unregistered`        |
+ * | 4 | `status`   | (reads the response)     | `pending` · `rejected` · `blocked`                        |
  *
  * ⚠️ STEP 3 IS THE CALL AND STEP 4 IS THE VERDICT — one request, two rows. That is why
  * `status-down` fails on the *register* row (`PAGE_INDEX.md` §2.1) even though it is the status
@@ -139,6 +139,10 @@ const DEV_CASES: Record<string, { steps: BootSteps; access?: GateAccess }> = {
   'not-logged-in': { steps: { login: 'action', friend: 'wait', register: 'wait', status: 'wait' }, access: 'not-logged-in' },
   'line-down': { steps: { login: 'fail', friend: 'wait', register: 'wait', status: 'wait' }, access: 'line-down' },
   'status-down': { steps: { login: 'pass', friend: 'pass', register: 'fail', status: 'wait' }, access: 'status-down' },
+  /* Same tape as `status-down` — both fail on the register row — and that is exactly why the case
+     has to be playable on its own: the two are indistinguishable from the splash and differ only in
+     what `#/gate-error` then says and offers (prototype 2365). */
+  'session-expired': { steps: { login: 'pass', friend: 'pass', register: 'fail', status: 'wait' }, access: 'session-expired' },
   obs2: { steps: { login: 'fail', friend: 'wait', register: 'wait', status: 'wait' }, access: 'obs2' },
   /* The two hang cases have NO `access`: they are the checks never finishing, so the portal
      stays on the splash. They are told apart by which row is `busy` — which is the whole reason
@@ -210,7 +214,9 @@ async function runChecks(setStep: (key: BootStepKey, state: BootStepState) => vo
      channel configuration the user cannot fix, which is why the error screen offers no retry
      (`PAGE_INDEX.md` §2.1) — a button that fails every time is a lie.
      ⚠️ We return here rather than falling through, so the backend is never called without a
-     token. A 401 would look like `status-down` and offer a retry that cannot work. */
+     token. Calling it anyway would 401, and the 401 branch below would then read a permanently
+     misconfigured channel as `session-expired` — offering a reload and a reopen, neither of which
+     can add the `openid` scope. The distinction only holds because this returns first. */
   const idToken = getIdToken()
   if (!idToken) {
     setStep('login', 'fail')
@@ -240,6 +246,17 @@ async function runChecks(setStep: (key: BootStepKey, state: BootStepState) => vo
   } catch (error) {
     console.warn('[gate] /line-users/status failed:', error)
     setStep('register', 'fail')
+    /* 🔴 A 401 IS AN EXPIRED ID TOKEN, NOT AN OUTAGE (`#ISSUE-08`). The bearer this call sends was
+       minted by `liff.init()` when the webview opened and never refreshes itself; a LIFF left open
+       through an hour of screen-lock therefore wakes up holding a dead one, and every request after
+       that is a 401. Reported as `status-down` it drew "check your connection and try again" over a
+       working connection, and the retry — which re-ran the checks inside the same JS context —
+       re-sent the same dead token and landed back here. Forever.
+       ⚠️ ONLY A 401. A 403, a 500 or a network throw are genuine `status-down`s and their retry
+       does work; widening this would offer "close the window" as the fix for a server outage. */
+    if (error instanceof ApiError && error.status === 401) {
+      return { access: 'session-expired', status: null }
+    }
     return { access: 'status-down', status: null }
   }
 

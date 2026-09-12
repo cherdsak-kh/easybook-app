@@ -29,9 +29,19 @@ export type VenueSlot = {
   start: Date
   end: Date
   status: SlotStatus
-  /** What the room was asked for. Shown as the slot card's heading. */
+  /**
+   * What the room was asked for. Shown as the slot card's heading.
+   *
+   * ⚠️ STILL POSSIBLY EMPTY, FOR A DIFFERENT REASON THAN IT USED TO BE. The server sent `''` here
+   * for somebody else's pending request until `#ISSUE-01` (12 ก.ย. 2569) retired that redaction;
+   * what remains is the wire's own `null`, which `venues-api` flattens to `''`. `SlotList` keeps
+   * its fallback string for exactly that case.
+   */
   purpose: string
-  /** Who asked. `D-C13` — an UNAPPROVED request never reveals this, so it is blank for `pending`. */
+  /**
+   * Who asked. Sent for every slot since `#ISSUE-01` — approved or pending, anyone's — so `''`
+   * now means only "the row genuinely names nobody" (a staff booking with no override, `D-C18`).
+   */
   requester: string
   /** `true` when the signed-in LINE user is the requester; draws the `คุณ` badge. */
   mine: boolean

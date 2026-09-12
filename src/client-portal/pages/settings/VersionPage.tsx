@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { fetchServerVersion, messageFor } from './settings-api'
 import { SCREEN_WIDTH, ScreenHeader } from '@/client-portal/components/ui/ScreenHeader'
 import { LIcon } from '@/client-portal/icons/LucideIcon'
@@ -131,7 +132,7 @@ export function VersionPage() {
         </div>
 
         {/* ─── 2 · The changelog ─────────────────────────────────────────────────────── */}
-        <div className="card mt-4 mb-8 bg-base-100 shadow-sm">
+        <div className="card mt-4 bg-base-100 shadow-sm">
           <div className="card-body p-4">
             <h2 className="flex items-center gap-2 font-semibold">
               <LIcon name="history" className="h-5 w-5 shrink-0" />
@@ -166,6 +167,24 @@ export function VersionPage() {
               </details>
             ))}
           </div>
+        </div>
+
+        {/* 🔴 THE CHANGELOG IS THE LONGEST SCROLL IN THE PORTAL, AND IT ENDED IN NOTHING
+            (`#ISSUE-04`, 12 ก.ย. 2569). Every other way out of this screen — the breadcrumb, the
+            dock — is at the top or bottom *chrome*; a reader who has just scrolled through six
+            releases had to scroll all of it back to leave. Prototype 2120.
+            ⚠️ IT IS A LINK TO `/settings`, NOT A BACK CONTROL. `D-C3` bans the second arrow, not a
+            labelled destination at the end of the content — the same distinction `#/venue/:id` and
+            `#/booking/:id` are built on, and the note at 2135 in the prototype spells it out.
+            ⚠️ `mb-8` MOVED HERE FROM THE CARD ABOVE. Left on both, the two margins do not collapse
+            (the card is a grid item and this is its sibling) and the page ends in 4 rem of nothing. */}
+        <div className="mb-8 mt-4">
+          <Link
+            to="/settings"
+            className="btn btn-app btn-outline w-full border-base-300 text-base-content/80"
+          >
+            ย้อนกลับ
+          </Link>
         </div>
       </div>
     </section>

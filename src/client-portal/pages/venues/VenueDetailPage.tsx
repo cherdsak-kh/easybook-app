@@ -19,6 +19,9 @@ import type { Venue } from '@/lib/api-client'
  * LIFF draws its own. A second one is a second answer to the same question, and the two disagree
  * the moment history and layout do. The way back is the breadcrumb (`D-C14`), which names its own
  * destination — which is exactly why it can coexist with LIFF's arrow without contradicting it.
+ * ⚠️ THE "ย้อนกลับ" BUTTON AT THE BOTTOM IS NOT AN EXCEPTION TO THIS. It is a link to a written-down
+ * destination (`/venues`) at the end of the content, the same kind of thing the breadcrumb is —
+ * not a chrome control popping real history. `#/booking/:id` and `#/version` carry the same pair.
  *
  * ── ⚠️ THE TRAIL IS TWO LEVELS, NOT THREE ──
  * `จองสถานที่ › ชื่อสถานที่` (prototype 3955). The brief asks for a `หน้าแรก` root; the prototype
@@ -321,11 +324,33 @@ export function VenueDetailPage() {
               <SlotList slots={slots} day={picked} />
             </div>
 
-            {/* ─── CTA ─────────────────────────────────────────────────────────────────
-                ⚠️ THE LINE UNDER THE BUTTON IS NOT IN THE WAY. It states P2 rule 2 ("this is a
-                REQUEST") *after* the button, not before: somebody who has already decided can press
-                straight away, and somebody who has not learns it before the next screen. */}
-            <div className="mb-8 mt-6">
+            {/* 🔴 THE NOTE IS A FOOTNOTE TO THE SCHEDULE, NOT A LINE BETWEEN TWO BUTTONS
+                (`#ISSUE-04`, 12 ก.ย. 2569). It used to sit under the CTA, which put it *inside* the
+                action block once a second button joined it — and a caveat wedged between two
+                buttons breaks the one thing a button group is for: reading as a single set of
+                choices. Moved up here it belongs to the thing it is about (these hours are not
+                yours yet), and the buttons close the page as a pair. Prototype 1243.
+                ⚠️ `text-start`, NOT `text-center`, AND THE PREFIX IS PART OF IT. Centred, it read
+                as a second caption for the CTA; left-aligned under a "หมายเหตุ:" it reads as what
+                it is — a footnote on the list above.
+                ⚠️ HIDDEN WHEN THE VENUE IS CLOSED, because there is no request to caveat — the
+                prototype does the same with `#vd-cta-note`.hidden (4040). */}
+            {venue.isOpen ? (
+              <p className="mt-3 text-start text-xs text-base-content/60">
+                หมายเหตุ: คำขอจะถูกส่งให้เจ้าหน้าที่พิจารณา ยังไม่ถือเป็นการจองที่ได้รับอนุมัติ
+              </p>
+            ) : null}
+
+            {/* ─── CTA + the way back ──────────────────────────────────────────────────
+                🔴 "ย้อนกลับ" IS A LINK TO A NAMED DESTINATION, NOT A BACK ARROW, and that is what
+                keeps it inside `D-C3`. The ban is on chrome that races LIFF's own arrow through
+                real history; this sits at the END of the content and walks to `/venues`, which is
+                the same thing the breadcrumb at the top of the screen does — it just does it where
+                the reader actually is after scrolling a calendar and a day's bookings.
+                ⚠️ TEXT-ONLY OUTLINE, NO ICON. A chevron here would make it look like the history
+                control it deliberately is not, and `border-base-300 text-base-content/80` is the
+                same pair `#/booking/:id` and `#/version` use — one secondary button, one look. */}
+            <div className="mb-8 mt-4 flex flex-col gap-2">
               {venue.isOpen ? (
                 <Link to={`/request/${venue.id}`} className="btn btn-app btn-primary w-full shadow-sm">
                   ยื่นคำขอใช้สถานที่
@@ -335,11 +360,12 @@ export function VenueDetailPage() {
                   สถานที่ปิดปรับปรุงชั่วคราว
                 </button>
               )}
-              {venue.isOpen ? (
-                <p className="mt-2 text-center text-xs text-base-content/60">
-                  คำขอจะถูกส่งให้เจ้าหน้าที่พิจารณา ยังไม่ถือเป็นการจองที่ได้รับอนุมัติ
-                </p>
-              ) : null}
+              <Link
+                to="/venues"
+                className="btn btn-app btn-outline w-full border-base-300 text-base-content/80"
+              >
+                ย้อนกลับ
+              </Link>
             </div>
           </>
         )}

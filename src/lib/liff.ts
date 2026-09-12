@@ -37,6 +37,30 @@ export function isInLineClient(): boolean {
 }
 
 /**
+ * Close the LIFF window, returning the user to the LINE chat that opened it.
+ *
+ * 🔴 THE ONLY EXIT THAT ACTUALLY RESTARTS A LIFF SESSION. A LIFF webview keeps its JS context — and
+ * therefore the ID token minted when it opened — for as long as it stays open, so a token that
+ * expired while the phone was locked cannot be replaced by anything the page does to itself short
+ * of a full reload. Closing and reopening from the rich menu is the user-side version of that, and
+ * it is what `#/gate-error` offers beside its retry.
+ *
+ * ⚠️ IT IS A NO-OP OUTSIDE THE LINE CLIENT, BY THE SDK'S OWN CONTRACT — an external browser has no
+ * window LINE may close. Callers gate the BUTTON on {@link isInLineClient} rather than relying on
+ * that, because a visible control that does nothing is worse than an absent one.
+ *
+ * ⚠️ Never throws, like every other helper in this module.
+ */
+export function closeWindow(): void {
+  if (!isLiffConfigured()) return
+  try {
+    liff.closeWindow()
+  } catch (error) {
+    console.warn('[liff] closeWindow failed:', error)
+  }
+}
+
+/**
  * Whether the LINE user currently has an active LIFF session.
  * Fails soft to `false` when LIFF is unconfigured/unavailable.
  */

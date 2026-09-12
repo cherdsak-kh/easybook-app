@@ -1370,7 +1370,10 @@
 /* The never-registered variant, same argument in the neutral hue. */
 .ava-fill-none { background-color: color-mix(in oklab, var(--color-base-content) 12%, var(--color-base-100)); }
 
-/* ═══ Badges — moved here out of `@layer components`, and this is the only reason ═══
+/* ═══ Badges — UNLAYERED **and** SCOPED. Both halves are load-bearing; read on ═══
+   (Unlayered is why it wins over daisyUI; scoped is why it stops at the admin portal. The
+   second half was added on 13 ก.ย. 2569 after the leak described at the end of this block.)
+
    `badge` is ALSO a daisyUI 5 component class. The prototype never met it: it ran on raw
    `@tailwindcss/browser` with no daisyUI, so `.badge` was a free name there. Here daisyUI
    emits its own `.badge` into a LATER layer, and layer order beats specificity — measured,
@@ -1406,13 +1409,40 @@
    went 24 → 29.5 against the prototype's 27.5), and the gap is silent until the first badge with
    an icon beside its text. FOUR properties, and the general lesson is worth more than any of
    them: moving a rule out of a layer wins only what that rule DECLARES. Everything it says
-   nothing about is still daisyUI's, because silence cannot overrule anything. */
-.badge         { @apply inline-flex h-auto items-center gap-0 rounded-full border-0 px-2.5 py-1 align-baseline text-[13px] font-medium whitespace-nowrap; }
-.badge-emerald { @apply bg-success/10 text-success; }      /* ALLOWED      */
-.badge-amber   { @apply bg-warning/10 text-warning; }      /* PENDING      */
-.badge-sky     { @apply bg-info/10 text-info; }            /* REJECTED     */
-.badge-rose    { @apply bg-error/10 text-error; }          /* BLOCKED      */
-.badge-slate   { @apply bg-base-content/10 text-base-content/80; } /* UNREGISTERED */
+   nothing about is still daisyUI's, because silence cannot overrule anything.
+
+   ═══ 🔴 AND THEY ARE SCOPED, 13 ก.ย. 2569 — unlayered ALONE was only half the story ═══
+   Being unlayered is what makes this rule win. It is also what made it LEAK. `index.css:713`
+   imports this stylesheet **globally**, so an unlayered `.badge` applied to every badge in the
+   **LIFF client portal** too, where daisyUI's own defaults were supposed to stand. Measured on
+   the client's Venue Detail slot card against its prototype — height **27.5 vs 20px**,
+   border-width **0 vs 1px**, padding-inline **10 vs 9px**, font-size **13 vs 12px**, gap
+   **0 vs 4px** — i.e. the admin numbers above, every one of them, on a screen this file has no
+   business styling. Proven by renaming this one selector at runtime in the browser: all five
+   snapped to the prototype's values and nothing else moved. It was not confined to that card —
+   `อนุมัติแล้ว` on Home, the booking `StateBadge`s, the `คุณ` badge and the VersionPage release
+   badges had all been rendering at admin geometry.
+
+   ⚠️ The scope is NOT the thing that failed in the third bullet above. That attempt put
+   `[data-theme^="easybook-admin"] .badge` **inside `@layer components`**, where no specificity
+   can beat a later layer — which is exactly what that note concludes. Layer order is unaffected
+   by compounding a selector, so UNLAYERED **+** SCOPED keeps the win and drops the leak. The
+   admin themes are `easybook-admin` / `easybook-admin-dark`, so `^=` covers every admin surface;
+   the client stamps `easybook-client(-dark)`, which cannot match.
+
+   The general lesson, one level up from the layer one: **an unlayered rule in a shared
+   stylesheet must be scoped to the portal it owns.** It outranks everything, including the
+   utilities layer — so a `h-5`/`px-2`/`border` utility bolted onto the client markup does NOT
+   override it (that was tried, and measured failing). The scope is the only fix. Same hazard
+   `details > summary` just below was already scoped for; `.badge` is that hazard wearing a
+   class selector, which is why it read as safe and slipped through. All six still move together,
+   for the same reason as before. */
+[data-theme^="easybook-admin"] .badge         { @apply inline-flex h-auto items-center gap-0 rounded-full border-0 px-2.5 py-1 align-baseline text-[13px] font-medium whitespace-nowrap; }
+[data-theme^="easybook-admin"] .badge-emerald { @apply bg-success/10 text-success; }      /* ALLOWED      */
+[data-theme^="easybook-admin"] .badge-amber   { @apply bg-warning/10 text-warning; }      /* PENDING      */
+[data-theme^="easybook-admin"] .badge-sky     { @apply bg-info/10 text-info; }            /* REJECTED     */
+[data-theme^="easybook-admin"] .badge-rose    { @apply bg-error/10 text-error; }          /* BLOCKED      */
+[data-theme^="easybook-admin"] .badge-slate   { @apply bg-base-content/10 text-base-content/80; } /* UNREGISTERED */
 
 /* Scoped for the same reason as `dialog` above — a bare element selector in an app
    that also serves the LIFF client. */

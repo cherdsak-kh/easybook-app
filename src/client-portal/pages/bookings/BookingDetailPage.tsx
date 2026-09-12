@@ -389,7 +389,15 @@ export function BookingDetailPage() {
             </p>
           )
         ) : null}
-        <Link to="/bookings" className="btn btn-app btn-ghost w-full">
+        {/* ⚠️ OUTLINE, NOT `btn-ghost` (`#ISSUE-04`, 12 ก.ย. 2569). A ghost button has no edge at
+            all, so under a filled CTA it read as a caption rather than as the second of two
+            choices — and it was the only secondary button in the portal not wearing the
+            `border-base-300 text-base-content/80` pair that `#/venue/:id`, `#/request/:id` and
+            `#/version` now share. Prototype 5037. */}
+        <Link
+          to="/bookings"
+          className="btn btn-app btn-outline w-full border-base-300 text-base-content/80"
+        >
           กลับหน้ารายการ
         </Link>
       </div>
