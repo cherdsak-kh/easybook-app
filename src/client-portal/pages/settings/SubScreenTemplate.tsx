@@ -30,10 +30,20 @@ import { SCREEN_WIDTH, ScreenHeader } from '@/client-portal/components/ui/Screen
  */
 export function SettingsSubScreen({ title }: { title: string }) {
   return (
-    /* `pad-nav`: all three keep the dock (`NAV_SCREENS` lists them) and highlight the ตั้งค่า tab,
-       so the floating pill needs room reserved under the content — the same pairing `#/venues` and
-       `#/bookings` use. */
-    <section className="pad-nav min-h-dvh">
+    /* ⚠️ NO `pad-nav` ON THIS SECTION, AND THAT IS THE POINT. All three keep the dock
+       (`NAV_SCREENS` lists them) and highlight the ตั้งค่า tab, so room genuinely does have to be
+       reserved under the content for the floating pill — but `LiffShell` is the SINGLE AUTHORITY
+       for that clearance (`LiffShell.tsx:21–28`): it applies `.pad-nav` on the very same condition
+       it draws the dock on, so every dock screen is covered without asking, and a screen can no
+       longer forget it. 🔴 RE-ADD IT HERE AND IT MEASURES 0px TODAY — that is a delayed fuse, not
+       a reprieve. These three bodies are `UnderConstruction` placeholders that fit the viewport,
+       and `min-h-dvh` + border-box absorbs the section's own `padding-bottom` inside its
+       min-height, so a duplicate is invisible while the content is short. The moment any of the
+       three carries real content that overflows, the second 7rem + safe-area inset starts costing
+       112px where that inset is 0, ~146px on an iPhone — exactly what the five taller dock screens
+       were paying (`claude_planning/fix/20260909_1715_client_dock_double_pad_nav/`). `#/venues` and
+       `#/bookings` carry none either — the same pairing as before, read the other way round. */
+    <section className="min-h-dvh">
       <ScreenHeader
         title={title}
         breadcrumbs={[{ label: 'ตั้งค่า', to: '/settings' }, { label: title }]}

@@ -101,7 +101,7 @@ export function VenuesCatalogPage() {
   const filtered = Boolean(debounced || type || openOnly)
 
   return (
-    <section className="pad-nav min-h-dvh">
+    <section className="min-h-dvh">
       <header className="hdr-blur sticky top-0 z-30 border-b border-base-300 bg-base-100/90 shadow-xs backdrop-blur-md">
         <div className="mx-auto w-full max-w-md px-4 pb-3 pt-safe sm:max-w-2xl md:max-w-4xl lg:max-w-5xl">
           <h1 className="text-xl font-semibold">จองสถานที่</h1>

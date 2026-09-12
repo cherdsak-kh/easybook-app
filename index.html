@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/easybook-favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover is required (D-C5): the client portal's primary navigation is a
+         floating card that must clear the iOS home indicator, and without this tag every
+         env(safe-area-inset-*) the stylesheet reads resolves to 0. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>EasyBook</title>
   </head>
   <body>

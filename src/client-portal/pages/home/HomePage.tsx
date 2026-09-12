@@ -358,7 +358,7 @@ export function HomePage() {
   }
 
   return (
-    <section className="pad-nav min-h-dvh">
+    <section className="min-h-dvh">
       {/* ─── Header ────────────────────────────────────────────────────────────────────
           ⚠️ THE GREETING IS A SECOND LINE INSIDE THE BRAND'S TEXT COLUMN, not a sibling of the
           logo. Beside the brand, the two compete for one line at 375 px and a name longer than

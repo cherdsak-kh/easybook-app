@@ -104,7 +104,7 @@ export function VersionPage() {
   const running = RELEASES.find((r) => r.v === APP.version)
 
   return (
-    <section className="pad-nav min-h-dvh">
+    <section className="min-h-dvh">
       <ScreenHeader
         title="ข้อมูลเวอร์ชันระบบ"
         breadcrumbs={[{ label: 'ตั้งค่า', to: '/settings' }, { label: 'ข้อมูลเวอร์ชันระบบ' }]}

@@ -222,7 +222,7 @@ export function SettingsPage() {
   }
 
   return (
-    <section className="pad-nav min-h-dvh">
+    <section className="min-h-dvh">
       {/* ⚠️ ONE TIER AND A SUBTITLE. This is a dock tab, so there is no way back to name — and the
           subtitle is not decoration: `#/venues` and `#/bookings` both have two-line headers, so
           without one here the content jumps every time the user switches tabs (1705). It names

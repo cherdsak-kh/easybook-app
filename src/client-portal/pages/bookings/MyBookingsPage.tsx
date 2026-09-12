@@ -145,7 +145,7 @@ export function MyBookingsPage() {
   }
 
   return (
-    <section className="pad-nav min-h-dvh">
+    <section className="min-h-dvh">
       {/* ⚠️ ONE TIER, NO BREADCRUMBS. This is a top-level dock tab — it is not a step after any
           other screen, so there is no way back to name (the same rule `#/home` and `#/venues`
           follow). The dock stays visible here; `NAV_SCREENS` lists `bookings`, and `LiffShell`
