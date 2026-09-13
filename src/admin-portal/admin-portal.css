@@ -77,72 +77,48 @@
      13px / slate-600 / weight 600. NOT 11px + uppercase + tracking-widest:
      `uppercase` is a no-op on Thai, and letter-spacing actively hurts it
      (Thai has no inter-word spaces, so glyph proximity IS the word boundary). */
-  /* ── Full-height card ───────────────────────────────────────────────
-     The card fills the viewport and scrolls INSIDE itself, instead of
-     being a short box with dead background under it and the whole page
-     scrolling. Two consequences that are the actual point: the column
-     headers stay put, and the pagination bar is always reachable without
-     scrolling to the end of the data first.
+  /* ── Card shell: NATURAL content height, ONE scrollbar (#ISSUE-05) ──
+     This used to be a "full-height card" that filled the viewport and
+     scrolled INSIDE itself (`lg:flex-1 lg:min-h-0` on the shell,
+     `lg:overflow-y-auto` plus a 280px floor on `.card-scroll`, and a
+     max-height:649px rule that unpinned it on short windows). System testing
+     overturned it: operators read the inner scroller as a scrollbar nested
+     inside the page, and asked for the โปรไฟล์ behaviour instead — the table is
+     as tall as its rows, and `<main>` (BackendLayout, `overflow-y-auto` at
+     every width) is the only thing that scrolls vertically. The short-window
+     rule went with it; natural height is now the default everywhere.
 
-     Declared as component classes, not utilities, on purpose: the state
-     switcher toggles `.hidden`, and utilities beat components, so
-     `hidden` is guaranteed to win over these `display:flex` rules. Written
-     as `flex ... hidden` in the class attribute it would be a coin-toss on
-     Tailwind's internal ordering.
+     Still component classes, not utilities, on purpose: the state switcher
+     toggles `.hidden`, and utilities beat components, so `hidden` is
+     guaranteed to win over these `display:flex` rules.
 
-     DESKTOP ONLY (`lg:`), and that is a measured decision, not caution.
-     Pinning the toolbar and the pagination costs 127px + 110px of permanent
-     chrome. On a 1280×860 desktop that is spare room the page was wasting on
-     dead background anyway. On a 375×812 phone it is 29% of the screen, and
-     it took the list from 7 cards per screen down to 4 — undoing the density
-     work that got the mobile card from 175px to 102px in the first place.
-     A phone also does not have the problem this fixes: with the toolbar and
-     five 102px cards the content is already 895px tall, so there is no dead
-     space under the card to remove. Below `lg` the page scrolls as before.
+     `grow shrink-0` (a CONTENT basis that may not shrink), NOT `flex-1`.
+     `flex-1` is a 0% basis that relies on `min-height: auto` to stop the box
+     collapsing below its rows, and `min-height: auto` resolves to 0 on any
+     box that is a scroll container — which `.card-scroll` still is (below)
+     and the four `card-shell lg:overflow-y-auto` pages are. A content basis
+     that cannot shrink cannot clip, whatever the overflow values say.
+     `grow` is what keeps the FLOOR: a page with three rows still stretches
+     the card to the bottom of `<main>`, so the pager sits at the card's foot
+     instead of floating under the third row.
 
-     ── SMART ADAPTIVE: the full-height card has a FLOOR, and gives up below it ──
-     Ported from the prototype, where it was measured. "Fill the viewport" and
-     "be usable" stop agreeing once the viewport is short: `lg:flex-1` on its
-     own is a pure ratio, so it hands the scroll area whatever is left after
-     127px of toolbar and 110px of pagination. On a 1280×600 window (a laptop
-     with devtools docked, a projector, a split screen) that remainder measured
-     202px — two 92px rows behind a 48px sticky header, in a box the operator
-     cannot make bigger. The card was technically "full height" and practically
-     a slot.
-     So it is two rules now:
-       · a 280px FLOOR on the scroll area. It REPLACES `lg:min-h-0` rather than
-         sitting beside it — same property, and `0` is precisely the permission
-         to collapse that this removes. `flex-1` still does all the work above
-         the floor, so a normal desktop is untouched: 462px at 1280×860 both
-         before and after.
-       · under 650px of viewport height the card stops being pinned at all
-         (`flex: none`, natural height) and `<main>` — which is already
-         `overflow-y-auto` at every width in `BackendLayout` — scrolls the page,
-         exactly as it does below `lg`. Rows keep their height, and the
-         pagination bar is reached by scrolling instead of by being pinned.
-     ⚠️ BOTH ARE `lg:`-GATED, like every other declaration in these two rules.
-     The floor only means anything where the card is PINNED; below `lg` it is
-     not, so `flex-1` never squeezes anything and the 280px buys nothing while
-     costing real screen — measured on a 375×812 phone, an ungated floor put
-     224px of empty card between a one-row filtered list and its count bar,
-     against 0 before. That is the same 29%-of-the-screen argument that made this
-     whole block desktop-only, so gating it is what keeps the rule and its own
-     comment agreeing.
-     Measured across the boundary (เจ้าหน้าที่ระบบ, 1280px wide, 13 rows):
-         h=860 → scroll box 462px, no page scrollbar   (identical to before)
-         h=720 → scroll box 322px, no page scrollbar
-         h=660 → scroll box 280px (floor binds), <main> begins to scroll
-         h=649 → shell unpins, scroll box 1239px, <main> scrolls
-     Row height was 92px at every one of those heights; before the change it was
-     202px of scroll box (two rows) at h=600 with no way to scroll to the rest. */
-  .card-shell  { @apply lg:flex lg:min-h-0 lg:flex-1 lg:flex-col; }
-  .card-scroll { @apply lg:min-h-[280px] lg:flex-1 lg:overflow-y-auto; }
+     `.card-scroll` keeps `lg:overflow-x-auto` for one reason: a desktop table
+     wider than its card (see the venue-cap note in `RequestRow`) scrolls
+     sideways inside the card instead of widening the page. `overflow-x: auto`
+     forces `overflow-y` to compute to `auto` as well, which is harmless only
+     because the box is never shorter than its content (`shrink-0`).
 
-  @media (min-width: 64rem) and (max-height: 649px) {
-    /* Same layer, later in the file, so this beats the `lg:` rules above on
-       source order — no specificity bump and no `!important` needed. */
-    .card-shell { min-height: auto; flex: none; }
-  }
+     ⚠️ SIDE EFFECT, ACCEPTED: `.th-cell`'s `sticky top-0` no longer pins the
+     column headers. Sticky resolves against the NEAREST scroll container,
+     which is still `.card-scroll` (because of the horizontal scroller), and
+     that box no longer scrolls vertically — so the header now scrolls away
+     with the page. Pinning it to `<main>` instead would mean giving up the
+     horizontal scroller. The declaration is left in place, inert.
+
+     DESKTOP ONLY (`lg:`), as before. Below `lg` none of this ever applied and
+     the page already scrolled on `<main>`; phones are unchanged. */
+  .card-shell  { @apply lg:flex lg:shrink-0 lg:grow lg:flex-col; }
+  .card-scroll { @apply lg:shrink-0 lg:grow lg:overflow-x-auto; }
 
   /* `box-shadow`, not `border-b`. The header is sticky inside the scroll
      area, and with `border-collapse: collapse` a border on a sticky cell
@@ -198,8 +174,15 @@
      unregistered row — which has no แก้ไข button — pushed its single ตรวจสอบ
      button into the rightmost position, so it sat under everyone else's แก้ไข
      icon and the column read as ragged. Fixed slots mean button 1 is always
-     under button 1, whatever a row happens to offer. */
-  .row-actions { @apply ml-auto grid w-fit grid-cols-2 gap-1 opacity-70 transition-opacity group-hover:opacity-100 focus-within:opacity-100; }
+     under button 1, whatever a row happens to offer.
+
+     A hard 92px (44 + 4 + 44), never `w-fit` (ISSUE-8). `grid-cols-2` is
+     `repeat(2, minmax(0, 1fr))`, so a `w-fit` grid has a min-content width of
+     just its 4px gap: the auto-layout table squeezed the column until the two
+     44px buttons overlapped by 22px at 1280 and the eye hit-tested to the
+     pencil. A fixed box gives the column a real minimum. The viewer override
+     beside the ACL rules below narrows it to one 44px slot. */
+  .row-actions { @apply ml-auto grid w-[92px] min-w-[92px] grid-cols-2 gap-1 opacity-70 transition-opacity group-hover:opacity-100 focus-within:opacity-100; }
 
   /* ── Live rows — การลงทะเบียน only ────────────────────────────────
      `.row-flash` marks a row that just changed underneath the reader, for a
@@ -897,8 +880,13 @@
      unregistered follower). Under a read-only session NO row has a pencil, so
      that reserved track becomes 48px of nothing hanging off the right of every
      row: measured, the eye ended 68px from the cell edge while the right-
-     aligned header sat at the edge. One column when nothing is writable. */
-  [data-acl="viewer"] .row-actions { grid-template-columns: minmax(0, 1fr); }
+     aligned header sat at the edge. One column when nothing is writable.
+
+     The width has to follow (ISSUE-8): `.row-actions` is a fixed 92px box now,
+     and one track across 92px would park the eye 48px off the edge again. A
+     fixed 44px track and box, not minmax(0, 1fr), so the table cannot squeeze
+     the eye out of its cell either. */
+  [data-acl="viewer"] .row-actions { grid-template-columns: 44px; width: 44px; min-width: 44px; }
 
   .pf-card  { @apply rounded-card border border-base-300/70 bg-base-100 shadow-e1; }
   .pf-head  { @apply flex items-start justify-between gap-3 border-b border-base-300 px-4 py-4 sm:px-5; }

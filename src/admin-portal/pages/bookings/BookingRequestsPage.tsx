@@ -40,29 +40,29 @@
  * computed with `search` and `venueId` applied but WITHOUT `status`. One fact, rendered once. Do not
  * "fix" a badge by counting `rows`: that would count the PAGE, and the page is ten of them.
  *
- * ── 🔴 THE LIVE LAYER (`ADMIN-REALTIME-BOOKINGS-1`) — one rule, taken from การลงทะเบียน ──
- *   Anything that would MOVE a row waits for a click.
- *   Anything that does not move a row happens immediately.
+ * ── 🔴 THE LIVE LAYER (`ADMIN-REALTIME-BOOKINGS-1`, revised by #ISSUE-03) ──
+ *   A NEW request reloads the list at once and flashes its row.
+ *   A CHANGED row is patched in place; nothing else about it moves without a click.
  *
- * This screen is why the rule matters more here than anywhere else: two operators can be looking at
- * the same queue, and ADR-001 means one of them approving a request REFUSES rows the other is
- * reading. So:
+ * Arrivals used to wait for a click too, behind a `มีคำขอใหม่ N รายการ` bar. System testing
+ * (#ISSUE-03) overturned that: operators watching a queue expect a request to appear the moment it is
+ * filed, and a bar they had to press read as a screen that was not updating. So:
  *
- *  · `bookingRequest.created` → the bar (`มีคำขอใหม่ N รายการ`), never an insert. The one exception
- *    falls out of the rule instead of bending it: with an EMPTY, UNFILTERED table there is nothing
- *    to displace, so it loads at once — which is also the promise the inbox-zero panel already makes
- *    in as many words ("คำขอใหม่จากผู้ใช้ LINE จะขึ้นที่นี่ทันที").
+ *  · `bookingRequest.created` → `load()` re-runs the CURRENT query (never a splice, so a request the
+ *    tab, search, venue or page excludes simply does not appear), the new row gets the 2.5s rail once
+ *    the reload has actually put it on screen, and the live region announces the arrival.
  *  · `bookingRequest.updated` → the row is replaced IN PLACE and flashed. No reordering, no scroll
- *    jump, no removal — a row that has drifted out of the selected tab stays exactly where it was
- *    being read, and the bar counts it (`driftCount`) instead of moving it.
+ *    jump, no removal — two operators can be reading the same queue, and ADR-001 means one approval
+ *    REFUSES rows the other is reading. A row that has drifted out of the selected tab stays exactly
+ *    where it was being read, and the bar counts it (`driftCount`) instead of moving it.
  *  · a dialog open on a record that just changed status is DISARMED, not closed. See `staleStatus`.
  *
- * ⚠️ THE TAB BADGES AND THE `แสดง x–y จาก z` LINE DO NOT MOVE LIVE, AND THAT IS THE RULE, NOT A GAP.
+ * ⚠️ ON `updated` THE TAB BADGES AND THE `แสดง x–y จาก z` LINE DO NOT MOVE, AND THAT IS THE RULE.
  * `counts`, `meta.total` and the rows all come out of ONE request, so there is no way to refresh a
- * badge without refreshing the rows underneath it — which is the move this screen defers. The bar is
- * what carries that news in the meantime, which is why it counts drift as well as arrivals. (The
- * SIDEBAR pill is different and does move on its own: it is a single number with no row attached to
- * it, fetched by its own request — `use-pending-bookings.ts`.)
+ * badge without refreshing the rows underneath it — which is the move an update defers. The bar
+ * carries that news in the meantime. (An ARRIVAL does move them, because it reloads. The SIDEBAR pill
+ * moves on its own either way: it is a single number fetched by its own request —
+ * `use-pending-bookings.ts`.)
  *
  * ⚠️ THE SOCKET IS THE SHELL'S. This page SUBSCRIBES (`useRealtimeEvents`); it must never open a
  * connection of its own, or the sidebar's คำขอจองสถานที่ pill would stop moving the moment the
@@ -265,9 +265,13 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
   const [live, setLive] = useState('')
 
   /**
-   * ⚠️ `PENDING`, NOT `null`. The strip READS ทั้งหมด → รอพิจารณา → … (superset first, which is how
-   * a filter row is read), but the screen OPENS on รอพิจารณา, because the queue is the job. Reading
-   * order and default state are different questions.
+   * ⚠️ `PENDING` FIRST, with `null` (ทั้งหมด) as the FALLBACK. The strip READS ทั้งหมด → รอพิจารณา → …
+   * (superset first, which is how a filter row is read), but the screen OPENS on รอพิจารณา, because
+   * the queue is the job. Reading order and default state are different questions.
+   *
+   * #ISSUE-07: when that queue is EMPTY, opening on it lands the operator on inbox zero on every
+   * visit, and they click ทั้งหมด every time. So the first COMPLETED load decides, once — see
+   * `initialTabEvaluated` in `load`.
    */
   const [status, setStatus] = useState<StatusTab>('PENDING')
   /** What is TYPED. `query` is what was last SENT — see the debounce below. */
@@ -285,19 +289,36 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
   /** The first load is not news; every load after it changed the table under the reader. */
   const announced = useRef(false)
 
-  /* ── The live layer's three pieces of deferred news ─────────────────────────────────────────── */
+  /**
+   * #ISSUE-07 — whether the opening tab has been decided. Set by the first load that COMPLETES (a
+   * failed one decides nothing), and ALSO by anything that picks a tab first — `selectTab`,
+   * `runCreate` — so a slow first response can never yank the operator off a tab they already chose.
+   */
+  const initialTabEvaluated = useRef(false)
 
   /**
-   * Ids of requests CREATED since the last load. A set of ids rather than the records themselves,
-   * because the catch-up is a refetch — the payloads are never spliced in, or a row would appear
-   * that the filters above it exclude.
-   *
-   * ⚠️ IT COUNTS ARRIVALS, NOT MATCHES. With a search term typed or a tab selected, some of them may
-   * not come back when the list reloads. Deciding otherwise would mean re-implementing the server's
-   * four-field search in the browser to guess at it. An over-count says "your view is behind" one
-   * time too often; an under-count hides work in an approval queue.
+   * Bumped by every `load` call; only the NEWEST call may write state. Without it, two loads in flight
+   * for two different queries — the รอพิจารณา probe and the ทั้งหมด load it hands over to, or a filter
+   * change racing a socket-driven reload — land in network order, and the older one can win.
    */
-  const [queued, setQueued] = useState<Set<string>>(() => new Set())
+  const loadSeq = useRef(0)
+  /**
+   * Whether the newest load in flight is one the screen is WAITING on: the first load, a refresh or
+   * catch-up behind the skeleton, a filter, tab or page change, a retry. A `background` reload that
+   * supersedes such a load INHERITS its duty to report — otherwise `loadSeq` drops the awaited
+   * response, the background failure writes nothing, and the skeleton stays up with no request left
+   * behind it. Cleared by whichever newest load commits rows or an error.
+   */
+  const loadAwaited = useRef(false)
+
+  /* ── The live layer's state ──────────────────────────────────────────────────────────────────── */
+
+  /**
+   * Ids announced by `bookingRequest.created` that have not yet been matched against a reloaded page.
+   * A SET, not one id: a burst of arrivals starts overlapping loads, only the newest may write, and
+   * the superseded one resolves `null` — without this, that arrival would never get its rail.
+   */
+  const arrivals = useRef(new Set<string>())
   /** Reconnected, and there is no replay: we know there was a gap and cannot know how big. */
   const [missed, setMissed] = useState(false)
   /** Rows to paint the 2.5s left rail on. */
@@ -324,8 +345,22 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
    */
   const anyFilter = Boolean(query || venueId)
 
-  const load = useCallback(async () => {
-    setError(null)
+  /**
+   * Resolves the page of rows it COMMITTED, or `null` when it committed nothing — it failed, a newer
+   * load superseded it, or it handed the opening tab over to ทั้งหมด. Callers that only need "is the
+   * table fresh now" test it for truthiness; the arrival handler reads the rows themselves.
+   *
+   * `background` is for a reload nobody asked for — a socket arrival. ⚠️ ITS FAILURE IS SILENT AND
+   * DESTROYS NOTHING: the rows the operator is reading stay on screen and clickable instead of being
+   * swapped for `LoadError` over a request they never made. It does not clear an error panel up front
+   * either (a success replaces it), so a failure cannot strand a skeleton. The exception is a
+   * background call that supersedes a load the screen was waiting on — see `loadAwaited`.
+   */
+  const load = useCallback(async (options?: { background?: boolean }): Promise<BookingRequestListItem[] | null> => {
+    const seq = ++loadSeq.current
+    if (!options?.background) loadAwaited.current = true
+    const quiet = !loadAwaited.current
+    if (!quiet) setError(null)
     try {
       const res = await listBookingRequests({
         page,
@@ -335,6 +370,24 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
         status: status ?? undefined,
         sort,
       })
+      if (seq !== loadSeq.current) return null
+      /* #ISSUE-07 — THE OPENING TAB, decided once, by the first load that completes.
+         ⚠️ THE รอพิจารณา RESULT IS NOT RENDERED WHEN IT HANDS OVER: committing its empty rows would
+         flash the inbox-zero panel for a round-trip before ทั้งหมด replaced it. Only `counts` is kept
+         (it ignores `status`, so it is already right for ทั้งหมด), the skeleton stays up, and changing
+         `status` re-runs this through the effect below — one fetch, not a second call from here
+         racing the effect's. */
+      if (!initialTabEvaluated.current) {
+        initialTabEvaluated.current = true
+        if (status === 'PENDING' && res.counts.pending === 0) {
+          setCounts(res.counts)
+          setStatus(null)
+          setPage(1)
+          return null
+        }
+      }
+      loadAwaited.current = false
+      setError(null)
       setRows(res.data)
       setTotal(res.meta.total)
       setTotalPages(res.meta.totalPages)
@@ -346,11 +399,14 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
       if (res.meta.totalPages > 0 && page > res.meta.totalPages) setPage(res.meta.totalPages)
       if (announced.current) setLive(`แสดงผลแล้ว ${res.meta.total} รายการ`)
       announced.current = true
-      return true
+      return res.data
     } catch (err) {
+      if (seq !== loadSeq.current) return null
+      if (quiet) return null
+      loadAwaited.current = false
       setRows(null)
       setError(kindOf(err))
-      return false
+      return null
     }
   }, [page, limit, query, venueId, status, sort])
 
@@ -360,7 +416,6 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
 
   /** Everything the live layer was holding is answered by a fresh page of rows. */
   const clearNews = useCallback(() => {
-    setQueued(new Set())
     setMissed(false)
   }, [])
 
@@ -395,6 +450,8 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
    * that was asked for.
    */
   const selectTab = (next: StatusTab) => {
+    // A tab the operator picked is final — including one picked before the first response lands.
+    initialTabEvaluated.current = true
     setStatus(next)
     setPage(1)
   }
@@ -702,6 +759,8 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
          its own dependencies, so calling it here as well would put two requests in flight for two
          different queries and let the slower one win. */
       const moved = status !== 'APPROVED' || page !== 1
+      // The operator's own action chose this tab; the #ISSUE-07 fallback must never override it.
+      initialTabEvaluated.current = true
       setStatus('APPROVED')
       setPage(1)
       if (!moved) await load()
@@ -793,22 +852,29 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
 
   useRealtimeEvents({
     onBookingCreated: (booking) => {
-      /* THE EXCEPTION, and it falls out of the rule rather than bending it: with nothing on screen
-         there is nothing to displace, so the queue appears at once instead of behind a button — and
-         a bar reading "มีคำขอใหม่ 1 รายการ" over the words "ไม่มีคำขอรอพิจารณา" would be the screen
-         arguing with itself.
-         ⚠️ The TAB is deliberately NOT part of `anyFilter` here. A request that arrives APPROVED
-         (another operator's direct booking) while รอพิจารณา is empty costs one wasted fetch and
-         refreshes the tab badges, which is the honest picture; testing the tab instead would mean
-         predicting what the server is about to return. Nothing is displaced either way. */
-      if (rows !== null && rows.length === 0 && !anyFilter) {
+      /* #ISSUE-03 — RELOAD AT ONCE, then flash. No bar, no click.
+         Not spliced in: `load` re-runs the CURRENT query, so what appears is what the tab and the
+         filters above actually ask for — and the tab badges move with it, because `counts` comes
+         back in the same response.
+         ⚠️ THE RAIL IS RAISED AFTER THE RELOAD COMMITS, NOT WHEN THE EVENT ARRIVES. The row is not on
+         screen until `load` resolves, and `flash`'s 2.5s timer starts the moment it is called — so
+         flashing on arrival spent the round-trip out of the rail on a row nobody could see yet.
+         It is raised only for ids the reloaded page CONTAINS: a request that lands on another tab
+         (another operator's direct booking is born APPROVED), another page, or outside the search
+         is announced but gets no rail. A superseded or failed load resolves `null` and flashes
+         nothing; its id stays in `arrivals` for the next arrival-driven reload.
+         `background`: nobody asked for this reload, so a failure must not cost the operator the
+         queue they are reading — the rows stay, and no `LoadError` replaces them. */
+      arrivals.current.add(booking.id)
+      void load({ background: true }).then((fresh) => {
+        if (!fresh) return
+        const ids = arrivals.current
+        for (const r of fresh) {
+          if (ids.has(r.id)) flash(r.id)
+        }
+        ids.clear()
         setLive('มีคำขอจองใหม่เข้ามา')
-        void load()
-        return
-      }
-      // Not spliced in: the catch-up re-runs the CURRENT query, so what appears is what the filters
-      // above actually ask for.
-      setQueued((s) => new Set(s).add(booking.id))
+      })
     },
 
     onBookingUpdated: (booking) => {
@@ -871,7 +937,6 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
    * there WAS a gap.
    */
   const barParts: string[] = []
-  if (queued.size) barParts.push(`มีคำขอใหม่ ${queued.size} รายการ`)
   if (driftCount) barParts.push(`มี ${driftCount} รายการที่ไม่ตรงกับแท็บนี้แล้ว`)
   if (missed) barParts.push('เชื่อมต่อใหม่แล้ว · ข้อมูลระหว่างที่ขาดการเชื่อมต่ออาจไม่ครบ')
   const barMessage = barParts.join(' · ')
@@ -958,10 +1023,11 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
       <div className="card-shell rounded-card border border-base-300/70 bg-base-100 shadow-e1">
         <RequestStatusTabs active={status} counts={counts} onSelect={selectTab} />
 
-        {/* Toolbar — pinned. Filters that scroll away are filters you cannot correct without first
-            scrolling back to them. Two controls and a tab strip, not four filters: there is
-            deliberately NO date filter, because a question about a date is a question about a
-            calendar, and ปฏิทินการจอง is that screen. This one is a queue. */}
+        {/* Toolbar. It scrolls away with the rows: since #ISSUE-05 the card is natural height and
+            `<main>` is the only vertical scroller, so nothing inside the card is pinned. Two
+            controls and a tab strip, not four filters: there is deliberately NO date filter,
+            because a question about a date is a question about a calendar, and ปฏิทินการจอง is
+            that screen. This one is a queue. */}
         <div className="flex shrink-0 flex-col gap-2.5 border-b border-base-300 p-3 sm:gap-3 sm:p-4 lg:flex-row lg:items-center lg:p-5">
           <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-control border border-transparent bg-base-200 px-4 transition-all focus-within:border-primary/40 focus-within:bg-base-100 focus-within:ring-4 focus-within:ring-primary/10">
             <Glyph d={ICON.search} className="h-5 w-5 shrink-0 text-base-content/60" />
@@ -1062,9 +1128,10 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
                 appeared. A notice that moves five rows in order to promise that rows will not move is
                 self-defeating. Collapsed into one full-width target it is 44px, and the 44px IS the
                 bar.
-                It sits INSIDE the list panel and above the scroller, so it never scrolls away from
-                the rows it describes — and it is inside the branch that has rows or a filter miss,
-                so it can never appear over "ยังไม่มีคำขอจองในระบบ", which loads at once instead. */}
+                It sits INSIDE the list panel, directly above the rows, and inside the branch that
+                has rows or a filter miss, so it can never appear over "ยังไม่มีคำขอจองในระบบ".
+                Since #ISSUE-03 it carries only drift and the reconnect gap — arrivals reload on their
+                own — and since #ISSUE-05 there is no inner scroller, so it scrolls with the page. */}
             {barMessage && (
               <button
                 type="button"
@@ -1193,10 +1260,11 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
             </div>
 
             {/* ── Pager ──
-                OUTSIDE `.card-scroll` and inside `.card-shell`, exactly where การลงทะเบียน and
-                เจ้าหน้าที่ระบบ put theirs: a pager that scrolls away with the rows is a pager you
-                have to scroll back to the bottom to reach, on the one screen whose job is moving
-                between pages. */}
+                Inside `.card-shell`, directly under `.card-scroll` rather than in it, exactly where
+                การลงทะเบียน and เจ้าหน้าที่ระบบ put theirs, so the table's sideways scroll never
+                carries it. Since #ISSUE-05 the card is natural height and `<main>` is the only
+                vertical scroller, so it sits under the last row and is reached by scrolling the
+                page — an accepted consequence of that layout, not an oversight. */}
             <div className="flex shrink-0 flex-col items-center gap-3 border-t border-base-300 p-4 lg:flex-row lg:justify-between lg:px-5">
               {/* The RANGE is what is on screen; the TOTAL is what the FILTER matched, not what the
                   table holds. Printing the latter would have this bar contradict the tab strip. */}

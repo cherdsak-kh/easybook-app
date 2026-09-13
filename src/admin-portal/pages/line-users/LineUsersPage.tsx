@@ -5,18 +5,15 @@
  * went on to fill in the form. It is the only LIVE table in the portal (`Q4`), and the only one
  * whose rows arrive from outside the building.
  *
- * ── THE ONE RULE EVERYTHING HERE FOLLOWS ──
- *   Anything that would MOVE a row waits for a click.
- *   Anything that does not move a row happens immediately.
+ * ── THE RULE EVERYTHING HERE FOLLOWS (revised by #ISSUE-03) ──
+ *   A NEW registration reloads the list at once and flashes its row.
+ *   Anything ELSE that would move a row waits for a click; what does not move a row happens at once.
  *
  * An operator's hand is already travelling toward a row when an event arrives, and a list that
- * inserts underneath that hand approves the wrong person. So "live" does not mean the table
- * reorders itself; it means the operator learns AT ONCE that their view is behind, and chooses when
- * to catch up. The learning is instant; only the layout change is deferred.
- *
- * The one exception falls out of the rule instead of bending it: when the list is EMPTY there is
- * nothing to move, so an arriving row is fetched at once — a bar reading "มีรายการใหม่ 1 รายการ"
- * over the words "ยังไม่มีรายการ" is the screen arguing with itself.
+ * reorders underneath that hand approves the wrong person — which is why an UPDATE is patched in
+ * place and a DELETION is disarmed rather than removed. Arrivals used to wait too, behind a
+ * `มีรายการใหม่ N รายการ` bar; system testing (#ISSUE-03) overturned that, because operators expect a
+ * new registration to appear without pressing anything, and the rail says where it landed.
  *
  * ── Filtering is SERVER-side, unlike the prototype ──
  * There, one `apply()` sorted, filtered and paged an array already in the browser. Here `search`,
@@ -28,10 +25,9 @@
  *    table under a pager insisting otherwise;
  *  · the search box is DEBOUNCED; the prototype filtered per keystroke because that cost nothing.
  *
- * ⚠️ AND THE CATCH-UP IS A REFETCH, NOT AN INSERT. `โหลดข้อมูลล่าสุด` re-runs the CURRENT query, so
- * the rows that appear are the ones the operator's filters ask for — a queued row that no longer
- * matches simply does not come back. Splicing the event payloads into the array instead would put a
- * row on screen that the filter above it excludes.
+ * ⚠️ AN ARRIVAL IS A REFETCH, NOT AN INSERT — and so is `โหลดข้อมูลล่าสุด`. Both re-run the CURRENT
+ * query, so the rows that appear are the ones the operator's filters ask for. Splicing the event
+ * payload into the array instead would put a row on screen that the filter above it excludes.
  *
  * ── Three roles, two screens ──
  * A VIEWER READS this table (PO, 19 ส.ค. 2569) and can open a record; both `PATCH`es are
@@ -349,19 +345,28 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
   const [sort, setSort] = useState<LineUserSort>('new')
   const [page, setPage] = useState(1)
 
-  /* ── The live layer's four pieces of deferred news ─────────────────────────────────────────── */
+  /* ── The live layer's state ────────────────────────────────────────────────────────────────── */
 
   /**
-   * Ids of rows created since the last load. A SET of ids rather than the records themselves,
-   * because the catch-up is a refetch — the payloads are never spliced in.
-   *
-   * ⚠️ IT COUNTS ARRIVALS, NOT MATCHES. With a search term typed, some of them may not come back
-   * when the list reloads. Deciding otherwise would mean re-implementing the server's six-field
-   * search in the browser to guess at it, which is the exact thing moving the filters server-side
-   * removed. An over-count says "your view is behind" one time too often; an under-count hides work
-   * in an approval queue.
+   * Ids announced by `lineUser.created` that have not yet been matched against a reloaded page. A
+   * SET, not one id: a burst of arrivals starts overlapping loads, only the newest may write (see
+   * `loadSeq`), and the superseded one resolves `null` — without this, that arrival would never get
+   * its rail.
    */
-  const [queued, setQueued] = useState<Set<string>>(() => new Set())
+  const arrivals = useRef(new Set<string>())
+  /**
+   * Bumped by every `load` call; only the NEWEST call may write state. A socket-driven reload racing a
+   * filter change would otherwise land in network order, and the older query's rows could win.
+   */
+  const loadSeq = useRef(0)
+  /**
+   * Whether the newest load in flight is one the screen is WAITING on: the first load, a refresh or
+   * catch-up behind the skeleton, a filter or page change, a retry. A `background` reload that
+   * supersedes such a load INHERITS its duty to report — otherwise `loadSeq` drops the awaited
+   * response, the background failure writes nothing, and the skeleton stays up with no request left
+   * behind it. Cleared by whichever newest load commits rows or an error.
+   */
+  const loadAwaited = useRef(false)
   /** Rows deleted on the server that are still on screen. They are disarmed, never removed. */
   const [gone, setGone] = useState<Set<string>>(() => new Set())
   /** Reconnected, and there is no replay: we know there was a gap and cannot know how big. */
@@ -426,11 +431,25 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
     return () => clearTimeout(id)
   }, [term])
 
-  /** Declared up here because the live layer's "insert at once" exception asks the same question. */
+  /** A filter is on — decides between the miss panel and the empty panel. */
   const anyFilter = Boolean(query || access)
 
-  const load = useCallback(async () => {
-    setError(null)
+  /**
+   * Resolves the page of rows it COMMITTED, or `null` when it committed nothing (it failed, or a
+   * newer load superseded it). Callers that only need "is the table fresh now" test it for
+   * truthiness; the arrival handler reads the rows themselves.
+   *
+   * `background` is for a reload nobody asked for — a socket arrival. ⚠️ ITS FAILURE IS SILENT AND
+   * DESTROYS NOTHING: the rows the operator is reading stay on screen and clickable instead of being
+   * swapped for `LoadError` over a request they never made. It does not clear an error panel up front
+   * either (a success replaces it), so a failure cannot strand a skeleton. The exception is a
+   * background call that supersedes a load the screen was waiting on — see `loadAwaited`.
+   */
+  const load = useCallback(async (options?: { background?: boolean }): Promise<LineUser[] | null> => {
+    const seq = ++loadSeq.current
+    if (!options?.background) loadAwaited.current = true
+    const quiet = !loadAwaited.current
+    if (!quiet) setError(null)
     try {
       const res = await listLineUsers({
         page,
@@ -439,13 +458,19 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
         access: access || undefined,
         sort,
       })
+      if (seq !== loadSeq.current) return null
+      loadAwaited.current = false
+      setError(null)
       setRows(res.data)
       setTotal(res.meta.total)
-      return true
+      return res.data
     } catch (err) {
+      if (seq !== loadSeq.current) return null
+      if (quiet) return null
+      loadAwaited.current = false
       setRows(null)
       setError(kindOf(err))
-      return false
+      return null
     }
   }, [page, query, access, sort])
 
@@ -455,7 +480,6 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
 
   /** Everything the live layer was holding is answered by a fresh page of rows. */
   const clearNews = useCallback(() => {
-    setQueued(new Set())
     setGone(new Set())
     setMissed(false)
   }, [])
@@ -542,14 +566,25 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
       }
     },
     onCreated: (user) => {
-      // The exception, and it falls out of the rule rather than bending it: with nothing on screen
-      // there is nothing to move, so the queue appears at once instead of behind a button.
-      if (rows !== null && rows.length === 0 && !anyFilter) {
+      /* #ISSUE-03 — RELOAD AT ONCE, then flash. No bar, no click.
+         ⚠️ THE RAIL IS RAISED AFTER THE RELOAD COMMITS, NOT WHEN THE EVENT ARRIVES. The row is not on
+         screen until `load` resolves, and `flash`'s 2.5s timer starts the moment it is called — so
+         flashing on arrival spent the round-trip out of the rail on a row nobody could see yet.
+         It is raised only for ids the reloaded page CONTAINS: a registration the filter, the sort or
+         the page excludes is announced but gets no rail. A superseded or failed load resolves `null`
+         and flashes nothing; its id stays in `arrivals` for the next arrival-driven reload.
+         `background`: nobody asked for this reload, so a failure must not cost the operator the
+         table they are reading — the rows stay, and no `LoadError` replaces them. */
+      arrivals.current.add(user.id)
+      void load({ background: true }).then((fresh) => {
+        if (!fresh) return
+        const ids = arrivals.current
+        for (const r of fresh) {
+          if (ids.has(r.id)) flash(r.id)
+        }
+        ids.clear()
         setLive('มีรายการลงทะเบียนใหม่เข้ามา')
-        void load()
-        return
-      }
-      setQueued((s) => new Set(s).add(user.id))
+      })
     },
     onDeleted: (id) => {
       // NOT removed from the table: removing it moves every row below, which is the one thing this
@@ -598,7 +633,6 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
   )
   const goneCount = useMemo(() => records.filter((r) => gone.has(r.id)).length, [records, gone])
   const barParts: string[] = []
-  if (queued.size) barParts.push(`มีรายการใหม่ ${queued.size} รายการ`)
   if (goneCount) barParts.push(`มีรายการที่ถูกลบออก ${goneCount} รายการ`)
   if (driftCount) barParts.push(`มี ${driftCount} รายการที่ไม่ตรงกับตัวกรองแล้ว`)
   if (missed) barParts.push('เชื่อมต่อใหม่แล้ว · ข้อมูลระหว่างที่ขาดการเชื่อมต่ออาจไม่ครบ')
@@ -795,8 +829,8 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
       />
 
       <div className="card-shell rounded-card border border-base-300/70 bg-base-100 shadow-e1">
-        {/* Toolbar — pinned. Filters that scroll away are filters you cannot correct without first
-            scrolling back to them. */}
+        {/* Toolbar. It scrolls away with the rows: since #ISSUE-05 the card is natural height and
+            `<main>` is the only vertical scroller, so nothing inside the card is pinned. */}
         <div className="flex shrink-0 flex-col gap-2.5 border-b border-base-300 p-3 sm:gap-3 sm:p-4 lg:flex-row lg:items-center lg:p-5">
           <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-control border border-transparent bg-base-200 px-4 transition-all focus-within:border-primary/40 focus-within:bg-base-100 focus-within:ring-4 focus-within:ring-primary/10">
             <Glyph d={ICON.search} className="h-5 w-5 shrink-0 text-base-content/60" />
@@ -903,8 +937,9 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
                 it appeared. A notice that moves five rows in order to promise that rows will not
                 move is self-defeating. Collapsed into one full-width target it is 44px, and the
                 44px IS the bar.
-                It sits INSIDE the list panel and above the scroller, so it never appears over the
-                empty state and never scrolls away from the rows it describes. */}
+                It sits INSIDE the list panel, directly above the rows, so it never appears over the
+                empty state. Since #ISSUE-03 it no longer carries arrivals — those reload on their
+                own — and since #ISSUE-05 there is no inner scroller, so it scrolls with the page. */}
             {barMessage && (
               <button
                 type="button"
