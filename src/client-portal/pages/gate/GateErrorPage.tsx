@@ -2,7 +2,7 @@ import { StatusCard } from '@/client-portal/components/feedback/StatusCard'
 import { useGate } from '@/client-portal/hooks/gate-context'
 import { LIcon } from '@/client-portal/icons/LucideIcon'
 import type { GateErrorReason } from '@/client-portal/routes'
-import { closeWindow, isInLineClient } from '@/lib/liff'
+import { clearSession, closeWindow, isInLineClient, login } from '@/lib/liff'
 
 /**
  * The screen a failed check lands on. Prototype 502–519 and 529–549.
@@ -22,19 +22,22 @@ import { closeWindow, isInLineClient } from '@/lib/liff'
  * precisely what the no-retry ruling exists to prevent. There is nothing the parameter buys back:
  * this screen is unreachable unless the guard has already established one of the four.
  *
- * ── 🔴 RETRY IS A HARD RELOAD, AND THAT IS THE WHOLE OF `#ISSUE-08` ──
+ * ── 🔴 RETRY IS A HARD RELOAD (`#ISSUE-08`) — EXCEPT FOR `session-expired` (`#ISSUE-13`) ──
  * It used to be `recheck()` + `navigate('/')`, which re-runs the four checks *inside the JS
- * context that is already broken*. For `line-down` that is fine. For an expired ID token it is a
- * closed loop: `liff.getIDToken()` hands back the token minted when the webview opened, the status
- * call 401s again, and the user arrives back on this screen having changed nothing — measured on a
- * phone woken after an hour of screen-lock, and reported as an app that simply stops working.
- * `window.location.reload()` tears the context down, so `liff.init()` runs again and the SDK mints
- * a fresh token from the native client.
+ * context that is already broken*. `window.location.reload()` is a strictly stronger version of
+ * that, and it is still the retry for `line-down` and `status-down`.
  *
- * ⚠️ IT IS THE HARD RELOAD FOR **EVERY** REASON, NOT ONLY THE EXPIRED ONE. A reload is a strictly
- * stronger version of what the soft retry did, and picking per-case would mean this screen deciding
- * which failures are "really" stale — a judgement it has no information to make, since a
- * `status-down` can perfectly well be a 502 sitting on top of a token that has also expired.
+ * ⚠️ `session-expired` DOES NOT RELOAD, BECAUSE `#ISSUE-08` ASSUMED A RELOAD MINTS A FRESH TOKEN
+ * AND IT DOES NOT. The SDK caches its tokens in web storage, a reload keeps that storage, and
+ * `liff.init()` prefers the cached copy — so the status call 401s again and the user lands straight
+ * back here, forever (reported from system testing as `#ISSUE-13`). {@link renewSession} clears the
+ * cache first, then re-authenticates through the one door each environment has: inside LINE the
+ * permanent `liff.line.me` URL, which LINE intercepts and relaunches with a new token; in a browser
+ * `liff.login()`. Why the cache has to go first is on `clearSession()` in `lib/liff.ts`.
+ *
+ * ⚠️ PICKING PER-CASE IS SAFE NOW BECAUSE THE GATE HAS ALREADY JUDGED IT: `session-expired` is set
+ * on a 401 and nothing else (`useLiffGate`). A `status-down` hiding an expired token is still
+ * possible — its reload then lands here as `session-expired`, and this retry takes over.
  *
  * ⚠️ `announce` IS ON. `StatusCard` keeps `role="alert"` opt-in because an assertive region that
  * fires on every neutral screen trains people to ignore the one that matters. This is the one
@@ -97,6 +100,34 @@ function isGateError(access: string | null): access is GateErrorReason {
   )
 }
 
+/**
+ * The retry for `session-expired`: clear the SDK's token cache, then re-authenticate (`#ISSUE-13`).
+ *
+ * ⚠️ NO LIFF ID MEANS A PLAIN DEV BROWSER (`?gate=session-expired`). There is nothing to
+ * re-authenticate against and `login()` is a no-op there, so it keeps the reload rather than
+ * drawing a button that does nothing.
+ * ⚠️ `isInLineClient()` IS READ BEFORE THE CACHE IS CLEARED, so nothing the clear touches can
+ * change which door is taken.
+ * ⚠️ THE EXTERNAL REDIRECT IS `origin + '/'`, NOT THE CURRENT PATH. The app uses `BrowserRouter`,
+ * so the path here is `/gate-error`; returning there lets the gate pass, then `GateGuard` bounces the
+ * now-allowed user to `/` and the gate runs a second time. Sending the login to `/` lets it run once
+ * from the top — and `/` is the safest `redirectUri` to sit under the LIFF endpoint URL.
+ */
+function renewSession(): void {
+  const liffId = import.meta.env.VITE_LIFF_ID
+  if (!liffId) {
+    window.location.reload()
+    return
+  }
+  const inClient = isInLineClient()
+  clearSession()
+  if (inClient) {
+    window.location.replace(`https://liff.line.me/${liffId}`)
+  } else {
+    login(window.location.origin + '/')
+  }
+}
+
 export function GateErrorPage() {
   const { access } = useGate()
 
@@ -130,7 +161,9 @@ export function GateErrorPage() {
             <button
               type="button"
               className="btn btn-app btn-outline w-full"
-              onClick={() => window.location.reload()}
+              onClick={
+                access === 'session-expired' ? renewSession : () => window.location.reload()
+              }
             >
               ลองใหม่อีกครั้ง
             </button>

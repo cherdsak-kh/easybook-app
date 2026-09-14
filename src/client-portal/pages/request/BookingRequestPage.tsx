@@ -159,7 +159,11 @@ export function BookingRequestPage() {
     ? fieldErrors(values, venue)
     : { purpose: '', attendees: '' }
   const blocked = venue ? blockedReason(values, venue, checks) : 'กำลังโหลดข้อมูลสถานที่'
-  const canSubmit = !blocked && !saving
+  /* ⚠️ A CLEARED CONTINUOUS DATE NEEDS ITS OWN ERROR LINE (`#ISSUE-14`, AC-14.2). `#rq-slots` is
+     hidden while there is no span to check, so without these the submit focuses a field that says
+     nothing is wrong. Copy is ours — the prototype never reached this state (its button stayed off). */
+  const startDateMissing = touched.when && values.mode === 'cont' && !values.startDate
+  const endDateMissing = touched.when && values.mode === 'cont' && !values.endDate
 
   function addChosenDay() {
     setTouched((t) => ({ ...t, when: true }))
@@ -172,11 +176,35 @@ export function BookingRequestPage() {
     setDayDraft('')
   }
 
+  /**
+   * The id a blocked submit lands on — the first thing to fix, in the order it can be fixed.
+   *
+   * ⚠️ `rq-st-h` / `rq-et-h`, NOT `rq-st` / `rq-et`: `TimeSelect` uses its `id` as a PREFIX and puts
+   * nothing on the bare id, so the hour `<select>` is the focusable half. A `<select>` always holds
+   * a value, so both lines are unreachable today; they keep the order complete, not dead.
+   * ⚠️ `rq-slots` IS THE CATCH-ALL — a clash, a span in the past, an end before its start. It has
+   * always rendered by then: every continuous field is filled, so there is a span to check.
+   */
+  function firstInvalidId(): string {
+    if (errors.purpose) return 'rq-purpose'
+    if (errors.attendees) return 'rq-attendees'
+    if (values.mode === 'cont') {
+      if (!values.startDate) return 'rq-sdate'
+      if (!values.startTime) return 'rq-st-h'
+      if (!values.endDate) return 'rq-edate'
+      if (!values.endTime) return 'rq-et-h'
+    } else if (values.days.length === 0) {
+      return 'rq-rdate'
+    }
+    return 'rq-slots'
+  }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault()
-    /* Pressing submit declares the form finished, so every field becomes touched at once. The
-       button is already disabled when it is not — this is the net under `Enter` in the textarea,
-       which fires submit without going near the button. */
+    /* ⚠️ THE DOUBLE-SUBMIT GUARD LIVES HERE, NOT ONLY ON THE BUTTON. Since `#ISSUE-14` the button
+       is disabled for `saving` alone, and `Enter` in a field fires submit without going near it. */
+    if (saving) return
+    /* Pressing submit declares the form finished, so every field becomes touched at once. */
     setTouched({ purpose: true, attendees: true, when: true })
     if (!venue) return
 
@@ -184,13 +212,21 @@ export function BookingRequestPage() {
       /* ⚠️ FOCUS GOES TO THE THING THAT IS WRONG, in the order it can be fixed: the bad field
          first, because focus lands where the correction is made; the check list last, because that
          is where a time clash lives and there is no field to send them to. A press that moves
-         nothing is a dead end for a keyboard or screen-reader user (prototype 4444). */
-      const target = errors.purpose
-        ? 'rq-purpose'
-        : errors.attendees
-          ? 'rq-attendees'
-          : 'rq-slots'
-      document.getElementById(target)?.focus()
+         nothing is a dead end for a keyboard or screen-reader user (prototype 4444).
+         🔴 SCROLL FIRST, THEN FOCUS WITH `preventScroll` (`#ISSUE-14`). The button no longer goes
+         dead, so this is the only answer a half-filled form gets — and on a phone the field sits a
+         screen or two above the button. `focus()`'s own scroll is an instant jump that cancels a
+         smooth one already under way; `block: 'center'` keeps the error line under the field in
+         view. ⚠️ `smooth` only under `no-preference`: JS scrolling ignores the CSS media query, so
+         the opt-in is written here the same way `index.css` writes it. */
+      const el = document.getElementById(firstInvalidId())
+      el?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: no-preference)').matches
+          ? 'smooth'
+          : 'auto',
+        block: 'center',
+      })
+      el?.focus({ preventScroll: true })
       return
     }
 
@@ -399,6 +435,7 @@ export function BookingRequestPage() {
                     <label className="block">
                       <span className="mb-1 block text-xs text-base-content/70">เริ่ม — วันที่</span>
                       <input
+                        id="rq-sdate"
                         type="date"
                         min={today}
                         value={values.startDate}
@@ -414,8 +451,15 @@ export function BookingRequestPage() {
                             endDate: prev.endDate && prev.endDate < next ? next : prev.endDate,
                           }))
                         }}
-                        className="input input-lg w-full"
+                        aria-invalid={startDateMissing}
+                        aria-describedby={startDateMissing ? 'rq-sdate-err' : undefined}
+                        className={`input input-lg w-full ${startDateMissing ? 'input-error' : ''}`}
                       />
+                      {startDateMissing ? (
+                        <span id="rq-sdate-err" className="mt-1 block text-xs text-error">
+                          กรุณาระบุวันที่เริ่มต้น
+                        </span>
+                      ) : null}
                     </label>
                     <TimeSelect
                       id="rq-st"
@@ -438,6 +482,7 @@ export function BookingRequestPage() {
                     <label className="block">
                       <span className="mb-1 block text-xs text-base-content/70">สิ้นสุด — วันที่</span>
                       <input
+                        id="rq-edate"
                         type="date"
                         min={values.startDate || today}
                         value={values.endDate}
@@ -445,8 +490,15 @@ export function BookingRequestPage() {
                           setTouched((t) => ({ ...t, when: true }))
                           set('endDate', e.target.value)
                         }}
-                        className="input input-lg w-full"
+                        aria-invalid={endDateMissing}
+                        aria-describedby={endDateMissing ? 'rq-edate-err' : undefined}
+                        className={`input input-lg w-full ${endDateMissing ? 'input-error' : ''}`}
                       />
+                      {endDateMissing ? (
+                        <span id="rq-edate-err" className="mt-1 block text-xs text-error">
+                          กรุณาระบุวันที่สิ้นสุด
+                        </span>
+                      ) : null}
                     </label>
                     <TimeSelect
                       id="rq-et"
@@ -618,10 +670,11 @@ export function BookingRequestPage() {
             `textarea-error` with a line under the offending field, and the `#rq-slots` check boxes
             for a time clash or an empty day list. A second, summarised copy above the button made
             people read the same warning twice before learning where to scroll. `blocked` still
-            gates the button and still routes focus on a failed submit; what went is the sentence,
-            not the guard.
+            refuses the submit and routes focus to the first thing to fix; what went is the
+            sentence, not the guard. (Since `#ISSUE-14` it no longer disables the button — a dead
+            button told nobody which field to fix.)
             ⚠️ `aria-describedby` STAYS, now pointing at the standing caveat, so a screen reader
-            landing on a disabled control is not left with a bare "dimmed button". */}
+            landing on the button hears what pressing it does, not a bare label. */}
         <p id="rq-note" className="mt-3 text-start text-xs text-base-content/60">
           หมายเหตุ: คำขอจะถูกส่งให้เจ้าหน้าที่พิจารณา ยังไม่ถือเป็นการจองที่ได้รับอนุมัติ
         </p>
@@ -640,7 +693,7 @@ export function BookingRequestPage() {
         <div className="mb-8 mt-4 flex flex-col gap-2">
           <button
             type="submit"
-            disabled={!canSubmit}
+            disabled={saving || !venue}
             aria-describedby="rq-note"
             className="btn btn-app btn-primary w-full shadow-sm"
           >

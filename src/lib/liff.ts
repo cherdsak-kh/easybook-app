@@ -42,7 +42,8 @@ export function isInLineClient(): boolean {
  * 🔴 THE ONLY EXIT THAT ACTUALLY RESTARTS A LIFF SESSION. A LIFF webview keeps its JS context — and
  * therefore the ID token minted when it opened — for as long as it stays open, so a token that
  * expired while the phone was locked cannot be replaced by anything the page does to itself short
- * of a full reload. Closing and reopening from the rich menu is the user-side version of that, and
+ * of clearing the SDK's cache and re-authenticating ({@link clearSession}, `#ISSUE-13`) — a plain
+ * reload keeps the cache. Closing and reopening from the rich menu is the user-side version, and
  * it is what `#/gate-error` offers beside its retry.
  *
  * ⚠️ IT IS A NO-OP OUTSIDE THE LINE CLIENT, BY THE SDK'S OWN CONTRACT — an external browser has no
@@ -84,6 +85,31 @@ export function login(redirectUri?: string): void {
     liff.login(redirectUri ? { redirectUri } : undefined)
   } catch (error) {
     console.warn('[liff] login failed:', error)
+  }
+}
+
+/**
+ * Drop the SDK's cached session — access token, ID token, expiry — without navigating.
+ *
+ * 🔴 `#/gate-error`'s SESSION-EXPIRED RETRY CALLS THIS BEFORE IT RE-AUTHENTICATES (`#ISSUE-13`).
+ * The SDK keeps its tokens in web storage (`sessionStorage` inside LINE, `localStorage` in an
+ * external browser), a reload keeps that storage, and `liff.init()` prefers the cached copy:
+ *   · inside LINE it stores the relaunch's `#id_token` only when NO ID token is stored already;
+ *   · in a browser it exchanges the `?code=` that `liff.login()` returns with only while
+ *     `isLoggedIn()` is false — which tests for an ACCESS token, and that outlives the 1-hour ID
+ *     token by far.
+ * Either way the expired token survives the round trip and the status call 401s again. Read in
+ * `@line/liff` 2.29.1: `liff.logout()` only clears that storage (no network, no native bridge), and
+ * `liffId` lives on `window.__liffConfig`, so {@link login} still works straight after.
+ *
+ * ⚠️ Never throws, like every other helper in this module.
+ */
+export function clearSession(): void {
+  if (!isLiffConfigured()) return
+  try {
+    liff.logout()
+  } catch (error) {
+    console.warn('[liff] logout failed:', error)
   }
 }
 

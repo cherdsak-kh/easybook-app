@@ -24,7 +24,8 @@ import {
  *   · **one day** → full date + time range + duration;
  *   · **crossing midnight** → a tag, an *enter* line and a *leave* line. There is no "time range"
  *     to speak of, because it runs through the night;
- *   · **repeating** → a tag, the time it happens each day, then the list of days.
+ *   · **repeating** → an icon row like the one-day date line (`ใช้ซ้ำ N วัน`, no tag — `#ISSUE-15`),
+ *     the time it happens each day, then the list of days.
  *
  * ── 🔴 THE PER-DAY CANCEL BUTTONS EXIST ONLY ON THE DETAIL SCREEN ──
  * `withCancel` is false on the list card, and the reason is HTML rather than taste: the whole card
@@ -57,10 +58,8 @@ export function SlotCapsule({
     return (
       <div className={box}>
         <div className={ROW}>
-          <span className={`${TAG} gap-1`}>
-            <LIcon name="repeat" className="h-3 w-3 shrink-0" />
-            ใช้ซ้ำ {live.length} วัน
-          </span>
+          <LIcon name="refreshCw" className="h-4 w-4 shrink-0 text-base-content/60" />
+          <span className="font-medium">ใช้ซ้ำ {live.length} วัน</span>
         </div>
         <div className={`${ROW} text-base-content/70`}>
           <LIcon name="clock" className="h-4 w-4 shrink-0 text-base-content/60" />

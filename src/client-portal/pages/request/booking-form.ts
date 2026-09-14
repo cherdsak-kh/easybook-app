@@ -234,21 +234,17 @@ export function fieldErrors(
 }
 
 /**
- * Why the submit button is off, or `''` when it is on.
+ * Why a submit must be refused, or `''` when it may go ahead.
  *
- * ── 🔴 THE PROTOTYPE DELETED ITS RED SUMMARY BOX, AND THIS IS NOT IT ──
- * `#rq-block` (2 ก.ย. 2569) printed *"ยังยื่นไม่ได้ — ตรวจสอบ: วัตถุประสงค์ · จำนวนผู้เข้าร่วม"*,
- * word for word what the message under each field already said, minus the part that said what was
- * wrong. It was removed because a full-width red panel above the primary button makes a
- * half-filled form read as a broken screen.
+ * ── 🔴 THE SUBMIT BUTTON IS NEVER DISABLED FOR THIS, AND THE STRING IS NOT RENDERED (`#ISSUE-14`) ──
+ * The page reads it for truthiness only. A non-empty value refuses the submit, marks every field
+ * touched, and scrolls to and focuses the first thing to fix (`firstInvalidId()` in
+ * `BookingRequestPage`). The explanation the reader gets is the error line under THAT field (or the
+ * check list, for a clash) — so the wording here is diagnostic, not copy anyone sees.
  *
- * What this returns instead is **one quiet line under the button**, replacing the standing
- * *"คำขอจะถูกส่งให้เจ้าหน้าที่พิจารณา…"* note only while the button is off. The checklist rule it
- * satisfies is *"Submit button disabled **with a stated reason** — a dead button that does not say
- * what is missing is the bug this rule exists to prevent"*, and a disabled control with no
- * accessible explanation is exactly that bug. It names the SECTION to go to, never repeats the
- * field's own sentence, and it is `aria-describedby` on the button so a screen reader gets it
- * without hunting.
+ * ⚠️ The prototype's red summary box `#rq-block` (removed 2 ก.ย. 2569) is not coming back either:
+ * it repeated what the message under each field already said, and a full-width red panel above the
+ * primary button makes a half-filled form read as a broken screen.
  */
 export function blockedReason(
   v: BookingValues,
