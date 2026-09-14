@@ -1,8 +1,8 @@
 /**
- * The five status tabs, with their counts.
+ * The six status tabs, with their counts.
  *
- * ⚠️ A `tablist`, NOT five toggle buttons. The five sets are mutually exclusive and `aria-selected`
- * says so; five independent `aria-pressed` buttons would claim they can be on at once. Same
+ * ⚠️ A `tablist`, NOT six toggle buttons. The six sets are mutually exclusive and `aria-selected`
+ * says so; six independent `aria-pressed` buttons would claim they can be on at once. Same
  * reasoning as the ขนาดการ์ด radiogroup on สถานที่จัดกิจกรรม.
  *
  * ⚠️ `ทั้งหมด` LEADS AND `รอพิจารณา` IS STILL WHERE THE SCREEN OPENS. Reading order and default
@@ -27,7 +27,7 @@
  * amber wash measured 4.44:1 that way. The full reasoning is on the CSS rules.
  */
 
-import type { BookingStatus } from '@/lib/api-client'
+import type { BookingStatus, BookingStatusCounts } from '@/lib/api-client'
 import { BOOKING_STATUS_LABEL } from '../../../labels'
 
 /** `null` is the ทั้งหมด tab — "no `status` on the query", which is not a value the enum has. */
@@ -43,7 +43,7 @@ export type StatusTab = BookingStatus | null
 const TABS: {
   key: StatusTab
   label: string
-  count: 'all' | 'pending' | 'approved' | 'rejected' | 'cancelled'
+  count: keyof BookingStatusCounts
   pill: string
 }[] = [
   { key: null, label: 'ทั้งหมด', count: 'all', pill: 'rq-tab-n-slate' },
@@ -61,6 +61,12 @@ const TABS: {
     count: 'cancelled',
     pill: 'rq-tab-n-rose',
   },
+  {
+    key: 'EXPIRED',
+    label: BOOKING_STATUS_LABEL.EXPIRED,
+    count: 'expired',
+    pill: 'rq-tab-n-slate',
+  },
 ]
 
 export function RequestStatusTabs({
@@ -70,7 +76,7 @@ export function RequestStatusTabs({
 }: {
   active: StatusTab
   /** `null` while the first page is loading — the pills render `—` rather than a stale or fake 0. */
-  counts: Record<'all' | 'pending' | 'approved' | 'rejected' | 'cancelled', number> | null
+  counts: BookingStatusCounts | null
   onSelect: (tab: StatusTab) => void
 }) {
   return (

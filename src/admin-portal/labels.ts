@@ -12,6 +12,7 @@
  */
 
 import type { components } from '@/lib/api-types'
+import type { BadgeTone } from './components/ui/Badge'
 
 /** `SystemRole` as the contract spells it — the only thing that grants privilege. */
 export type SystemRole = components['schemas']['SystemUserResponseDto']['role']
@@ -62,16 +63,16 @@ export const ACCESS_TONE: Record<AppAccess, 'emerald' | 'amber' | 'sky' | 'rose'
   UNREGISTERED: 'slate',
 }
 
-/** `BookingStatus` — the four states a booking request moves through. */
+/** `BookingStatus` — the five stored states a booking request moves through. */
 export type BookingStatus = components['schemas']['AdminBookingRequestListItemDto']['status']
 
 /** Where the request was TYPED: `LINE` (the LIFF form) or `ADMIN` (raised in the back office). */
 export type BookingOrigin = components['schemas']['AdminBookingRequestListItemDto']['origin']
 
 /**
- * ⚠️ FOUR STATES, NOT FIVE. "หมดอายุ" is not one of them: the server returns it as a derived
- * `isExpired` boolean on a row that is still `PENDING`, and adding a fifth entry here would be the
- * screen inventing a status the contract does not have.
+ * ⚠️ FIVE STORED STATES. `EXPIRED` (หมดเวลาพิจารณา) is written by the server's expiry job when a
+ * request is still pending at its first slot's start (`#ISSUE-06`). It is a stored value like the
+ * other four — the screen never derives it from the clock.
  *
  * ⚠️ `ปฏิเสธ`/`ยกเลิก` are the tab labels too, and deliberately the same words — a count pill that
  * says ปฏิเสธ must name the same set as the badge in the สถานะ column, or the strip is describing a
@@ -82,18 +83,21 @@ export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
   APPROVED: 'อนุมัติแล้ว',
   REJECTED: 'ปฏิเสธ',
   CANCELLED: 'ยกเลิก',
+  EXPIRED: 'หมดเวลาพิจารณา',
 }
 
 /**
- * The four hues, and they are shared with the tab strip's count pills on purpose: a count and the
+ * The five hues, and they are shared with the tab strip's count pills on purpose: a count and the
  * rows it counts are one colour. Same reason `ACCESS_TONE` exists — `<Badge>` takes a tone and must
- * not learn what a `BookingStatus` is.
+ * not learn what a `BookingStatus` is. `EXPIRED` is `slate`: a closed record nobody ruled on, so it
+ * takes the neutral tone rather than any hue that reads as a decision.
  */
-export const BOOKING_STATUS_TONE: Record<BookingStatus, 'emerald' | 'amber' | 'sky' | 'rose'> = {
+export const BOOKING_STATUS_TONE: Record<BookingStatus, BadgeTone> = {
   PENDING: 'amber',
   APPROVED: 'emerald',
   REJECTED: 'sky',
   CANCELLED: 'rose',
+  EXPIRED: 'slate',
 }
 
 /**

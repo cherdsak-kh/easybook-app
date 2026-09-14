@@ -52,9 +52,10 @@ export type BookingAction = 'approve' | 'reject' | 'cancel'
 
 /**
  * ⚠️ ONE TABLE, NOT A ROLE TEST INSIDE THREE BRANCHES. `PENDING` may be refused or approved;
- * `APPROVED` may be cancelled; `REJECTED` and `CANCELLED` are closed records and offer nothing —
- * the way back from an approval is ยกเลิก, and the way back from a refusal is a new request, which
- * is the requester's move and not ours.
+ * `APPROVED` may be cancelled; `REJECTED`, `CANCELLED` and `EXPIRED` are closed records and offer
+ * nothing — the way back from an approval is ยกเลิก, and the way back from a refusal or an expiry is a
+ * new request, which is the requester's move and not ours. (The server refuses all three writes on
+ * `EXPIRED` with a 409, so an entry here would only be a button that always fails.)
  *
  * The order is the prototype's: the destructive option first and the constructive one last, so the
  * button nearest the thumb on a phone (and nearest the eye at the end of a row on a desktop) is the
@@ -71,6 +72,7 @@ const TRANSITIONS: Record<
   APPROVED: [{ action: 'cancel', label: 'ยกเลิกการจอง', variant: 'danger', icon: ICON.ban }],
   REJECTED: [],
   CANCELLED: [],
+  EXPIRED: [],
 }
 
 export function BookingDetailDialog({
@@ -277,10 +279,14 @@ export function BookingDetailDialog({
           </div>
 
           {/* The refusal, in the words the requester was sent. An auto-rejection under ADR-001 lands
-              here too, carrying the system's own wording — which names nobody, by design. */}
+              here too, carrying the system's own wording — which names nobody, by design.
+              ⚠️ AN `EXPIRED` ROW CARRIES THE EXPIRY JOB'S SENTENCE IN THE SAME FIELD, and nobody
+              refused it, so the `เหตุผลที่ปฏิเสธ:` prefix is dropped there: the stored sentence
+              already says what happened on its own. */}
           {detail.rejectReason && (
             <p className="mt-4 rounded-control bg-base-200 px-4 py-3 text-[14px] leading-[1.55] text-base-content/80">
-              เหตุผลที่ปฏิเสธ: {detail.rejectReason}
+              {detail.status === 'EXPIRED' ? '' : 'เหตุผลที่ปฏิเสธ: '}
+              {detail.rejectReason}
             </p>
           )}
         </>

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import {
   STATE_BADGE,
   bookingState,
+  EXPIRED_REASON_FALLBACK,
   isHistory,
   type Booking,
   type BookingDetail,
@@ -177,7 +178,8 @@ function CardFooter({ booking, state }: { booking: Booking; state: BookingState 
   )
 
   if (state === 'done') return note('การใช้งานสถานที่นี้เสร็จสิ้นแล้ว')
-  if (state === 'expired') return note('คำขอนี้เลยกำหนดการใช้งานโดยยังไม่ได้รับการพิจารณา')
+  /* The stored reason, not a sentence of ours: the server's expiry job wrote it (`#ISSUE-06`). */
+  if (state === 'expired') return note(booking.rejectReason || EXPIRED_REASON_FALLBACK)
   if (state === 'rejected') return note('คำขอนี้ไม่ได้รับอนุมัติ')
   if (state === 'cancelled') return note('คำขอนี้ถูกยกเลิกแล้ว')
   if (booking.slots.length > 1)

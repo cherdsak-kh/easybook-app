@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   bookingState,
+  EXPIRED_REASON_FALLBACK,
   canCancelSlot,
   cancelRouteFor,
   crossesDay,
@@ -69,10 +70,12 @@ const STATE_NOTE: Partial<
     icon: 'history',
     text: 'การใช้งานสถานที่นี้เสร็จสิ้นสมบูรณ์แล้ว',
   },
+  /* ⚠️ `text` IS ONLY THE NULL FALLBACK. The rendered sentence is the stored `rejectReason` the
+     server's expiry job wrote (`#ISSUE-06`); see the note block below. */
   expired: {
     kind: 'alert-warning',
     icon: 'clock',
-    text: 'คำขอนี้เลยกำหนดการใช้งานไปแล้วโดยยังไม่ได้รับการพิจารณา',
+    text: EXPIRED_REASON_FALLBACK,
   },
   cancelled: {
     kind: 'alert-info',
@@ -139,8 +142,8 @@ export function BookingDetailPage() {
    *
    * ⚠️ IT REFETCHES INSTEAD OF PATCHING `status` FROM THE PAYLOAD. The four fields on the wire
    * cannot answer what this screen renders: `cancelLeadMinutes`, `approvedAt` and the per-slot
-   * `isCancelled` flags all move with an approval or a cancellation, and the derived state
-   * (`done` · `expired`) is computed from the slots. Patching the badge alone would leave a screen
+   * `isCancelled` flags all move with an approval or a cancellation, the derived `done` is computed
+   * from the slots, and an expiry brings its stored reason. Patching the badge alone would leave a screen
    * that says "อนุมัติแล้ว" above buttons the server has already stopped accepting.
    *
    * ⚠️ SILENT: `booking` is never set back to `null`, so the full-page spinner — which is gated on
@@ -307,7 +310,9 @@ export function BookingDetailPage() {
           className={`alert ${note.kind} alert-soft mt-4 items-start text-start text-sm`}
         >
           <LIcon name={note.icon} className="h-5 w-5 shrink-0" />
-          <span className="text-base-content">{note.text}</span>
+          <span className="text-base-content">
+            {state === 'expired' ? booking.rejectReason || note.text : note.text}
+          </span>
         </div>
       ) : null}
 

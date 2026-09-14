@@ -203,9 +203,9 @@ export type UpdateVenueBody = components['schemas']['UpdateVenueDto']
  * the detail dialog has to be able to say that Wednesday was dropped and why. Anything summarising
  * the array for a table cell has to state which population it is summarising.
  *
- * ⚠️ `isExpired` IS THE SERVER'S ANSWER, not a comparison to do here. It is
- * `status === PENDING && lastEndAt < now` evaluated at read time — there is no fifth stored status
- * and no cron — and recomputing it against the browser's clock is how two screens start disagreeing
+ * ⚠️ `EXPIRED` IS A STORED STATUS, written by the server's expiry job when a request is still
+ * pending at its first slot's start (`#ISSUE-06`). Read it from `status`; there is no derived
+ * expiry flag on the row, and recomputing one against the browser's clock is how two screens start disagreeing
  * about the same row.
  */
 export type BookingRequestListItem =
@@ -1159,7 +1159,7 @@ export interface ListBookingRequestsParams {
   search?: string
   /** An unknown id yields an empty list with `total: 0`, not a 404 — it is a filter, not a resource. */
   venueId?: string
-  /** Absent = the `ทั้งหมด` tab. ⛔ There is no `EXPIRED` value; see `isExpired` on the row. */
+  /** Absent = the `ทั้งหมด` tab. `EXPIRED` is a stored value. */
   status?: BookingStatus
   sort?: BookingRequestSort
 }

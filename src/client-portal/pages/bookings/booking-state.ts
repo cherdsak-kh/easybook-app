@@ -5,11 +5,13 @@ import type { components } from '@/lib/api-types'
 /**
  * Everything `#/bookings` and `#/booking/:id` DERIVE, with no React in sight.
  *
- * ── 🔴 SIX STATES ON SCREEN, FOUR IN THE DATABASE, AND THE CLOCK MAKES UP THE DIFFERENCE ──
- * `CHECKLIST.md` Phase 6: *`หมดเวลา` is computed at read time, never stored.* The server ships
- * `PENDING | APPROVED | REJECTED | CANCELLED` and deliberately has no `EXPIRED` value — a stored
- * one would need a scheduled job to maintain a fact that a subtraction answers exactly, and the job
- * would be wrong for as long as it had not run yet.
+ * ── 🔴 SIX STATES ON SCREEN, FIVE IN THE DATABASE, AND ONLY `done` IS DERIVED ──
+ * The server ships `PENDING | APPROVED | REJECTED | CANCELLED | EXPIRED`. `หมดเวลาพิจารณา` is the
+ * STORED `EXPIRED`, written by the server's expiry job when a request is still pending at its first
+ * slot's start (`#ISSUE-06`, PO 2026-09-14, superseding D-C13's computed rule). It is the ONLY
+ * definition of "expired": nothing here compares the phone's clock to a slot to decide it. A pending
+ * request past its start that the job has not swept yet IS still `pending` (accepted gap, ≤60 s).
+ * `สิ้นสุดแล้ว` (`done`) is the one state still derived, because it has no stored status.
  *
  * ⚠️ THIS IS WHY THE STATUS FILTER ON `#/bookings` CANNOT BE A QUERY PARAMETER. `GET /line-users/
  * bookings?status=APPROVED` returns approved bookings *including last month's*, which this screen
@@ -25,13 +27,21 @@ export type BookingSlot = components['schemas']['BookingSlotResponseDto']
 export type BookingSort = 'created-desc' | 'created-asc' | 'event-asc' | 'event-desc'
 
 /**
- * The six badges. `done` / `expired` are computed; the other four are the stored statuses lowercased.
+ * The six badges. `done` is computed; the other five are the stored statuses lowercased.
  *
  * ⚠️ `done` AND `expired` ARE NOT THE SAME EVENT WEARING TWO LABELS. `done` is an approved booking
  * whose day has passed — it happened. `expired` is a request nobody ruled on before its day passed
  * — it did not happen, and nobody said no. Collapsing them would tell a user their event took place.
  */
 export type BookingState = 'pending' | 'approved' | 'done' | 'expired' | 'rejected' | 'cancelled'
+
+/**
+ * The note an `expired` request shows when its stored `rejectReason` is somehow empty. Byte-equal to
+ * the server's `AUTO_EXPIRED_REASON` (`01_plan_log.md` AC-8.7). The stored reason is what renders
+ * normally; this only covers a null so the card never prints an empty note.
+ */
+export const EXPIRED_REASON_FALLBACK =
+  'คำขอหมดอายุโดยอัตโนมัติ เนื่องจากเลยกำหนดเวลาเริ่มต้นใช้งานโดยยังไม่ได้รับการพิจารณา'
 
 /** The four buckets the status dropdown offers. `history` is the union of the last four states. */
 export type StatusFilter = '' | 'pending' | 'approved' | 'history'
@@ -77,7 +87,8 @@ export function lastEnd(b: { slots: BookingSlot[] }): number {
  * The order of the tests is the ruling:
  *   · cancelled — or every slot cancelled — stays `cancelled` whether or not the day has passed;
  *   · rejected stays `rejected` for the same reason: the refusal reason still has to be readable;
- *   · past its last end → approved becomes `done`, pending becomes `expired`;
+ *   · stored `EXPIRED` is `expired` — read from the status, never from the clock;
+ *   · past its last end → approved becomes `done`; pending stays `pending` until the server expires it;
  *   · otherwise, what the server stored.
  *
  * ⚠️ `!liveSlots.length` IS A BELT TO THE SERVER'S BRACES. The cancel endpoint flips the request
@@ -88,7 +99,8 @@ export function lastEnd(b: { slots: BookingSlot[] }): number {
 export function bookingState(b: Booking | BookingDetail, now = Date.now()): BookingState {
   if (b.status === 'CANCELLED' || liveSlots(b).length === 0) return 'cancelled'
   if (b.status === 'REJECTED') return 'rejected'
-  if (now > lastEnd(b)) return b.status === 'APPROVED' ? 'done' : 'expired'
+  if (b.status === 'EXPIRED') return 'expired'
+  if (b.status === 'APPROVED' && now > lastEnd(b)) return 'done'
   return b.status === 'APPROVED' ? 'approved' : 'pending'
 }
 

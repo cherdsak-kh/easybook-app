@@ -93,20 +93,22 @@ export const CLIENT_REALTIME_MESSAGES = {
 } as const
 
 /**
- * The four statuses `client.bookingUpdated` can carry.
+ * The five statuses `client.bookingUpdated` can carry.
  *
  * Written out rather than imported from the generated types: this is the WIRE vocabulary of a
- * socket event, which no OpenAPI document describes, and a `BookingStatus` that grew a fifth member
- * would not automatically be announced on this channel.
+ * socket event, which no OpenAPI document describes, and a `BookingStatus` that grew a member
+ * would not automatically be announced on this channel. `EXPIRED` IS announced here: the server's
+ * expiry job publishes it to the owner's room with the automatic reason in `rejectReason`
+ * (`#ISSUE-06`, `CLIENT_ANNOUNCED_STATUSES`).
  */
-export type ClientBookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+export type ClientBookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'EXPIRED'
 
 /** `client.bookingUpdated`'s payload — the four fields a card needs to flip. */
 export interface ClientBookingUpdatedPayload {
   id: string
   code: string
   status: ClientBookingStatus
-  /** The approver's reason, or ADR-001's auto-rejection copy. `null` on every other transition. */
+  /** The approver's reason, ADR-001's auto-rejection copy, or the expiry job's reason. `null` on every other transition. */
   rejectReason: string | null
 }
 

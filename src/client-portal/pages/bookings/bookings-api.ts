@@ -1,4 +1,10 @@
-import type { Booking, BookingDetail, BookingSlot, BookingSort } from './booking-state'
+import {
+  EXPIRED_REASON_FALLBACK,
+  type Booking,
+  type BookingDetail,
+  type BookingSlot,
+  type BookingSort,
+} from './booking-state'
 import { isDevGate } from '@/client-portal/hooks/useLiffGate'
 import { ApiError, api } from '@/lib/api-client'
 import { getIdToken } from '@/lib/liff'
@@ -75,7 +81,7 @@ export function isNotFound(error: unknown): boolean {
  * | 003 | `approved`, one slot starting in **15 minutes** — inside the lead time, so the button is *absent and explained* |
  * | 004 | `rejected` with a reason — the alert that sits ABOVE the details |
  * | 005 | `approved` in the past → `done` |
- * | 006 | `pending` in the past → `expired` (the state that cannot exist in the database) |
+ * | 006 | stored `EXPIRED` (swept by the server's expiry job) → `expired`, with the job's `rejectReason` |
  * | 007 | every slot cancelled → `cancelled` |
  * | 008 | `approved`, one slot crossing midnight — the two-line enter/leave capsule |
  */
@@ -200,10 +206,10 @@ const DEV_BOOKINGS: Booking[] = [
   ),
   devBooking(
     'BR-25690818-006',
-    'PENDING',
+    'EXPIRED',
     24,
     [devSlot('s6', -16 * DAY, 2)],
-    null,
+    EXPIRED_REASON_FALLBACK,
     devVenue('ห้องสมุด ชั้น 2', 'อาคารห้องสมุด ชั้น 2', 'ห้องประชุม'),
     'กิจกรรมส่งเสริมการอ่าน',
   ),

@@ -797,7 +797,7 @@ export interface paths {
         };
         /**
          * List the caller’s own booking requests (`#/bookings`).
-         * @description Scoped to the verified `sub` — there is no parameter that widens it, and ownership is part of the query rather than a filter applied afterwards. Unpaginated: this is one user’s own bookings, and the screen’s four accordion groups are counted over the whole set. 🔴 `status` filters the four STORED statuses; the screen paints SIX, deriving `สิ้นสุดแล้ว` and `หมดเวลาพิจารณา` from `status` + `lastEndAt` at read time. Nothing expires in the database.
+         * @description Scoped to the verified `sub` — there is no parameter that widens it, and ownership is part of the query rather than a filter applied afterwards. Unpaginated: this is one user’s own bookings, and the screen’s four accordion groups are counted over the whole set. 🔴 `status` filters the five STORED statuses (`EXPIRED` included); the screen derives only `สิ้นสุดแล้ว` from the slots at read time.
          */
         get: operations["LineBookingsController_list"];
         put?: never;
@@ -961,7 +961,7 @@ export interface paths {
         };
         /**
          * List booking requests — the approval queue.
-         * @description Filtered, sorted AND paginated entirely by the server. `counts` carries the five tab totals and is computed with `search` and `venueId` applied but WITHOUT `status`, so selecting a tab does not zero the other four. Every row carries ALL its slots, cancelled ones included, and a server-computed `isExpired` (`status = PENDING && lastEndAt < now`) — there is no fifth stored status and no cron.
+         * @description Filtered, sorted AND paginated entirely by the server. `counts` carries the six tab totals and is computed with `search` and `venueId` applied but WITHOUT `status`, so selecting a tab does not zero the others. Every row carries ALL its slots, cancelled ones included. `EXPIRED` is a stored status written by the expiry job at the request’s first slot start.
          */
         get: operations["BookingRequestsController_list"];
         put?: never;
@@ -1978,7 +1978,7 @@ export interface components {
              * @example PENDING
              * @enum {string}
              */
-            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
             /**
              * Format: date-time
              * @description Earliest `startAt` across the slots.
@@ -2011,7 +2011,7 @@ export interface components {
             purpose: string;
             attendees: number;
             /** @enum {string} */
-            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
             /** @description Why it was refused. Null unless `status` is `REJECTED`. */
             rejectReason: string | null;
             /** Format: date-time */
@@ -2045,7 +2045,7 @@ export interface components {
             purpose: string;
             attendees: number;
             /** @enum {string} */
-            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
             rejectReason: string | null;
             /** Format: date-time */
             firstStartAt: string;
@@ -2076,11 +2076,11 @@ export interface components {
              * @enum {string}
              */
             status: "APPROVED" | "PENDING";
-            /** @description True when this slot belongs to the calling LINE user’s own request. Drives the `คุณ` badge, and unlocks `purpose`/`requesterName` on the caller’s own pending rows. */
+            /** @description True when this slot belongs to the calling LINE user’s own request. Drives the `คุณ` badge. */
             isMine: boolean;
-            /** @description 🔴 `null` on somebody else’s PENDING request (`D-C13`). Non-null on an approved slot and on the caller’s own. */
+            /** @description The requester’s stated purpose, sent for every slot regardless of status or owner (`#ISSUE-01`). Nullable only because the column is. */
             purpose: string | null;
-            /** @description 🔴 `null` on somebody else’s PENDING request (`D-C13`). Also `null` on a staff-created booking with no LINE requester and no manual override — an unnamed approved slot is normal, not an error. */
+            /** @description The requester’s name, sent for every slot regardless of status or owner (`#ISSUE-01`). `null` on a staff-created booking with no LINE requester and no manual override — an unnamed slot is normal, not an error (`D-C18`). */
             requesterName: string | null;
         };
         LineScheduleSlotDto: {
@@ -2218,14 +2218,12 @@ export interface components {
             /** @example BR-25690903-001 */
             code: string;
             /** @enum {string} */
-            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
             /**
              * @description Where the request came from: `LINE` when `createdById` is null, otherwise `ADMIN`. It answers "who TYPED it" — a staff booking made on behalf of a LINE user reads `ADMIN`.
              * @enum {string}
              */
             origin: "LINE" | "ADMIN";
-            /** @description `status === PENDING && lastEndAt < now`, evaluated by the SERVER at read time. Not a stored status and not a cron — the client should not recompute it against its own clock. */
-            isExpired: boolean;
             requester: components["schemas"]["AdminBookingRequesterDto"];
             venue: components["schemas"]["AdminBookingVenueDetailDto"];
             /** @description วัตถุประสงค์. Returned in EVERY status including PENDING — see the file note; this is the input the approval decision is made from. */
@@ -2298,14 +2296,12 @@ export interface components {
             /** @example BR-25690903-001 */
             code: string;
             /** @enum {string} */
-            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
             /**
              * @description Where the request came from: `LINE` when `createdById` is null, otherwise `ADMIN`. It answers "who TYPED it" — a staff booking made on behalf of a LINE user reads `ADMIN`.
              * @enum {string}
              */
             origin: "LINE" | "ADMIN";
-            /** @description `status === PENDING && lastEndAt < now`, evaluated by the SERVER at read time. Not a stored status and not a cron — the client should not recompute it against its own clock. */
-            isExpired: boolean;
             requester: components["schemas"]["AdminBookingRequesterDto"];
             venue: components["schemas"]["AdminBookingVenueDto"];
             /** @description วัตถุประสงค์. Returned in EVERY status including PENDING — see the file note; this is the input the approval decision is made from. */
@@ -2331,11 +2327,16 @@ export interface components {
             rejected: number;
             /** @example 2 */
             cancelled: number;
+            /**
+             * @description Requests the expiry cron closed (stored `EXPIRED`).
+             * @example 4
+             */
+            expired: number;
         };
         PaginatedBookingRequestsResponseDto: {
             data: components["schemas"]["AdminBookingRequestListItemDto"][];
             meta: components["schemas"]["PaginationMetaDto"];
-            /** @description Tab counts. Computed with `search` and `venueId` applied but WITHOUT `status` — otherwise selecting a tab would zero the other four. A status with no rows is `0`, never absent. */
+            /** @description Tab counts. Computed with `search` and `venueId` applied but WITHOUT `status`, otherwise selecting a tab would zero the other five. A status with no rows is `0`, never absent. */
             counts: components["schemas"]["BookingStatusCountsDto"];
         };
         RejectBookingRequestDto: {
@@ -5338,8 +5339,8 @@ export interface operations {
             query?: {
                 /** @description Case-insensitive substring match across the booking `code`, the purpose, and the venue name and location. A leading `#` is stripped, so `#BR-25690903-001` and `BR-25690903-001` find the same row. Trimmed; empty/absent → no search filter. */
                 q?: string;
-                /** @description Narrows to one STORED status. The screen’s `ประวัติ` chip and its `สิ้นสุดแล้ว` / `หมดเวลาพิจารณา` badges are DERIVED from `status` + `lastEndAt` and cannot be passed here — see the class note. */
-                status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+                /** @description Narrows to one STORED status (`EXPIRED` included). The screen’s `ประวัติ` chip and its derived `สิ้นสุดแล้ว` badge cannot be passed here — see the class note. */
+                status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
                 /** @description `created-*` orders by submission date, `event-*` by the date the room is used. Ties break on `code` ascending so the order is total and a re-fetch cannot shuffle two rows past each other. */
                 sort?: "created-desc" | "created-asc" | "event-asc" | "event-desc";
             };
@@ -5960,8 +5961,8 @@ export interface operations {
                 search?: string;
                 /** @description Narrows to one venue. An unknown id yields an empty list with `total: 0`, not a 404 — it is a filter, not the addressed resource. */
                 venueId?: string;
-                /** @description Narrows to one stored status; absent means the `ทั้งหมด` tab. The screen’s "หมดอายุ" state is NOT a value here — it is derived (`status = PENDING && lastEndAt < now`) and returned as `isExpired`. */
-                status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+                /** @description Narrows to one stored status; absent means the `ทั้งหมด` tab. `EXPIRED` is stored by the expiry job when a request is still pending at its first slot’s start. */
+                status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
                 /** @description `created-*` orders by submission date, `event-*` by the date the room is used (`firstStartAt`, an indexed scalar — never an aggregate over the slots). Ties break on `code` ascending so the order is total and a re-fetch cannot shuffle two rows past each other. */
                 sort?: "created-desc" | "event-asc" | "created-asc" | "event-desc";
             };

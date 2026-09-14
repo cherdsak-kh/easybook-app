@@ -304,6 +304,9 @@ export function ClientRealtimeProvider({
         case 'CANCELLED':
           showToast(`คำขอ ${payload.code} ถูกยกเลิกแล้ว`, 'warning')
           break
+        case 'EXPIRED':
+          showToast(`คำขอ ${payload.code} หมดเวลาพิจารณา`, 'warning')
+          break
         case 'PENDING':
           break
       }
