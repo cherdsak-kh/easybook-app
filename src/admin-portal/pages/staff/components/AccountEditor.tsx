@@ -199,9 +199,9 @@ export function AccountEditor({
     <>
       {/* ⚠️ STAYS OPEN WHILE THE CONFIRMATION IS UP — the two dialogs STACK, they do not swap.
           This read `open={!pending}` for one pass and the whole flow collapsed on the first save:
-          `Modal` binds `onClose` to the dialog's own `close` event precisely so that Esc, the
-          backdrop, the ✕ AND React setting `open` to false all report through one path (its header
-          says so in as many words). So hiding the form to make room for the confirmation fired the
+          `Modal` binds `onClose` to the dialog's own `close` event precisely so that Esc, the ✕
+          AND React setting `open` to false all report through one path (its header says so in as
+          many words). So hiding the form to make room for the confirmation fired the
           form's `onClose`, which is this component's `close()` — tearing down `pending` and the
           editor before the confirmation could render. Measured: the button appeared to do nothing.
 

@@ -29,7 +29,7 @@
  * component tracks what IT uploaded (`sessionUploads`) and discards those on the way out.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ApiError,
   discardVenuePhoto,
@@ -41,7 +41,8 @@ import {
   type VenueType,
 } from '@/lib/api-client'
 import { Btn } from '../../../components/ui/Btn'
-import { FormField, SelectField } from '../../../components/ui/FormField'
+import { Combobox, type ComboboxOption } from '../../../components/ui/Combobox'
+import { FormField } from '../../../components/ui/FormField'
 import { InlineAlert } from '../../../components/feedback/InlineAlert'
 import { Modal } from '../../../components/ui/Modal'
 import { Spinner } from '../../../components/feedback/Spinner'
@@ -413,12 +414,26 @@ export function VenueFormDialog({
 
   /**
    * ⚠️ THE RECORD'S CURRENT CATEGORY IS KEPT AS AN OPTION EVEN WHEN IT IS NOT ASSIGNABLE.
-   * `<select>` has no concept of "a value not in the list": omit it and the browser silently selects
-   * option 0, so opening the dialog to fix a typo would re-file the venue under whichever category
-   * happens to sort first. This covers both the tombstone and a category soft-deleted elsewhere.
+   * Omit it and the control has no row for the value it holds: `Combobox` would show the
+   * "not chosen" placeholder over a record that IS filed somewhere, and a save would send an id the
+   * screen never showed. This covers both the tombstone and a category soft-deleted elsewhere.
+   *
+   * It carries `fallback`, so `Combobox` lists it ONLY while it is still the value — the operator
+   * can see where the venue sits today, but cannot pick the tombstone again once they have moved
+   * away from it. Filing a venue there on purpose would make it mean two different things.
    */
   const currentTypeMissing =
     target !== null && !types.some((t) => t.id === target.venueType.id)
+
+  const typeOptions = useMemo<ComboboxOption<string>[]>(
+    () => [
+      ...(currentTypeMissing && target
+        ? [{ id: String(target.venueType.id), name: target.venueType.name, fallback: true }]
+        : []),
+      ...types.map((t) => ({ id: String(t.id), name: t.name })),
+    ],
+    [types, currentTypeMissing, target],
+  )
 
   const cover = draft[coverIdx]
 
@@ -538,31 +553,27 @@ export function VenueFormDialog({
 
         {/* ⚠️ REQUIRED. The reserved `ไม่พบประเภทสถานที่` row is not in this list: it exists to
             catch venues whose category was deleted, and letting an operator file one there
-            deliberately would make the tombstone mean two different things. */}
-        <SelectField
+            deliberately would make the tombstone mean two different things.
+
+            A SEARCHABLE COMBOBOX, NOT A <select> (#ISSUE-09): categories are school-maintained and
+            grow, and the operator knows the name they want.
+
+            ⚠️ "NOT CHOSEN" IS THE PLACEHOLDER, NOT A ROW. Create opens with `venueTypeId === ''`,
+            which matches no option, so the trigger shows เลือกประเภทสถานที่ in placeholder style —
+            a default can still never be mistaken for a decision (see the reset effect), and บันทึก
+            on an untouched field still lands on `VenuesPage`'s guard. What is lost is picking the
+            blank back after a wrong choice; the operator picks the right category instead, and
+            Escape closes the list without changing anything. */}
+        <Combobox
           label="ประเภทสถานที่"
+          placeholder="เลือกประเภทสถานที่"
+          options={typeOptions}
           value={venueTypeId}
-          onChange={(e) => setVenueTypeId(e.target.value)}
+          onChange={setVenueTypeId}
+          required
           disabled={readOnly}
           error={fieldErrors.venueTypeId}
-        >
-          {/* ⚠️ THE EMPTY PLACEHOLDER IS CREATE-ONLY, and it is what makes "not chosen" a state
-              this form can be in at all. Without it the browser selects option 0 and the operator
-              cannot tell a default apart from a decision — see the reset effect for the whole
-              argument. It is NOT `disabled`/`hidden`: somebody who opened the list has to be able
-              to back out of a wrong pick and land on the same error as if they had never touched
-              it. In edit/view the record has a real category, so there is nothing to place-hold. */}
-          {!editing && <option value="">เลือกประเภทสถานที่</option>}
-          {/* The other extra entry: the record's CURRENT category when it is no longer assignable. */}
-          {currentTypeMissing && target && (
-            <option value={String(target.venueType.id)}>{target.venueType.name}</option>
-          )}
-          {types.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </SelectField>
+        />
 
         {/* `min={1}`, not 0. A venue that holds nobody is not a venue, and 0 is the value a
             half-filled form submits by accident. */}

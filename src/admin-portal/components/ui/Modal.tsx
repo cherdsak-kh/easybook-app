@@ -13,10 +13,16 @@
  * Esc and a backdrop dismissal report through the same path the button does — otherwise
  * React's state says open while the platform says closed, and the next `showModal()` throws.
  *
- * Clicking the backdrop closes. The check is `event.target === dialogEl`: the backdrop is not
- * a child element, so a click that lands on it has the <dialog> itself as its target, while
- * any click inside the panel targets something deeper. Comparing against a bounding box is
- * the usual attempt and it misdetects clicks in the panel's rounded corners.
+ * ⚠️ CLICKING THE BACKDROP DOES NOTHING BY DEFAULT (#ISSUE-10). It used to close, and on the
+ * data-entry dialogs — เพิ่มสถานที่, บัญชีเจ้าหน้าที่, แก้ไขการลงทะเบียน, สร้างการจอง — one stray
+ * click past the panel's edge threw away everything typed, with no warning. The explicit exits
+ * are untouched: the ✕, a footer ยกเลิก/ปิด, and Esc (the `cancel` event) all still close. A
+ * dialog where a backdrop dismissal is genuinely convenient opts back in with `closeOnBackdrop`.
+ *
+ * When it is on, the check is `event.target === dialogEl`: the backdrop is not a child element,
+ * so a click that lands on it has the <dialog> itself as its target, while any click inside the
+ * panel targets something deeper. Comparing against a bounding box is the usual attempt and it
+ * misdetects clicks in the panel's rounded corners. `dismissable={false}` still wins over it.
  */
 
 import { useEffect, useId, useRef } from 'react'
@@ -34,6 +40,7 @@ export function Modal({
   tall = false,
   bodyRef,
   dismissable = true,
+  closeOnBackdrop = false,
 }: {
   open: boolean
   onClose: () => void
@@ -99,6 +106,11 @@ export function Modal({
    * whether the thing they asked for happened.
    */
   dismissable?: boolean
+  /**
+   * Opt IN to closing on a backdrop click. Off by default — see the header: a form dialog must not
+   * lose its input to a click that missed the panel. Ignored while `dismissable` is false.
+   */
+  closeOnBackdrop?: boolean
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
@@ -153,7 +165,8 @@ export function Modal({
       ref={ref}
       aria-labelledby={titleId}
       // Bound to the dialog's own `close` event, so EVERY exit lands here — the ✕, a footer
-      // button, Esc, the backdrop, and React setting `open` to false. Restoring focus anywhere
+      // button, Esc, the backdrop (only with `closeOnBackdrop`), and React setting `open` to
+      // false. Restoring focus anywhere
       // else would cover some of those and silently miss the rest.
       onClose={() => {
         onClose()
@@ -169,7 +182,9 @@ export function Modal({
         if (!dismissable) e.preventDefault()
       }}
       onClick={(e) => {
-        if (dismissable && e.target === ref.current) onClose()
+        // Backdrop dismissal is opt-in (#ISSUE-10). Esc is `onCancel` above and the ✕ is its own
+        // button, so neither passes through here.
+        if (closeOnBackdrop && dismissable && e.target === ref.current) onClose()
       }}
     >
       <div

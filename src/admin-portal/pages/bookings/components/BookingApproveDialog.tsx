@@ -15,8 +15,8 @@
  * that explains it. It is also NOT the boundary — `conflicts` is read outside the deciding
  * transaction, and the transaction refuses again.
  *
- * ⚠️ NO DISMISS BUTTON IN THE FOOTER (PO, after user testing). The ✕, the backdrop and Escape all
- * close this three other ways; the footer holds constructive actions only, so the button under the
+ * ⚠️ NO DISMISS BUTTON IN THE FOOTER (PO, after user testing). The ✕ and Escape both close this
+ * two other ways; the footer holds constructive actions only, so the button under the
  * operator's hand is always the one that commits.
  *
  * ⚠️ WHAT THIS DIALOG SHOWS IS A FORECAST, AND THE TOAST AFTERWARDS IS THE FACT. The page reports

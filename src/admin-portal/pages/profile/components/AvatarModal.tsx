@@ -208,7 +208,7 @@ export function AvatarModal({
     }
   }, [src])
 
-  // Every exit lands here — the ✕, ยกเลิก, Escape and the backdrop all close the dialog, and a
+  // Every exit lands here — the ✕, ยกเลิก and Escape all close the dialog, and a
   // half-finished crop must never survive into the next open.
   useEffect(() => {
     if (!open) clearPick()

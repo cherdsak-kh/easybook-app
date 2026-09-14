@@ -11,8 +11,10 @@
  * from this state". The row has no status branching left at all, so it cannot offer an illegal one —
  * it offers none.
  *
- * ⚠️ AND THERE IS NO ปิดหน้าต่าง (PO, after user testing). The ✕, the backdrop and Escape close this
- * three other ways, so a footer button whose only job is "close" competed with the real actions.
+ * ⚠️ AND THERE IS NO ปิดหน้าต่าง (PO, after user testing). The ✕ in the header and Escape close this
+ * two other ways, so a footer button whose only job is "close" competed with the real actions.
+ * The backdrop does NOT: `Modal`'s `closeOnBackdrop` is off by default (#ISSUE-10), and the PO kept
+ * it off for this read-only dialog too.
  * Which means a REJECTED or CANCELLED record — and EVERY record a VIEWER opens — has nothing to put
  * in the bar at all: `footer={null}`, so the strip is absent rather than rendered empty. A VIEWER
  * gets no action bar, not disabled buttons; a greyed control promises a capability the role will

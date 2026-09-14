@@ -501,8 +501,11 @@
      showModal() makes the rest of the document inert, so a toast over an
      open dialog paints on top but does not receive clicks — measured: a real
      click on its ✕ fell through to the dialog's ::backdrop and CLOSED THE
-     FORM, throwing away the edits the operator was trying to save. The
-     message belongs where the retry button is anyway. */
+     FORM, throwing away the edits the operator was trying to save. (That was
+     while a backdrop click still closed every Modal; since #ISSUE-10 it is
+     opt-in via `closeOnBackdrop`, so the click now does nothing — and the
+     toast is still unreachable.) The message belongs where the retry button
+     is anyway. */
   .inline-alert     { @apply mb-4 flex items-start gap-2.5 rounded-control border border-error/30 bg-error/10 px-3.5 py-3 text-[14px] leading-[1.55] text-base-content; }
   .inline-alert-ico { @apply mt-0.5 h-5 w-5 shrink-0 text-error; }
 

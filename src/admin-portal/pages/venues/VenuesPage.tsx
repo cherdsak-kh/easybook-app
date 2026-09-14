@@ -38,6 +38,7 @@ import {
   type Venue,
 } from '@/lib/api-client'
 import { Btn } from '../../components/ui/Btn'
+import { Combobox, type ComboboxOption } from '../../components/ui/Combobox'
 import { ConfirmModal } from '../../components/feedback/ConfirmModal'
 import { EmptyState } from '../../components/feedback/EmptyState'
 import { LoadError, type LoadErrorKind } from '../../components/feedback/LoadError'
@@ -55,6 +56,19 @@ import {
 } from './components/VenueFormDialog'
 import { useVenueVocabularies } from './use-venue-vocabularies'
 import type { AdminRoute } from '../../routes'
+
+/**
+ * The toolbar's two comboboxes take a VISUALLY HIDDEN label — same idiom as คำขอจองสถานที่'s
+ * toolbar. The <label> element stays: `Combobox` points `aria-labelledby` at it.
+ */
+const LABEL_HIDDEN = '[&>.form-label]:sr-only'
+
+/** `''` is "no filter". The ids are the strings `shown` already compares against. */
+const STATUS_OPTIONS: readonly ComboboxOption<string>[] = [
+  { id: '', name: 'ทุกสถานะ' },
+  { id: 'open', name: 'เปิดให้จอง' },
+  { id: 'closed', name: 'ปิดชั่วคราว' },
+]
 
 const ICON = {
   refresh:
@@ -186,7 +200,12 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
   const [busy, setBusy] = useState(false)
   const [pending, setPending] = useState<Pending | null>(null)
 
-  const { assignableTypes, amenities, alert: vocabAlert } = useVenueVocabularies(reloadKey)
+  const {
+    venueTypes,
+    assignableTypes,
+    amenities,
+    alert: vocabAlert,
+  } = useVenueVocabularies(reloadKey)
 
   const load = useCallback(async () => {
     setError(null)
@@ -221,6 +240,41 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
    */
   const orphanCount = all.filter((v) => v.venueType.isFallback).length
   const fallbackType = all.find((v) => v.venueType.isFallback)?.venueType ?? null
+
+  /**
+   * The type filter's rows: ทุกประเภท, every assignable category, then the tombstone with its count
+   * — exactly the three groups the native <select> rendered, in the same order. Memoised because
+   * `Combobox` re-measures its popper whenever its option list changes identity.
+   */
+  const typeOptions = useMemo<ComboboxOption<string>[]>(
+    () => [
+      { id: '', name: 'ทุกประเภท' },
+      ...assignableTypes.map((t) => ({ id: String(t.id), name: t.name })),
+      ...(orphanCount > 0 && fallbackType
+        ? [{ id: String(fallbackType.id), name: `${fallbackType.name} (${orphanCount})` }]
+        : []),
+    ],
+    [assignableTypes, orphanCount, fallbackType],
+  )
+
+  /**
+   * ⚠️ A TYPE FILTER WHOSE OPTION HAS GONE IS DROPPED — BUT ONLY ONCE BOTH LISTS HAVE ARRIVED.
+   * The tombstone row exists only while `orphanCount > 0`, and a category can be deleted on another
+   * screen, so the filter can outlive its option: the trigger would show a placeholder over a grid
+   * that is still filtered by something the operator can no longer see or pick.
+   *
+   * The guard is the point. `typeOptions` is built from TWO fetches — `venueTypes` (the vocabulary
+   * hook) and `rows` (this page) — and each is `null` before its first answer; `rows` goes back to
+   * `null` when a load fails. Compared against a list that has not landed, every id is a "mismatch",
+   * and the operator's filter would be wiped on first render or by a failed refresh. Neither is
+   * nulled while a reload is in flight, so a refetch compares against the last complete lists, not
+   * an empty one. `''` (ทุกประเภท) is never a mismatch: it returns before the lookup.
+   */
+  const optionsReady = rows !== null && venueTypes !== null
+  useEffect(() => {
+    if (!optionsReady || !typeFilter) return
+    if (!typeOptions.some((o) => o.id === typeFilter)) setTypeFilter('')
+  }, [optionsReady, typeFilter, typeOptions])
 
   const trimmed = term.trim().toLowerCase()
   const shown = useMemo(
@@ -480,47 +534,28 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
           </div>
 
           <div className="flex gap-2.5 sm:gap-3">
-            <label className="relative flex min-w-0 flex-1 items-center rounded-control border border-transparent bg-base-200 pl-3.5 pr-3 transition-all focus-within:border-primary/40 focus-within:bg-base-100 focus-within:ring-4 focus-within:ring-primary/10 lg:flex-none">
-              <span className="sr-only">กรองตามประเภทสถานที่</span>
-              <select
-                className="form-select"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-              >
-                <option value="">ทุกประเภท</option>
-                {assignableTypes.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-                {orphanCount > 0 && fallbackType && (
-                  <option value={fallbackType.id}>
-                    {fallbackType.name} ({orphanCount})
-                  </option>
-                )}
-              </select>
-              <Glyph
-                d="M19 9l-7 7-7-7"
-                className="pointer-events-none absolute right-3 h-4 w-4 text-base-content/60"
-              />
-            </label>
+            {/* ⚠️ COMBOBOXES, NOT NATIVE <select>s (#ISSUE-09). ประเภทสถานที่ keeps its search box:
+                it is a school-maintained list that grows. สถานะ is two fixed values, so it does not.
+                No page reset — this grid is filtered client-side and has no pager. */}
+            <Combobox
+              id="vn-type-f"
+              className={`min-w-0 flex-1 ${LABEL_HIDDEN} lg:w-56 lg:flex-none`}
+              label="กรองตามประเภทสถานที่"
+              placeholder="ทุกประเภท"
+              options={typeOptions}
+              value={typeFilter}
+              onChange={setTypeFilter}
+            />
 
-            <label className="relative flex min-w-0 flex-1 items-center rounded-control border border-transparent bg-base-200 pl-3.5 pr-3 transition-all focus-within:border-primary/40 focus-within:bg-base-100 focus-within:ring-4 focus-within:ring-primary/10 lg:flex-none">
-              <span className="sr-only">กรองตามสถานะ</span>
-              <select
-                className="form-select"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="">ทุกสถานะ</option>
-                <option value="open">เปิดให้จอง</option>
-                <option value="closed">ปิดชั่วคราว</option>
-              </select>
-              <Glyph
-                d="M19 9l-7 7-7-7"
-                className="pointer-events-none absolute right-3 h-4 w-4 text-base-content/60"
-              />
-            </label>
+            <Combobox
+              id="vn-status-f"
+              className={`min-w-0 flex-1 ${LABEL_HIDDEN} lg:w-44 lg:flex-none`}
+              label="กรองตามสถานะ"
+              options={STATUS_OPTIONS}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              searchable={false}
+            />
 
             {/* Hidden below `lg`, and that is the whole justification for it being an icon strip
                 rather than a third <select>: on a phone the grid is one column at every level, so

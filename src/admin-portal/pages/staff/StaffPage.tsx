@@ -58,6 +58,7 @@ import { PageHeading } from '../../components/shell/PageHeading'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
 import { Btn } from '../../components/ui/Btn'
+import { Combobox, type ComboboxOption } from '../../components/ui/Combobox'
 import { Pagination } from '../../components/ui/Pagination'
 import { ROLE_LABEL, type SystemRole } from '../../labels'
 import { useAuth } from '../../lib/auth-context'
@@ -86,6 +87,35 @@ const PAGE_SIZE = 10
 /** `''` is "no filter", which is not a value the query may carry. */
 type RoleFilter = '' | SystemRole
 type StatusFilter = '' | StaffState
+
+/**
+ * The toolbar's two comboboxes take a VISUALLY HIDDEN label — same idiom as คำขอจองสถานที่'s
+ * toolbar. The <label> element stays: `Combobox` points `aria-labelledby` at it.
+ */
+const LABEL_HIDDEN = '[&>.form-label]:sr-only'
+
+const ROLE_OPTIONS: readonly ComboboxOption<RoleFilter>[] = [
+  { id: '', name: 'ทุกบทบาท' },
+  { id: 'SUPER_ADMIN', name: ROLE_LABEL.SUPER_ADMIN },
+  { id: 'ADMIN', name: ROLE_LABEL.ADMIN },
+  { id: 'VIEWER', name: ROLE_LABEL.VIEWER },
+]
+
+/**
+ * `deleted` is SUPER_ADMIN only — on the OPTION rather than the control, so everyone keeps the other
+ * four. The server 403s the query for any other role; this is the UX half. Two module-level lists
+ * rather than a filter per render, so `Combobox` is handed a stable array.
+ */
+const STATUS_OPTIONS_MANAGER: readonly ComboboxOption<StatusFilter>[] = [
+  { id: '', name: 'ทุกสถานะ' },
+  { id: 'active', name: STAFF_STATE.active.label },
+  { id: 'pending', name: STAFF_STATE.pending.label },
+  { id: 'suspended', name: STAFF_STATE.suspended.label },
+  { id: 'deleted', name: STAFF_STATE.deleted.label },
+]
+const STATUS_OPTIONS: readonly ComboboxOption<StatusFilter>[] = STATUS_OPTIONS_MANAGER.filter(
+  (o) => o.id !== 'deleted',
+)
 
 const ICON = {
   refresh:
@@ -579,51 +609,38 @@ export function StaffPage({ route }: { route: AdminRoute }) {
             />
           </div>
 
+          {/* ⚠️ COMBOBOXES, NOT NATIVE <select>s (#ISSUE-09) — the OS widget does not match the
+              portal's 44px controls. `searchable={false}`: three roles and five states are closed,
+              short lists. The `v === …` guard keeps the native semantics: re-picking the current
+              option fires no change on a <select>, so it must not reset the page here either. */}
           <div className="grid grid-cols-2 gap-2.5 lg:flex lg:shrink-0">
-            <label className="relative flex items-center rounded-control border border-transparent bg-base-200 transition-all focus-within:border-primary/40 focus-within:bg-base-100 focus-within:ring-4 focus-within:ring-primary/10 lg:w-52">
-              <span className="sr-only">กรองตามบทบาท</span>
-              <select
-                value={role}
-                onChange={(e) => {
-                  setRole(e.target.value as RoleFilter)
-                  setPage(1)
-                }}
-                className="min-h-11 w-full cursor-pointer appearance-none border-none bg-transparent px-4 pr-9 text-[15px] font-medium text-base-content/90 outline-none"
-              >
-                <option value="">ทุกบทบาท</option>
-                <option value="SUPER_ADMIN">{ROLE_LABEL.SUPER_ADMIN}</option>
-                <option value="ADMIN">{ROLE_LABEL.ADMIN}</option>
-                <option value="VIEWER">{ROLE_LABEL.VIEWER}</option>
-              </select>
-              <Glyph
-                d="M19 9l-7 7-7-7"
-                className="pointer-events-none absolute right-3 h-4 w-4 text-base-content/60"
-              />
-            </label>
+            <Combobox
+              id="st-role"
+              className={`min-w-0 ${LABEL_HIDDEN} lg:w-52`}
+              label="กรองตามบทบาท"
+              options={ROLE_OPTIONS}
+              value={role}
+              onChange={(v) => {
+                if (v === role) return
+                setRole(v)
+                setPage(1)
+              }}
+              searchable={false}
+            />
 
-            <label className="relative flex items-center rounded-control border border-transparent bg-base-200 transition-all focus-within:border-primary/40 focus-within:bg-base-100 focus-within:ring-4 focus-within:ring-primary/10 lg:w-48">
-              <span className="sr-only">กรองตามสถานะ</span>
-              <select
-                value={status}
-                onChange={(e) => {
-                  setStatus(e.target.value as StatusFilter)
-                  setPage(1)
-                }}
-                className="min-h-11 w-full cursor-pointer appearance-none border-none bg-transparent px-4 pr-9 text-[15px] font-medium text-base-content/90 outline-none"
-              >
-                <option value="">ทุกสถานะ</option>
-                <option value="active">{STAFF_STATE.active.label}</option>
-                <option value="pending">{STAFF_STATE.pending.label}</option>
-                <option value="suspended">{STAFF_STATE.suspended.label}</option>
-                {/* SUPER_ADMIN only, on the OPTION rather than the select — everyone keeps the
-                    other four. The server 403s the query for any other role; this is the UX half. */}
-                {canManage && <option value="deleted">{STAFF_STATE.deleted.label}</option>}
-              </select>
-              <Glyph
-                d="M19 9l-7 7-7-7"
-                className="pointer-events-none absolute right-3 h-4 w-4 text-base-content/60"
-              />
-            </label>
+            <Combobox
+              id="st-status"
+              className={`min-w-0 ${LABEL_HIDDEN} lg:w-48`}
+              label="กรองตามสถานะ"
+              options={canManage ? STATUS_OPTIONS_MANAGER : STATUS_OPTIONS}
+              value={status}
+              onChange={(v) => {
+                if (v === status) return
+                setStatus(v)
+                setPage(1)
+              }}
+              searchable={false}
+            />
           </div>
         </div>
 

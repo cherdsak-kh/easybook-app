@@ -54,6 +54,7 @@ import { PageHeading } from '../../components/shell/PageHeading'
 import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
 import { Btn } from '../../components/ui/Btn'
+import { Combobox, type ComboboxOption } from '../../components/ui/Combobox'
 import { Pagination } from '../../components/ui/Pagination'
 import { ACCESS_LABEL, ACCESS_TONE, type AppAccess } from '../../labels'
 import { useAcl } from '../../lib/use-acl'
@@ -98,6 +99,32 @@ const REPORT_URL = urlOf(ADMIN_PORTAL_ROUTES.find((r) => r.label === REPORT_LABE
 /** `''` is "no filter", which is not a value the query may carry. */
 type AccessFilter = '' | AppAccess
 
+/**
+ * The toolbar's two comboboxes take a VISUALLY HIDDEN label — the same idiom, for the same reason,
+ * as คำขอจองสถานที่'s toolbar: the caption already names the control and a stacked label would break
+ * the row. The <label> element stays, because `Combobox` points `aria-labelledby` at it.
+ */
+const LABEL_HIDDEN = '[&>.form-label]:sr-only'
+
+/**
+ * `id` is the STATE key, not the Thai label: the label is what the operator reads, the key is what
+ * `AppAccess` calls it and what the query carries.
+ */
+const ACCESS_OPTIONS: readonly ComboboxOption<AccessFilter>[] = [
+  { id: '', name: 'ทุกสถานะ' },
+  { id: 'ALLOWED', name: ACCESS_LABEL.ALLOWED },
+  { id: 'PENDING', name: ACCESS_LABEL.PENDING },
+  { id: 'REJECTED', name: ACCESS_LABEL.REJECTED },
+  { id: 'BLOCKED', name: ACCESS_LABEL.BLOCKED },
+  { id: 'UNREGISTERED', name: ACCESS_LABEL.UNREGISTERED },
+]
+
+const SORT_OPTIONS: readonly ComboboxOption<LineUserSort>[] = [
+  { id: 'new', name: 'ลงทะเบียนล่าสุด' },
+  { id: 'old', name: 'ลงทะเบียนเก่าสุด' },
+  { id: 'name', name: 'ชื่อ ก–ฮ' },
+]
+
 const ICON = {
   refresh:
     'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99',
@@ -107,7 +134,7 @@ const ICON = {
   pencil:
     'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z',
   chevron: 'M9 5l7 7-7 7',
-  caret: 'M19 9l-7 7-7-7',
+  sort: 'M3 4.5h14.25M3 9h9.75M3 13.5h9.75m4.5-4.5v12m0 0l-3.75-3.75M17.25 21L21 17.25',
   info: 'M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z',
   offline:
     'M3 3l18 18M8.288 8.29a10.5 10.5 0 00-2.65 1.86m12.724 0a10.5 10.5 0 00-4.6-2.634M12 20.25h.008v.008H12v-.008zM9.348 14.652a3.75 3.75 0 015.304 0M2.25 6.75a16.5 16.5 0 014.263-2.94',
@@ -854,51 +881,43 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 lg:flex lg:shrink-0">
-            <label className="relative flex items-center rounded-control border border-transparent bg-base-200 transition-all focus-within:border-primary/40 focus-within:bg-base-100 focus-within:ring-4 focus-within:ring-primary/10 lg:w-44">
-              <span className="sr-only">กรองตามสถานะ</span>
-              {/* `value` is the STATE key, not the Thai label: the label is what the operator reads,
-                  the key is what `AppAccess` calls it and what the query carries. */}
-              <select
-                value={access}
-                onChange={(e) => {
-                  setAccess(e.target.value as AccessFilter)
-                  setPage(1)
-                }}
-                className="min-h-11 w-full cursor-pointer appearance-none border-none bg-transparent px-4 pr-9 text-[15px] font-medium text-base-content/90 outline-none"
-              >
-                <option value="">ทุกสถานะ</option>
-                <option value="ALLOWED">{ACCESS_LABEL.ALLOWED}</option>
-                <option value="PENDING">{ACCESS_LABEL.PENDING}</option>
-                <option value="REJECTED">{ACCESS_LABEL.REJECTED}</option>
-                <option value="BLOCKED">{ACCESS_LABEL.BLOCKED}</option>
-                <option value="UNREGISTERED">{ACCESS_LABEL.UNREGISTERED}</option>
-              </select>
-              <Glyph
-                d={ICON.caret}
-                className="pointer-events-none absolute right-3 h-4 w-4 text-base-content/60"
-              />
-            </label>
+          {/* ⚠️ COMBOBOXES, NOT NATIVE <select>s (#ISSUE-09). A native select renders the operating
+              system's own widget — its height, radius, chevron and an un-themed popup — next to the
+              portal's 44px controls. `searchable={false}`: five states and three orderings are
+              closed, short lists that a filter box could only ever return you to.
 
-            <label className="relative flex items-center rounded-control border border-transparent bg-base-200 transition-all focus-within:border-primary/40 focus-within:bg-base-100 focus-within:ring-4 focus-within:ring-primary/10 lg:w-48">
-              <span className="sr-only">เรียงลำดับตาม</span>
-              <select
-                value={sort}
-                onChange={(e) => {
-                  setSort(e.target.value as LineUserSort)
-                  setPage(1)
-                }}
-                className="min-h-11 w-full cursor-pointer appearance-none border-none bg-transparent px-4 pr-9 text-[15px] font-medium text-base-content/90 outline-none"
-              >
-                <option value="new">ลงทะเบียนล่าสุด</option>
-                <option value="old">ลงทะเบียนเก่าสุด</option>
-                <option value="name">ชื่อ ก–ฮ</option>
-              </select>
-              <Glyph
-                d={ICON.caret}
-                className="pointer-events-none absolute right-3 h-4 w-4 text-base-content/60"
-              />
-            </label>
+              ⚠️ THE `v === …` GUARD KEEPS THE NATIVE SEMANTICS. A <select> fires no change when the
+              current option is picked again; `Combobox` does, and without the guard re-picking the
+              same filter would throw the operator back to page 1. */}
+          <div className="grid grid-cols-2 gap-2.5 lg:flex lg:shrink-0">
+            <Combobox
+              id="lu-access"
+              className={`min-w-0 ${LABEL_HIDDEN} lg:w-44`}
+              label="กรองตามสถานะ"
+              options={ACCESS_OPTIONS}
+              value={access}
+              onChange={(v) => {
+                if (v === access) return
+                setAccess(v)
+                setPage(1)
+              }}
+              searchable={false}
+            />
+
+            <Combobox
+              id="lu-sort"
+              className={`min-w-0 ${LABEL_HIDDEN} lg:w-52`}
+              label="เรียงลำดับตาม"
+              options={SORT_OPTIONS}
+              value={sort}
+              onChange={(v) => {
+                if (v === sort) return
+                setSort(v)
+                setPage(1)
+              }}
+              searchable={false}
+              icon={<Glyph d={ICON.sort} className="h-4 w-4 shrink-0 text-base-content/60" />}
+            />
           </div>
         </div>
 

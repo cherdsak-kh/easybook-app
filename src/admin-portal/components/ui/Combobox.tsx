@@ -1,16 +1,23 @@
 /**
- * A searchable single-select, for a list that has outgrown the native popup.
+ * The admin portal's single-select — searchable for a list that has outgrown the native popup, and
+ * with `searchable={false}` for a short one.
  *
- * ตำแหน่ง and กลุ่ม/ฝ่าย are the two fields that need it: they are school-maintained lists that
- * grow, and a native <select> answers "which one is มัธยมศึกษาตอนปลาย?" with a scroll-and-hunt.
- * Everything else in the portal stays native — บทบาท is three items and สถานะ is five, and a
- * closed vocabulary that fits on screen is worse off behind a search box.
+ * ตำแหน่ง and กลุ่ม/ฝ่าย were the two fields that needed it first: they are school-maintained lists
+ * that grow, and a native <select> answers "which one is มัธยมศึกษาตอนปลาย?" with a scroll-and-hunt.
+ *
+ * ⚠️ SINCE SLICE 9 (#ISSUE-09) THE SHORT LISTS USE IT TOO. The admin toolbars' role, status, access
+ * and sort filters (StaffPage, LineUsersPage, VenuesPage, beside BookingRequestsPage's) are this
+ * component with `searchable={false}` — a closed vocabulary that fits on screen is still worse off
+ * behind a search box, so it drops the box and keeps the control. What that buys is ONE select across
+ * the admin portal: the same 44px geometry, radius, border and theme scope everywhere, rather than
+ * the operating system showing through wherever a list happened to be short. Do not "restore" a
+ * native <select> for a short list; pass `searchable={false}`.
  *
  * ⚠️ IT LIVES IN `admin-portal/components/ui/`, NOT IN `components/shared/`. The folder rule
  * (`NotFound.tsx` states it from the other side) is about CONSUMERS, not about how reusable a
  * thing looks: `shared/` is for components with two portals reading them, and the client portal
- * has its own `SelectField` and no dialog to put this in. It sits beside `FormField.tsx` because
- * it composes that file's `Field` — see below.
+ * has its own `Combobox` (`client-portal/components/ui/Combobox.tsx`). It sits beside
+ * `FormField.tsx` because it composes that file's `Field` — see below.
  *
  * ── It composes `Field`, it does not re-line its markup ──
  * `Field` is the exported half of FormField.tsx that exists for exactly this case: "a field with
@@ -25,8 +32,10 @@
  * add an error outline — `Field` already puts one on the shell, and a second would double it.
  *
  * ── The <dialog> trap ──
- * Both call sites render inside `Modal`, which is a native <dialog> opened with `showModal()`.
- * That makes an in-flow dropdown impossible twice over: the form body is `overflow-y-auto` and
+ * The call sites are of two kinds: forms inside `Modal` (StaffFormDialog, RegistrationEditDialog,
+ * VenueFormDialog, BookingDirectCreateDialog) and page toolbars (see the `[data-theme]` note below).
+ * `Modal` is a native <dialog> opened with `showModal()`, and for the first kind that makes an
+ * in-flow dropdown impossible twice over: the form body is `overflow-y-auto` and
  * `admin-portal.css` additionally gives such a dialog `overflow: clip`, so the popper is clipped
  * by two ancestors — and no z-index reaches past either, because showModal() puts the dialog in
  * the TOP LAYER. So the popper is a `popover="manual"` element, which joins that same top layer.
@@ -385,7 +394,8 @@ export function Combobox<T extends number | string>({
     }
   }, [open, place])
 
-  // Esc or a backdrop click can close the dialog out from under an open popper, which would
+  // Esc (or a backdrop click, on a `Modal` that opts into `closeOnBackdrop`) can close the dialog
+  // out from under an open popper, which would
   // otherwise leave it stranded in the top layer over a page it no longer belongs to. No refocus:
   // the trigger is going away with the dialog, and `Modal` owns the restore.
   // ⚠️ The guard is an `instanceof` test, not `host !== document.body`: since the host may now be
