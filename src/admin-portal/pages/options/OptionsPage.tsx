@@ -30,10 +30,11 @@
  * sharing one screen while the server has three services is correct, not drift — what the four
  * share is a RESPONSE SHAPE, which is exactly what a screen consumes.
  *
- * ── The list is fetched whole, filtered on the client ──
- * The endpoint returns everything (no pagination, no search parameter), so the footer states a
- * COUNT rather than a pager. Both numbers come from one array — the role-filtered one — because
- * "แสดง 10 รายการ" over nine rows is the classic way this breaks.
+ * ── The list is fetched whole, filtered AND PAGED on the client ──
+ * The endpoint returns everything (no pagination, no search parameter). Until #ISSUE-12 the footer
+ * therefore stated a count; it is now the portal's `PaginationBar` over a SLICE of `shown`, and the
+ * bar's total is `shown.length` — the role-filtered, searched array — because "แสดง 10 รายการ" over
+ * nine rows is the classic way this breaks.
  *
  * ⚠️ NO CLIENT-SIDE SORT. The endpoint returns `name ASC` in Postgres's collation, and re-sorting
  * here with `localeCompare(_, 'th')` would produce a DIFFERENT order that disagrees with what a
@@ -74,6 +75,7 @@ import {
   type VenueType,
 } from '@/lib/api-client'
 import { Btn } from '../../components/ui/Btn'
+import { PaginationBar, PaginationBarSkeleton } from '../../components/ui/PaginationBar'
 import { ConfirmModal } from '../../components/feedback/ConfirmModal'
 import { EmptyState } from '../../components/feedback/EmptyState'
 import { LoadError, type LoadErrorKind } from '../../components/feedback/LoadError'
@@ -81,6 +83,7 @@ import { PageHeading } from '../../components/shell/PageHeading'
 import { Skeleton, SkeletonRegion } from '../../components/feedback/Skeleton'
 import { useAcl } from '../../lib/use-acl'
 import { useAuth } from '../../lib/auth-context'
+import { broadcastMasterUpdated } from '../../lib/master-sync'
 import { useToast } from '../../lib/toast-context'
 import { thaiDate } from '../../lib/thai-date'
 import { OptionFormDialog } from './components/OptionFormDialog'
@@ -183,6 +186,19 @@ const kindOf = (err: unknown): LoadErrorKind => {
   return 'server'
 }
 
+/** `แถวต่อหน้า` (#ISSUE-12). The same three คำขอจองสถานที่ offers; ten is the default. */
+const PAGE_SIZES: readonly number[] = [10, 20, 50]
+const DEFAULT_PAGE_SIZE = 10
+
+/**
+ * The two filters `shown` applies, as functions, because a SECOND place needs the same answer: after
+ * a save, the page the row landed on (#ISSUE-12) is its index in exactly this view. Two copies of one
+ * filter disagree the first time one of them is fixed — see the case-fold note on `shown`.
+ */
+const canSee = (r: OptionRecord, role: string) => role === 'SUPER_ADMIN' || !r.reserved
+const matchesTerm = (name: string, term: string) =>
+  !term || name.toLowerCase().includes(term.toLowerCase())
+
 /** Whole-form failures that leave the dialog open with everything typed intact. */
 const WRITE_FAIL: Record<number, string> = {
   403: 'เซสชันความปลอดภัยหมดอายุ ยังไม่ได้บันทึกอะไร โปรดรีเฟรชหน้าแล้วลองใหม่',
@@ -228,6 +244,9 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
   const [rows, setRows] = useState<OptionRecord[] | null>(null)
   const [error, setError] = useState<LoadErrorKind | null>(null)
   const [term, setTerm] = useState('')
+  /** Client-side paging over `shown` — see where `visible` is derived. Not persisted. */
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   /** `null` = closed · `{ target: null }` = create · `{ target: rec }` = rename. */
   const [form, setForm] = useState<{ target: OptionRecord | null; prefill?: string } | null>(null)
@@ -236,22 +255,28 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState<OptionRecord | null>(null)
 
-  const load = useCallback(async () => {
+  /** Resolves the records it committed, or `null` — the save path reads them to find the row's page. */
+  const load = useCallback(async (): Promise<OptionRecord[] | null> => {
     setError(null)
     try {
-      setRows((await api.list()).map(toRecord))
+      const next = (await api.list()).map(toRecord)
+      setRows(next)
+      return next
     } catch (err) {
       setRows(null)
       setError(kindOf(err))
+      return null
     }
   }, [api])
 
   // ⚠️ `model` IN THE DEPS, via `load`'s own `[api]`. Navigating ตำแหน่ง ⇄ กลุ่ม/ฝ่าย keeps this
   // component mounted — same route element, different label — so without a refetch the second
-  // destination would render the first one's rows under the second one's headings.
+  // destination would render the first one's rows under the second one's headings. The PAGE goes
+  // back to 1 for the same reason: page 3 of ตำแหน่ง is not a place กลุ่ม/ฝ่าย has.
   useEffect(() => {
     setRows(null)
     setTerm('')
+    setPage(1)
     void load()
   }, [load])
 
@@ -259,10 +284,7 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
   // server has already applied this (`includeReserved` is a WHERE clause, not a post-fetch drop) —
   // it is repeated here because a list that arrives with a row this session may not see is a
   // contract violation the screen should survive, not render.
-  const all = useMemo(
-    () => (rows ?? []).filter((r) => acl.role === 'SUPER_ADMIN' || !r.reserved),
-    [rows, acl.role],
-  )
+  const all = useMemo(() => (rows ?? []).filter((r) => canSee(r, acl.role)), [rows, acl.role])
   const trimmed = term.trim()
   /*
    * ⚠️ CASE-INSENSITIVE, ON BOTH SIDES. Thai has no case, which is exactly why this went
@@ -277,9 +299,28 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
    * fold moves to Postgres (`mode: 'insensitive'`) and this line goes with it.
    */
   const shown = useMemo(
-    () => (trimmed ? all.filter((r) => r.name.toLowerCase().includes(trimmed.toLowerCase())) : all),
+    () => (trimmed ? all.filter((r) => matchesTerm(r.name, trimmed)) : all),
     [all, trimmed],
   )
+
+  /*
+   * ── แบ่งหน้า (#ISSUE-12) — a SLICE of `shown` ──
+   * ⚠️ CLAMPED TWICE, for two moments: `currentPage` for THIS render, so deleting the last row of the
+   * last page never paints an empty table; the effect for the STATE, so the page does not jump forward
+   * again when the list grows back. Guarded on `rows` — a failed or in-flight load nulls the list, and
+   * that is not the list shrinking.
+   */
+  const pageCount = Math.max(1, Math.ceil(shown.length / pageSize))
+  const currentPage = Math.min(page, pageCount)
+  useEffect(() => {
+    if (rows !== null && page > pageCount) setPage(pageCount)
+  }, [rows, page, pageCount])
+  const visible = useMemo(
+    () => shown.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [shown, currentPage, pageSize],
+  )
+  /** The first visible row's ordinal — the ลำดับ column counts across pages, not from 1 on each. */
+  const firstIndex = (currentPage - 1) * pageSize + 1
 
   /**
    * Re-read `/me` after a write that can have moved or renamed the OPERATOR'S OWN option.
@@ -345,9 +386,12 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
     try {
       if (target) await api.patch(target.id, { name })
       else await api.create({ name })
+      // #ISSUE-11 — a dialog open in ANOTHER tab may be offering this list. Sent straight after the
+      // write, before anything below can fail, because the write is what they need to hear about.
+      broadcastMasterUpdated(model)
       // Refetch rather than splicing: the endpoint orders by name, and this is how the row lands
       // where a reload would put it. See the header note on sorting.
-      await load()
+      const fresh = await load()
       // A RENAME can be a rename of the option YOU hold, and `/me` resolves `personnelRole.name`
       // fresh — so without this the sidebar card and โปรไฟล์ keep printing the old title. Same
       // reasoning as the delete below; see `syncSession`.
@@ -359,7 +403,18 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
       // answer. With a case-SENSITIVE test here and an insensitive one there, searching "led",
       // renaming a row to "LED Wall" and saving would clear a search the row still matches — the
       // operator's own filter thrown away for no reason. Two comparisons of one fact must agree.
-      if (trimmed && !name.toLowerCase().includes(trimmed.toLowerCase())) setTerm('')
+      const nextTerm = trimmed && !matchesTerm(name, trimmed) ? '' : trimmed
+      if (nextTerm !== trimmed) setTerm('')
+      // ⚠️ …AND THE PAGE THE ROW LANDED ON (#ISSUE-12). Clearing the search used to be enough to put
+      // the result on screen; with a pager, a new "อาจารย์พิเศษ" can land on page 3 while the operator
+      // is looking at page 1. Its index in the SAME view `shown` builds — same two filters, same
+      // fold — is its position.
+      if (fresh) {
+        const idx = fresh
+          .filter((r) => canSee(r, acl.role) && matchesTerm(r.name, nextTerm))
+          .findIndex((r) => r.name === name)
+        if (idx >= 0) setPage(Math.floor(idx / pageSize) + 1)
+      }
       closeForm()
       toast(
         'success',
@@ -389,6 +444,9 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
     if (!confirming) return
     try {
       await api.remove(confirming.id)
+      // #ISSUE-11 — another tab's open dialog is offering a row the server just removed; a save there
+      // would 400. Tell it now rather than on its next focus.
+      broadcastMasterUpdated(model)
       await load()
       // The delete re-points every holder onto the tombstone, and you are very likely one of them.
       await syncSession()
@@ -471,7 +529,10 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
               enterKeyHint="search"
               placeholder={`ค้นหาชื่อ${copy.noun}`}
               value={term}
-              onChange={(e) => setTerm(e.target.value)}
+              onChange={(e) => {
+                setTerm(e.target.value)
+                setPage(1)
+              }}
               className="min-h-11 w-full min-w-0 border-none bg-transparent text-[15px] text-base-content/90 outline-none placeholder:text-base-content/70"
             />
           </div>
@@ -524,7 +585,13 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
                     หรือเพิ่มเข้าไปใหม่
                   </p>
                   <div className="mt-5 flex flex-wrap justify-center gap-2">
-                    <Btn variant="ghost" onClick={() => setTerm('')}>
+                    <Btn
+                      variant="ghost"
+                      onClick={() => {
+                        setTerm('')
+                        setPage(1)
+                      }}
+                    >
                       ล้างคำค้นหา
                     </Btn>
                     {acl.write && (
@@ -558,11 +625,11 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {shown.map((rec, i) => (
+                        {visible.map((rec, i) => (
                           <Row
                             key={rec.id}
                             rec={rec}
-                            index={i + 1}
+                            index={firstIndex + i}
                             noun={copy.noun}
                             unit={copy.unit}
                             write={acl.write}
@@ -574,7 +641,7 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
                   </div>
 
                   <ul className="m-0 list-none divide-y divide-base-300/60 p-0 lg:hidden">
-                    {shown.map((rec) => (
+                    {visible.map((rec) => (
                       <Card
                         key={rec.id}
                         rec={rec}
@@ -589,25 +656,25 @@ export function OptionsPage({ route }: { route: AdminRoute }) {
               )}
             </div>
 
-            {/* A COUNT, not a pager — the endpoint returns everything. */}
-            <div className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-base-300 p-4 sm:flex-row lg:px-5">
-              <p className="text-[14px] text-base-content/70">
-                ทั้งหมด{' '}
-                <span className="font-medium tabular-nums text-base-content/90">{all.length}</span>{' '}
-                {copy.noun}
-                {trimmed && (
-                  <>
-                    {' '}
-                    · ตรงกับคำค้นหา{' '}
-                    <span className="font-medium tabular-nums text-base-content/90">
-                      {shown.length}
-                    </span>{' '}
-                    {copy.noun}
-                  </>
-                )}
-              </p>
-              <p className="text-[13px] text-base-content/70">เรียงตามชื่อ ก–ฮ</p>
-            </div>
+            {/* The portal's one pager bar (#ISSUE-12), over the SEARCHED list — the same number the
+                old count bar's "ตรงกับคำค้นหา" stated. Counted in the table's own noun (24 ตำแหน่ง,
+                24 อุปกรณ์), the word the count bar it replaces used. Absent on a search miss: the
+                panel above already says there is nothing, and a "แสดง 0 จาก 0" under it repeats it. */}
+            {shown.length > 0 && (
+              <PaginationBar
+                page={currentPage}
+                pageSize={pageSize}
+                total={shown.length}
+                unit={copy.noun}
+                pageSizeOptions={PAGE_SIZES}
+                onPageChange={setPage}
+                onPageSizeChange={(n) => {
+                  setPageSize(n)
+                  setPage(1)
+                }}
+                ariaLabel={`แบ่งหน้ารายการ${copy.noun}`}
+              />
+            )}
           </div>
         )}
       </div>
@@ -879,10 +946,7 @@ function LoadingPanel({ noun, actionsLabel }: { noun: string; actionsLabel: stri
         </ul>
       </div>
 
-      <div className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-base-300 p-4 sm:flex-row lg:px-5">
-        <Skeleton variant="soft" className="h-3.5" width="9rem" />
-        <Skeleton variant="soft" className="h-3.5" width="6rem" />
-      </div>
+      <PaginationBarSkeleton />
     </SkeletonRegion>
   )
 }

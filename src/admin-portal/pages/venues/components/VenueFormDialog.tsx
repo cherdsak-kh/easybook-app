@@ -46,6 +46,7 @@ import { FormField } from '../../../components/ui/FormField'
 import { InlineAlert } from '../../../components/feedback/InlineAlert'
 import { Modal } from '../../../components/ui/Modal'
 import { Spinner } from '../../../components/feedback/Spinner'
+import { useMasterRevalidation, type MasterEntity } from '../../../lib/master-sync'
 import { thaiDate } from '../../../lib/thai-date'
 import { resizeForUpload } from '../resize-image'
 
@@ -108,6 +109,9 @@ const MB = (bytes: number) => Math.round(bytes / (1024 * 1024))
  */
 const ACCEPTED_PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
+/** The two tables this form offers — revalidated while it is open (#ISSUE-11). */
+const VOCAB_ENTITIES: readonly MasterEntity[] = ['venueType', 'amenity']
+
 export function VenueFormDialog({
   open,
   mode,
@@ -121,6 +125,9 @@ export function VenueFormDialog({
   onClose,
   onDelete,
   onToggleOpen,
+  onCreateType,
+  onCreateAmenity,
+  onRevalidate,
 }: {
   open: boolean
   mode: VenueFormMode
@@ -137,6 +144,15 @@ export function VenueFormDialog({
   onClose: () => void
   onDelete: () => void
   onToggleOpen: () => void
+  /**
+   * #ISSUE-11 — add a missing category / amenity without leaving the form. The caller
+   * (`useVenueVocabularies`) owns the POST, the toast and the list; it resolves with the row already
+   * in `types` / `amenities`, or rejects. Ignored in `view`.
+   */
+  onCreateType?: (name: string) => Promise<VenueType>
+  onCreateAmenity?: (name: string) => Promise<Amenity>
+  /** Background re-read of `types` and `amenities`, run while this dialog is open. */
+  onRevalidate?: () => void
 }) {
   const [name, setName] = useState('')
   const [venueTypeId, setVenueTypeId] = useState('')
@@ -156,6 +172,13 @@ export function VenueFormDialog({
   const [coverIdx, setCoverIdx] = useState(0)
   const [photoErr, setPhotoErr] = useState('')
   const [uploading, setUploading] = useState(false)
+
+  /** The amenity quick-add under the checkbox grid (#ISSUE-11). */
+  const [amenityName, setAmenityName] = useState('')
+  const [addingAmenity, setAddingAmenity] = useState(false)
+  /** The double-submit guard — see `Combobox`'s creatable note for why state alone is not enough. */
+  const addingAmenityRef = useRef(false)
+  const amenityInputRef = useRef<HTMLInputElement>(null)
 
   /**
    * URLs THIS dialog session uploaded and has not committed.
@@ -202,6 +225,7 @@ export function VenueFormDialog({
     setDraft(target ? target.photos.map((p) => p.url) : [])
     setCoverIdx(0)
     setPhotoErr('')
+    setAmenityName('')
     sessionUploads.current = new Set()
     // ⚠️ `target?.id`, NOT `target`. The deps are deliberately narrower than the values read, and
     // widening them would be the bug rather than the fix: `target` is a FRESH OBJECT after every
@@ -435,6 +459,69 @@ export function VenueFormDialog({
     [types, currentTypeMissing, target],
   )
 
+  /**
+   * #ISSUE-11 — the two lists are re-read while this form is open for WRITING: on return to the tab,
+   * and when another tab writes a category or an amenity. `view` is excluded because it offers
+   * nothing to pick — and a ผู้ดูข้อมูล cannot read either endpoint anyway, so every one of those
+   * requests would be a 403.
+   *
+   * ⚠️ A REFRESHED LIST NEVER RESETS THE FORM. The reset effect above is keyed on `open` and the
+   * record's id, deliberately not on `types` or `amenities` — see its note.
+   */
+  useMasterRevalidation(open && !readOnly && onRevalidate !== undefined, VOCAB_ENTITIES, () =>
+    onRevalidate?.(),
+  )
+
+  /** `VenueType` → the picker's row. Absent in `view` or without a caller that can create. */
+  const createTypeOption =
+    !readOnly && onCreateType
+      ? async (name: string): Promise<ComboboxOption<string>> => {
+          const t = await onCreateType(name)
+          return { id: String(t.id), name: t.name }
+        }
+      : undefined
+
+  /**
+   * The amenity quick-add.
+   *
+   * ⚠️ A NAME ALREADY IN THE LIST IS TICKED, NOT POSTED. The grid can be long enough that "ไมค์ลอย"
+   * is simply below the fold, and sending it would be a 409 toast for a row the operator could have
+   * clicked — the same case-insensitive test `Combobox` uses to withhold its create row.
+   *
+   * ⚠️ ON FAILURE THE NAME STAYS IN THE BOX. The caller has already said why; the fix is usually to
+   * edit what was typed, and clearing it would make them type it again first.
+   */
+  const addAmenity = async () => {
+    const name = amenityName.trim()
+    if (!name) {
+      amenityInputRef.current?.focus()
+      return
+    }
+    if (!onCreateAmenity || addingAmenityRef.current) return
+    const existing = amenities.find((a) => a.name.trim().toLowerCase() === name.toLowerCase())
+    if (existing) {
+      setPicked((p) => (p.includes(existing.id) ? p : [...p, existing.id]))
+      setAmenityName('')
+      return
+    }
+    addingAmenityRef.current = true
+    setAddingAmenity(true)
+    try {
+      const created = await onCreateAmenity(name)
+      setPicked((p) => (p.includes(created.id) ? p : [...p, created.id]))
+      setAmenityName('')
+    } catch {
+      /* the caller toasted — see above */
+    } finally {
+      addingAmenityRef.current = false
+      setAddingAmenity(false)
+      // The button was disabled for the write, and `disabled` blurs — put the caret back.
+      amenityInputRef.current?.focus()
+    }
+  }
+
+  const canQuickAdd = !readOnly && onCreateAmenity !== undefined
+
   const cover = draft[coverIdx]
 
   return (
@@ -573,6 +660,9 @@ export function VenueFormDialog({
           required
           disabled={readOnly}
           error={fieldErrors.venueTypeId}
+          // #ISSUE-11: a missing category is added from here, and the list is re-read on open.
+          onCreateOption={createTypeOption}
+          onOpen={readOnly ? undefined : onRevalidate}
         />
 
         {/* `min={1}`, not 0. A venue that holds nobody is not a venue, and 0 is the value a
@@ -780,9 +870,9 @@ export function VenueFormDialog({
           /* An empty vocabulary is a LEGITIMATE state — this is the one curated table with no
              required FK pointing at it — and an empty fieldset with a legend and nothing under it
              reads as a broken screen. Unlike ประเภทสถานที่ it blocks nothing, so this is a pointer,
-             not a warning. */
+             not a warning. Where the quick-add below is available, the pointer is to IT first. */
           <p className="m-0 text-[13px] leading-[1.55] text-base-content/70">
-            ยังไม่มีอุปกรณ์ในระบบ — เพิ่มได้ที่หน้า{' '}
+            {canQuickAdd ? 'ยังไม่มีอุปกรณ์ในระบบ — เพิ่มได้ด้านล่าง หรือที่หน้า ' : 'ยังไม่มีอุปกรณ์ในระบบ — เพิ่มได้ที่หน้า '}
             <span className="font-medium text-base-content">
               การตั้งค่าระบบ › สิ่งอำนวยความสะดวก
             </span>
@@ -808,6 +898,65 @@ export function VenueFormDialog({
                 <span>{a.name}</span>
               </label>
             ))}
+          </div>
+        )}
+
+        {/* ── เพิ่มอุปกรณ์ที่ยังไม่มี (#ISSUE-11) ──
+            BELOW the grid, never instead of it: the ticks are the field, this is the escape hatch
+            for the one row the vocabulary lacks. The same input-plus-ghost-button shape as
+            `สร้างคำจองสถานที่`'s เพิ่มวัน, which is the other "add one item to the list above" control
+            in this portal.
+
+            ⚠️ ENTER IS CAUGHT HERE, both `preventDefault` and `stopPropagation`. This dialog has no
+            <form> today, but an Enter that reached one would submit the whole venue to add one word
+            to a checklist — the input's own action is the only thing Enter may mean in it. */}
+        {canQuickAdd && (
+          <div className="mt-3 border-t border-base-300 pt-3">
+            <label className="form-label" htmlFor="vf-amenity-new">
+              เพิ่มอุปกรณ์ที่ยังไม่มีในรายการ
+            </label>
+            <div className="flex flex-wrap items-start gap-2">
+              <div className="form-shell min-w-0 flex-1">
+                <input
+                  ref={amenityInputRef}
+                  id="vf-amenity-new"
+                  type="text"
+                  className="form-input"
+                  placeholder="เช่น ไมโครโฟนไร้สาย"
+                  maxLength={120}
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck
+                  enterKeyHint="done"
+                  aria-describedby="vf-amenity-new-hint"
+                  // `readOnly` while the write is out, not `disabled` — disabled drops the caret.
+                  readOnly={addingAmenity}
+                  disabled={busy}
+                  value={amenityName}
+                  onChange={(e) => setAmenityName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    void addAmenity()
+                  }}
+                />
+              </div>
+              <Btn
+                variant="ghost"
+                className="shrink-0"
+                disabled={addingAmenity || busy}
+                aria-busy={addingAmenity || undefined}
+                aria-label={addingAmenity ? 'กำลังเพิ่มอุปกรณ์' : 'เพิ่มอุปกรณ์'}
+                onClick={() => void addAmenity()}
+              >
+                {addingAmenity ? <Spinner /> : <Glyph d={ICON.plus} />}
+                เพิ่ม
+              </Btn>
+            </div>
+            <p id="vf-amenity-new-hint" className="m-0 mt-1.5 text-[13px] leading-[1.55] text-base-content/70">
+              บันทึกเข้ารายการสิ่งอำนวยความสะดวกของระบบทันที และติ๊กเลือกให้สถานที่นี้
+            </p>
           </div>
         )}
       </fieldset>

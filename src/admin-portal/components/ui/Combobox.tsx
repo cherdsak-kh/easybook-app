@@ -84,11 +84,34 @@
  * and the `aria-activedescendant` the input would have held. That hand-off is the whole trick —
  * miss it and the popper opens with focus still on the trigger, OUTSIDE the popper, where the
  * keydown handler never fires and the arrow keys do nothing.
+ *
+ * ── `onCreateOption` — creatable mode (#ISSUE-11) ──
+ * A caller that can write the vocabulary passes `onCreateOption`, and a typed name that matches no
+ * option (case-insensitively, trimmed) grows ONE extra row at the bottom of the list:
+ * `+ เพิ่ม “…”`. It is a real `role="option"` inside the listbox, so the arrow keys, Home/End and
+ * `aria-activedescendant` reach it exactly as they reach the rows above — and Enter on an empty
+ * filter lands on it, because it is then the only row there is.
+ *
+ * ⚠️ THE CALLER OWNS THE WRITE, THE LIST AND THE ERROR MESSAGE. This component only awaits the
+ * promise: resolved, it selects the returned id, clears the query and closes; rejected, it stays OPEN
+ * with the typed name intact, because the fix for "ชื่อนี้มีอยู่แล้ว" is to edit that name. The
+ * caller must have inserted the new row into `options` before resolving, or the trigger shows the
+ * placeholder over a value it has no row for.
+ *
+ * ⚠️ ONE WRITE AT A TIME. A ref guards the row, not only the state: a double-click lands both
+ * events before React has re-rendered the disabled state, and two POSTs of one name is a 409 on the
+ * second — an error toast for a write that succeeded.
+ *
+ * ⚠️ NEVER WITH `searchable={false}`. There is no query to create from, so the prop is ignored.
+ *
+ * `onOpen` is called every time the popper opens, so a caller can revalidate the list at the moment
+ * somebody is about to read it — see `lib/master-sync.ts`.
  */
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
+import { Spinner } from '../feedback/Spinner'
 import { Field } from './FormField'
 
 /**
@@ -153,6 +176,8 @@ export function Combobox<T extends number | string>({
   icon,
   className = '',
   id,
+  onCreateOption,
+  onOpen,
 }: {
   options: readonly ComboboxOption<T>[]
   /** The selected id. A value that matches nothing shows the placeholder. */
@@ -189,6 +214,13 @@ export function Combobox<T extends number | string>({
   icon?: ReactNode
   className?: string
   id?: string
+  /**
+   * Creatable mode — see the header. Resolve with the new option (already in `options`), or reject
+   * after telling the operator why; a rejection keeps the popper open with the name still typed.
+   */
+  onCreateOption?: (name: string) => Promise<ComboboxOption<T>>
+  /** Called whenever the popper opens. For revalidating the list — see the header. */
+  onOpen?: () => void
 }) {
   const auto = useId()
   const fieldId = id ?? auto
@@ -213,6 +245,18 @@ export function Combobox<T extends number | string>({
   const popRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  /** An inline create is in flight. State for the rendering, a ref for the double-submit guard. */
+  const [creating, setCreating] = useState(false)
+  const creatingRef = useRef(false)
+  /** The promise can outlive the component (the dialog closed mid-write). */
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   useEffect(() => {
     const el = triggerRef.current
@@ -245,18 +289,106 @@ export function Combobox<T extends number | string>({
     return { plain, reserved, flat: [...plain, ...reserved] }
   }, [options, value, query])
 
+  /**
+   * The name a create would send, and whether the row offering it exists.
+   *
+   * ⚠️ THE MATCH IS CHECKED AGAINST EVERY OPTION, NOT AGAINST THE FILTERED ROWS — and including the
+   * hidden tombstone. "ครู" typed over a list holding "ครูผู้ช่วย" filters to one row that is NOT
+   * "ครู", and creating it is correct; "ครู" typed over a list holding "ครู" must never offer a
+   * second one, whichever group or visibility the first sits in. The server would 409 it anyway,
+   * and an error toast for a row the operator could have just picked is the worst answer.
+   */
+  const createName = query.trim()
+  const canCreate =
+    searchable &&
+    onCreateOption !== undefined &&
+    createName !== '' &&
+    !options.some((o) => o.name.trim().toLowerCase() === createName.toLowerCase())
+  /** The create row sits after every real row, so its keyboard index is the row count. */
+  const createIndex = rows.flat.length
+  const navCount = rows.flat.length + (canCreate ? 1 : 0)
+  const createId = `${fieldId}-create`
+
+  /**
+   * Where `active` goes when the list under it changes — adjusted DURING RENDER against the snapshot
+   * it was last placed on, so no frame (and no Enter) ever pairs an old index with new rows.
+   *
+   * · Opening, typing, or a new `value`: onto the current value when the list shows it, else the top
+   *   — so ArrowDown steps from where the record already is instead of from the top of a filtered list.
+   * · ⚠️ THE OPTIONS ALONE CHANGING IS NOT A RESET (P6-1). `onOpen`, a focus and a broadcast all
+   *   hand `options` a new array while the popper is open, often mid-keystroke. Resetting there moved
+   *   the highlight off `เพิ่ม “ครู”` onto `ครูผู้ช่วย`, and Enter picked the wrong row. So the create
+   *   row stays the create row while it is still offered; once the refreshed list holds that exact
+   *   name, the highlight lands on it. A real row is followed by id, and clamped only if it is gone.
+   */
+  const [basis, setBasis] = useState({ open, query, value, flat: rows.flat, canCreate })
+  if (
+    basis.open !== open ||
+    basis.query !== query ||
+    basis.value !== value ||
+    basis.flat !== rows.flat ||
+    basis.canCreate !== canCreate
+  ) {
+    setBasis({ open, query, value, flat: rows.flat, canCreate })
+    if (open) {
+      const clamp = (i: number) => (navCount ? Math.min(Math.max(i, 0), navCount - 1) : 0)
+      let next: number
+      if (!basis.open || basis.query !== query || basis.value !== value) {
+        const i = rows.flat.findIndex((o) => o.id === value)
+        next = i > -1 ? i : 0
+      } else if (basis.canCreate && active === basis.flat.length) {
+        const needle = createName.toLowerCase()
+        const i = canCreate
+          ? createIndex
+          : rows.flat.findIndex((o) => o.name.trim().toLowerCase() === needle)
+        next = i > -1 ? i : clamp(active)
+      } else {
+        const held = basis.flat[active]
+        const i = held ? rows.flat.findIndex((o) => o.id === held.id) : -1
+        next = i > -1 ? i : clamp(active)
+      }
+      if (next !== active) setActive(next)
+    }
+  }
+
+  const activeId =
+    active < rows.flat.length ? optionId(active) : canCreate && active === createIndex ? createId : undefined
+
   const close = useCallback((refocus: boolean) => {
     setOpen(false)
     if (refocus) triggerRef.current?.focus()
   }, [])
 
   const choose = (o: ComboboxOption<T>) => {
+    // A create in flight owns the outcome; picking another row now would be overwritten by it.
+    if (creatingRef.current) return
     onChange(o.id)
     close(true)
   }
 
+  /** See the header. Rejection is the caller's to explain — this only keeps the form intact. */
+  const runCreate = async () => {
+    if (!canCreate || !onCreateOption || creatingRef.current) return
+    const name = createName
+    creatingRef.current = true
+    setCreating(true)
+    try {
+      const created = await onCreateOption(name)
+      if (!mounted.current) return
+      onChange(created.id)
+      setQuery('')
+      close(true)
+    } catch {
+      // The caller has already said why. Back to the search box with the name still in it.
+      if (mounted.current) searchRef.current?.focus()
+    } finally {
+      creatingRef.current = false
+      if (mounted.current) setCreating(false)
+    }
+  }
+
   const move = (step: number) => {
-    const n = rows.flat.length
+    const n = navCount
     if (!n) return
     setActive((cur) => {
       const i = cur < 0 ? (step > 0 ? 0 : n - 1) : cur + step
@@ -326,16 +458,6 @@ export function Combobox<T extends number | string>({
   useLayoutEffect(() => {
     if (open) place()
   }, [open, place, rows])
-
-  /**
-   * Open ON the current value when there is one, so ArrowDown steps from where the record already
-   * is instead of from the top of a filtered list.
-   */
-  useEffect(() => {
-    if (!open) return
-    const i = rows.flat.findIndex((o) => o.id === value)
-    setActive(i > -1 ? i : 0)
-  }, [open, rows, value])
 
   /**
    * Hand-rolled rather than `scrollIntoView()`, which reaches past the box it is aimed at inside a
@@ -471,6 +593,7 @@ export function Combobox<T extends number | string>({
           }
           setQuery('')
           setOpen(true)
+          onOpen?.()
         }}
         onKeyDown={(e) => {
           if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
@@ -478,6 +601,7 @@ export function Combobox<T extends number | string>({
           if (open) return
           setQuery('')
           setOpen(true)
+          onOpen?.()
         }}
       >
         {icon}
@@ -528,7 +652,7 @@ export function Combobox<T extends number | string>({
               }
               if (e.key === 'End') {
                 e.preventDefault()
-                setActive(rows.flat.length - 1)
+                setActive(navCount - 1)
                 return
               }
               if (e.key === 'Enter') {
@@ -536,6 +660,12 @@ export function Combobox<T extends number | string>({
                 // anyway rather than relying on that.
                 e.preventDefault()
                 e.stopPropagation()
+                // The create row when the keyboard is on it — or when it is the only row there is,
+                // so typing a new name and pressing Enter does the obvious thing.
+                if (canCreate && (active === createIndex || rows.flat.length === 0)) {
+                  void runCreate()
+                  return
+                }
                 const o = rows.flat[active]
                 if (o) choose(o)
                 return
@@ -574,11 +704,14 @@ export function Combobox<T extends number | string>({
                   aria-expanded
                   aria-autocomplete="list"
                   aria-controls={listId}
-                  aria-activedescendant={rows.flat.length ? optionId(active) : undefined}
+                  aria-activedescendant={activeId}
                   autoComplete="off"
                   autoCorrect="off"
                   autoCapitalize="none"
                   spellCheck={false}
+                  // `readOnly`, not `disabled`: a disabled input drops focus, and the operator's
+                  // caret has to still be here if the create is refused.
+                  readOnly={creating}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
@@ -602,7 +735,7 @@ export function Combobox<T extends number | string>({
               }
               tabIndex={searchable ? undefined : -1}
               className="cbx-list"
-              hidden={rows.flat.length === 0}
+              hidden={rows.flat.length === 0 && !canCreate}
               onMouseDown={(e) => e.preventDefault()}
             >
               {rows.plain.map((o, i) => renderOption(o, i))}
@@ -616,9 +749,58 @@ export function Combobox<T extends number | string>({
                   {rows.reserved.map((o, i) => renderOption(o, rows.plain.length + i))}
                 </div>
               )}
+
+              {/* ── The create row ──
+                  LAST, and in the listbox rather than under it: it has to be reachable by the same
+                  arrow keys and the same `aria-activedescendant` as every row above, and the
+                  keyboard-scroll effect finds it by the same `[role="option"]` query.
+                  Primary ink rather than the rows' body colour, and a plus instead of a tick, so it
+                  cannot be read as one more existing option that happens to match. The rule above it
+                  separates it only when there ARE rows to separate it from. */}
+              {canCreate && (
+                <>
+                  {rows.flat.length > 0 && (
+                    <div aria-hidden="true" className="mx-1 my-1 border-t border-base-300" />
+                  )}
+                  <div
+                    id={createId}
+                    role="option"
+                    aria-selected={false}
+                    aria-disabled={creating || undefined}
+                    aria-busy={creating || undefined}
+                    className={`cbx-opt font-medium text-primary${active === createIndex ? ' is-active' : ''}${
+                      creating ? ' cursor-progress' : ''
+                    }`}
+                    onMouseMove={() => setActive(createIndex)}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      void runCreate()
+                    }}
+                  >
+                    {creating ? (
+                      <Spinner />
+                    ) : (
+                      <svg
+                        aria-hidden="true"
+                        className="h-4.5 w-4.5 shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                    )}
+                    <span className="cbx-text">
+                      {creating ? `กำลังเพิ่ม “${createName}”…` : `เพิ่ม “${createName}”`}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
-            {rows.flat.length === 0 && <p className="cbx-empty">{NO_MATCH}</p>}
+            {rows.flat.length === 0 && !canCreate && <p className="cbx-empty">{NO_MATCH}</p>}
           </div>,
           host,
         )}

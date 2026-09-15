@@ -95,7 +95,14 @@ export function AccountEditor({
    * ⚠️ FETCHED PER OPEN, by the hook both staff forms share — see `use-staff-options.ts` for why it
    * is not a mount-only fetch, and why the raw rows rather than the mapped options are the state.
    */
-  const { positions, departments, alert: optionsAlert } = useStaffOptions(open, target)
+  const {
+    positions,
+    departments,
+    alert: optionsAlert,
+    refresh: refreshOptions,
+    createPosition,
+    createDepartment,
+  } = useStaffOptions(open, target)
 
   const [alert, setAlert] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -226,6 +233,11 @@ export function AccountEditor({
         onSubmit={onSubmit}
         onResetPassword={onResetPassword}
         onDelete={onDelete}
+        // #ISSUE-11 — add a missing ตำแหน่ง / กลุ่ม/ฝ่าย without leaving the form, and re-read the
+        // lists whenever a dropdown opens.
+        onCreatePosition={createPosition}
+        onCreateDepartment={createDepartment}
+        onOpenOptions={refreshOptions}
       />
 
       <ConfirmModal

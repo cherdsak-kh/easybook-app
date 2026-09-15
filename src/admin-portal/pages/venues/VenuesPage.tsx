@@ -39,11 +39,12 @@ import {
 } from '@/lib/api-client'
 import { Btn } from '../../components/ui/Btn'
 import { Combobox, type ComboboxOption } from '../../components/ui/Combobox'
+import { PaginationBar, PaginationBarSkeleton } from '../../components/ui/PaginationBar'
 import { ConfirmModal } from '../../components/feedback/ConfirmModal'
 import { EmptyState } from '../../components/feedback/EmptyState'
 import { LoadError, type LoadErrorKind } from '../../components/feedback/LoadError'
 import { PageHeading } from '../../components/shell/PageHeading'
-import { Skeleton, SkeletonRegion } from '../../components/feedback/Skeleton'
+import { SkeletonRegion } from '../../components/feedback/Skeleton'
 import { useAcl } from '../../lib/use-acl'
 import { useAuth } from '../../lib/auth-context'
 import { useToast } from '../../lib/toast-context'
@@ -69,6 +70,14 @@ const STATUS_OPTIONS: readonly ComboboxOption<string>[] = [
   { id: 'open', name: 'เปิดให้จอง' },
   { id: 'closed', name: 'ปิดชั่วคราว' },
 ]
+
+/**
+ * `แถวต่อหน้า` for a GRID (#ISSUE-12) — multiples of 6, because the card grid lays out in 1, 2, 3, 4
+ * or 6 columns depending on width and zoom, and a page that ends mid-row at the common widths reads
+ * as a list with cards missing.
+ */
+const PAGE_SIZES: readonly number[] = [6, 12, 24, 48]
+const DEFAULT_PAGE_SIZE = 12
 
 const ICON = {
   refresh:
@@ -191,6 +200,9 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [zoom, setZoom] = useState<ZoomLevel>(readZoom)
+  /** Client-side paging over `shown` — see where `visible` is derived. Not persisted. */
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   /** Bumped on every reload so the vocabularies refetch alongside the list. */
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -205,15 +217,22 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
     assignableTypes,
     amenities,
     alert: vocabAlert,
+    refresh: refreshVocab,
+    createVenueType,
+    createAmenity,
   } = useVenueVocabularies(reloadKey)
 
-  const load = useCallback(async () => {
+  /** Resolves the list it committed, or `null` — the save path reads it to find the saved card's page. */
+  const load = useCallback(async (): Promise<Venue[] | null> => {
     setError(null)
     try {
-      setRows(await listVenues())
+      const next = await listVenues()
+      setRows(next)
+      return next
     } catch (err) {
       setRows(null)
       setError(kindOf(err))
+      return null
     }
   }, [])
 
@@ -294,6 +313,27 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
   const anyFilter = Boolean(trimmed || typeFilter || statusFilter)
   const closedShown = shown.filter((v) => !v.isOpen).length
 
+  /*
+   * ── แบ่งหน้า (#ISSUE-12) — a SLICE of `shown`, on the client ──
+   * The list is already whole in the browser (see the header), so a page is a slice of the FILTERED
+   * array and the bar's total is that array's length — never `all`, or the bar would count cards the
+   * filters have just hidden.
+   *
+   * ⚠️ CLAMPED TWICE, for two different moments. `currentPage` clamps THIS render, so a delete that
+   * empties the last page never paints an empty grid for a frame; the effect moves the STATE, so the
+   * page does not jump forward again the next time the list grows. Guarded on `rows`, because a failed
+   * load nulls the list and that is not the list shrinking.
+   */
+  const pageCount = Math.max(1, Math.ceil(shown.length / pageSize))
+  const currentPage = Math.min(page, pageCount)
+  useEffect(() => {
+    if (rows !== null && page > pageCount) setPage(pageCount)
+  }, [rows, page, pageCount])
+  const visible = useMemo(
+    () => shown.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [shown, currentPage, pageSize],
+  )
+
   const applyZoom = (level: ZoomLevel) => {
     setZoom(level)
     try {
@@ -307,6 +347,7 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
     setTerm('')
     setTypeFilter('')
     setStatusFilter('')
+    setPage(1)
   }
 
   const openCreate = () => {
@@ -379,10 +420,19 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
     try {
       if (form.target) await patchVenue(form.target.id, body)
       else await createVenue(body)
-      await load()
+      const fresh = await load()
       // A rename or a category change can move the row out of the current filters, and the operator
       // would then watch their own edit vanish. Drop the filters rather than the feedback.
       clearFilters()
+      // ⚠️ …AND GO TO THE PAGE IT LANDED ON (#ISSUE-12). With the filters cleared `shown` is the
+      // server's name-ordered list, so the card's index there IS its position — and without this a new
+      // venue named "สนามฟุตบอล" is saved onto page 3 while the operator is looking at page 1.
+      // Found by id on an edit, by name on a create (names are unique among live venues).
+      if (fresh) {
+        const savedId = form.target?.id
+        const idx = fresh.findIndex((v) => (savedId ? v.id === savedId : v.name === values.name))
+        if (idx >= 0) setPage(Math.floor(idx / pageSize) + 1)
+      }
       closeForm()
       toast(
         'success',
@@ -524,7 +574,10 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
               type="search"
               placeholder="ค้นหาจากชื่อสถานที่หรือที่ตั้ง"
               value={term}
-              onChange={(e) => setTerm(e.target.value)}
+              onChange={(e) => {
+                setTerm(e.target.value)
+                setPage(1)
+              }}
               autoComplete="off"
               autoCapitalize="none"
               spellCheck
@@ -536,7 +589,9 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
           <div className="flex gap-2.5 sm:gap-3">
             {/* ⚠️ COMBOBOXES, NOT NATIVE <select>s (#ISSUE-09). ประเภทสถานที่ keeps its search box:
                 it is a school-maintained list that grows. สถานะ is two fixed values, so it does not.
-                No page reset — this grid is filtered client-side and has no pager. */}
+                ⚠️ BACK TO PAGE 1 ON A REAL CHANGE (#ISSUE-12) — the grid is paged now, and page 3 of a
+                narrower filter is usually past its end. The `v === …` guard is the one the paged
+                toolbars use: re-picking the current value must not throw the operator back. */}
             <Combobox
               id="vn-type-f"
               className={`min-w-0 flex-1 ${LABEL_HIDDEN} lg:w-56 lg:flex-none`}
@@ -544,7 +599,11 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
               placeholder="ทุกประเภท"
               options={typeOptions}
               value={typeFilter}
-              onChange={setTypeFilter}
+              onChange={(v) => {
+                if (v === typeFilter) return
+                setTypeFilter(v)
+                setPage(1)
+              }}
             />
 
             <Combobox
@@ -553,7 +612,11 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
               label="กรองตามสถานะ"
               options={STATUS_OPTIONS}
               value={statusFilter}
-              onChange={setStatusFilter}
+              onChange={(v) => {
+                if (v === statusFilter) return
+                setStatusFilter(v)
+                setPage(1)
+              }}
               searchable={false}
             />
 
@@ -627,7 +690,7 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
                     none, filtered    → the miss, naming which control produced it */}
               {shown.length > 0 ? (
                 <ul className="venue-grid m-0 grid list-none gap-3 p-3 sm:gap-4 sm:p-4 lg:p-5">
-                  {shown.map((v) => (
+                  {visible.map((v) => (
                     <VenueCard
                       key={v.id}
                       venue={v}
@@ -677,36 +740,41 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
               )}
             </div>
 
-            <div className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-base-300 p-4 sm:flex-row lg:px-5">
-              <p className="text-[14px] text-base-content/70">
-                ทั้งหมด{' '}
-                <span className="font-medium tabular-nums text-base-content/90">{all.length}</span>{' '}
-                แห่ง
-                {shown.length !== all.length && (
-                  <>
-                    {' '}
-                    · ตรงกับที่กรองไว้{' '}
-                    <span className="font-medium tabular-nums text-base-content/90">
-                      {shown.length}
-                    </span>{' '}
-                    แห่ง
-                  </>
-                )}
-                {/* ⚠️ COUNTED OVER `shown`, NOT OVER EVERYTHING. It was global in the prototype,
-                    sitting at the end of a bar whose other numbers describe the filtered set — so
-                    filtering to หอประชุม (2 venues, none closed) still printed "…ตรงกับที่กรองไว้ 2
-                    แห่ง · ปิดชั่วคราว 1 แห่ง", and every reader binds that 1 to the 2 beside it. A
-                    number in this bar describes what is on screen, or it does not belong in it. */}
-                {closedShown > 0 && (
-                  <>
-                    {' '}
-                    · ปิดชั่วคราว{' '}
-                    <span className="font-medium tabular-nums text-warning">{closedShown}</span> แห่ง
-                  </>
-                )}
-              </p>
-              <p className="text-[13px] text-base-content/70">เรียงตามชื่อ ก–ฮ</p>
-            </div>
+            {/* ── The portal's one pager bar (#ISSUE-12) ──
+                It REPLACES the count bar that sat here ("ทั้งหมด 9 แห่ง · ตรงกับที่กรองไว้ …"): its
+                total is the filtered count, which was the number that bar existed to state, and its
+                third segment is the size select where "เรียงตามชื่อ ก–ฮ" used to be. Only while
+                there are cards — the empty and no-match panels above carry their own explanation.
+
+                ⚠️ ปิดชั่วคราว IS COUNTED OVER `shown`, NOT OVER EVERYTHING. It was global in the
+                prototype, sitting at the end of a bar whose other numbers describe the filtered set —
+                so filtering to หอประชุม (2 venues, none closed) still printed "…2 แห่ง · ปิดชั่วคราว
+                1 แห่ง", and every reader binds that 1 to the 2 beside it. A number in this bar
+                describes the filtered set, or it does not belong in it. */}
+            {shown.length > 0 && (
+              <PaginationBar
+                page={currentPage}
+                pageSize={pageSize}
+                total={shown.length}
+                unit="แห่ง"
+                pageSizeOptions={PAGE_SIZES}
+                onPageChange={setPage}
+                onPageSizeChange={(n) => {
+                  setPageSize(n)
+                  setPage(1)
+                }}
+                ariaLabel="แบ่งหน้ารายการสถานที่"
+                extraSummary={
+                  closedShown > 0 ? (
+                    <>
+                      {' · '}ปิดชั่วคราว{' '}
+                      <span className="font-medium tabular-nums text-warning">{closedShown}</span>{' '}
+                      แห่ง
+                    </>
+                  ) : undefined
+                }
+              />
+            )}
           </div>
         )}
       </div>
@@ -726,6 +794,11 @@ export function VenuesPage({ route }: { route: AdminRoute }) {
         onToggleOpen={() =>
           target && setPending({ kind: target.isOpen ? 'close' : 'reopen', venue: target })
         }
+        // #ISSUE-11 — a missing category or amenity is added from inside the form, and both lists are
+        // re-read while it is open. The dialog ignores all three in `view`.
+        onCreateType={createVenueType}
+        onCreateAmenity={createAmenity}
+        onRevalidate={refreshVocab}
       />
 
       {/* ── Three kinds where the option tables needed one ──
@@ -850,10 +923,7 @@ function LoadingPanel() {
           ))}
         </ul>
       </div>
-      <div className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-base-300 p-4 sm:flex-row lg:px-5">
-        <Skeleton variant="soft" className="h-3.5" width="9rem" />
-        <Skeleton variant="soft" className="h-3.5" width="6rem" />
-      </div>
+      <PaginationBarSkeleton />
     </SkeletonRegion>
   )
 }

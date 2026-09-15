@@ -278,6 +278,8 @@ export function BookingDirectCreateDialog({
   busy,
   recheckKey = 0,
   onSubmit,
+  onCreateDepartment,
+  onOpenDepartments,
 }: {
   open: boolean
   onClose: () => void
@@ -297,6 +299,13 @@ export function BookingDirectCreateDialog({
    *  that was true before somebody else took the room. */
   recheckKey?: number
   onSubmit: (body: CreateDirectBookingBody) => void
+  /**
+   * Inline creation of a missing กลุ่ม/ฝ่าย (#ISSUE-11). The caller (`useCreateOptions`) owns the
+   * POST, the toast and the list; it resolves with the row already in `departments`, or rejects.
+   */
+  onCreateDepartment?: (name: string) => Promise<Department>
+  /** The department dropdown opened — the caller revalidates the list. */
+  onOpenDepartments?: () => void
 }) {
   /* ── ผู้ขอจอง ── */
   const [mode, setMode] = useState<'line' | 'manual'>('line')
@@ -470,6 +479,14 @@ export function BookingDirectCreateDialog({
     ],
     [departments],
   )
+
+  /** `Department` → the picker's row. Absent when the caller cannot create, so the field stays a picker. */
+  const createDepartmentOption = onCreateDepartment
+    ? async (name: string): Promise<ComboboxOption<number>> => {
+        const d = await onCreateDepartment(name)
+        return { id: d.id, name: d.name }
+      }
+    : undefined
 
   const pickedUser = useMemo(
     () => (users ?? []).find((u) => u.id === lineUserId) ?? null,
@@ -776,6 +793,10 @@ export function BookingDirectCreateDialog({
                 onChange={setDepartmentId}
                 disabled={departments === null}
                 error={departmentsError ?? undefined}
+                // #ISSUE-11: a department the requester belongs to but the list lacks is added here,
+                // without losing the booking typed around it.
+                onCreateOption={createDepartmentOption}
+                onOpen={onOpenDepartments}
               />
             </div>
 

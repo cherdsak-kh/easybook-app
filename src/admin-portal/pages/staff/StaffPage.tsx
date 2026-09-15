@@ -59,7 +59,7 @@ import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
 import { Btn } from '../../components/ui/Btn'
 import { Combobox, type ComboboxOption } from '../../components/ui/Combobox'
-import { Pagination } from '../../components/ui/Pagination'
+import { PaginationBar, PaginationBarSkeleton } from '../../components/ui/PaginationBar'
 import { ROLE_LABEL, type SystemRole } from '../../labels'
 import { useAuth } from '../../lib/auth-context'
 import { useToast } from '../../lib/toast-context'
@@ -78,11 +78,12 @@ import { fullName, stateOf, STAFF_STATE, type StaffRecord, type StaffState } fro
 import { useStaffOptions } from './use-staff-options'
 
 /**
- * 10 per page. The endpoint's own default is 20 and its ceiling is 100, but `limit` is the CLIENT's
- * choice — this is the request the prototype's pager describes, not a number invented to make the
- * control visible.
+ * `แถวต่อหน้า` (#ISSUE-12). The endpoint's own default is 20 and its ceiling is 100, and `limit` is the
+ * CLIENT's choice — so the sizes stop AT the ceiling (a `limit` past it is a 400, not a clamp), and the
+ * default is the endpoint's own. It was a fixed 10 before the bar had a size control.
  */
-const PAGE_SIZE = 10
+const PAGE_SIZES: readonly number[] = [10, 20, 50, 100]
+const DEFAULT_PAGE_SIZE = 20
 
 /** `''` is "no filter", which is not a value the query may carry. */
 type RoleFilter = '' | SystemRole
@@ -266,6 +267,8 @@ export function StaffPage({ route }: { route: AdminRoute }) {
   const [role, setRole] = useState<RoleFilter>('')
   const [status, setStatus] = useState<StatusFilter>('')
   const [page, setPage] = useState(1)
+  /** Not persisted — the same rule as คำขอจองสถานที่'s bar: a visit starts at the default. */
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   /** The row whose record is open for reading. `null` keeps the dialog mounted and closed. */
   const [shown, setShown] = useState<StaffRecord | null>(null)
@@ -333,11 +336,22 @@ export function StaffPage({ route }: { route: AdminRoute }) {
     try {
       const res = await listSystemUsers({
         page,
-        limit: PAGE_SIZE,
+        limit: pageSize,
         search: query || undefined,
         role: role || undefined,
         status: status || undefined,
       })
+      // ⚠️ CLAMP BEFORE THE NEXT SLICE — the rule คำขอจองสถานที่ records. Deleting the last account on
+      // the last page leaves that page empty while this one is still asking for it; moving back is
+      // what stops an empty table sitting under a pager that insists there are rows.
+      // ⚠️ AND CLAMP INSTEAD OF COMMITTING (P6-2). The over-page answer is empty by definition, and
+      // committing it painted the "no accounts" / no-match panel for the round-trip until the clamped
+      // page arrived. The rows on screen stay until then; `page` re-runs this through the effect.
+      const last = Math.max(1, Math.ceil(res.meta.total / pageSize))
+      if (page > last) {
+        setPage(last)
+        return false
+      }
       setRows(res.data)
       setTotal(res.meta.total)
       return true
@@ -346,7 +360,7 @@ export function StaffPage({ route }: { route: AdminRoute }) {
       setError(kindOf(err))
       return false
     }
-  }, [page, query, role, status])
+  }, [page, pageSize, query, role, status])
 
   /**
    * The button, as opposed to the filter-driven reloads. It says so when it worked — the table can
@@ -366,9 +380,8 @@ export function StaffPage({ route }: { route: AdminRoute }) {
     [rows, deletedView],
   )
 
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
-  const to = (page - 1) * PAGE_SIZE + records.length
+  /** The first row's ordinal on this page. The bar computes its own range from the same numbers. */
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1
   const anyFilter = Boolean(query || role || status)
   /** The filters emptied the table. A table that is empty with NO filter on is a different panel. */
   const miss = anyFilter && records.length === 0
@@ -432,7 +445,18 @@ export function StaffPage({ route }: { route: AdminRoute }) {
     setEditorOpen(true)
   }
 
-  /** The create defaults. VIEWER is one of them, and it is a decision — see the dialog below. */
+  const createListsReady = createOptions.positions !== null && createOptions.departments !== null
+
+  /**
+   * The create defaults. VIEWER is one of them, and it is a decision — see the dialog below.
+   *
+   * ⚠️ RECOMPUTED WHEN THE DIALOG OPENS, NOT WHEN THE LISTS CHANGE (#ISSUE-11). `StaffFormDialog`
+   * resets its draft whenever `initial` changes identity while it is open — and the lists now DO
+   * change while it is open: a focus revalidation, another tab's write, an inline create. Keyed on
+   * the lists, this memo would hand the dialog a fresh `initial` on each of those and wipe every
+   * field the operator had typed. Keyed on `creating`, the defaults are read from the lists as they
+   * stand when the dialog opens (or when they first arrive) and hold until the next open.
+   */
   const createInitial = useMemo<StaffFormValues | null>(() => {
     const pos = createOptions.positions?.find((o) => !o.reserved) ?? createOptions.positions?.[0]
     const dept =
@@ -450,7 +474,9 @@ export function StaffPage({ route }: { route: AdminRoute }) {
       role: 'VIEWER',
       isActive: true,
     }
-  }, [createOptions.positions, createOptions.departments])
+    // ⚠️ Deliberately narrower than what is read — see the note above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [creating, createListsReady])
 
   const closeCreate = () => {
     setCreating(false)
@@ -524,7 +550,13 @@ export function StaffPage({ route }: { route: AdminRoute }) {
         if (isMe(row)) return
         await deleteSystemUser(row.id)
         setAsking(null)
-        await load()
+        // P6-2 — the page's only row is gone, so ask for the previous page directly. The page change
+        // is the fetch (via the `[load]` effect); calling `load()` as well would be a second one.
+        if (page > 1 && records.length === 1 && records[0].id === row.id) {
+          setPage((p) => Math.max(1, p - 1))
+        } else {
+          await load()
+        }
         toast('success', CONFIRM.delete.ok(who))
         return
       }
@@ -651,7 +683,7 @@ export function StaffPage({ route }: { route: AdminRoute }) {
             </div>
           </div>
         ) : rows === null ? (
-          <LoadingPanel actionsLabel={canManage ? 'จัดการ' : 'ดูข้อมูล'} />
+          <LoadingPanel actionsLabel={canManage ? 'จัดการ' : 'ดูข้อมูล'} rowCount={pageSize} />
         ) : records.length === 0 && !anyFilter ? (
           /* Unreachable in practice and still built: the account reading this IS a row in this
              table, so the endpoint cannot return zero to an authenticated caller. It exists because
@@ -743,19 +775,22 @@ export function StaffPage({ route }: { route: AdminRoute }) {
               )}
             </div>
 
+            {/* The portal's one pager bar (#ISSUE-12) — see `PaginationBar`. A new size goes back to
+                page 1: page 3 of 10-per-page and page 3 of 50-per-page are different rows. */}
             {!miss && (
-              <div className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-base-300 p-4 sm:flex-row lg:px-5">
-                <p className="text-[14px] text-base-content/70">
-                  แสดง{' '}
-                  <span className="font-medium text-base-content/90 tabular-nums">
-                    {total === 0 ? '0' : `${from}–${to}`}
-                  </span>{' '}
-                  จาก{' '}
-                  <span className="font-medium text-base-content/90 tabular-nums">{total}</span>{' '}
-                  บัญชี
-                </p>
-                <Pagination page={page} pages={pages} onGo={setPage} label="แบ่งหน้ารายชื่อเจ้าหน้าที่" />
-              </div>
+              <PaginationBar
+                page={page}
+                pageSize={pageSize}
+                total={total}
+                unit="บัญชี"
+                pageSizeOptions={PAGE_SIZES}
+                onPageChange={setPage}
+                onPageSizeChange={(n) => {
+                  setPageSize(n)
+                  setPage(1)
+                }}
+                ariaLabel="แบ่งหน้ารายชื่อเจ้าหน้าที่"
+              />
             )}
           </div>
         )}
@@ -845,6 +880,10 @@ export function StaffPage({ route }: { route: AdminRoute }) {
           emailError={emailError}
           busy={creatingBusy}
           onSubmit={(values) => void submitCreate(values)}
+          // #ISSUE-11 — a missing ตำแหน่ง / กลุ่ม/ฝ่าย is added from inside the form.
+          onCreatePosition={createOptions.createPosition}
+          onCreateDepartment={createOptions.createDepartment}
+          onOpenOptions={createOptions.refresh}
         />
       )}
 
@@ -1051,11 +1090,12 @@ function CardRow({
 }
 
 /**
- * The skeleton, at both widths. Ten rows because that is `PAGE_SIZE` — a skeleton that promises a
- * different number of rows than the request will return is a layout that jumps on arrival.
+ * The skeleton, at both widths. `rowCount` rows because that is the page size the request is about
+ * to ask for — a skeleton that promises a different number of rows than the request will return is
+ * a layout that jumps on arrival.
  */
-function LoadingPanel({ actionsLabel }: { actionsLabel: string }) {
-  const rows = Array.from({ length: PAGE_SIZE }, (_, i) => i)
+function LoadingPanel({ actionsLabel, rowCount }: { actionsLabel: string; rowCount: number }) {
+  const rows = Array.from({ length: rowCount }, (_, i) => i)
   return (
     <div className="card-shell" aria-busy="true">
       <span className="sr-only" role="status">
@@ -1144,18 +1184,7 @@ function LoadingPanel({ actionsLabel }: { actionsLabel: string }) {
         </ul>
       </div>
 
-      <div
-        className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-base-300 p-4 sm:flex-row lg:px-5"
-        aria-hidden="true"
-      >
-        <Skeleton className="h-3.5 w-40" />
-        <span className="flex items-center gap-1.5">
-          <Skeleton className="h-11 w-20" variant="box" />
-          <Skeleton className="h-11 w-11" variant="box" />
-          <Skeleton className="h-11 w-11" variant="box" />
-          <Skeleton className="h-11 w-16" variant="box" />
-        </span>
-      </div>
+      <PaginationBarSkeleton />
     </div>
   )
 }

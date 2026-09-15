@@ -16,7 +16,9 @@
  * not a state you describe — which is also why the badge and this select are not the same strings.
  *
  * ⚠️ PROPS ONLY. `onSubmit` receives the values and the diff; the confirm dialog, the PATCH and
- * the refetch belong to the page.
+ * the refetch belong to the page. The same holds for adding a missing ตำแหน่ง or กลุ่ม/ฝ่าย from the
+ * form (#ISSUE-11): `onCreatePosition` / `onCreateDepartment` come from `useRegistrationOptions`,
+ * which owns the POST, the toast and the list.
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -95,6 +97,9 @@ export function RegistrationEditDialog({
   alert = null,
   busy = false,
   onSubmit,
+  onCreatePosition,
+  onCreateDepartment,
+  onOpenOptions,
 }: {
   open: boolean
   onClose: () => void
@@ -108,6 +113,11 @@ export function RegistrationEditDialog({
   alert?: string | null
   busy?: boolean
   onSubmit: (values: RegistrationEditValues, diff: RegistrationDiff) => void
+  /** Inline creation (#ISSUE-11) — resolve with the new row already in the list, or reject. */
+  onCreatePosition?: (name: string) => Promise<RegistrationOption>
+  onCreateDepartment?: (name: string) => Promise<RegistrationOption>
+  /** A dropdown opened — the caller revalidates both lists. */
+  onOpenOptions?: () => void
 }) {
   const [values, setValues] = useState<RegistrationEditValues>(initial)
   const [errors, setErrors] = useState<Partial<Record<keyof RegistrationEditValues, string>>>({})
@@ -272,6 +282,8 @@ export function RegistrationEditDialog({
           options={positions}
           value={values.personnelRoleId}
           onChange={(v) => set('personnelRoleId', v)}
+          onCreateOption={onCreatePosition}
+          onOpen={onOpenOptions}
         />
         <Combobox
           label="กลุ่ม/ฝ่าย"
@@ -279,6 +291,8 @@ export function RegistrationEditDialog({
           options={departments}
           value={values.departmentId}
           onChange={(v) => set('departmentId', v)}
+          onCreateOption={onCreateDepartment}
+          onOpen={onOpenOptions}
         />
 
         <FormField

@@ -104,7 +104,7 @@ import { LoadError, type LoadErrorKind } from '../../components/feedback/LoadErr
 import { PageHeading } from '../../components/shell/PageHeading'
 import { Btn } from '../../components/ui/Btn'
 import { Combobox, type ComboboxOption } from '../../components/ui/Combobox'
-import { Pagination } from '../../components/ui/Pagination'
+import { PaginationBar } from '../../components/ui/PaginationBar'
 import { BOOKING_STATUS_LABEL } from '../../labels'
 import { useAcl } from '../../lib/use-acl'
 import { useAuth } from '../../lib/auth-context'
@@ -259,7 +259,6 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
 
   const [rows, setRows] = useState<BookingRequestListItem[] | null>(null)
   const [total, setTotal] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
   const [counts, setCounts] = useState<BookingStatusCounts | null>(null)
   const [error, setError] = useState<LoadErrorKind | null>(null)
   const [live, setLive] = useState('')
@@ -390,7 +389,6 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
       setError(null)
       setRows(res.data)
       setTotal(res.meta.total)
-      setTotalPages(res.meta.totalPages)
       setCounts(res.counts)
       // ⚠️ CLAMP BEFORE THE NEXT SLICE. Approving the last row on page 4 — or another operator
       // cancelling it — leaves that page empty while this one is still asking for it, and the
@@ -489,9 +487,8 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
     [venueOptions.venues],
   )
 
+  /** The first row's ordinal on this page. `PaginationBar` derives the range and page count itself. */
   const from = total === 0 ? 0 : (page - 1) * limit + 1
-  const to = (page - 1) * limit + (rows?.length ?? 0)
-  const pages = Math.max(1, totalPages)
 
   /** Nothing at all in the system — a different fact from "nothing on this tab". */
   const systemEmpty = rows !== null && rows.length === 0 && !anyFilter && counts?.all === 0
@@ -730,7 +727,9 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
   /** Bumped after a failed write, so the live banner re-asks instead of continuing to show the
    *  picture that was true before somebody else took the room. */
   const [createRecheck, setCreateRecheck] = useState(0)
-  const createOptions = useCreateOptions(createOpenKey)
+  // `createOpen` gates the #ISSUE-11 revalidation listeners, which `createOpenKey` cannot — it stays
+  // above zero after the dialog closes.
+  const createOptions = useCreateOptions(createOpenKey, createOpen)
 
   const openCreate = () => {
     setCreateAlert(null)
@@ -1264,69 +1263,31 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
                 การลงทะเบียน and เจ้าหน้าที่ระบบ put theirs, so the table's sideways scroll never
                 carries it. Since #ISSUE-05 the card is natural height and `<main>` is the only
                 vertical scroller, so it sits under the last row and is reached by scrolling the
-                page — an accepted consequence of that layout, not an oversight. */}
-            <div className="flex shrink-0 flex-col items-center gap-3 border-t border-base-300 p-4 lg:flex-row lg:justify-between lg:px-5">
-              {/* The RANGE is what is on screen; the TOTAL is what the FILTER matched, not what the
-                  table holds. Printing the latter would have this bar contradict the tab strip. */}
-              <p className="order-1 text-[14px] text-base-content/70 lg:order-none">
-                แสดง{' '}
-                <span className="font-medium text-base-content/90 tabular-nums">
-                  {total === 0 ? '0' : `${from}–${to}`}
-                </span>{' '}
-                จากทั้งหมด{' '}
-                <span className="font-medium text-base-content/90 tabular-nums">{total}</span>{' '}
-                รายการ
-                {/* A REMINDER, so it is absent while you are already standing on the pending tab —
-                    restating the number you are looking at is noise. */}
-                {status !== 'PENDING' && counts !== null && counts.pending > 0 && (
+                page — an accepted consequence of that layout, not an oversight.
+                ⚠️ SINCE #ISSUE-12 THIS BAR IS `PaginationBar`, extracted from exactly the markup that
+                used to sit here, so every other admin list renders the same three segments. */}
+            <PaginationBar
+              page={page}
+              pageSize={limit}
+              total={total}
+              unit="รายการ"
+              pageSizeOptions={PAGE_SIZES}
+              onPageChange={setPage}
+              // `PAGE_SIZES` is the select's only source, so the value it reports is one of the three.
+              onPageSizeChange={(n) => selectLimit(n as BookingRequestLimit)}
+              ariaLabel="แบ่งหน้ารายการคำขอจอง"
+              extraSummary={
+                /* A REMINDER, so it is absent while you are already standing on the pending tab —
+                   restating the number you are looking at is noise. */
+                status !== 'PENDING' && counts !== null && counts.pending > 0 ? (
                   <>
                     {' · '}รอพิจารณา{' '}
                     <span className="font-medium text-warning tabular-nums">{counts.pending}</span>{' '}
                     รายการ
                   </>
-                )}
-              </p>
-
-              {/* Order-2 on a phone so the numbers sit above the buttons: the summary is what you
-                  read, the buttons are what you reach for, and the reach should be nearest the
-                  thumb. */}
-              {pages > 1 && (
-                <div className="order-3 lg:order-none">
-                  <Pagination
-                    page={page}
-                    pages={pages}
-                    onGo={setPage}
-                    label="แบ่งหน้ารายการคำขอจอง"
-                    long
-                  />
-                </div>
-              )}
-
-              <label className="order-2 flex items-center gap-2 text-[14px] text-base-content/70 lg:order-none">
-                <span className="shrink-0">แถวต่อหน้า</span>
-                <span className="form-shell relative">
-                  {/* 44px like every other control here. It was `min-h-9` to keep the bar visually
-                      light and measured 36px — under the minimum, on a control that sits between two
-                      rows of 44px buttons. `.form-select` carries the floor. */}
-                  <select
-                    aria-label="จำนวนแถวต่อหน้า"
-                    value={limit}
-                    onChange={(e) => selectLimit(Number(e.target.value) as BookingRequestLimit)}
-                    className="form-select w-[4.5rem] pl-1 text-[14px] tabular-nums"
-                  >
-                    {PAGE_SIZES.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                  <Glyph
-                    d={ICON.caret}
-                    className="pointer-events-none absolute right-2 h-4 w-4 text-base-content/70"
-                  />
-                </span>
-              </label>
-            </div>
+                ) : undefined
+              }
+            />
           </div>
         )}
       </div>
@@ -1422,6 +1383,9 @@ export function BookingRequestsPage({ route }: { route: AdminRoute }) {
         busy={createBusy}
         recheckKey={createRecheck}
         onSubmit={(body) => void runCreate(body)}
+        // #ISSUE-11 — a missing กลุ่ม/ฝ่าย is added from inside the form.
+        onCreateDepartment={createOptions.createDepartment}
+        onOpenDepartments={createOptions.refreshDepartments}
       />
     </div>
   )

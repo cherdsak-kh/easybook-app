@@ -1,5 +1,5 @@
 /**
- * The ตำแหน่ง / กลุ่ม/ฝ่าย lists both staff forms fill their selects from, fetched ONCE per open.
+ * The ตำแหน่ง / กลุ่ม/ฝ่าย lists both staff forms fill their selects from, fetched on every open.
  *
  * ── Why a hook and not two fetches ──
  * `AccountEditor` (edit, and โปรไฟล์'s จัดการบัญชี) and เจ้าหน้าที่ระบบ's เพิ่มบัญชี are two dialogs
@@ -11,24 +11,63 @@
  * ตำแหน่ง on ตัวเลือกบุคลากร, come back, and the dropdown still offered it — a row the server had
  * already soft-deleted, which answers 400 on save. The prototype states the rule outright: "Both
  * selects are filled from the LIVE option arrays, every time the dialog opens — not once at boot."
+ *
+ * ── …and REVALIDATED WHILE OPEN (#ISSUE-11) ──
+ * Once per open turned out not to be enough: an operator who leaves the dialog up, adds the missing
+ * ตำแหน่ง in another tab and comes back still could not pick it. So while `open`, the lists are
+ * re-read on return to the tab, on another tab's write, and whenever a dropdown opens (`refresh`,
+ * wired to `Combobox`'s `onOpen`). See `lib/master-sync.ts`.
+ *
+ * ⚠️ ONLY THE NEWEST REQUEST MAY WRITE (`seq`). A focus, a broadcast and a dropdown opening can put
+ * three reads in flight within a second, and an older one landing last would put back a list from
+ * before the change it was triggered by.
+ *
+ * ── `createPosition` / `createDepartment` — inline creation from the form ──
+ * The dialog stays props-only; the write, the toast and the list update live here, beside the list
+ * they change. On success the row is appended at once (so the `Combobox` has a row for the id it is
+ * about to select), other tabs are told, and the lists are re-read so the new row takes the place the
+ * server's name order gives it. On failure a toast says why and the promise REJECTS, which is what
+ * keeps the `Combobox` open with the typed name still in it.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  createDepartment,
+  createPersonnelRole,
   listDepartments,
   listPersonnelRoles,
   type Department,
   type PersonnelRole,
 } from '@/lib/api-client'
+import {
+  broadcastMasterUpdated,
+  inlineCreateError,
+  isConflict,
+  useMasterRevalidation,
+  type MasterEntity,
+} from '../../lib/master-sync'
+import { useToast } from '../../lib/toast-context'
 import type { StaffOption } from './staff-record'
 
 export const OPTIONS_FAILED =
   'โหลดรายการตำแหน่งและกลุ่ม/ฝ่ายไม่สำเร็จ โปรดปิดหน้าต่างนี้แล้วลองใหม่อีกครั้ง'
 
+const ENTITIES: readonly MasterEntity[] = ['personnelRole', 'department']
+
 /** The pair a row already points at, so neither can be silently rewritten. `null` on create. */
 export interface CurrentOptions {
   personnelRole: { id: number; name: string }
   department: { id: number; name: string }
+}
+
+export interface StaffOptions {
+  positions: StaffOption[] | null
+  departments: StaffOption[] | null
+  alert: string | null
+  /** Background re-read. For `Combobox`'s `onOpen`. */
+  refresh: () => void
+  createPosition: (name: string) => Promise<StaffOption>
+  createDepartment: (name: string) => Promise<StaffOption>
 }
 
 /**
@@ -73,10 +112,9 @@ function toOptions(
   return out
 }
 
-export function useStaffOptions(
-  open: boolean,
-  current: CurrentOptions | null,
-): { positions: StaffOption[] | null; departments: StaffOption[] | null; alert: string | null } {
+export function useStaffOptions(open: boolean, current: CurrentOptions | null): StaffOptions {
+  const toast = useToast()
+
   /**
    * The lists AS FETCHED. The mapping depends on `current` and the fetch must not: holding the
    * mapped result meant the effect had to depend on `current.personnelRole`, which is a fresh
@@ -87,29 +125,89 @@ export function useStaffOptions(
   const [alert, setAlert] = useState<string | null>(null)
   /** Have the lists ever arrived? See the `catch`. */
   const loaded = useRef(false)
+  /** Which read is the newest. See the header. */
+  const seq = useRef(0)
+  /** A read or a write can resolve after the form that asked for it is gone. */
+  const alive = useRef(true)
 
   useEffect(() => {
-    let live = true
-    void (async () => {
-      try {
-        const [roles, depts] = await Promise.all([listPersonnelRoles(), listDepartments()])
-        if (!live) return
-        setRawPositions(roles)
-        setRawDepartments(depts)
-        loaded.current = true
-      } catch {
-        // Only shout if there is nothing to show. A refresh that fails while the operator already
-        // has a usable list is not worth replacing that list with an error.
-        //
-        // Read through a REF, not the state, so this effect does not depend on the value it sets —
-        // which would refetch on every successful load, forever.
-        if (live && !loaded.current) setAlert(OPTIONS_FAILED)
-      }
-    })()
+    alive.current = true
     return () => {
-      live = false
+      alive.current = false
     }
-  }, [open])
+  }, [])
+
+  const fetchLists = useCallback(async () => {
+    const mine = (seq.current += 1)
+    try {
+      const [roles, depts] = await Promise.all([listPersonnelRoles(), listDepartments()])
+      if (!alive.current || mine !== seq.current) return
+      setRawPositions(roles)
+      setRawDepartments(depts)
+      // A revalidation that succeeds after a failed first load has fixed the thing the alert says.
+      setAlert(null)
+      loaded.current = true
+    } catch {
+      if (!alive.current || mine !== seq.current) return
+      // Only shout if there is nothing to show. A refresh that fails while the operator already
+      // has a usable list is not worth replacing that list with an error.
+      //
+      // Read through a REF, not the state, so this callback does not depend on the value it sets —
+      // which would refetch on every successful load, forever.
+      if (!loaded.current) setAlert(OPTIONS_FAILED)
+    }
+  }, [])
+
+  // BOTH edges of `open`, as before — the close edge is cheap and leaves the next open warm.
+  useEffect(() => {
+    void fetchLists()
+  }, [open, fetchLists])
+
+  const refresh = useCallback(() => {
+    void fetchLists()
+  }, [fetchLists])
+
+  useMasterRevalidation(open, ENTITIES, refresh)
+
+  const addPosition = useCallback(
+    async (name: string): Promise<StaffOption> => {
+      try {
+        const row = await createPersonnelRole({ name })
+        if (alive.current) {
+          setRawPositions((prev) => [...(prev ?? []), row])
+          // Also retires any read already in flight — it predates this row.
+          void fetchLists()
+        }
+        broadcastMasterUpdated('personnelRole')
+        return { id: row.id, name: row.name }
+      } catch (err) {
+        toast('error', inlineCreateError(err, 'ตำแหน่ง', name))
+        // A 409 can mean another tab added it since this list was read — show it.
+        if (isConflict(err)) void fetchLists()
+        throw err
+      }
+    },
+    [fetchLists, toast],
+  )
+
+  const addDepartment = useCallback(
+    async (name: string): Promise<StaffOption> => {
+      try {
+        const row = await createDepartment({ name })
+        if (alive.current) {
+          setRawDepartments((prev) => [...(prev ?? []), row])
+          void fetchLists()
+        }
+        broadcastMasterUpdated('department')
+        return { id: row.id, name: row.name }
+      } catch (err) {
+        toast('error', inlineCreateError(err, 'กลุ่ม/ฝ่าย', name))
+        if (isConflict(err)) void fetchLists()
+        throw err
+      }
+    },
+    [fetchLists, toast],
+  )
 
   const positions = useMemo(
     () => (rawPositions ? toOptions(rawPositions, current?.personnelRole) : null),
@@ -120,5 +218,12 @@ export function useStaffOptions(
     [rawDepartments, current?.department],
   )
 
-  return { positions, departments, alert }
+  return {
+    positions,
+    departments,
+    alert,
+    refresh,
+    createPosition: addPosition,
+    createDepartment: addDepartment,
+  }
 }

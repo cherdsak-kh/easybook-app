@@ -55,7 +55,7 @@ import { Avatar } from '../../components/ui/Avatar'
 import { Badge } from '../../components/ui/Badge'
 import { Btn } from '../../components/ui/Btn'
 import { Combobox, type ComboboxOption } from '../../components/ui/Combobox'
-import { Pagination } from '../../components/ui/Pagination'
+import { PaginationBar, PaginationBarSkeleton } from '../../components/ui/PaginationBar'
 import { ACCESS_LABEL, ACCESS_TONE, type AppAccess } from '../../labels'
 import { useAcl } from '../../lib/use-acl'
 import { useAuth } from '../../lib/auth-context'
@@ -80,8 +80,13 @@ import {
 } from './registration-record'
 import { useRegistrationOptions } from './use-registration-options'
 
-/** 10 per page — the request the prototype's pager describes. The endpoint's own default is 20. */
-const PAGE_SIZE = 10
+/**
+ * `แถวต่อหน้า` (#ISSUE-12). `GET /line-users` caps `limit` at 100 with a 400 rather than a clamp, so
+ * the sizes stop there; the default is the endpoint's own 20. It was a fixed 10 before the bar had a
+ * size control.
+ */
+const PAGE_SIZES: readonly number[] = [10, 20, 50, 100]
+const DEFAULT_PAGE_SIZE = 20
 
 /**
  * Where ส่งออก Excel went. The prototype moved it off this page — an approval queue's page-level
@@ -371,6 +376,8 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
   const [access, setAccess] = useState<AccessFilter>('')
   const [sort, setSort] = useState<LineUserSort>('new')
   const [page, setPage] = useState(1)
+  /** Not persisted — a visit starts at the default, as on คำขอจองสถานที่. */
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   /* ── The live layer's state ────────────────────────────────────────────────────────────────── */
 
@@ -462,8 +469,8 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
   const anyFilter = Boolean(query || access)
 
   /**
-   * Resolves the page of rows it COMMITTED, or `null` when it committed nothing (it failed, or a
-   * newer load superseded it). Callers that only need "is the table fresh now" test it for
+   * Resolves the page of rows it COMMITTED, or `null` when it committed nothing (it failed, a newer
+   * load superseded it, or it clamped a page past the last). Callers that only need "is the table fresh now" test it for
    * truthiness; the arrival handler reads the rows themselves.
    *
    * `background` is for a reload nobody asked for — a socket arrival. ⚠️ ITS FAILURE IS SILENT AND
@@ -480,12 +487,24 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
     try {
       const res = await listLineUsers({
         page,
-        limit: PAGE_SIZE,
+        limit: pageSize,
         search: query || undefined,
         access: access || undefined,
         sort,
       })
       if (seq !== loadSeq.current) return null
+      // ⚠️ CLAMP BEFORE THE NEXT SLICE — คำขอจองสถานที่'s rule. A total that drops under this page (a
+      // deletion, a row approved out of the filter) would otherwise leave an empty table under a pager
+      // that insists there are rows. Changing `page` re-runs this through the effect below.
+      // ⚠️ AND CLAMP INSTEAD OF COMMITTING (P6-2) — the opening-tab handover's rule on คำขอจองสถานที่.
+      // The over-page answer is empty by definition; committing it painted the empty / no-match panel
+      // for the round-trip. Nothing is committed (so this resolves `null`), the rows or skeleton on
+      // screen stay, and `loadAwaited` is left for the clamped load to settle.
+      const last = Math.max(1, Math.ceil(res.meta.total / pageSize))
+      if (page > last) {
+        setPage(last)
+        return null
+      }
       loadAwaited.current = false
       setError(null)
       setRows(res.data)
@@ -499,7 +518,7 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
       setError(kindOf(err))
       return null
     }
-  }, [page, query, access, sort])
+  }, [page, pageSize, query, access, sort])
 
   useEffect(() => {
     void load()
@@ -633,9 +652,8 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
 
   const records = useMemo(() => (rows ?? []).map(toRecord), [rows])
 
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
-  const to = (page - 1) * PAGE_SIZE + records.length
+  /** The first row's ordinal on this page. The bar computes its own range from the same numbers. */
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1
   /** The filters emptied the table. An empty table with NO filter on is a different panel. */
   const miss = anyFilter && records.length === 0
 
@@ -695,6 +713,15 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
 
   /* ── The two writes ────────────────────────────────────────────────────────────────────────── */
 
+  /**
+   * P6-2 — this write moves the page's ONLY row out of the สถานะ filter, so the reload would come back
+   * empty on a page past the last. The caller steps back instead of reloading: the page change is the
+   * fetch (via the `[load]` effect), so there is exactly one. Any shrink this cannot foresee (a search
+   * term an edit no longer matches, another operator's write) is caught by the clamp inside `load`.
+   */
+  const leavesPageEmpty = (row: RegistrationRecord, next: AppAccess) =>
+    page > 1 && records.length === 1 && records[0].id === row.id && access !== '' && next !== access
+
   const runAction = async (kind: RegistrationAction, row: RegistrationRecord, reason: string) => {
     const who = whoOf(row)
     try {
@@ -711,7 +738,8 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
         next.delete(row.id)
         return next
       })
-      await load()
+      if (leavesPageEmpty(row, ACTION_ACCESS[kind])) setPage((p) => Math.max(1, p - 1))
+      else await load()
       toast('success', RESULT[kind].ok(who))
     } catch (err) {
       const httpStatus = err instanceof ApiError ? err.status : 0
@@ -745,7 +773,8 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
         departmentId: values.departmentId,
         personnelRoleId: values.personnelRoleId,
       })
-      if (canEditAccess && values.access !== row.access) {
+      const accessChanged = canEditAccess && values.access !== row.access
+      if (accessChanged) {
         await patchLineUserAccess(
           row.id,
           values.access,
@@ -754,7 +783,11 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
       }
       setAsking(null)
       setEditorOpen(false)
-      await load()
+      if (leavesPageEmpty(row, accessChanged ? values.access : row.access)) {
+        setPage((p) => Math.max(1, p - 1))
+      } else {
+        await load()
+      }
       toast('success', RESULT.save.ok(who))
     } catch (err) {
       const httpStatus = err instanceof ApiError ? err.status : 0
@@ -928,7 +961,7 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
             </div>
           </div>
         ) : rows === null ? (
-          <LoadingPanel actionsLabel={acl.actionsColumnLabel} />
+          <LoadingPanel actionsLabel={acl.actionsColumnLabel} rowCount={pageSize} />
         ) : records.length === 0 && !anyFilter ? (
           /* ⚠️ NO "เพิ่มผู้ลงทะเบียน" BUTTON, unlike ตัวเลือกบุคลากร's version of this block. A
              registration cannot be created from here at all — it arrives from LINE. Offering the
@@ -1055,19 +1088,22 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
               )}
             </div>
 
+            {/* The portal's one pager bar (#ISSUE-12) — see `PaginationBar`. A new size goes back to
+                page 1: page 3 of 10-per-page and page 3 of 50-per-page are different rows. */}
             {!miss && (
-              <div className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-base-300 p-4 sm:flex-row lg:px-5">
-                <p className="text-[14px] text-base-content/70">
-                  แสดง{' '}
-                  <span className="font-medium text-base-content/90 tabular-nums">
-                    {total === 0 ? '0' : `${from}–${to}`}
-                  </span>{' '}
-                  จาก{' '}
-                  <span className="font-medium text-base-content/90 tabular-nums">{total}</span>{' '}
-                  รายการ
-                </p>
-                <Pagination page={page} pages={pages} onGo={setPage} label="แบ่งหน้ารายการลงทะเบียน" />
-              </div>
+              <PaginationBar
+                page={page}
+                pageSize={pageSize}
+                total={total}
+                unit="รายการ"
+                pageSizeOptions={PAGE_SIZES}
+                onPageChange={setPage}
+                onPageSizeChange={(n) => {
+                  setPageSize(n)
+                  setPage(1)
+                }}
+                ariaLabel="แบ่งหน้ารายการลงทะเบียน"
+              />
             )}
           </div>
         )}
@@ -1104,6 +1140,10 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
           canEditAccess={canEditAccess}
           alert={editAlert ?? editOptions.alert}
           busy={editBusy}
+          // #ISSUE-11 — a missing ตำแหน่ง / กลุ่ม/ฝ่าย is added from inside the form.
+          onCreatePosition={editOptions.createPosition}
+          onCreateDepartment={editOptions.createDepartment}
+          onOpenOptions={editOptions.refresh}
           onSubmit={(values, diff) => {
             // Nothing changed — a confirm listing an empty diff asks a question with no content.
             if (diff.length === 0) {
@@ -1364,10 +1404,10 @@ function CardRow({
  * ⚠️ `table-fixed` + a colgroup, because an auto-layout table sizes each column to its widest
  * CONTENT — and a skeleton's content is bars, not text. Measured before the colgroup existed: the
  * ชื่อ–สกุล column came out 78px wider than the real one, so every column snapped sideways the
- * moment the data landed. Ten rows because that is `PAGE_SIZE`.
+ * moment the data landed. `rowCount` rows because that is the page size about to be requested.
  */
-function LoadingPanel({ actionsLabel }: { actionsLabel: string }) {
-  const rows = Array.from({ length: PAGE_SIZE }, (_, i) => i)
+function LoadingPanel({ actionsLabel, rowCount }: { actionsLabel: string; rowCount: number }) {
+  const rows = Array.from({ length: rowCount }, (_, i) => i)
   return (
     <div className="card-shell" aria-busy="true">
       <span className="sr-only" role="status">
@@ -1463,20 +1503,10 @@ function LoadingPanel({ actionsLabel }: { actionsLabel: string }) {
         </ul>
       </div>
 
-      {/* The pagination bar lives INSIDE the list panel, so without a stand-in the card is 71px
-          shorter while loading and everything below it jumps up and back down. */}
-      <div
-        className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-base-300 p-4 sm:flex-row lg:px-5"
-        aria-hidden="true"
-      >
-        <Skeleton className="h-3.5 w-40" />
-        <div className="flex items-center gap-1.5">
-          <Skeleton className="h-11 w-20 rounded-control" variant="box" />
-          <Skeleton className="h-11 w-11 rounded-control" variant="box" />
-          <Skeleton className="h-11 w-11 rounded-control" variant="box" />
-          <Skeleton className="h-11 w-16 rounded-control" variant="box" />
-        </div>
-      </div>
+      {/* The pagination bar lives INSIDE the list panel, so without a stand-in the card is shorter
+          while loading and everything below it jumps up and back down. The shared stand-in carries
+          the bar's three-segment geometry, so the two cannot drift. */}
+      <PaginationBarSkeleton />
     </div>
   )
 }

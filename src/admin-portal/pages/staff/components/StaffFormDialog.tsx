@@ -27,6 +27,11 @@
  * ⚠️ PROPS ONLY (PO, 18 ส.ค. 2569). No API call, no confirm dialog, no toast. `onSubmit` hands the
  * caller the values AND the diff, because computing that diff needs the form's own before/after
  * and nothing else does. What happens next — confirm, PATCH, refetch — is the page's.
+ *
+ * ⚠️ AND STILL PROPS ONLY AFTER #ISSUE-11. Adding a missing ตำแหน่ง or กลุ่ม/ฝ่าย from inside the form
+ * arrives as `onCreatePosition` / `onCreateDepartment` — the POST, the toast and the list update all
+ * belong to `useStaffOptions`, which the caller hands through. Omit them (ShowcasePage) and the two
+ * fields are plain pickers again.
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -93,6 +98,9 @@ export function StaffFormDialog({
   onSubmit,
   onResetPassword,
   onDelete,
+  onCreatePosition,
+  onCreateDepartment,
+  onOpenOptions,
 }: {
   open: boolean
   onClose: () => void
@@ -114,6 +122,11 @@ export function StaffFormDialog({
   /** EDIT, not self. Separate writes to separate endpoints — see the danger zone. */
   onResetPassword?: () => void
   onDelete?: () => void
+  /** Inline creation (#ISSUE-11) — resolve with the new row already in `positions`, or reject. */
+  onCreatePosition?: (name: string) => Promise<StaffOption>
+  onCreateDepartment?: (name: string) => Promise<StaffOption>
+  /** A dropdown opened — the caller revalidates both lists. */
+  onOpenOptions?: () => void
 }) {
   const [values, setValues] = useState<StaffFormValues>(initial)
   const [errors, setErrors] = useState<Partial<Record<keyof StaffFormValues, string>>>({})
@@ -274,13 +287,17 @@ export function StaffFormDialog({
           onChange={(e) => set('lastName', e.target.value)}
         />
 
-        {/* ตำแหน่ง before กลุ่ม/ฝ่าย — the Thai civil-service order used everywhere else. */}
+        {/* ตำแหน่ง before กลุ่ม/ฝ่าย — the Thai civil-service order used everywhere else.
+            Both are creatable when the caller passes a create (#ISSUE-11): typing a name that is not
+            in the list offers `+ เพิ่ม “…”` at the bottom of it. */}
         <Combobox
           label="ตำแหน่ง"
           placeholder="เลือกตำแหน่ง"
           options={positions}
           value={values.personnelRoleId}
           onChange={(v) => set('personnelRoleId', v)}
+          onCreateOption={onCreatePosition}
+          onOpen={onOpenOptions}
         />
         <Combobox
           label="กลุ่ม/ฝ่าย"
@@ -288,6 +305,8 @@ export function StaffFormDialog({
           options={departments}
           value={values.departmentId}
           onChange={(v) => set('departmentId', v)}
+          onCreateOption={onCreateDepartment}
+          onOpen={onOpenOptions}
         />
 
         <FormField
