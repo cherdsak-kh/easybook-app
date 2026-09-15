@@ -92,8 +92,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List venues for the LIFF catalogue screen.
-         * @description The consumer half of `GET /venues`, which is admin-only at class level and unreachable with a LINE ID token. Same service, same shape, same search/filter behaviour — a different guard in front of it. Unpaginated and `name ASC`, exactly like the admin list. CLOSED venues ARE returned (`isOpen: false`, with `closedReason`): a closed venue stays visible to end users and simply accepts no new booking requests. Soft-deleted venues are never returned.
+         * List venues for the LIFF catalogue screen, one page at a time.
+         * @description The consumer half of `GET /venues`, which is admin-only at class level and unreachable with a LINE ID token. Same service and the SAME search/filter `where` — a different guard in front of it. Unlike the admin list it is offset-paginated (`CLIENT-PAGINATION-1`) and ordered `isOpen DESC, name ASC, id ASC`, so bookable venues come first and appended pages never reshuffle. CLOSED venues ARE returned (`isOpen: false`, with `closedReason`): a closed venue stays visible to end users and simply accepts no new booking requests. Soft-deleted venues are never returned. `facets.venueTypes` lists the categories matching `q`, independent of `venueTypeId`, `status` and the page.
          */
         get: operations["LineRegistrationController_listVenues"];
         put?: never;
@@ -796,8 +796,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List the caller’s own booking requests (`#/bookings`).
-         * @description Scoped to the verified `sub` — there is no parameter that widens it, and ownership is part of the query rather than a filter applied afterwards. Unpaginated: this is one user’s own bookings, and the screen’s four accordion groups are counted over the whole set. 🔴 `status` filters the five STORED statuses (`EXPIRED` included); the screen derives only `สิ้นสุดแล้ว` from the slots at read time.
+         * List the caller’s own booking requests, one page at a time (`#/bookings`).
+         * @description Scoped to the verified `sub` — there is no parameter that widens it, and ownership is part of the rows, the count AND the facets. Offset-paginated (`CLIENT-PAGINATION-1`), so every filter runs in Postgres: 🔴 `state` is the screen’s DERIVED bucket (`pending` / `approved` / `history`), bucketed against the server clock, and the three partition the set. `facets.venueTypes` lists the categories in the caller’s searched set, independent of `state`, `venueTypeId` and the page. The former `status` parameter (stored enum) is gone and is now a 400.
          */
         get: operations["LineBookingsController_list"];
         put?: never;
@@ -1250,6 +1250,38 @@ export interface components {
             /** @example 2026-08-25T10:00:00.000Z */
             updatedAt: string;
         };
+        PaginationMetaDto: {
+            /** @example 1 */
+            page: number;
+            /** @example 20 */
+            limit: number;
+            /**
+             * @description Non-deleted rows only.
+             * @example 42
+             */
+            total: number;
+            /**
+             * @description ceil(total / limit); 0 when total is 0.
+             * @example 3
+             */
+            totalPages: number;
+        };
+        VenueTypeFacetDto: {
+            /** @example 4 */
+            id: number;
+            /** @example โรงยิม */
+            name: string;
+        };
+        ListFacetsDto: {
+            /** @description Venue categories present in the searched set, `name ASC, id ASC`. The client re-sorts labels with a Thai collator. */
+            venueTypes: components["schemas"]["VenueTypeFacetDto"][];
+        };
+        PaginatedLineVenuesResponseDto: {
+            /** @description Ordered `isOpen DESC, name ASC, id ASC` — bookable venues first. The client must not re-sort: appended pages would shuffle. */
+            data: components["schemas"]["VenueResponseDto"][];
+            meta: components["schemas"]["PaginationMetaDto"];
+            facets: components["schemas"]["ListFacetsDto"];
+        };
         CreateLineUserRegistrationDto: {
             /** @example Somchai */
             firstName: string;
@@ -1417,22 +1449,6 @@ export interface components {
             blockReason: string | null;
             /** @description The user's registration summary, or null for a follower who never submitted the form. */
             registration: components["schemas"]["LineUserRegistrationSummaryDto"] | null;
-        };
-        PaginationMetaDto: {
-            /** @example 1 */
-            page: number;
-            /** @example 20 */
-            limit: number;
-            /**
-             * @description Non-deleted rows only.
-             * @example 42
-             */
-            total: number;
-            /**
-             * @description ceil(total / limit); 0 when total is 0.
-             * @example 3
-             */
-            totalPages: number;
         };
         PaginatedLineUsersResponseDto: {
             data: components["schemas"]["LineUserResponseDto"][];
@@ -2022,6 +2038,11 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        PaginatedLineBookingsResponseDto: {
+            data: components["schemas"]["BookingListItemDto"][];
+            meta: components["schemas"]["PaginationMetaDto"];
+            facets: components["schemas"]["ListFacetsDto"];
+        };
         BookingVenueDetailDto: {
             id: string;
             /** @example หอประชุมวารณ */
@@ -2515,6 +2536,9 @@ export interface operations {
                 venueTypeId?: number;
                 /** @description `open` = เปิดให้จอง · `closed` = ปิดชั่วคราว. Absent → both. */
                 status?: "open" | "closed";
+                /** @description 1-based page number. */
+                page?: number;
+                limit?: number;
             };
             header?: never;
             path?: never;
@@ -2522,13 +2546,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Every non-deleted venue matching the filters, `name ASC`. */
+            /** @description One page of non-deleted venues matching the filters. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["VenueResponseDto"][];
+                    "application/json": components["schemas"]["PaginatedLineVenuesResponseDto"];
+                };
+            };
+            /** @description An unknown query parameter, `page`/`limit` out of bounds, an invalid `venueTypeId` or `status`, or a `q` longer than 100 characters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
             /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
@@ -5339,10 +5372,15 @@ export interface operations {
             query?: {
                 /** @description Case-insensitive substring match across the booking `code`, the purpose, and the venue name and location. A leading `#` is stripped, so `#BR-25690903-001` and `BR-25690903-001` find the same row. Trimmed; empty/absent → no search filter. */
                 q?: string;
-                /** @description Narrows to one STORED status (`EXPIRED` included). The screen’s `ประวัติ` chip and its derived `สิ้นสุดแล้ว` badge cannot be passed here — see the class note. */
-                status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
+                /** @description The screen’s status bucket, decided by the SERVER clock. `pending` = PENDING with a live slot. `approved` = APPROVED with a live slot and some slot (cancelled ones included) ending at or after now. `history` = everything else (done, expired, rejected, cancelled). Absent → all. The three buckets partition the set. */
+                state?: "pending" | "approved" | "history";
+                /** @description Filter by the booking’s venue’s CURRENT category id — the one the card prints. Take the options from `facets.venueTypes`. */
+                venueTypeId?: number;
                 /** @description `created-*` orders by submission date, `event-*` by the date the room is used. Ties break on `code` ascending so the order is total and a re-fetch cannot shuffle two rows past each other. */
                 sort?: "created-desc" | "created-asc" | "event-asc" | "event-desc";
+                /** @description 1-based page number. */
+                page?: number;
+                limit?: number;
             };
             header?: never;
             path?: never;
@@ -5355,10 +5393,10 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BookingListItemDto"][];
+                    "application/json": components["schemas"]["PaginatedLineBookingsResponseDto"];
                 };
             };
-            /** @description An unknown query parameter, an invalid `status` or `sort`, or a `q` longer than 100 characters. */
+            /** @description An unknown query parameter (including the retired `status`), an invalid `state`, `sort` or `venueTypeId`, `page`/`limit` out of bounds, or a `q` longer than 100 characters. */
             400: {
                 headers: {
                     [name: string]: unknown;

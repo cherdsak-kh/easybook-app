@@ -1,11 +1,15 @@
 import {
   EXPIRED_REASON_FALLBACK,
+  bookingState,
+  isHistory,
   type Booking,
   type BookingDetail,
   type BookingSlot,
   type BookingSort,
+  type StatusFilter,
 } from './booking-state'
 import { isDevGate } from '@/client-portal/hooks/useLiffGate'
+import { devPage, devVenueTypeId, type ListPage } from '@/client-portal/lib/paging'
 import { ApiError, api } from '@/lib/api-client'
 import { getIdToken } from '@/lib/liff'
 
@@ -17,11 +21,10 @@ import { getIdToken } from '@/lib/liff'
  * override has to be answered from a fixture because under it there is no token to send.
  * `isDevGate()` is imported, never re-derived — one copy of a security condition.
  *
- * ── ⚠️ WHAT IS SENT TO THE SERVER AND WHAT IS NOT ──
- * `q` and `sort` go over the wire because the endpoint implements exactly them. The **status filter
- * does not**, and that is not an oversight: the screen's four buckets are derived from the clock
- * (`booking-state.ts`), and `?status=APPROVED` would hand back last month's approved bookings for a
- * chip that means "approved and still ahead". Half-using a parameter is worse than not using it.
+ * ── 🔴 EVERY FILTER GOES TO THE SERVER NOW (`CLIENT-PAGINATION-1`) ──
+ * The list is paginated, so `q`, `sort`, the status bucket (`state`) and the venue type all travel as
+ * query parameters. The bucket is the screen's DERIVED one — the server mirrors `bookingState()` —
+ * not the stored enum; the old `?status=` is a 400 now.
  */
 
 const DEV_LATENCY_MS = 400
@@ -131,7 +134,7 @@ function devVenue(name: string, location: string, type = 'หอประชุ�
     id: 'v1',
     name,
     location,
-    venueType: { id: 1, name: type, isFallback: false },
+    venueType: { id: devVenueTypeId(type), name: type, isFallback: false },
     photos: [],
   }
 }
@@ -274,22 +277,36 @@ function devFind(idOrCode: string): Booking | undefined {
 // Reads and writes.
 // ---------------------------------------------------------------------------
 
-export type ListBookingsParams = { q?: string; sort?: BookingSort }
+/** Ten cards is about three phone screens. Matches the server default. */
+export const BOOKINGS_PAGE_SIZE = 10
+
+/** The status dropdown's buckets as the wire spells them; the dropdown's `''` is an absent `state`. */
+export type BookingListState = Exclude<StatusFilter, ''>
+
+export type ListBookingsParams = {
+  q?: string
+  sort?: BookingSort
+  state?: BookingListState
+  venueTypeId?: number
+  page?: number
+  limit?: number
+}
 
 /**
- * My Bookings. Unpaginated — one user's own rows, and the screen counts its buckets over the whole
- * set, which page 1 of 5 could not do.
+ * One page of My Bookings (`CLIENT-PAGINATION-1`).
  *
- * ⚠️ THE SEARCH IS SENT TO THE SERVER rather than filtered here, for the same reason `#/venues`
- * sends its own: the endpoint offers `q`, and a second unfiltered copy of the list in the browser is
- * a second thing to keep in step. It matches the code, the purpose, and the venue's name and
- * location, with a leading `#` stripped server-side.
+ * The search matches the code, the purpose, and the venue's name and location, with a leading `#`
+ * stripped server-side. `facets.venueTypes` lists the categories in the reader's SEARCHED bookings,
+ * whatever `state`, `venueTypeId` and the page are.
  */
-export async function listMyBookings(params: ListBookingsParams = {}): Promise<Booking[]> {
+export async function listMyBookings(params: ListBookingsParams = {}): Promise<ListPage<Booking>> {
+  const page = params.page ?? 1
+  const limit = params.limit ?? BOOKINGS_PAGE_SIZE
+
   if (isDevGate()) {
     await sleep(DEV_LATENCY_MS)
     const q = params.q?.trim().replace(/^#/, '').toLowerCase()
-    const rows = DEV_BOOKINGS.filter(
+    const searched = DEV_BOOKINGS.filter(
       (b) =>
         !q ||
         [b.code, b.purpose, b.venue.name, b.venue.location ?? '']
@@ -297,12 +314,26 @@ export async function listMyBookings(params: ListBookingsParams = {}): Promise<B
           .toLowerCase()
           .includes(q),
     )
-    return devSort(rows, params.sort ?? 'created-desc')
+    const rows = searched.filter((b) => {
+      if (params.venueTypeId != null && b.venue.venueType.id !== params.venueTypeId) return false
+      if (!params.state) return true
+      /* The fixture buckets with the phone's `bookingState()`; the server mirrors the same rules. */
+      const state = bookingState(b)
+      return params.state === 'history' ? isHistory(state) : state === params.state
+    })
+    return devPage(
+      devSort(rows, params.sort ?? 'created-desc'),
+      searched.map((b) => b.venue),
+      page,
+      limit,
+    )
   }
 
-  const query: ListBookingsParams = {}
+  const query: ListBookingsParams = { page, limit }
   if (params.q?.trim()) query.q = params.q.trim()
   if (params.sort) query.sort = params.sort
+  if (params.state) query.state = params.state
+  if (params.venueTypeId != null) query.venueTypeId = params.venueTypeId
 
   const { data, error, response } = await api.GET('/api/v1/line-users/bookings', {
     headers: { Authorization: `Bearer ${bearerToken()}` },

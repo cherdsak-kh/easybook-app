@@ -13,10 +13,13 @@ import type { components } from '@/lib/api-types'
  * request past its start that the job has not swept yet IS still `pending` (accepted gap, ≤60 s).
  * `สิ้นสุดแล้ว` (`done`) is the one state still derived, because it has no stored status.
  *
- * ⚠️ THIS IS WHY THE STATUS FILTER ON `#/bookings` CANNOT BE A QUERY PARAMETER. `GET /line-users/
- * bookings?status=APPROVED` returns approved bookings *including last month's*, which this screen
- * paints as `สิ้นสุดแล้ว` in the history bucket. The dropdown filters {@link bookingState}, so it
- * runs here. The endpoint's own `status` is left unused rather than half-used.
+ * ⚠️ THE STATUS FILTER IS `?state=`, AND THE SERVER MIRRORS {@link bookingState} RULE FOR RULE
+ * (`CLIENT-PAGINATION-1`). The list is paginated, so bucketing page 1 of 5 in the browser would give
+ * a wrong count and a "load more" that never ends. `state=pending|approved|history` is bucketed by
+ * `stateWhere()` in `easybook-service`'s `bookings.service.ts`; the old stored-enum `status`
+ * parameter is gone (a 400). **This file still decides every BADGE**, on the phone's clock — the two
+ * clocks may disagree for a moment at a booking's last minute, which is accepted and self-correcting.
+ * Do NOT re-filter server rows with `bookingState()`: that reintroduces the wrong totals.
  */
 
 export type Booking = components['schemas']['BookingListItemDto']

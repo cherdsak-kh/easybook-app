@@ -1,5 +1,6 @@
 import { addDays, midnight, type VenueSlot } from './venue-availability'
 import { isDevGate } from '@/client-portal/hooks/useLiffGate'
+import { devPage, devVenueTypeId, type ListPage } from '@/client-portal/lib/paging'
 import { ApiError, api } from '@/lib/api-client'
 import type { Venue } from '@/lib/api-client'
 import { getIdToken } from '@/lib/liff'
@@ -15,8 +16,9 @@ import { getIdToken } from '@/lib/liff'
  * ── ⚠️ THESE ARE THE **CONSUMER** ROUTES, NOT `GET /venues` ──
  * `/api/v1/venues` is admin-only at class level and answers `401 "Authentication required."` to a
  * LINE token. `CLIENT-VENUES-1` added `/api/v1/line-users/venues` and `.../venues/:id` behind
- * `LineIdTokenGuard` — same service, same shape, a different guard in front. Reaching for the admin
- * path here would 401 every time.
+ * `LineIdTokenGuard` — a different guard in front of the same service. Reaching for the admin path
+ * here would 401 every time. Since `CLIENT-PAGINATION-1` the consumer LIST also differs in shape: it
+ * is paginated, the admin one is not.
  */
 
 const DEV_LATENCY_MS = 400
@@ -68,7 +70,7 @@ function devVenue(
   return {
     id,
     name,
-    venueType: { id: 1, name: type, isFallback: false },
+    venueType: { id: devVenueTypeId(type), name: type, isFallback: false },
     capacity,
     location,
     description,
@@ -139,34 +141,57 @@ function devSlots(venueId: string): VenueSlot[] {
 // Reads.
 // ---------------------------------------------------------------------------
 
+/** Twelve cards: whole rows in both the one- and the two-column grid. Matches the server default. */
+export const VENUES_PAGE_SIZE = 12
+
 export type ListVenuesParams = {
   /** Matches the name OR the location, server-side. */
   q?: string
   venueTypeId?: number
   status?: 'open' | 'closed'
+  page?: number
+  limit?: number
 }
 
 /**
- * The catalogue list. Unpaginated and `name ASC`, exactly like the admin one.
+ * One page of the catalogue (`CLIENT-PAGINATION-1`).
+ *
+ * 🔴 EVERY FILTER AND THE ORDER ARE THE SERVER'S. The page used to filter the type and "open only"
+ * and sort open-first in the browser; over a paginated list that yields a wrong count and appended
+ * pages that reshuffle what the reader already scrolled past. The server orders `isOpen DESC,
+ * name ASC, id ASC` — the caller must not re-sort.
  *
  * ⚠️ CLOSED VENUES ARE RETURNED AND MUST STAY VISIBLE. `isOpen: false` with a `closedReason` is a
  * venue that accepts no new requests, not one that has gone away — "โรงยิม 2 อยู่ตรงไหน จุคนได้
  * เท่าไร" is still a question when it is shut.
- *
- * ⚠️ The search is sent to the SERVER rather than filtered here, because the endpoint offers `q`
- * and a second, unfiltered copy of the list in the browser is a second thing to keep in step.
  */
-export async function listVenues(params: ListVenuesParams = {}): Promise<Venue[]> {
+export async function listVenues(params: ListVenuesParams = {}): Promise<ListPage<Venue>> {
+  const page = params.page ?? 1
+  const limit = params.limit ?? VENUES_PAGE_SIZE
+
   if (isDevGate()) {
     await sleep(DEV_LATENCY_MS)
     const q = params.q?.trim().toLowerCase()
-    return DEV_VENUES.filter(
-      (v) =>
-        (!q || v.name.toLowerCase().includes(q) || (v.location ?? '').toLowerCase().includes(q)) &&
-        (params.status !== 'open' || v.isOpen),
+    const searched = DEV_VENUES.filter(
+      (v) => !q || v.name.toLowerCase().includes(q) || (v.location ?? '').toLowerCase().includes(q),
     )
+    const rows = searched
+      .filter(
+        (v) =>
+          (params.venueTypeId == null || v.venueType.id === params.venueTypeId) &&
+          (!params.status || v.isOpen === (params.status === 'open')),
+      )
+      /* The server's `isOpen DESC, name ASC, id ASC`, with a Thai collator standing in for Postgres. */
+      .sort(
+        (a, b) =>
+          Number(b.isOpen) - Number(a.isOpen) ||
+          a.name.localeCompare(b.name, 'th') ||
+          a.id.localeCompare(b.id),
+      )
+    return devPage(rows, searched, page, limit)
   }
-  const query: ListVenuesParams = {}
+
+  const query: ListVenuesParams = { page, limit }
   if (params.q?.trim()) query.q = params.q.trim()
   if (params.venueTypeId != null) query.venueTypeId = params.venueTypeId
   if (params.status) query.status = params.status

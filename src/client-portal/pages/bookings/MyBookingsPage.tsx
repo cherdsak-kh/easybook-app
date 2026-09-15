@@ -3,20 +3,21 @@ import { Link } from 'react-router-dom'
 import {
   SORTS,
   STATUS_LABEL,
-  bookingState,
-  isHistory,
   type Booking,
   type BookingSort,
   type StatusFilter,
 } from './booking-state'
-import { listMyBookings, messageFor } from './bookings-api'
+import { BOOKINGS_PAGE_SIZE, listMyBookings, messageFor } from './bookings-api'
 import { BookingCard } from './components/BookingCard'
 import { EmptyState } from '@/client-portal/components/feedback/EmptyState'
 import { Skeleton } from '@/client-portal/components/feedback/Skeleton'
 import { Dropdown } from '@/client-portal/components/ui/Dropdown'
+import { LoadMore } from '@/client-portal/components/ui/LoadMore'
 import { SCREEN_WIDTH, ScreenHeader } from '@/client-portal/components/ui/ScreenHeader'
+import { usePagedList } from '@/client-portal/hooks/usePagedList'
 import { useBookingRealtime } from '@/client-portal/hooks/useClientRealtime'
 import { LIcon } from '@/client-portal/icons/LucideIcon'
+import { sortFacets, type VenueTypeFacet } from '@/client-portal/lib/paging'
 
 /**
  * `#/bookings` — My Bookings. Prototype 1530–1605 and `paintBookings` (4864).
@@ -44,12 +45,13 @@ import { LIcon } from '@/client-portal/icons/LucideIcon'
  * shape this portal already uses for exactly that (`#/venues`' type dropdown), rather than as the
  * one chip row in the app.
  *
- * ── 🔴 WHICH FILTER RUNS WHERE, AND WHY IT IS NOT ARBITRARY ──
- * `q` and `sort` go to the server, because the endpoint implements precisely them. **`status` and
- * the venue type run in the browser**: the status buckets are derived from the clock
- * (`booking-state.ts` — a past `APPROVED` is `สิ้นสุดแล้ว`, and `ประวัติ` is four states at once),
- * so `?status=APPROVED` would answer a different question than the one the dropdown asks. The type
- * is on every row already, so a round trip would buy nothing.
+ * ── 🔴 EVERY FILTER RUNS ON THE SERVER NOW (`CLIENT-PAGINATION-1`) ──
+ * `q`, `sort`, the status bucket and the venue type are all query parameters, because the list is
+ * paginated and a filter applied to page 1 of 5 in the browser gives a wrong count and a "load more"
+ * that never ends. The status bucket is sent as `state`; the server mirrors `bookingState()` rule for
+ * rule. The type options come from `facets.venueTypes` — the categories in the reader's searched
+ * bookings — because page 1 no longer holds every row. The BADGE on each card is still
+ * `bookingState()` on the phone's clock.
  */
 
 /** How long after the last keystroke the search is sent. The list is server-side searched. */
@@ -59,17 +61,10 @@ export function MyBookingsPage() {
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
   const [status, setStatus] = useState<StatusFilter>('')
-  const [type, setType] = useState<string | null>(null)
+  /* The whole facet, not just its id: the trigger keeps printing the chosen name even if a later
+     search narrows the facets past it. */
+  const [type, setType] = useState<VenueTypeFacet | null>(null)
   const [sort, setSort] = useState<BookingSort>('created-desc')
-  const [rows, setRows] = useState<Booking[] | null>(null)
-  const [failure, setFailure] = useState<string | null>(null)
-  /**
-   * The refetch trigger. `silent` travels WITH the counter rather than in a ref, because `main.tsx`
-   * enables `StrictMode`: a ref consumed inside the effect is read twice in development, the second
-   * invocation takes the loud branch, and a live update would then behave differently on a dev
-   * machine than in LINE. As state, both invocations see the same value.
-   */
-  const [reload, setReload] = useState({ n: 0, silent: false })
 
   /* ⚠️ THE DEBOUNCE IS ON THE VALUE SENT, NOT ON THE INPUT — the field stays fully controlled and
      echoes every keystroke immediately; only the request waits. Debouncing the input itself is how
@@ -79,33 +74,21 @@ export function MyBookingsPage() {
     return () => clearTimeout(id)
   }, [query])
 
-  useEffect(() => {
-    let cancelled = false
-    if (!reload.silent) setFailure(null)
-    void (async () => {
-      try {
-        const data = await listMyBookings({ q: debounced || undefined, sort })
-        if (cancelled) return
-        /* Cleared on success rather than only at the top, so a silent refetch also takes down a
-           failure banner the reader never dismissed. */
-        setFailure(null)
-        setRows(data)
-      } catch (error) {
-        console.warn('[bookings] list failed:', error)
-        if (cancelled) return
-        /* ⚠️ A FAILED **BACKGROUND** REFETCH LEAVES THE LIST ALONE. `setRows([])` below is what
-           makes the "ยังไม่มีคำขอใช้สถานที่" empty state legal after a reader-initiated read that
-           failed — running it for a socket event nobody saw would wipe a correct list off the screen
-           and tell a person with eight bookings that they have never made one. Stale beats wrong. */
-        if (reload.silent) return
-        setFailure(messageFor(error))
-        setRows([])
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [debounced, sort, reload])
+  const list = usePagedList<Booking>({
+    label: 'bookings',
+    pageSize: BOOKINGS_PAGE_SIZE,
+    messageFor,
+    filterKey: JSON.stringify([debounced, status, type?.id ?? null, sort]),
+    fetchPage: (page, limit) =>
+      listMyBookings({
+        q: debounced || undefined,
+        sort,
+        state: status || undefined,
+        venueTypeId: type?.id,
+        page,
+        limit,
+      }),
+  })
 
   /* ── Live status changes (`CLIENT-REALTIME-1`) ───────────────────────────────────────────────
      `client.bookingUpdated` reaches `user:<cuid>` — this reader's own room — so every event it
@@ -113,29 +96,15 @@ export function MyBookingsPage() {
      four fields where a card needs the venue, the slots and the derived state, so the list is
      re-read rather than patched: a card assembled from the event would disagree with the same card
      after a refresh, which is the drift that makes two producers of one shape a bad idea.
-     ⚠️ NO SKELETON. The rows already on screen stay up until the new ones land — the placeholder is
-     entry-only (`rows === null`), and a background refresh never sets that back to `null`. */
-  useBookingRealtime(() => setReload((r) => ({ n: r.n + 1, silent: true })))
+     ⚠️ NO SKELETON, AND THE LOADED PAGES SURVIVE. `refreshSilently` re-reads everything already on
+     screen in one request (`usePagedList` rule 5), so an approval does not throw a reader who
+     scrolled through three pages back to the first ten. */
+  useBookingRealtime(list.refreshSilently)
 
-  /* 🔴 THE TYPE LIST COMES FROM THE BOOKINGS THAT EXIST, NOT FROM A WRITTEN-DOWN LIST — the same
-     rule `#/venues` follows. An option that matches nothing is a dead end, and a hard-coded
-     vocabulary drifts the moment an admin renames a category. */
-  const types = useMemo(() => {
-    const seen = new Set<string>()
-    for (const b of rows ?? []) seen.add(b.venue.venueType.name)
-    return [...seen].sort((a, b) => a.localeCompare(b, 'th'))
-  }, [rows])
+  const types = useMemo(() => sortFacets(list.facets.venueTypes), [list.facets])
 
-  const shown = useMemo(() => {
-    return (rows ?? []).filter((b) => {
-      if (type && b.venue.venueType.name !== type) return false
-      if (!status) return true
-      const state = bookingState(b)
-      return status === 'history' ? isHistory(state) : state === status
-    })
-  }, [rows, status, type])
-
-  const loading = rows === null
+  const rows = list.rows ?? []
+  const loading = list.rows === null
   const filtered = Boolean(debounced || status || type)
 
   const clearAll = () => {
@@ -193,7 +162,8 @@ export function MyBookingsPage() {
           </label>
 
           {/* Only offered when there is more than one type to choose between — a filter with a
-              single option is a control that cannot change anything. */}
+              single option is a control that cannot change anything. The facets ignore the type
+              filter, so picking one never hides this dropdown. */}
           {types.length > 1 ? (
             <Dropdown
               align="end"
@@ -203,7 +173,7 @@ export function MyBookingsPage() {
                   <LIcon name="building2" className="h-5 w-5 shrink-0" />
                   <span className="sr-only">ประเภทสถานที่:</span>
                   <span className="sr-only text-sm font-medium sm:not-sr-only">
-                    {type ?? 'ทุกประเภท'}
+                    {type?.name ?? 'ทุกประเภท'}
                   </span>
                   <LIcon
                     name="chevronDown"
@@ -223,14 +193,14 @@ export function MyBookingsPage() {
                 </button>
               </li>
               {types.map((t) => (
-                <li key={t}>
+                <li key={t.id}>
                   <button
                     type="button"
                     onClick={() => setType(t)}
-                    aria-pressed={type === t}
-                    className={type === t ? 'menu-active' : ''}
+                    aria-pressed={type?.id === t.id}
+                    className={type?.id === t.id ? 'menu-active' : ''}
                   >
-                    {t}
+                    {t.name}
                   </button>
                 </li>
               ))}
@@ -273,8 +243,13 @@ export function MyBookingsPage() {
 
         {/* ─── Count + sort ──────────────────────────────────────────────────────────── */}
         <div className="mt-3 flex items-center justify-between gap-2 text-xs text-base-content/70">
+          {/* The total is the SERVER's — "จาก N" appears only while pages remain. */}
           <p className="min-w-0 font-medium">
-            {loading ? '' : `แสดง ${shown.length} รายการ (${STATUS_LABEL[status]})`}
+            {loading
+              ? ''
+              : rows.length < list.total
+                ? `แสดง ${rows.length} จาก ${list.total} รายการ (${STATUS_LABEL[status]})`
+                : `แสดง ${list.total} รายการ (${STATUS_LABEL[status]})`}
           </p>
           {/* ── 🔴 TWO LABELS PER OPTION, AND THEY ARE NOT THE SAME WORDS ABBREVIATED ──
               The menu has to say which DATE it sorts by and in which direction
@@ -316,17 +291,14 @@ export function MyBookingsPage() {
           </Dropdown>
         </div>
 
-        {failure ? (
+        {list.failure ? (
           <div role="alert" className="mt-3 rounded-box border border-error/40 bg-base-100 p-4">
-            <p className="text-sm font-medium text-base-content">{failure}</p>
+            <p className="text-sm font-medium text-base-content">{list.failure}</p>
             <button
               type="button"
-              /* `silent: false` — the reader pressed this, so the skeleton is the right answer and
-                 a second failure has to be reported. */
-              onClick={() => {
-                setRows(null)
-                setReload((r) => ({ n: r.n + 1, silent: false }))
-              }}
+              /* The reader pressed this, so the skeleton is the right answer and a second failure
+                 has to be reported — `retry`, never `refreshSilently`. */
+              onClick={list.retry}
               className="btn btn-app btn-outline mt-3"
             >
               ลองใหม่อีกครั้ง
@@ -334,33 +306,43 @@ export function MyBookingsPage() {
           </div>
         ) : null}
 
-        <div className="mt-3 space-y-3 pb-8">
-          {loading
-            ? /* ⚠️ THE SKELETON HAS THE CARD'S PROPORTIONS — a header strip, three body lines and
-                 the grey capsule. A skeleton of a different height is a page that jumps when the
-                 data lands, which is the one thing a skeleton exists to prevent.
-                 ⚠️ It shows on ENTRY only, never while filtering: grey boxes flashing on every
-                 keystroke make a fast screen feel slow. */
-              Array.from({ length: 3 }, (_, i) => (
-                <div key={i} className="card overflow-hidden bg-base-100 shadow-sm">
-                  <div className="border-b border-base-300/60 px-4 py-2.5">
-                    <Skeleton className="h-4 w-2/3" />
+        <div className="mt-3 pb-8">
+          <div className="space-y-3">
+            {loading
+              ? /* ⚠️ THE SKELETON HAS THE CARD'S PROPORTIONS — a header strip, three body lines and
+                   the grey capsule. A skeleton of a different height is a page that jumps when the
+                   data lands, which is the one thing a skeleton exists to prevent.
+                   ⚠️ It shows on ENTRY only, never while filtering: grey boxes flashing on every
+                   keystroke make a fast screen feel slow. */
+                Array.from({ length: 3 }, (_, i) => (
+                  <div key={i} className="card overflow-hidden bg-base-100 shadow-sm">
+                    <div className="border-b border-base-300/60 px-4 py-2.5">
+                      <Skeleton className="h-4 w-2/3" />
+                    </div>
+                    <div className="card-body gap-2 p-4">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
                   </div>
-                  <div className="card-body gap-2 p-4">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-3 w-1/2" />
-                    <Skeleton className="h-16 w-full" />
-                  </div>
-                </div>
-              ))
-            : shown.map((b) => <BookingCard key={b.id} booking={b} />)}
+                ))
+              : rows.map((b) => <BookingCard key={b.id} booking={b} />)}
+          </div>
+
+          <LoadMore
+            hasMore={list.hasMore}
+            loading={list.loadingMore}
+            blocked={list.resetting}
+            failure={list.moreFailure}
+            onLoadMore={list.loadMore}
+          />
 
           {/* 🔴 TWO EMPTY STATES, BECAUSE THEY NEED DIFFERENT ACTIONS. "Nothing matched" is a dead
               end the reader built themselves, and the screen offers the button that undoes it —
               leaving them to switch each filter off puts the work of undoing the cause on the
               person who cannot see it. "You have never booked anything" cannot be fixed by a reset,
               so it offers the thing that actually helps: go and book something. */}
-          {!loading && !failure && shown.length === 0 ? (
+          {!loading && !list.failure && rows.length === 0 ? (
             filtered ? (
               <EmptyState
                 icon={<LIcon name="calendarCheck2" className="h-6 w-6" />}

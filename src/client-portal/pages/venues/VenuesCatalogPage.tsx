@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { VenueCard } from './components/VenueCard'
-import { listVenues, messageFor } from './venues-api'
+import { VENUES_PAGE_SIZE, listVenues, messageFor } from './venues-api'
 import { EmptyState } from '@/client-portal/components/feedback/EmptyState'
 import { Skeleton } from '@/client-portal/components/feedback/Skeleton'
 import { Dropdown } from '@/client-portal/components/ui/Dropdown'
+import { LoadMore } from '@/client-portal/components/ui/LoadMore'
+import { usePagedList } from '@/client-portal/hooks/usePagedList'
 import { LIcon } from '@/client-portal/icons/LucideIcon'
+import { sortFacets, type VenueTypeFacet } from '@/client-portal/lib/paging'
 import type { Venue } from '@/lib/api-client'
 
 /**
@@ -25,6 +28,13 @@ import type { Venue } from '@/lib/api-client'
  * `DECISIONS.md` §3.6 is still honoured — its rule is *chips wrap, never scroll horizontally*, and
  * its subject is `#mb-filter` on `#/bookings`. A dropdown cannot scroll horizontally at all.
  *
+ * ── 🔴 PAGINATED, SO THE SERVER FILTERS AND ORDERS (`CLIENT-PAGINATION-1`) ──
+ * The type, "open only" and the closed-venues-sink order all used to run in the browser over the
+ * whole list. Over pages that gives a wrong count, and re-sorting appended pages would shuffle cards
+ * the reader already scrolled past. All three are query parameters and the server's order
+ * (`isOpen DESC, name ASC, id ASC`) is rendered as received. The type options come from
+ * `facets.venueTypes`, because page 1 no longer holds every category.
+ *
  * ── 🔴 TWO COLUMNS AT `sm:`, AND NO THIRD STEP ──
  * `grid-cols-1 sm:grid-cols-2`, exactly. The first step must be `sm:` and not `md:`: a Honor Pad
  * X9A in portrait measures **≈670 CSS px**, below the `md` breakpoint of 768 despite being a
@@ -38,11 +48,10 @@ const DEBOUNCE_MS = 300
 export function VenuesCatalogPage() {
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
-  const [type, setType] = useState<string | null>(null)
+  /* The whole facet, not just its id: the trigger keeps printing the chosen name even if a later
+     search narrows the facets past it. */
+  const [type, setType] = useState<VenueTypeFacet | null>(null)
   const [openOnly, setOpenOnly] = useState(false)
-  const [venues, setVenues] = useState<Venue[] | null>(null)
-  const [failure, setFailure] = useState<string | null>(null)
-  const [reload, setReload] = useState(0)
 
   /* ⚠️ THE DEBOUNCE IS ON THE VALUE SENT, NOT ON THE INPUT. The field stays fully controlled and
      echoes every keystroke immediately; only the request waits. Debouncing the input itself is how
@@ -52,52 +61,25 @@ export function VenuesCatalogPage() {
     return () => clearTimeout(id)
   }, [query])
 
-  useEffect(() => {
-    let cancelled = false
-    setFailure(null)
-    void (async () => {
-      try {
-        const rows = await listVenues({ q: debounced || undefined })
-        if (!cancelled) setVenues(rows)
-      } catch (error) {
-        console.warn('[venues] list failed:', error)
-        if (!cancelled) {
-          setFailure(messageFor(error))
-          setVenues([])
-        }
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [debounced, reload])
+  const list = usePagedList<Venue>({
+    label: 'venues',
+    pageSize: VENUES_PAGE_SIZE,
+    messageFor,
+    filterKey: JSON.stringify([debounced, type?.id ?? null, openOnly]),
+    fetchPage: (page, limit) =>
+      listVenues({
+        q: debounced || undefined,
+        venueTypeId: type?.id,
+        status: openOnly ? 'open' : undefined,
+        page,
+        limit,
+      }),
+  })
 
-  /* 🔴 THE TYPE LIST COMES FROM THE VENUES THAT EXIST, NOT FROM A WRITTEN-DOWN LIST. A filter
-     option that matches nothing is a dead end, and a hard-coded vocabulary drifts the moment an
-     admin renames a category. */
-  const types = useMemo(() => {
-    const seen = new Map<string, string>()
-    for (const v of venues ?? []) seen.set(v.venueType.name, v.venueType.name)
-    return [...seen.keys()].sort((a, b) => a.localeCompare(b, 'th'))
-  }, [venues])
+  const types = useMemo(() => sortFacets(list.facets.venueTypes), [list.facets])
 
-  /* Type and open-only narrow the list in the browser; the search text goes to the server. The
-     split is not arbitrary — `q` is the one the endpoint implements, and the other two are
-     derived from fields already on every row, so a round trip would buy nothing. */
-  const shown = useMemo(() => {
-    const rows = (venues ?? []).filter(
-      (v) => (!type || v.venueType.name === type) && (!openOnly || v.isOpen),
-    )
-    /* 🔴 CLOSED VENUES SINK, AND NOTHING COMPETES WITH THAT ANY MORE. With the sort select gone
-       this is the primary order: bookable first, then by name. A venue that cannot be tapped —
-       and since the redesign it genuinely cannot — is not a result, so letting it head the list
-       gives the top of the page to a dead end. */
-    return rows.sort((a, b) =>
-      a.isOpen !== b.isOpen ? (a.isOpen ? -1 : 1) : a.name.localeCompare(b.name, 'th'),
-    )
-  }, [venues, type, openOnly])
-
-  const loading = venues === null
+  const rows = list.rows ?? []
+  const loading = list.rows === null
   const filtered = Boolean(debounced || type || openOnly)
 
   return (
@@ -114,7 +96,7 @@ export function VenuesCatalogPage() {
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-md px-4 pt-4 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl">
+      <div className="mx-auto w-full max-w-md px-4 pt-4 pb-8 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl">
         {/* ─── Search + type filter, one row ─────────────────────────────────────────── */}
         <div className="flex items-center gap-2">
           <label className="input input-lg flex min-w-0 flex-1 items-center gap-2 border-base-300 bg-base-100 shadow-2xs">
@@ -159,7 +141,7 @@ export function VenuesCatalogPage() {
                 <LIcon name="slidersHorizontal" className="h-5 w-5 shrink-0" />
                 <span className="sr-only">ประเภทสถานที่:</span>
                 <span className="sr-only text-sm font-medium sm:not-sr-only">
-                  {type ?? 'ทุกประเภท'}
+                  {type?.name ?? 'ทุกประเภท'}
                 </span>
                 <LIcon
                   name="chevronDown"
@@ -183,14 +165,14 @@ export function VenuesCatalogPage() {
               </button>
             </li>
             {types.map((t) => (
-              <li key={t}>
+              <li key={t.id}>
                 <button
                   type="button"
                   onClick={() => setType(t)}
-                  aria-pressed={type === t}
-                  className={type === t ? 'menu-active' : ''}
+                  aria-pressed={type?.id === t.id}
+                  className={type?.id === t.id ? 'menu-active' : ''}
                 >
-                  {t}
+                  {t.name}
                 </button>
               </li>
             ))}
@@ -201,9 +183,14 @@ export function VenuesCatalogPage() {
         <div className="mt-3 flex items-center justify-between gap-2 px-1">
           {/* 🔴 "แสดง N สถานที่" with no "· ปิดชั่วคราว N" tail. The tail existed because a closed
               card used to look like the others but fainter; now it carries a dark scrim and a red
-              badge across the photo, which says the same thing far more loudly. */}
+              badge across the photo, which says the same thing far more loudly.
+              The total is the SERVER's — "จาก N" appears only while pages remain. */}
           <p className="text-sm text-base-content/60">
-            {loading ? '' : `แสดง ${shown.length} สถานที่`}
+            {loading
+              ? ''
+              : rows.length < list.total
+                ? `แสดง ${rows.length} จาก ${list.total} สถานที่`
+                : `แสดง ${list.total} สถานที่`}
           </p>
           {/* ⚠️ `min-h-11`: the switch itself is 20 px tall, which passes no target guideline.
               THE PADDED LABEL IS THE TARGET, not the switch — an earlier attempt at `min-h-8`
@@ -221,15 +208,12 @@ export function VenuesCatalogPage() {
           </label>
         </div>
 
-        {failure ? (
+        {list.failure ? (
           <div role="alert" className="mt-3 rounded-box border border-error/40 bg-base-100 p-4">
-            <p className="text-sm font-medium">{failure}</p>
+            <p className="text-sm font-medium">{list.failure}</p>
             <button
               type="button"
-              onClick={() => {
-                setVenues(null)
-                setReload((n) => n + 1)
-              }}
+              onClick={list.retry}
               className="btn btn-app btn-outline mt-3"
             >
               ลองใหม่อีกครั้ง
@@ -257,15 +241,23 @@ export function VenuesCatalogPage() {
                   </div>
                 </div>
               ))
-            : shown.map((v) => <VenueCard key={v.id} venue={v} />)}
+            : rows.map((v) => <VenueCard key={v.id} venue={v} />)}
         </div>
+
+        <LoadMore
+          hasMore={list.hasMore}
+          loading={list.loadingMore}
+          blocked={list.resetting}
+          failure={list.moreFailure}
+          onLoadMore={list.loadMore}
+        />
 
         {/* 🔴 TWO DIFFERENT EMPTY STATES, BECAUSE THEY NEED DIFFERENT ACTIONS. "Nothing matched
             your filters" is fixed by clearing them, and the screen offers the button that does it
             — leaving the reader to switch each filter off themselves puts the work of undoing the
             cause on the person who cannot see it. "No venues exist at all" cannot be fixed by the
             reader, so offering a reset there would be a button that changes nothing. */}
-        {!loading && !failure && shown.length === 0 ? (
+        {!loading && !list.failure && rows.length === 0 ? (
           filtered ? (
             <EmptyState
               icon={<LIcon name="building2" className="h-6 w-6" />}
