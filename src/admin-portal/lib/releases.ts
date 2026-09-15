@@ -54,7 +54,7 @@ export interface Release {
 export const RELEASES: readonly Release[] = [
   {
     v: '0.15.0',
-    date: 'อยู่ระหว่างพัฒนา',
+    date: '15 ก.ย. 2569',
     groups: [
       {
         t: 'ใหม่',
