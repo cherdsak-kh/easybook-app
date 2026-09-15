@@ -54,6 +54,11 @@ export interface Release {
 /** Newest first. `VersionPage` relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '0.16.0',
+    date: 'อยู่ระหว่างพัฒนา',
+    groups: [],
+  },
+  {
     /*
      * Phase 7a — the settings branch. `x`, because it adds PAGES (`Q-C8`'s sizing rule).
      *
