@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { isInLineClient } from '@/lib/liff'
+import { legacyHashTarget } from '@/client-portal/lib/legacy-hash-link'
 // Eager (initial chunk): the LIFF client is the surface an end user opens, and its first paint
 // is the splash the gate runs behind. Waiting on a lazy chunk to start the four checks would add
 // a download to the one screen whose whole job is to be quick.
@@ -48,6 +49,36 @@ const BackendRoutes = lazy(() =>
     default: m.BackendRoutes,
   })),
 )
+
+/**
+ * 🔴 LEGACY HASH DEEP LINKS (`/#/booking/abc` → `/booking/abc`), FORWARDED ONCE AT MODULE LOAD.
+ *
+ * LINE cards sent before 15 ก.ย. 2569 link with `#/…`. This app routes on the path, so without the
+ * forward those links reached the gate at `/` and `GateLanding` sent them to `/home`.
+ *
+ * ⚠️ IT RUNS HERE, BEFORE `BrowserRouter` EXISTS, rather than as a `navigate()` in an effect:
+ *  - `main.tsx` imports this module before it calls `render()`, so the router's first location is
+ *    already the forwarded path. Nothing can redirect first: not `GateLanding`, not `GateGuard`'s
+ *    bounce, not the external-browser `<Navigate to="/backend">` below. Child effects run before a
+ *    parent's, so an effect here would lose that race to the last of those.
+ *  - `replaceState` adds no history entry, so Back never returns to the hash URL.
+ *  - `liff.state` needs nothing special. `liff.init()` settles it with `location.replace()`, a full
+ *    reload, so a legacy link arrives as a fresh load of `/#/booking/abc` and is forwarded then.
+ *    The query string is kept verbatim, so `liff.state`, `?code=` and `?gate=` are all still there
+ *    for `liff.init()`, `IS_DEV_GATE_BYPASS` and `readDevCase()`.
+ *  - LIFF's own `#access_token=…` hash is not `#/`, so it is left for `liff.init()` to read.
+ */
+function forwardLegacyHashLink() {
+  const target = legacyHashTarget(window.location.hash, window.location.search)
+  if (target === null) return
+  try {
+    window.history.replaceState(window.history.state, '', target)
+  } catch (error) {
+    // Fail soft: an unforwardable link lands where it did before, it never blanks the app.
+    console.warn('[route] legacy hash link not forwarded:', error)
+  }
+}
+forwardLegacyHashLink()
 
 /**
  * The escape hatch for the QA measurement runs: those drive the client gate from desktop Chrome

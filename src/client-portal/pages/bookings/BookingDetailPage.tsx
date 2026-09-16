@@ -51,7 +51,14 @@ import { TH_DOW_FULL, fmtD, fmtSlot, fmtT, fmtTe } from '@/client-portal/lib/for
  * levels stop being distinguishable at a glance.
  */
 
-/** The standing note each state gets under its heading. Prototype `BD_NOTE` (4941). */
+/**
+ * The standing note each state gets under its heading. Prototype `BD_NOTE` (4941).
+ *
+ * ⚠️ `approved` HAS NO ENTRY, ON PURPOSE (device test, 15 ก.ย. 2569). The prototype's "show this
+ * page to the building staff" note belonged to the retired digital-badge flow, so it is not
+ * restored from the prototype. A missing key renders no alert at all (`note ? … : null` below),
+ * never an empty box.
+ */
 const STATE_NOTE: Partial<
   Record<BookingState, { kind: string; icon: LIconName; text: string }>
 > = {
@@ -59,11 +66,6 @@ const STATE_NOTE: Partial<
     kind: 'alert-warning',
     icon: 'clock',
     text: 'เจ้าหน้าที่กำลังตรวจสอบคำขอของคุณ ผลการพิจารณาจะแจ้งเตือนผ่าน LINE Official Account',
-  },
-  approved: {
-    kind: 'alert-info',
-    icon: 'info',
-    text: 'กรุณาแสดงหน้านี้ต่อเจ้าหน้าที่ดูแลอาคารก่อนเข้าใช้สถานที่',
   },
   done: {
     kind: 'alert-info',
