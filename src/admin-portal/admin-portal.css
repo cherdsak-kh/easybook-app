@@ -1120,6 +1120,18 @@
 .nav-scroll::-webkit-scrollbar { width: 6px; }
 .nav-scroll::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--color-base-content) 25%, transparent); border-radius: 999px; }
 .nav-scroll::-webkit-scrollbar-track { background: transparent; }
+/* ⚠️ `scrollbar-gutter: stable` IS FOR THE VERTICAL SCROLLERS ONLY (Sidebar menu,
+   Topbar notification list). `.nav-scroll` is also borrowed for its thin scrollbar
+   by every HORIZONTAL scroller — the `.card-scroll` table wrappers and
+   `RequestStatusTabs`' strip — and on those it reserved a vertical gutter they
+   never use: `overflow-x: auto` computes `overflow-y` to `auto` too, and `stable`
+   keeps the slot open with nothing in it. Measured on the prototype at 1280px:
+   a 10px empty strip on the right of every table card, and tab strips centred
+   10px left of true. Those containers never scroll vertically (a desktop card is
+   as tall as its rows), so there is no shift for the gutter to prevent.
+   Same rule as the prototype's; (0,2,0) beats the rule above without `!`. */
+.card-scroll.nav-scroll,
+.nav-scroll.overflow-x-auto { scrollbar-gutter: auto; }
 /* Fade masks tell you there is more menu above/below without a scrollbar.
    Each edge only fades when there IS something past it — the widths are set
    from JS, and 0 collapses that stop so the gradient starts fully opaque.
