@@ -52,9 +52,6 @@ export interface PaginationBarProps {
 
 const DEFAULT_PAGE_SIZES: readonly number[] = [10, 20, 50]
 
-/** `ICON.caret` in `booking-icons.ts` — inlined, because `components/ui` does not import from pages. */
-const CARET = 'M19 9l-7 7-7-7'
-
 const BAR = 'flex shrink-0 flex-col items-center gap-3 border-t border-base-300 p-4 lg:flex-row lg:justify-between lg:px-5'
 
 export function PaginationBar({
@@ -101,33 +98,25 @@ export function PaginationBar({
 
       <label className="order-2 flex items-center gap-2 text-[14px] text-base-content/70 lg:order-none">
         <span className="shrink-0">แถวต่อหน้า</span>
-        <span className="form-shell relative">
-          {/* 44px like every other control here. It was `min-h-9` to keep the bar visually light and
-              measured 36px — under the minimum, on a control that sits between two rows of 44px
-              buttons. `.form-select` carries the floor. */}
-          <select
-            aria-label="จำนวนแถวต่อหน้า"
-            value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="form-select w-[4.5rem] pl-1 text-[14px] tabular-nums"
-          >
-            {sizes.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-          <svg
-            aria-hidden="true"
-            className="pointer-events-none absolute right-2 h-4 w-4 text-base-content/70"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.8}
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d={CARET} />
-          </svg>
-        </span>
+        {/* A plain daisyUI `select`, NO shell and NO drawn caret. The old `.form-select` forced
+            `appearance-none`, which is what made Chromium fall back to the square OS popup; daisyUI
+            opts into `appearance: base-select` where it is supported, so the list opens as the
+            rounded popover with a ✓ on the current size. ⛔ Do not add `appearance-none` back.
+            ⚠️ `select-sm` is 32px (12px type): this control no longer carries the 44px floor that
+            `.form-select`'s `min-h-11` gave it. Chosen on purpose in the 2026-09-21 select refactor;
+            if the floor is reinstated, the skeleton below must change with it. */}
+        <select
+          aria-label="จำนวนแถวต่อหน้า"
+          value={pageSize}
+          onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          className="select select-sm w-20 tabular-nums"
+        >
+          {sizes.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
       </label>
     </div>
   )
@@ -153,7 +142,8 @@ export function PaginationBarSkeleton({ className = '' }: { className?: string }
       </span>
       <span className="order-2 flex items-center gap-2 lg:order-none">
         <Skeleton variant="soft" className="h-3.5" width="4.5rem" />
-        <Skeleton variant="box" className="h-11 w-[4.5rem] rounded-control" />
+        {/* = the real `select select-sm w-20`: 32px × 80px. */}
+        <Skeleton variant="box" className="h-8 w-20 rounded-control" />
       </span>
     </div>
   )

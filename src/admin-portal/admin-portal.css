@@ -808,7 +808,7 @@
      `.login-x` rather than raw utilities for the two things that repeat
      across the login card and (next) the forced password-change card, so the
      two screens cannot drift into looking like different products. */
-  .login-eye { @apply -mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-base-content/60 transition-colors hover:text-base-content focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary; }
+  .login-eye { @apply -mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base-content/60 transition-colors hover:bg-base-content/10 hover:text-base-content focus-visible:bg-base-content/15 focus-visible:text-base-content focus-visible:outline-none; }
 
   /* The password policy, one line per rule.
      This WAS a single line and a note saying a checklist would be inventing
@@ -992,8 +992,9 @@
 
    Everything below this line is scoped by a class, a `data-*` attribute, or an
    ancestor that only exists inside the admin subtree — EXCEPT the four bare element
-   rules (`select option`, `select optgroup`, `dialog*`, `details > summary`), which
-   are wrapped in `[data-theme^="easybook-admin"]` for the same reason. */
+   rules (`select:not(.select) option`, `select:not(.select) optgroup`, `dialog*`,
+   `details > summary`), which are wrapped in `[data-theme^="easybook-admin"]` for the
+   same reason. */
 
 /* Thai needs vertical room for สระบน / สระล่าง / วรรณยุกต์ — a tight
    leading clips ํ ิ ี ึ ื ุ ู ่ ้ ๊ ๋ against the line above. */
@@ -1160,14 +1161,24 @@
    scrollbars, macOS's native popup, and any future date/time input.
 
    base-100, not base-200: the popup is a surface floating ABOVE the page, so
-   it takes the card colour, the same as every menu in this file. */
-[data-theme^="easybook-admin"] select option {
+   it takes the card colour, the same as every menu in this file.
+
+   ⚠️ `:not(.select)` — a daisyUI `select` does not have this bug, and giving
+   it the pair CAUSES one. Where `appearance: base-select` is supported, daisyUI
+   paints `::picker(select)` itself (base-100 surface, base-content text) and
+   gives each option a base-content 10% wash on :hover and :focus-visible, from
+   inside its layer. This rule is unlayered, so it beat that wash: the option
+   stayed an opaque base-100 at rest, hovered AND keyboard-focused, and with the
+   daisyUI `outline-style: none` on the focused option the picker showed no
+   highlight at all (measured 2026-09-21, both admin themes). Selects WITHOUT
+   `.select` still get the opaque pair they need. */
+[data-theme^="easybook-admin"] select:not(.select) option {
   background-color: var(--color-base-100);
   color: var(--color-base-content);
 }
 
 /* ⚠️ …and the <optgroup> LABEL is the SAME BUG one row higher, which the rule
-   above does not reach. `select option` matches the options inside a group —
+   above does not reach. The option rule matches the options inside a group —
    they are still <option>s — so the choices were opaque and readable while the
    heading that names them was not. Measured with the author rules reverted:
    background `rgba(0,0,0,0)` and colour `rgb(226,232,240)`, i.e. the dark
@@ -1180,8 +1191,12 @@
    base-content/70 would be the instinct for a heading, but this row is painted
    by the browser inside a popup no script in this file can measure, so it takes
    the full-strength token — one shade too light here is invisible rather than
-   merely subtle. */
-[data-theme^="easybook-admin"] select optgroup {
+   merely subtle.
+
+   `:not(.select)` for the same reason as the option rule above: inside a
+   daisyUI `select` the label sits on the base-100 picker in inherited
+   base-content, so the opaque pair is not needed there. */
+[data-theme^="easybook-admin"] select:not(.select) optgroup {
   background-color: var(--color-base-100);
   color: var(--color-base-content);
   font-weight: 600;

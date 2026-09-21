@@ -55,6 +55,7 @@ export function Field({
   errorId,
   children,
   className = '',
+  shell = true,
 }: {
   label: ReactNode
   error?: string
@@ -75,13 +76,23 @@ export function Field({
   errorId: string
   children: ReactNode
   className?: string
+  /**
+   * `false` drops the `.form-shell` frame and renders the control bare, for a control that draws
+   * its own surface, border and error tone — today only `SelectField`'s daisyUI `select`. The
+   * default stays `true`, so every <input>, the password field and `Combobox` are untouched.
+   */
+  shell?: boolean
 }) {
   return (
     <div className={className}>
       <label className="form-label" id={labelId} htmlFor={htmlFor}>
         {label}
       </label>
-      <div className={`form-shell ${error ? 'form-shell-err' : ''}`.trim()}>{children}</div>
+      {shell ? (
+        <div className={`form-shell ${error ? 'form-shell-err' : ''}`.trim()}>{children}</div>
+      ) : (
+        children
+      )}
       {/* Always present, hidden when empty — see the note at the top of this file. */}
       <p id={errorId} className={`form-err ${error ? '' : 'hidden'}`.trim()}>
         <ErrIcon />
@@ -171,28 +182,22 @@ export function SelectField({
       htmlFor={fieldId}
       errorId={errorId}
       className={className}
+      shell={false}
     >
+      {/* A plain daisyUI `select`: no `.form-shell`, no `.form-select`, no drawn caret. daisyUI
+          draws its own arrow and opts into `appearance: base-select` where supported, which is
+          what gives the rounded popover with a ✓ — `.form-select`'s `appearance-none` is what
+          forced the square OS popup. ⛔ Do not add `appearance-none` back. The error tone moves
+          from `form-shell-err` on the shell to `select-error` on the control itself. */}
       <select
         id={fieldId}
-        className="form-select"
+        className={`select w-full ${error ? 'select-error' : ''}`.trim()}
         aria-invalid={error ? true : undefined}
         {...select}
         aria-describedby={[select['aria-describedby'], errorId].filter(Boolean).join(' ')}
       >
         {children}
       </select>
-      {/* Decorative: `appearance-none` removed the UA's own arrow, so the field would
-          otherwise read as a text input that mysteriously opens a list. */}
-      <svg
-        aria-hidden="true"
-        className="pointer-events-none -ml-6 h-4 w-4 shrink-0 text-base-content/60"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        viewBox="0 0 24 24"
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-      </svg>
     </Field>
   )
 }

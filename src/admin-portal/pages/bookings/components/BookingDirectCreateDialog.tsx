@@ -186,54 +186,48 @@ function ClockGroup({
           Each select carries its own sr-only label so neither is announced as a bare number. */}
       <span className="form-label">{legend}</span>
       <div className="flex items-center gap-2">
+        {/* Plain daisyUI `select`s — no `.form-shell`, no `.form-select`, no drawn caret. See
+            `SelectField` for why `appearance-none` must not come back. `min-w-0 flex-1` replaces
+            the shell's: the pair shares the row, and daisyUI's own `width` (20rem) would not. */}
         <label className="sr-only" htmlFor={`${idBase}-h`}>
           {hourLabel}
         </label>
-        <div className="form-shell relative min-w-0 flex-1">
-          <select
-            id={`${idBase}-h`}
-            className="form-select tabular-nums"
-            aria-describedby={described}
-            value={hour}
-            onChange={(e) => onHour(e.target.value)}
-          >
-            {HOUR_OPTIONS.map((h) => (
-              <option key={h} value={h}>
-                {h}
-              </option>
-            ))}
-          </select>
-          <Glyph
-            d={ICON.caret}
-            className="pointer-events-none absolute right-3.5 h-4 w-4 text-base-content/70"
-          />
-        </div>
+        <select
+          id={`${idBase}-h`}
+          className="select select-sm min-w-0 flex-1 tabular-nums"
+          aria-describedby={described}
+          value={hour}
+          onChange={(e) => onHour(e.target.value)}
+        >
+          {HOUR_OPTIONS.map((h) => (
+            <option key={h} value={h}>
+              {h}
+            </option>
+          ))}
+        </select>
         <span aria-hidden="true" className="shrink-0 text-[15px] font-semibold text-base-content/60">
           :
         </span>
         <label className="sr-only" htmlFor={`${idBase}-m`}>
           {minuteLabel}
         </label>
-        <div className={`form-shell relative min-w-0 flex-1 ${pinned ? 'opacity-60' : ''}`.trim()}>
-          <select
-            id={`${idBase}-m`}
-            className="form-select tabular-nums"
-            aria-describedby={described}
-            disabled={pinned}
-            value={pinned ? '00' : minute}
-            onChange={(e) => onMinute(e.target.value)}
-          >
-            {MINUTE_OPTIONS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <Glyph
-            d={ICON.caret}
-            className="pointer-events-none absolute right-3.5 h-4 w-4 text-base-content/70"
-          />
-        </div>
+        {/* The pinned dimming is daisyUI's own `select:disabled` (base-200 fill, 40% text,
+            `not-allowed`), which replaces the old shell's `opacity-60`. Stacking the two would
+            fade the `00` past the point of reading, and the `00` is the explanation. */}
+        <select
+          id={`${idBase}-m`}
+          className="select select-sm min-w-0 flex-1 tabular-nums"
+          aria-describedby={described}
+          disabled={pinned}
+          value={pinned ? '00' : minute}
+          onChange={(e) => onMinute(e.target.value)}
+        >
+          {MINUTE_OPTIONS.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
         <span aria-hidden="true" className="shrink-0 text-[14px] text-base-content/70">
           น.
         </span>
