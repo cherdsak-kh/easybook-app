@@ -74,7 +74,7 @@ const THEMES: readonly { value: ThemeChoice; label: string; icon: LIconName }[] 
 
 /** The three help destinations. Same shape, same arrow, and since 1 ก.ย. 2569 the same behaviour. */
 const HELP_LINKS: readonly { to: string; label: string; icon: LIconName }[] = [
-  { to: '/issues', label: 'แจ้งปัญหาการใช้งานสถานที่', icon: 'circleAlert' },
+  { to: '/issues', label: 'แจ้งปัญหา / ข้อเสนอแนะ', icon: 'circleAlert' },
   { to: '/manual', label: 'คู่มือการใช้งานระบบ', icon: 'bookOpen' },
   { to: '/rules', label: 'ระเบียบและข้อกำหนดการใช้สถานที่', icon: 'fileText' },
 ]
@@ -438,12 +438,17 @@ export function SettingsPage() {
         <div className="card bg-base-100 shadow-sm">
           <div className="card-body gap-0 p-4">
             {/* ⚠️ TWO READ-ONLY LINES AND ONE TAPPABLE ROW — so `<p>`, `<p>`, `<Link>`, not three
-                identical-looking rows one of which is quietly clickable (1925). */}
-            <p className="flex min-h-11 items-center gap-3 text-sm">
+                identical-looking rows one of which is quietly clickable (1925).
+                ⚠️ THE TWO `<p>` ROWS CARRY `ROW`'S HORIZONTAL BOX — `-mx-2 w-full px-2` — so all
+                three dividers share one width and one start, and the three icons one x. `w-full` is
+                not optional: `ROW` has it, which pins the link's width to 100% and shifts it 8px
+                left without widening it; `-mx-2` alone on a `<p>` would widen it by 16px instead
+                and the dividers would end 16px apart on the right. */}
+            <p className="flex min-h-11 items-center gap-3 -mx-2 w-full px-2 text-sm">
               <LIcon name="info" className="h-5 w-5 shrink-0 text-base-content/70" />
               <span className="min-w-0">EasyBook Client Portal v{APP.version}</span>
             </p>
-            <p className="flex min-h-11 items-center gap-3 border-t border-base-300 text-sm">
+            <p className="flex min-h-11 items-center gap-3 -mx-2 w-full px-2 border-t border-base-300 text-sm">
               {/* The glyph changes with the state and the sentence says the same thing in words —
                   no meaning is carried by colour alone. */}
               <LIcon

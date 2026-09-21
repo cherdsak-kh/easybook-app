@@ -62,6 +62,10 @@ export const RELEASES: readonly Release[] = [
         items: [
           'รับการแจ้งเตือนอัตโนมัติผ่าน LINE เมื่อคำขอจองได้รับการอนุมัติ ปฏิเสธ ยกเลิก หรือหมดเวลาพิจารณา',
           'รับการแจ้งเตือนเตือนความจำล่วงหน้า 1 ชั่วโมงหรือ 30 นาที ก่อนถึงเวลาเริ่มใช้งานสถานที่ที่ได้รับการอนุมัติ',
+          /* ⚠️ THE LINE NAMES THE REFERENCE CODE, because that is the part of this screen a user
+             can meet and check — and it names the LINE OA as the reply channel rather than
+             promising a notification, which `CLIENT-NOTIFY-1` still does not send for this. */
+          'หน้า "แจ้งปัญหา / ข้อเสนอแนะ" ในเมนูตั้งค่า — แจ้งอุปกรณ์ชำรุดหรือส่งข้อเสนอแนะ ระบุสถานที่ แนบรูปได้สูงสุด 3 รูป และได้รับเลขอ้างอิงไว้สอบถามเจ้าหน้าที่ทาง LINE OA',
         ],
       },
       {

@@ -707,6 +707,23 @@ html[data-sheet-open], html[data-sheet-open] body { overflow: hidden; }
 .cbx-search::-webkit-search-cancel-button,
 .cbx-search::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
 
+/* ── The `#/issues` photo dropzone ────────────────────────────────────────────
+   Ported from the prototype's two rules at 308–309. They are CSS rather than utilities for
+   one reason each: `:has(:focus-visible)` styles the LABEL from the state of the real
+   `<input type="file">` hidden inside it — the input is `sr-only`, so keyboard focus would
+   otherwise be invisible — and the hover/drag pair has to resolve to the same declaration
+   from two different triggers.
+   ⚠️ THE DRAG STATE IS `[data-over]`, NOT THE PROTOTYPE'S `.is-over` CLASS. React drives it
+   from state, and this file's convention for a state written by a component is an attribute
+   (`[data-entered]`, `[data-sheet-open]`, `[data-theme-set]`) — a `classList.toggle` from
+   inside a render is the thing that convention exists to avoid. The declaration is unchanged.
+   ⚠️ `--color-primary` AS A BORDER IS SAFE IN BOTH CLIENT THEMES and was checked rather than
+   assumed (`CLAUDE.md` warns it is not guaranteed): `#047857` on white measures 5.48:1, and
+   `#34d399` on slate-900 far more. It is a state border and an outline here, never text. */
+.is-drop:hover,
+.is-drop[data-over] { border-color: var(--color-primary); background-color: var(--color-base-200); }
+.is-drop:has(:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
 /* 6. The admin portal's own component layer — 122 classes lifted verbatim from the
       prototype. Imported LAST so `@apply bg-base-100` resolves against the themes
       declared above. */

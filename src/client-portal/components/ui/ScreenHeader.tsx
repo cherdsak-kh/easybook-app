@@ -46,11 +46,27 @@ import { Breadcrumbs, type Crumb } from './Breadcrumbs'
  */
 export const SCREEN_WIDTH = 'mx-auto w-full max-w-md px-4 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl'
 
+/**
+ * The SHORT ladder, which stops two steps early. Used by `#/issues` and by nothing else yet.
+ *
+ * 🔴 IT IS A PROTOTYPE REQUIREMENT WITH A STATED REASON, NOT A PREFERENCE (proto 1728–1730):
+ * *"ฟอร์มข้อความยาว ๆ ที่กว้าง 1024px อ่านยากและช่อง textarea กลายเป็นแถบบาง"* — a long-form text
+ * screen at `lg:max-w-5xl` turns its `<textarea>` into a thin band, and the measure of the
+ * description field stops being readable. The header stops at the same width so the breadcrumbs
+ * stay flush with the left edge of the cards below them.
+ *
+ * ⚠️ A SCREEN PICKS ONE LADDER AND USES IT FOR BOTH ITS HEADER AND ITS BODY. Mixing them is what
+ * the `width` prop below exists to prevent: pass the same constant to `ScreenHeader` and to the
+ * content wrapper, or the two fall out of alignment at `md` and above.
+ */
+export const SCREEN_WIDTH_NARROW = 'mx-auto w-full max-w-md px-4 sm:max-w-2xl'
+
 export function ScreenHeader({
   title,
   subtitle,
   breadcrumbs,
   action,
+  width = SCREEN_WIDTH,
   children,
 }: {
   title: ReactNode
@@ -60,6 +76,11 @@ export function ScreenHeader({
   breadcrumbs?: readonly Crumb[]
   /** Trailing control on the title row — a filter button, a menu. Keep it ≥ 44 × 44. */
   action?: ReactNode
+  /**
+   * The width ladder, defaulting to {@link SCREEN_WIDTH}. Pass {@link SCREEN_WIDTH_NARROW} for a
+   * long-form screen — and pass the SAME constant to that screen's content wrapper.
+   */
+  width?: string
   /** Anything that must sit under the title inside the sticky bar (a search row, chips). */
   children?: ReactNode
 }) {
@@ -71,13 +92,13 @@ export function ScreenHeader({
         /* A second, fainter divider under the crumbs — `/60` so the two rows read as one bar
            with an internal seam, not as two stacked bars. */
         <div className="border-b border-base-300/60">
-          <div className={`${SCREEN_WIDTH} pb-2.5 pt-safe-lg`}>
+          <div className={`${width} pb-2.5 pt-safe-lg`}>
             <Breadcrumbs trail={breadcrumbs} className="text-xs text-base-content/60" />
           </div>
         </div>
       )}
 
-      <div className={`${SCREEN_WIDTH} ${twoTier ? 'py-3' : 'pb-3 pt-safe'}`}>
+      <div className={`${width} ${twoTier ? 'py-3' : 'pb-3 pt-safe'}`}>
         <div className="flex items-center gap-3">
           {/* `min-w-0` on the text column, or `truncate` on the title silently does nothing —
               a flex item's default `min-width: auto` refuses to shrink below its content. */}

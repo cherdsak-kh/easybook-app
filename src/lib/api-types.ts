@@ -1052,6 +1052,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/line-users/feedback/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload one feedback photo and get its URL back.
+         * @description Multipart, one part named `file`. The client uploads each photo AS IT IS PICKED and sends the returned URLs in `photos[]` on the submit call — there is no photo body on that call and no discard endpoint. The declared MIME is a first filter only: the real control is a MAGIC-BYTE sniff, and both the stored ContentType and the key extension come from the SNIFFED type, never from the filename. 🔴 JPEG and PNG only — webp is refused here even though the shared sniffer recognises it. Oversize is a **400**, not a 413. No CSRF token: this route is bearer-authenticated and cookieless.
+         */
+        post: operations["FeedbackController_uploadPhoto"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a facility issue or a suggestion.
+         * @description Creates one write-once `Feedback` row and answers with its human-readable `code` (`ISS-25690920-001` / `FDB-25690920-001`), which is the value the success dialog prints — the client never generates or guesses one. The caller must be `ALLOWED`. There is no `lineUserId` body field: the identity is the verified `sub`, resolved server-side to the cuid FK. `venueId` is optional — absent or `null` both persist as `ปัญหาทั่วไป / ไม่ระบุสถานที่`, and a CLOSED venue is accepted. There is deliberately no `category` field (`D-4`) and no status lifecycle in this cycle.
+         */
+        post: operations["FeedbackController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/version": {
         parameters: {
             query?: never;
@@ -2375,6 +2415,83 @@ export interface components {
             reason: string;
             /** @description Omit to cancel the WHOLE booking; supply ids to cancel only those slots. `[]` is a 400 (say what you mean), a duplicate id is a 400, an id belonging to another booking is a 400, and an id already cancelled is a 409. Explicit `null` is a 400 — it is not "omitted". */
             slotIds?: string[];
+        };
+        FeedbackPhotoUploadResponseDto: {
+            /**
+             * @description The durable https URL of the stored object. Hold it client-side and send it in `photos[]` on the submit call; there is no discard endpoint (an abandoned object is bounded and collectable later).
+             * @example https://cdn.example.org/feedback/0123456789abcdef0123456789abcdef.jpg
+             */
+            url: string;
+        };
+        /**
+         * @description What this is. `ISSUE` = แจ้งปัญหาการใช้งาน, `FEEDBACK` = ข้อเสนอแนะ. The wire format is the Prisma enum, UPPERCASE, like every other enum in this service; the prototype’s lowercase `issue`/`feedback` keys survive on the client as a field of its own `IS_TYPES` row.
+         * @enum {string}
+         */
+        FeedbackType: "ISSUE" | "FEEDBACK";
+        CreateFeedbackDto: {
+            /**
+             * @description What this is. `ISSUE` = แจ้งปัญหาการใช้งาน, `FEEDBACK` = ข้อเสนอแนะ. The wire format is the Prisma enum, UPPERCASE, like every other enum in this service; the prototype’s lowercase `issue`/`feedback` keys survive on the client as a field of its own `IS_TYPES` row.
+             * @example ISSUE
+             */
+            type: components["schemas"]["FeedbackType"];
+            /**
+             * @description The venue the report is about. Optional (AC-10): absent **or** an explicit `null` both persist as `ปัญหาทั่วไป / ไม่ระบุสถานที่`. Must be an existing, non-deleted venue — a CLOSED venue is accepted, because a closed room is exactly the kind somebody needs to report a problem about.
+             * @example clx0v3n0e0000abcd1234efgh
+             */
+            venueId?: string | null;
+            /**
+             * @description หัวข้อ — one line the triaging staff member reads first. Required, 1–100 characters after trimming.
+             * @example แอร์ห้องประชุม 1 ไม่เย็น
+             */
+            subject: string;
+            /**
+             * @description รายละเอียด. Required, 1–500 characters **after trimming** — exactly 500 is valid and 501 is not (E-9). Never truncated server-side.
+             * @example แอร์ตัวที่อยู่ฝั่งหน้าต่างไม่ทำงานมา 3 วันแล้วครับ
+             */
+            description: string;
+            /**
+             * @description URLs returned by `POST /line-users/feedback/photos`, in the order the reporter attached them. Absent and `[]` both mean none. 🔴 Every entry must be an object THIS deployment minted under its `feedback/` prefix — a foreign URL is a 400, never a stored link.
+             * @example [
+             *       "https://cdn.example.org/feedback/0123456789abcdef0123456789abcdef.jpg"
+             *     ]
+             */
+            photos?: string[];
+        };
+        FeedbackResponseDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /**
+             * @description The human-readable reference. 🔴 AC-37 — the dialog prints THIS value; the client never generates or guesses a code.
+             * @example ISS-25690920-001
+             */
+            code: string;
+            type: components["schemas"]["FeedbackType"];
+            /**
+             * @description Null for a general report (`ปัญหาทั่วไป / ไม่ระบุสถานที่`).
+             * @example clx0v3n0e0000abcd1234efgh
+             */
+            venueId: string | null;
+            /**
+             * @description The venue’s name as it was resolved at submit time. Null when `venueId` is null.
+             * @example ห้องประชุม 1
+             */
+            venueName: string | null;
+            /** @example แอร์ห้องประชุม 1 ไม่เย็น */
+            subject: string;
+            /** @example แอร์ตัวที่อยู่ฝั่งหน้าต่างไม่ทำงานมา 3 วันแล้วครับ */
+            description: string;
+            /**
+             * @description As stored, in attachment order. Empty when none were sent.
+             * @example [
+             *       "https://cdn.example.org/feedback/0123456789abcdef0123456789abcdef.jpg"
+             *     ]
+             */
+            photos: string[];
+            /**
+             * Format: date-time
+             * @example 2026-09-20T13:05:00.000Z
+             */
+            createdAt: string;
         };
         VersionResponseDto: {
             /**
@@ -6330,6 +6447,150 @@ export interface operations {
             };
             /** @description Session store unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    FeedbackController_uploadPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description JPEG or PNG. Max 5 MB.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackPhotoUploadResponseDto"];
+                };
+            };
+            /** @description No file, wrong field name, a second file, larger than 5 MB, or an unsupported/mismatched image type (a `.jpg`-named PDF lands here). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED (UNREGISTERED / PENDING / REJECTED / BLOCKED — one message for all four). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A deploy defect, never a client error: `LINE_LOGIN_CHANNEL_ID` unset, or R2 not configured on this deployment. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification unreachable, or the object store rejected the upload / was unreachable. Retryable. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    FeedbackController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateFeedbackDto"];
+            };
+        };
+        responses: {
+            /** @description Submitted, with its human-readable reference `code`. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackResponseDto"];
+                };
+            };
+            /** @description An unknown extra key, a missing/blank or over-long `subject` (100) or `description` (500, counted after trimming), more than 3 photos, a venue that does not exist or has been deleted, or a photo URL this deployment did not mint. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED (UNREGISTERED / PENDING / REJECTED / BLOCKED — one message for all four). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description `LINE_LOGIN_CHANNEL_ID` unset — a deploy defect, never a client error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
