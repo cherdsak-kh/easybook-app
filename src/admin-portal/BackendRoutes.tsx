@@ -24,6 +24,7 @@ import { AuthProvider } from './AuthProvider'
 import { BackendLayout } from './BackendLayout'
 import { NotFound } from '@/components/shared/NotFound'
 import { useAuth } from './lib/auth-context'
+import { BookingCalendarPage } from './pages/bookings/BookingCalendarPage'
 import { BookingRequestsPage } from './pages/bookings/BookingRequestsPage'
 import { BootScreen } from './pages/login/BootScreen'
 import { ComingSoonPage } from './pages/ComingSoonPage'
@@ -71,6 +72,8 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   // Stage A of three: the shell (toolbar, table, cards, pager). The five dialogs land in B/C, in
   // this same component — the route does not change again.
   คำขอจองสถานที่: (route) => <BookingRequestsPage route={route} />,
+  // The same records, laid out by day and room. Every write goes through คำขอจองสถานที่'s dialogs.
+  'ปฏิทินการจอง': (route) => <BookingCalendarPage route={route} />,
   // Reachable by all three roles (not in `VIEWER_DENY`); only the dialog's update card is write-only.
   'ข้อเสนอแนะ/แจ้งปัญหา': (route) => <FeedbackPage route={route} />,
 }

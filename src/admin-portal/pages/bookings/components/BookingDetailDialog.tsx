@@ -95,8 +95,11 @@ export function BookingDetailDialog({
   /**
    * The row this was opened from. It carries the code before the fetch lands, so the dialog can name
    * the record it is loading instead of showing a headed rectangle of bars.
+   *
+   * Only `code` is read. The type says so, so ปฏิทินการจอง can open this from a calendar slot, which
+   * has a code but is not a list item.
    */
-  row: BookingRequestListItem | null
+  row: Pick<BookingRequestListItem, 'code'> | null
   /** `null` while loading or after a failure — never a half-filled record. */
   detail: BookingRequestDetail | null
   loading: boolean

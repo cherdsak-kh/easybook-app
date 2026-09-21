@@ -952,6 +952,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/booking-requests/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ปฏิทินการจอง — every occupying slot in a window, one row per slot.
+         * @description Returns every NON-cancelled slot of an APPROVED or PENDING request on a non-deleted venue that OVERLAPS the half-open window `[from, to)` (`startAt < to AND endAt > from`). `from`/`to` default to the current Bangkok (UTC+7) month, through the same window logic as the LIFF venue calendar and master schedule. `to == from` → `[]`. One flat row per slot: a three-slot request is three rows sharing `bookingRequestId`/`code`, numbered by `slotIndex`/`slotCount` over the request’s live slots (not the window). `date`/`start`/`end` are Bangkok wall-clock strings; `end` is `24:00` for a slot ending at the next Bangkok midnight. Ordered by `startAt`, then APPROVED before PENDING, then `code`. Not paginated — the window is capped at 366 days.
+         */
+        get: operations["BookingRequestsController_calendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/booking-requests": {
         parameters: {
             query?: never;
@@ -2389,6 +2409,65 @@ export interface components {
             overlappingPendingRequests: components["schemas"]["BookingPreflightPendingDto"][];
             /** @description `Venue.isOpen`. Informational only: a CLOSED venue still accepts a direct booking, so the dialog shows an override note rather than blocking. */
             venueIsOpen: boolean;
+        };
+        CalendarBookingSlotDto: {
+            /** @description The `BookingSlot` cuid — one span. */
+            id: string;
+            /** @description The parent `BookingRequest` cuid — what `GET /booking-requests/:id` and the detail dialog open. */
+            bookingRequestId: string;
+            /** @example BR-25690903-001 */
+            code: string;
+            /**
+             * @description The parent request’s status. Only the two occupying statuses ever appear on the calendar.
+             * @enum {string}
+             */
+            status: "APPROVED" | "PENDING";
+            /** @example ประชุมผู้ปกครองระดับชั้น ม.3 */
+            purpose: string;
+            /**
+             * @description From the LINE registration when there is one, otherwise the staff requester override. Null is legitimate — a staff booking that named nobody.
+             * @example สมชาย ใจดี
+             */
+            requesterName: string | null;
+            /** @description The venue cuid (a string, never a number). */
+            venueId: string;
+            /** @example หอประชุมวารณ */
+            venueName: string;
+            /**
+             * Format: date-time
+             * @description Inclusive start instant. Spans are half-open `[startAt, endAt)`.
+             */
+            startAt: string;
+            /**
+             * Format: date-time
+             * @description Exclusive end instant.
+             */
+            endAt: string;
+            /**
+             * @description The Bangkok (UTC+7) calendar date of `startAt`, `YYYY-MM-DD` (Gregorian). A slot is listed on this date ONLY — never duplicated onto the next day, even if it ends there.
+             * @example 2026-09-18
+             */
+            date: string;
+            /**
+             * @description Bangkok wall-clock start, `HH:mm`.
+             * @example 09:00
+             */
+            start: string;
+            /**
+             * @description Bangkok wall-clock end, `HH:mm`. `24:00` when `endAt` is the Bangkok midnight right after `date`, so an end-of-day slot never reads as ending at `00:00`.
+             * @example 12:00
+             */
+            end: string;
+            /**
+             * @description 1-based position of this slot among its request’s NON-cancelled slots, by `startAt`. Counted over the whole request, not the window.
+             * @example 2
+             */
+            slotIndex: number;
+            /**
+             * @description How many non-cancelled slots the request has in total (the `m` of `ช่วงที่ n จาก m`). Counted over the whole request, not the window.
+             * @example 3
+             */
+            slotCount: number;
         };
         AdminBookingVenueDto: {
             id: string;
@@ -6284,6 +6363,62 @@ export interface operations {
             };
             /** @description Unknown or soft-deleted venue. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_calendar: {
+        parameters: {
+            query?: {
+                /** @description Inclusive start of the window. `YYYY-MM-DD` or `YYYY-MM-DDTHH:mm[:ss[.sss]]` with `Z` or `±HH:mm` — send an explicit offset, since Bangkok midnight is 17:00Z of the previous day. Defaults to the first instant of the current Bangkok (UTC+7) month. */
+                from?: string;
+                /** @description Exclusive end of the window, same format as `from`. Defaults to the first instant of the next Bangkok month. Earlier than `from` → 400; a window wider than 366 days → 400; equal to `from` → an empty array. */
+                to?: string;
+                /** @description Narrows to one venue (its cuid). An unknown or soft-deleted venue yields `[]`, not a 404. */
+                venueId?: string;
+                /** @description Narrows to one status. Absent → both. Any other value, including `REJECTED`/`CANCELLED`/`EXPIRED`, is a 400. */
+                status?: "APPROVED" | "PENDING";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The slots in the window. Possibly empty. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarBookingSlotDto"][];
+                };
+            };
+            /** @description Invalid query — a malformed `from`/`to`, `to` earlier than `from`, a window wider than 366 days, a `status` other than APPROVED/PENDING, or an unrecognised parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

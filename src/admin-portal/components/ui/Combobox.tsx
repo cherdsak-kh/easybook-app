@@ -161,6 +161,14 @@ const SHELL_BASE = '[&>.form-shell]:px-0'
  * the component already knows the answer.
  */
 const SHELL_OPEN = '[&>.form-shell]:border-primary/40 [&>.form-shell]:bg-base-100'
+/**
+ * The prototype's `.cbx-trigger-raised`: an OUTLINED white field, for a control that stands on the
+ * PAGE background rather than inside a card. The default filled shell is `bg-base-200`, the page's
+ * own colour, so out there the field vanishes and only its caption and chevron are left (measured on
+ * ปฏิทินการจอง's header). It yields to `SHELL_OPEN` while the popper is open, so the open-state lift
+ * is identical for both looks.
+ */
+const SHELL_RAISED = '[&>.form-shell]:border-base-content/20 [&>.form-shell]:bg-base-100'
 
 export function Combobox<T extends number | string>({
   options,
@@ -173,6 +181,7 @@ export function Combobox<T extends number | string>({
   disabled = false,
   required = false,
   searchable = true,
+  raised = false,
   icon,
   className = '',
   id,
@@ -203,6 +212,8 @@ export function Combobox<T extends number | string>({
    * control is identical, which is the point.
    */
   searchable?: boolean
+  /** Outlined on `bg-base-100` instead of filled, for a toolbar on the page background. See `SHELL_RAISED`. */
+  raised?: boolean
   /**
    * A glyph before the caption, inside the trigger.
    *
@@ -568,7 +579,9 @@ export function Combobox<T extends number | string>({
       htmlFor={fieldId}
       labelId={labelId}
       errorId={errorId}
-      className={[SHELL_BASE, open ? SHELL_OPEN : '', className].filter(Boolean).join(' ')}
+      className={[SHELL_BASE, open ? SHELL_OPEN : raised ? SHELL_RAISED : '', className]
+        .filter(Boolean)
+        .join(' ')}
     >
       <button
         type="button"

@@ -26,6 +26,7 @@ export function PageHeading({
   descAtEveryWidth,
   actions,
   titleExtra,
+  toolbar = false,
 }: {
   route: AdminRoute
   /**
@@ -68,6 +69,20 @@ export function PageHeading({
    * absent; a chip reading "0 …" still has to be read to be ignored.
    */
   titleExtra?: ReactNode
+  /**
+   * `actions` is a whole TOOLBAR (filters, a divider, a button), not one or two buttons. This is the
+   * prototype's ปฏิทินการจอง header, and it differs from the default row in two ways:
+   *
+   *  · the title block is `flex-1 basis-72`. Its line-breaking size is then 288px rather than the
+   *    one-line subtitle's ~430px, so the SUBTITLE wraps inside the block before the toolbar is pushed
+   *    onto a row of its own. Measured at 1280×800 without it: the toolbar dropped under the title,
+   *    the cards started 54px lower, and the locked month card scrolled inside itself;
+   *  · the row is `items-end`, with the prototype's `gap-x-4 gap-y-3`, so the toolbar sits on the
+   *    subtitle's baseline instead of floating halfway up a three-line block.
+   *
+   * Off by default, and the default renders exactly what it always did.
+   */
+  toolbar?: boolean
 }) {
   const subtitle = desc ?? route.desc
   /*
@@ -79,8 +94,14 @@ export function PageHeading({
    */
   const always = descAtEveryWidth ?? desc !== undefined
   return (
-    <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1 lg:mb-4">
-      <div className="min-w-0">
+    <div
+      className={
+        toolbar
+          ? 'mb-3 flex shrink-0 flex-wrap items-end justify-between gap-x-4 gap-y-3 px-1 lg:mb-4'
+          : 'mb-3 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1 lg:mb-4'
+      }
+    >
+      <div className={toolbar ? 'min-w-0 flex-1 basis-72' : 'min-w-0'}>
         {route.group && (
           <nav
             aria-label="เส้นทางปัจจุบัน"

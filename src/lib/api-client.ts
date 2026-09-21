@@ -228,6 +228,18 @@ export type PaginatedBookingRequests =
 export type BookingRequestDetail = components['schemas']['AdminBookingRequestDetailDto']
 
 /**
+ * `ปฏิทินการจอง` — ONE ROW PER SLOT, not per request. A booking for 8 / 15 / 22 ก.ย. is three
+ * occupations of a room, so it comes back as three rows sharing `bookingRequestId` and `code`, with
+ * `slotIndex`/`slotCount` saying which one each is.
+ *
+ * ⚠️ `date`, `start` AND `end` ARE ALREADY BANGKOK. Read them as given; never re-derive them from
+ * `startAt` with the browser's clock. `end` is `24:00` when the slot runs to the end of `date`, and a
+ * slot is listed on its start `date` only.
+ */
+export type CalendarBookingSlot = components['schemas']['CalendarBookingSlotDto']
+export type CalendarBookingStatus = CalendarBookingSlot['status']
+
+/**
  * One request that approving THIS one would auto-reject (ADR-001), named so the operator can see
  * whom they are about to bump before they commit.
  *
@@ -1188,6 +1200,45 @@ export async function listBookingRequests(
   if (params.sort) query.sort = params.sort
 
   const { data, error, response } = await api.GET('/api/v1/booking-requests', {
+    params: { query },
+  })
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+export interface GetBookingCalendarParams {
+  /**
+   * Inclusive and exclusive instants. Send `Date#toISOString()` (`…Z`). A bare `YYYY-MM-DD` is read
+   * as UTC midnight, which is 07:00 in Bangkok. Both absent = the current Bangkok month.
+   * `to < from` and a span over 366 days are 400s.
+   */
+  from?: string
+  to?: string
+  /** A cuid. An unknown id yields `[]`, not a 404. */
+  venueId?: string
+  /**
+   * ⚠️ `ปฏิทินการจอง` DOES NOT SEND THIS. Its clash banners are computed over the unfiltered window,
+   * so its status filter is applied in the browser. The parameter exists for other callers.
+   */
+  status?: CalendarBookingStatus
+}
+
+/**
+ * The slots overlapping `[from, to)` (`GET /booking-requests/calendar`), APPROVED and PENDING only,
+ * already sorted: `startAt`, then APPROVED before PENDING, then `code`. Never paginated.
+ */
+export async function getBookingCalendar(
+  params: GetBookingCalendarParams = {},
+): Promise<CalendarBookingSlot[]> {
+  const query: NonNullable<
+    paths['/api/v1/booking-requests/calendar']['get']['parameters']['query']
+  > = {}
+  if (params.from) query.from = params.from
+  if (params.to) query.to = params.to
+  if (params.venueId) query.venueId = params.venueId
+  if (params.status) query.status = params.status
+
+  const { data, error, response } = await api.GET('/api/v1/booking-requests/calendar', {
     params: { query },
   })
   if (!data) throw new ApiError(response.status, messageFrom(error, response))

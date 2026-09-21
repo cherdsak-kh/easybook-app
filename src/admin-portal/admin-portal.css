@@ -408,6 +408,184 @@
   .notif-sub          { @apply m-0 mt-0.5 text-[13px] leading-[1.45] text-base-content/70; }
   .notif-time         { @apply m-0 mt-1 text-[12px] text-base-content/70 tabular-nums; }
 
+  /* ── ปฏิทินการจอง ───────────────────────────────────────────────────
+     Every class the calendar module sets AT RUNTIME is defined here, because
+     the day cells and agenda cards are built by script and Tailwind's scanner
+     never reads a utility that only exists inside a JS string.
+
+     ⚠️ STATUS IS NEVER CARRIED BY COLOUR ALONE. อนุมัติแล้ว is a SOLID pill and
+     a FILLED dot; รอพิจารณา is a DASHED pill and a HOLLOW ring. Someone who
+     cannot tell emerald from amber can still tell a solid shape from an outline,
+     and the grey-scale print of this screen stays readable. */
+  .cal-nav-btn  { @apply grid h-11 w-11 shrink-0 place-items-center rounded-control border border-base-content/20 bg-base-100 text-base-content/80 transition-colors hover:bg-base-content/5 hover:text-base-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  .cal-dow      { @apply pb-2 text-center text-[12px] font-medium text-base-content/70 sm:text-[13px]; }
+  /* The cell. Centred number + dots on a phone (≈44px wide), number top-left
+     + pills from `lg`, where a column is ≈80px or more. */
+  .cal-day      { @apply relative flex min-h-14 min-w-0 cursor-pointer flex-col items-center gap-1 rounded-control border border-base-300/70 bg-base-100 px-0.5 py-1 text-base-content transition-colors hover:bg-base-content/5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary sm:min-h-20 lg:min-h-16 xl:min-h-[5.25rem] xl:items-stretch xl:p-1.5; }
+  .cal-day-out  { @apply border-transparent bg-base-200/50 text-base-content/60; }
+  .cal-day-sel  { @apply border-primary bg-primary/10 ring-2 ring-inset ring-primary hover:bg-primary/10; }
+  .cal-num      { @apply grid h-7 w-7 shrink-0 place-items-center rounded-full text-[13px] font-medium tabular-nums; }
+  .cal-num-today{ @apply bg-primary font-semibold text-primary-content; }
+  .cal-pills    { @apply hidden min-w-0 flex-col gap-1 xl:flex; }
+  /* ONE LINE, START TIME ONLY — the month is HALF the card (see the route
+     comment), so a day is a date picker with a density read-out, not a place
+     to print venue names. At `lg` a column is ≈37px and the cell shows DOTS;
+     from `xl` it is ≈57px, which holds "08:30" whole inside a solid
+     (approved) or dashed (pending) border. The venue lives in `title` and in
+     the agenda beside it. */
+  .cal-pill     { @apply block min-w-0 truncate rounded-[6px] border px-1 py-px text-center text-[11px] leading-4; }
+  .cal-pill-time { @apply tabular-nums font-semibold; }
+  .cal-pill-ok  { @apply border-success/30 bg-success/10 text-success; }
+  .cal-pill-wait{ @apply border-dashed border-warning/60 bg-warning/5 text-warning; }
+  .cal-dots     { @apply flex items-center justify-center gap-0.5 xl:hidden; }
+  .cal-dot      { @apply block h-2 w-2 shrink-0 rounded-full; }
+  .cal-dot-ok   { @apply bg-success; }
+  .cal-dot-wait { @apply border-[1.5px] border-warning bg-transparent; }
+  .cal-more     { @apply text-[11px] font-medium leading-4 text-base-content/70; }
+  /* The agenda card. The left rule repeats the status in the one place the eye
+     lands when scanning a column of cards top to bottom. */
+  /* Compact (17 ก.ย. 2569): three lines, `px-3 py-2.5`, ~90px. `relative` is
+     load-bearing — it is the box `.cal-item-open::after` stretches over, which
+     is what makes the whole card clickable. */
+  .cal-item     { @apply relative rounded-control border border-l-4 border-base-300 bg-base-100 px-3 py-2.5 transition-colors hover:bg-base-content/5; }
+  .cal-item-ok  { @apply border-l-success; }
+  .cal-item-wait{ @apply border-l-warning; }
+  .cal-item-open{ @apply -mr-1 grid h-6 w-6 shrink-0 place-items-center rounded-full text-base-content/60 after:absolute after:inset-0 after:rounded-control focus-visible:outline-none; }
+  .cal-clash    { @apply inline-flex items-center gap-1.5 rounded-full bg-error/10 px-2 py-0.5 text-[12px] font-medium text-error; }
+
+  /* ── The day TIMELINE — a resource schedule (PO evaluation, 21 ก.ย. 2569) ──
+     The right card default view; the agenda above is the รายการ view. Rows are
+     venues, columns are 24 hours of HOUR_WIDTH = 70px, so a bar is placed to
+     the minute: left = start / 60 * 70, width = duration / 60 * 70 with a 44px
+     floor. The module sets every one of these classes at runtime.
+     THREE STICKY LAYERS in ONE scroller: the ruler row (top), the venue names
+     (left), and the corner cell, which is sticky on both axes because it
+     lives inside the sticky ruler row. z-order: a hovered or focused bar 40
+     (its tooltip must clear both pinned layers) > ruler row 3 > names 2 >
+     bars. `isolation: isolate` keeps those numbers inside
+     the card, so a combobox popper or a tooltip is never drawn under a bar.
+     `--cal-venue-w` is the venue column (= w-36, sm:w-44) as ONE value,
+     because the scroll padding needs it too: a bar reached with Tab must not
+     scroll in UNDER the pinned names or the pinned ruler.
+     Grid lines sit at the END of each column (69px of every 70), so there is
+     no line at 00:00 doubling the venue column rule, and the 24:00 line is
+     inside the grid rather than 1px past its scrollable edge.
+     Status is never colour alone: อนุมัติแล้ว has a SOLID border, รอพิจารณา a
+     DASHED one, and a clash adds a red ring AND a red chip. The tints are
+     plain color-mix() over base-100 rather than slash-alpha utilities: they
+     are opaque, so the dashed half-hour lines never show through a bar. */
+  .cal-timeline-container {
+    --cal-venue-w: 9rem;
+    position: relative;
+    isolation: isolate;
+    overflow: auto;
+    overscroll-behavior-x: contain;
+    scroll-behavior: smooth;
+    scroll-padding: 36px 0 0 var(--cal-venue-w);
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--color-base-content) 25%, transparent) transparent;
+    @apply rounded-control border border-base-300 bg-base-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+  }
+  @media (min-width: 40rem) { .cal-timeline-container { --cal-venue-w: 11rem; } }
+  @media (prefers-reduced-motion: reduce) { .cal-timeline-container { scroll-behavior: auto; } }
+  /* `overflow: clip`, not `hidden`: clip makes no scroll container, so the
+     sticky ruler and names still stick to the scroller. What it stops is a
+     HIDDEN tooltip (opacity 0 is still a box) from growing the scroll area.
+     Measured: one venue row, 132px of content, scrolled 161px because the
+     first bar kept an invisible bubble hanging below the grid. */
+  .cal-timeline-grid { position: relative; width: max-content; min-width: 100%; overflow: clip; }
+  .cal-tl-head       { position: sticky; top: 0; z-index: 3; display: flex; height: 36px; }
+  .cal-venue-col-header {
+    position: sticky; top: 0; left: 0; z-index: 1; flex: none; width: var(--cal-venue-w);
+    @apply flex items-center border-b border-r border-base-300 bg-base-100 px-3 text-[12px] font-medium text-base-content/70;
+  }
+  /* The ruler: an hour tick 8px tall and a half-hour tick 4px tall along its
+     bottom edge; the labels sit above them, centred on their hour. */
+  .cal-time-header {
+    position: relative; flex: none; width: 1680px;
+    background-image:
+      repeating-linear-gradient(to right, transparent 0 69px, var(--color-base-300) 69px 70px),
+      repeating-linear-gradient(to right, transparent 0 34px, var(--color-base-300) 34px 35px, transparent 35px 70px);
+    background-size: 100% 8px, 100% 4px;
+    background-position: left bottom, left bottom;
+    background-repeat: no-repeat;
+    @apply border-b border-base-300 bg-base-100;
+  }
+  .cal-hour { position: absolute; top: 7px; translate: -50% 0; white-space: nowrap; @apply text-[12px] leading-4 text-base-content/70 tabular-nums; }
+  .cal-venue-row  { display: flex; @apply border-b border-base-300; }
+  .cal-venue-name {
+    position: sticky; left: 0; z-index: 2; flex: none; width: var(--cal-venue-w);
+    @apply flex items-center border-r border-base-300 bg-base-100 px-3 text-[13px] font-medium leading-[1.35] text-base-content;
+  }
+  .cal-venue-name > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  /* Solid hour lines on the track, dashed half-hour lines on its ::before
+     (a vertical mask cuts the solid line into dashes). ::before is the first
+     child, so the bars paint over it. */
+  .cal-track {
+    position: relative; flex: none; width: 1680px;
+    background-image: repeating-linear-gradient(to right, transparent 0 69px, var(--color-base-300) 69px 70px);
+  }
+  .cal-track::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: repeating-linear-gradient(to right, transparent 0 34px, var(--color-base-300) 34px 35px, transparent 35px 70px);
+    -webkit-mask-image: repeating-linear-gradient(to bottom, #000 0 3px, transparent 3px 6px);
+    mask-image: repeating-linear-gradient(to bottom, #000 0 3px, transparent 3px 6px);
+  }
+  /* NOT PORTED: the prototype daisyUI `tooltip` shim that sits here. The app
+     loads daisyUI 5 itself (`@plugin "daisyui"` in index.css), and the bars
+     wear the real classes. */
+
+  /* The bar is NOT `overflow: hidden` any more: daisyUI draws the tooltip
+     on the bar itself, and a clipping bar would cut its own bubble down to
+     32px. The clip moved to `.cal-bar-label`, which carries the padding the
+     bar used to have, so the clip box is the same padding box as before and
+     every bar measures and truncates exactly as it did.
+     ⚠️ `position: absolute` and `flex` LOSE here on every bar, because every
+     bar is also daisyUI `.tooltip` and `[data-tip]`. They are restated
+     unlayered after the `[data-tip]` block, with the reason. */
+  .cal-bar {
+    position: absolute; height: 32px; min-width: 44px; border-width: 1px; border-style: solid;
+    transition: background-color .15s ease, color .15s ease;
+    @apply flex items-center rounded-md text-left text-[12px] leading-4 shadow-sm;
+  }
+  .cal-bar-label { @apply flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden whitespace-nowrap rounded-[5px] px-2 py-1; }
+  /* Hovered or focused, the bar rises above its neighbours AND both pinned
+     layers, so its bubble is never drawn under the next bar, the ruler, or
+     the venue names. Plain CSS: a `hover:z-*` variant is not something the
+     CDN build can be trusted to emit. */
+  .cal-bar:hover, .cal-bar:focus-visible { z-index: 40; }
+  .cal-bar:focus-visible { @apply outline-2 outline-offset-2 outline-primary; }
+  /* The three `.cal-bar.tooltip[data-tip]` rules (the bubble aimed by
+     `--cal-tip-x` / `--cal-tail-x`, and the bubble on the bar OWN focus) are
+     UNLAYERED, after the `[data-tip]` block: daisyUI `.tooltip` outranks this
+     layer, so here they lost. */
+  /* Set by `aimTip` when no part of the bar is in view: its bubble stands
+     down and it goes back UNDER the pinned layers (z 1, as before). */
+  .cal-bar-away.tooltip[data-tip]::before, .cal-bar-away.tooltip[data-tip]::after { visibility: hidden; }
+  .cal-bar-away:hover, .cal-bar-away:focus-visible { z-index: 1; }
+  .cal-bar-ok   { border-color: var(--color-success); color: var(--color-success); background-color: color-mix(in oklab, var(--color-success) 10%, var(--color-base-100)); }
+  .cal-bar-wait { border-style: dashed; border-color: var(--color-warning); color: var(--color-warning); background-color: color-mix(in oklab, var(--color-warning) 10%, var(--color-base-100)); }
+  /* Hover deepens the tint, and the text moves toward base-content by the
+     same step so the pair keeps its contrast (a deeper tint alone took the
+     emerald text under 4.5:1 in light). */
+  @media (hover: hover) {
+    .cal-bar-ok:hover   { background-color: color-mix(in oklab, var(--color-success) 18%, var(--color-base-100)); color: color-mix(in oklab, var(--color-success) 80%, var(--color-base-content)); }
+    .cal-bar-wait:hover { background-color: color-mix(in oklab, var(--color-warning) 18%, var(--color-base-100)); color: color-mix(in oklab, var(--color-warning) 80%, var(--color-base-content)); }
+  }
+  /* A ring, not an outline: the outline is the focus indicator. */
+  .cal-bar-clash { @apply ring-2 ring-error; }
+  .cal-bar-chip  { @apply grid h-4 w-4 shrink-0 place-items-center rounded-full bg-error text-error-content; }
+  .cal-bar-ico   { @apply h-3 w-3 shrink-0; }
+  .cal-bar-text  { @apply min-w-0 truncate; }
+  .cal-bar-time  { @apply font-semibold tabular-nums; }
+  /* The ไทม์ไลน์ | รายการ switch. Radios, like `.rq-seg`, so the arrow keys
+     move between the two and the group has ONE tab stop; compact, because it
+     shares a row with the day title. */
+  .cal-view-seg { @apply inline-flex shrink-0 items-center gap-0.5 rounded-control bg-base-200 p-0.5; }
+  .cal-view-btn { @apply flex min-h-9 cursor-pointer items-center gap-1.5 rounded-[10px] px-2.5 text-[13px] font-medium text-base-content/70 transition-colors hover:text-base-content; }
+  .cal-view-btn:has(input:checked) { @apply bg-base-100 text-primary shadow-e1; }
+  .cal-view-btn:has(input:focus-visible) { @apply outline-2 outline-offset-2 outline-primary; }
+
   /* ── Modal ──────────────────────────────────────────────────────── */
   .field-row   { @apply flex flex-col gap-0.5 border-b border-base-300/60 py-2.5 last:border-0 sm:flex-row sm:items-baseline sm:gap-4; }
   .field-label { @apply shrink-0 text-[13px] text-base-content/70 sm:w-36; }
@@ -1170,6 +1348,27 @@
    Same rule as the prototype's; (0,2,0) beats the rule above without `!`. */
 .card-scroll.nav-scroll,
 .nav-scroll.overflow-x-auto { scrollbar-gutter: auto; }
+/* The agenda card's focus ring lives on the CARD, not on its 24px chevron —
+   see `#cal-item-tpl`. Plain CSS because `:has()` with a class inside is not a
+   variant this build's `@apply` can be trusted to emit. */
+.cal-item:has(.cal-item-open:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+/* ── ปฏิทินการจอง on a SHORT window (lg+, viewport < 960px tall) ─────────
+   The route is a locked dashboard (see its note): the month card gets exactly
+   the height the header leaves, and nothing scrolls the page. MEASURED at
+   1280×800: that height is 548px, and a five-week month with start-time pills
+   (`xl:min-h-[5.25rem]` cells) needed 677 — the card scrolled 131px inside
+   itself. Pills need an 84px cell; dots need 52. A SIX-week month with pills
+   needs a ≈703px card, which the header leaves only from ≈955px of viewport,
+   so below 960px the cells drop to dots and a 52px floor, and even six weeks
+   fit. The grid's `auto-rows-fr` then stretches the rows back up to fill the
+   card, so a five-week month does not sit in a short grid over empty space.
+   Unlayered on purpose: it has to beat `.cal-pills`' and `.cal-dots`'
+   `xl:flex` / `xl:hidden`, which live in `@layer components`. */
+@media (min-width: 64rem) and (max-height: 959.98px) {
+  [data-route="calendar"] .cal-day   { min-height: 3.25rem; }
+  [data-route="calendar"] .cal-pills { display: none; }
+  [data-route="calendar"] .cal-dots  { display: flex; }
+}
 /* Fade masks tell you there is more menu above/below without a scrollbar.
    Each edge only fades when there IS something past it — the widths are set
    from JS, and 0 collapses that stop so the gradient starts fully opaque.
@@ -1309,6 +1508,36 @@
 [data-tip-pos="bottom"]::after { bottom: auto; top: calc(100% + 6px); }
 /* Right-most row actions: keep the bubble inside the card edge. */
 [data-tip-pos="left"]::after { left: auto; right: 0; translate: 0 0; }
+
+/* ═══ ปฏิทินการจอง: the timeline bars wear daisyUI REAL `tooltip` ═══
+   The prototype re-creates daisyUI tooltip in a shim inside @layer
+   components, and there source order settles every conflict. The app loads
+   the real component, and the real one is STRONGER: daisyUI 5 emits
+   `.tooltip` inside `@layer utilities` (a nested daisyui.l1.l2.l3 layer),
+   which outranks @layer components whatever the specificity. So these
+   declarations lost where the rest of the `.cal-bar` port lives, and are
+   restated here, unlayered, where they win:
+     · the BAR: `position: absolute` and `display: flex`. daisyUI sets
+       `relative` + `inline-block`, and the [data-tip] block above sets
+       `relative` too. A relative bar is laid out in the row instead of
+       being placed by its `left` / `top`.
+     · the BUBBLE (::before): `z-index: auto` and left-aligned text, where
+       daisyUI sets 2 and centre. `--cal-tip-x` slides it (see `aimTip`).
+     · the bubble on the bar OWN focus. daisyUI only opens it for
+       `:has(:focus-visible)`, a focused DESCENDANT, and its opacity 0
+       outranks a layered rule, so Tab onto a bar showed nothing.
+   One repair is not about daisyUI: the [data-tip] block above draws its
+   OWN bubble on the `::after` of EVERY [data-tip] element, unlayered, so on
+   a bar it replaced daisyUI tail with a second, dark, one-line copy of the
+   text. `all: revert-layer` hands the bar ::after back to the layers
+   (daisyUI tail, plus `.cal-bar-away`) and leaves that block untouched for
+   the icon buttons that still use it. The prototype excludes `.tooltip`
+   from that block instead; that exclusion is deliberately not ported. */
+.cal-bar.tooltip[data-tip] { position: absolute; display: flex; }
+.cal-bar.tooltip[data-tip]::before { z-index: auto; white-space: normal; max-width: 20rem; text-align: left; translate: var(--cal-tip-x, 0px) 0; }
+.cal-bar.tooltip[data-tip]::after  { all: revert-layer; translate: var(--cal-tail-x, 0px) 0; }
+.cal-bar.tooltip[data-tip]:not([data-tip=""]):focus-visible::before,
+.cal-bar.tooltip[data-tip]:not([data-tip=""]):focus-visible::after { opacity: 1; --tt-pos: 0rem; transition-delay: 0s; }
 
 /* ═══ Detail modal ═══
    Native <dialog> + showModal(): the platform gives focus trapping, Esc to
