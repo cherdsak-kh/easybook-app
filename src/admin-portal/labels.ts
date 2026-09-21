@@ -129,3 +129,39 @@ export const BOOKING_ORIGIN_LABEL: Record<BookingOrigin, string> = {
   LINE: 'LINE',
   ADMIN: 'เจ้าหน้าที่',
 }
+
+/** `FeedbackType` — which of the client form's two switches a report came through. */
+export type FeedbackType = components['schemas']['FeedbackType']
+
+/** `FeedbackStatus` — the stored state. `DISMISSED` is in the enum but has no screen (OQ-1). */
+export type FeedbackStatus = components['schemas']['FeedbackStatus']
+
+/**
+ * The report's kind: its Thai name and the code pill's hue (`.fb-code-iss` red, `.fb-code-fdb`
+ * sky). One table, so a code, a tab and a type chip can never disagree about which hue means what.
+ */
+export const FEEDBACK_TYPE: Record<FeedbackType, { label: string; code: 'fb-code-iss' | 'fb-code-fdb' }> = {
+  ISSUE: { label: 'แจ้งปัญหาการใช้งาน', code: 'fb-code-iss' },
+  FEEDBACK: { label: 'ข้อเสนอแนะ', code: 'fb-code-fdb' },
+}
+
+/**
+ * The status vocabulary — tone plus a label PER TYPE.
+ *
+ * ⚠️ `RESOLVED` IS ONE STATE WITH TWO NAMES. A broken projector is `แก้ไขแล้ว`; a suggestion is
+ * `รับทราบแล้ว`. Printing "แก้ไขแล้ว" on a suggestion claims somebody fixed an idea. Only the
+ * status FILTER says both words (`แก้ไขแล้ว / รับทราบ`), because it spans both types.
+ *
+ * ⚠️ `DISMISSED` has no prototype label, state or badge (OQ-1): the API refuses to write it and the
+ * UI never offers it. It is here only because the generated union contains it and this record must
+ * be exhaustive — pending's tone and `ไม่ดำเนินการ`, per the design log (§5).
+ */
+export const FEEDBACK_STATUS: Record<
+  FeedbackStatus,
+  { tone: BadgeTone; label: Record<FeedbackType, string> }
+> = {
+  PENDING: { tone: 'amber', label: { ISSUE: 'รอดำเนินการ', FEEDBACK: 'รอดำเนินการ' } },
+  IN_PROGRESS: { tone: 'sky', label: { ISSUE: 'กำลังดำเนินการ', FEEDBACK: 'กำลังดำเนินการ' } },
+  RESOLVED: { tone: 'emerald', label: { ISSUE: 'แก้ไขแล้ว', FEEDBACK: 'รับทราบแล้ว' } },
+  DISMISSED: { tone: 'amber', label: { ISSUE: 'ไม่ดำเนินการ', FEEDBACK: 'ไม่ดำเนินการ' } },
+}

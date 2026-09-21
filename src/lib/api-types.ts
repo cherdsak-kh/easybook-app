@@ -1092,6 +1092,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List feedback and issue reports — the triage queue.
+         * @description Filtered and paginated by the server, newest first (ties broken on `code`, so the order is total). `type`, `status`, `venueId` and `q` combine with AND; `venueId=general` selects reports with no venue. `meta.total` is the FILTERED total. `counts` is GLOBAL — computed over the whole table and unaffected by any filter or page.
+         */
+        get: operations["AdminFeedbackController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feedback/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One report, with its photos and triage log.
+         * @description Addressed by cuid only — no `code` lookup. Adds `photos` (public URLs, stored order) and `logs` (`createdAt` ASC; `[]` for an untouched report) to the list shape. Reporter fields are all nullable: a missing registration is a 200 with nulls, never a 500. The LINE `U…` subject is never included.
+         */
+        get: operations["AdminFeedbackController_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Record a staff action — a status change, an internal note, or both.
+         * @description Every accepted save appends exactly ONE log entry whose `status` is the RESULTING status, authored by the session user (never the body). A status-only change logs `note: null`; a note-only save (status absent or unchanged) logs the current status and leaves the report untouched. Any state may move to any of `PENDING` / `IN_PROGRESS` / `RESOLVED` — there is no transition policy; `DISMISSED` is refused. The status write and the log insert are one transaction under a row lock. The note is internal and is never sent to the reporter. Answers with the updated detail.
+         */
+        patch: operations["AdminFeedbackController_update"];
+        trace?: never;
+    };
     "/api/v1/system/version": {
         parameters: {
             query?: never;
@@ -2492,6 +2536,159 @@ export interface components {
              * @example 2026-09-20T13:05:00.000Z
              */
             createdAt: string;
+        };
+        /** @enum {string} */
+        FeedbackStatus: "PENDING" | "IN_PROGRESS" | "RESOLVED" | "DISMISSED";
+        AdminFeedbackVenueDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /**
+             * @description Resolved as HISTORY: a venue soft-deleted after the report still shows its name (E-3).
+             * @example ห้องประชุม 1
+             */
+            name: string;
+        };
+        AdminFeedbackReporterDto: {
+            /** @example สมชาย */
+            firstName: string | null;
+            /** @example ใจดี */
+            lastName: string | null;
+            /** @example ครู */
+            personnelRoleName: string | null;
+            /** @example กลุ่มบริหารงานวิชาการ */
+            departmentName: string | null;
+            /** @example 081-234-5678 */
+            phone: string | null;
+            /**
+             * @description The LINE profile display name — the name shown when no registration exists.
+             * @example Somchai
+             */
+            lineDisplayName: string | null;
+            /**
+             * @description The LINE profile picture URL, or null if unset — the reporter card falls back to initials.
+             * @example https://profile.line-scdn.net/0hAbCdEf
+             */
+            pictureUrl: string | null;
+        };
+        AdminFeedbackListItemDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @example ISS-25690920-001 */
+            code: string;
+            type: components["schemas"]["FeedbackType"];
+            status: components["schemas"]["FeedbackStatus"];
+            /** @example แอร์ห้องประชุม 1 ไม่เย็น */
+            subject: string;
+            /** @example แอร์ตัวที่อยู่ฝั่งหน้าต่างไม่ทำงานมา 3 วันแล้วครับ */
+            description: string;
+            /**
+             * @description How many photos are attached. The list does not ship the URLs.
+             * @example 2
+             */
+            photoCount: number;
+            /** @description null = ปัญหาทั่วไป / ไม่ระบุสถานที่ */
+            venue: components["schemas"]["AdminFeedbackVenueDto"] | null;
+            reporter: components["schemas"]["AdminFeedbackReporterDto"];
+            /**
+             * Format: date-time
+             * @example 2026-09-20T13:05:00.000Z
+             */
+            createdAt: string;
+        };
+        FeedbackCountsDto: {
+            /**
+             * @description `status = PENDING` over the WHOLE table.
+             * @example 5
+             */
+            pendingCount: number;
+            /**
+             * @description `type = ISSUE` over the WHOLE table.
+             * @example 12
+             */
+            issueCount: number;
+            /**
+             * @description `type = FEEDBACK` over the WHOLE table.
+             * @example 8
+             */
+            feedbackCount: number;
+        };
+        PaginatedFeedbackResponseDto: {
+            data: components["schemas"]["AdminFeedbackListItemDto"][];
+            /** @description `total` is the count AFTER filters — what the pager needs. */
+            meta: components["schemas"]["PaginationMetaDto"];
+            /** @description GLOBAL: unaffected by `type` / `status` / `venueId` / `q` / `page` (AC-8). ทั้งหมด = issueCount + feedbackCount. */
+            counts: components["schemas"]["FeedbackCountsDto"];
+        };
+        FeedbackLogAuthorDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @example วีระ */
+            firstName: string;
+            /** @example ทองดี */
+            lastName: string;
+        };
+        FeedbackLogDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @description The status the report was LEFT in by this save — equal to the prior status on a note-only save. */
+            status: components["schemas"]["FeedbackStatus"];
+            /** @description Internal staff note — never sent to the reporter. null = a status-only change. */
+            note: string | null;
+            /**
+             * Format: date-time
+             * @example 2026-09-21T08:00:00.000Z
+             */
+            createdAt: string;
+            /** @description The staff member who saved it. null only when their account was hard-deleted. */
+            author: components["schemas"]["FeedbackLogAuthorDto"] | null;
+        };
+        AdminFeedbackDetailDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @example ISS-25690920-001 */
+            code: string;
+            type: components["schemas"]["FeedbackType"];
+            status: components["schemas"]["FeedbackStatus"];
+            /** @example แอร์ห้องประชุม 1 ไม่เย็น */
+            subject: string;
+            /** @example แอร์ตัวที่อยู่ฝั่งหน้าต่างไม่ทำงานมา 3 วันแล้วครับ */
+            description: string;
+            /**
+             * @description How many photos are attached. The list does not ship the URLs.
+             * @example 2
+             */
+            photoCount: number;
+            /** @description null = ปัญหาทั่วไป / ไม่ระบุสถานที่ */
+            venue: components["schemas"]["AdminFeedbackVenueDto"] | null;
+            reporter: components["schemas"]["AdminFeedbackReporterDto"];
+            /**
+             * Format: date-time
+             * @example 2026-09-20T13:05:00.000Z
+             */
+            createdAt: string;
+            /**
+             * @description Public URLs in stored (attachment) order (D-7). Rendered directly; the backend never fetches them.
+             * @example [
+             *       "https://cdn.example.org/feedback/0123456789abcdef0123456789abcdef.jpg"
+             *     ]
+             */
+            photos: string[];
+            /** @description `createdAt` ASC; `[]` for a report nobody has touched (there is no synthesised "submitted" entry). The UI reverses it for display (D-11). */
+            logs: components["schemas"]["FeedbackLogDto"][];
+        };
+        /**
+         * @description Target status. Any state may move to any of these three (no transition policy). `DISMISSED` is refused (400). Absent = keep the current status (a note-only save).
+         * @enum {string}
+         */
+        FeedbackUpdateStatus: "PENDING" | "IN_PROGRESS" | "RESOLVED";
+        UpdateFeedbackDto: {
+            /** @description Target status. Any state may move to any of these three (no transition policy). `DISMISSED` is refused (400). Absent = keep the current status (a note-only save). */
+            status?: components["schemas"]["FeedbackUpdateStatus"];
+            /**
+             * @description Internal note — staff-only, never sent to the reporter. Trimmed; blank = absent; at most 500 characters after trimming.
+             * @example ประสานช่างแอร์แล้ว นัดเข้าตรวจวันพรุ่งนี้ 10:00 น.
+             */
+            note?: string;
         };
         VersionResponseDto: {
             /**
@@ -6591,6 +6788,197 @@ export interface operations {
             };
             /** @description LINE verification endpoint unreachable (retryable). */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AdminFeedbackController_list: {
+        parameters: {
+            query?: {
+                /** @description 1-based page number. A page beyond the last returns `data: []` with a correct `meta`, not an error. */
+                page?: number;
+                /** @description Rows per page. Exactly 10, 20 or 50 — anything else is a 400, never clamped: the screen computes each row’s ordinal from the value it sent. */
+                limit?: 10 | 20 | 50;
+                /** @description Narrows to one type — the แจ้งปัญหา / ข้อเสนอแนะ tabs. */
+                type?: components["schemas"]["FeedbackType"];
+                /** @description Narrows to one stored status. */
+                status?: components["schemas"]["FeedbackStatus"];
+                /** @description A venue id (exact match; an unknown id yields an empty page, not a 400/404) or the literal `general` (reports with no venue — ปัญหาทั่วไป / ไม่ระบุสถานที่). Absent = all venues. */
+                venueId?: string;
+                /** @description Case-insensitive substring over the reference `code`, the `subject`, the reporter’s registered first/last name and their LINE display name. Trimmed; a leading `#` is stripped; empty → no filter. Does NOT search `description`. ⚠️ It cannot match across the space between a first and last name. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedFeedbackResponseDto"];
+                };
+            };
+            /** @description Invalid query — `limit` outside 10/20/50, `page` < 1, an unknown `type`/`status`, `q` over 100 characters, or an unrecognised parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AdminFeedbackController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFeedbackDetailDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or malformed id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AdminFeedbackController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateFeedbackDto"];
+            };
+        };
+        responses: {
+            /** @description Saved — the detail, already showing the new status and the appended log. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFeedbackDetailDto"];
+                };
+            };
+            /** @description Validation failed (an unknown key such as `authorId`, `status: DISMISSED` or `null`, a note over 500 characters after trimming, a non-string note) — or, as a single string, `Provide a new status or a non-blank note.` (neither was sent) / `No change: the status is unchanged and the note is blank.`. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or malformed id. Nothing is written. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A serialization failure or deadlock on the transaction (practically unreachable under the row lock). Retryable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

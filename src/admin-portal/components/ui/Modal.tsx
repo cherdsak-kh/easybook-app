@@ -41,6 +41,8 @@ export function Modal({
   bodyRef,
   dismissable = true,
   closeOnBackdrop = false,
+  bodyClassName = 'px-5 py-4',
+  overlay,
 }: {
   open: boolean
   onClose: () => void
@@ -111,6 +113,24 @@ export function Modal({
    * lose its input to a click that missed the panel. Ignored while `dismissable` is false.
    */
   closeOnBackdrop?: boolean
+  /**
+   * The scrolling body's padding and surface — the ONLY part of it a caller may change. The
+   * overflow and the height cap stay fixed below. Default is every other dialog's `px-5 py-4`.
+   *
+   * Exists for รายละเอียดเรื่องที่แจ้ง (ข้อเสนอแนะ/แจ้งปัญหา), whose body is six cards on a
+   * `bg-base-200` WELL with its own spacing — the prototype's `data-fb-scroll`.
+   */
+  bodyClassName?: string
+  /**
+   * A layer drawn OVER the whole panel — header, body and footer — as an absolutely positioned
+   * child of it. Passing the prop at all (even `null`) makes the panel `relative`, so the layer's
+   * `inset-0` resolves against the panel rather than the dialog.
+   *
+   * ⚠️ FOR A VIEWER INSIDE THIS DIALOG, NEVER A SECOND <dialog>. Two stacked modals paint
+   * `::backdrop` twice and leave two cards fighting for a phone's width. The feedback photo
+   * viewer (`FeedbackLightbox`) is the one consumer; it owns its own Escape handling.
+   */
+  overlay?: ReactNode
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
@@ -190,7 +210,7 @@ export function Modal({
       <div
         className={`mx-auto overflow-hidden rounded-card bg-base-100 shadow-e2 ${
           tall ? 'flex max-h-[88dvh] flex-col' : ''
-        }`.trim()}
+        } ${overlay !== undefined ? 'relative' : ''}`.trim()}
         style={{ width: `min(${width}px, calc(100vw - 24px))` }}
       >
         <div
@@ -231,7 +251,7 @@ export function Modal({
             rather than a variant. */}
         <div
           ref={bodyRef}
-          className={`overflow-y-auto px-5 py-4 ${tall ? 'min-h-0 flex-1' : 'max-h-[70dvh]'}`}
+          className={`overflow-y-auto ${bodyClassName} ${tall ? 'min-h-0 flex-1' : 'max-h-[70dvh]'}`}
         >
           {children}
         </div>
@@ -245,6 +265,8 @@ export function Modal({
             {footer}
           </div>
         )}
+
+        {overlay}
       </div>
     </dialog>
   )

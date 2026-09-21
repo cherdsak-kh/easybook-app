@@ -964,6 +964,43 @@
      hover, no pointer. Leaving it looking droppable invites a second drop that
      would silently replace the crop in progress. */
   .pf-drop-img{ @apply cursor-default border-solid border-base-300 bg-base-300/40 p-0 hover:bg-base-300/40; }
+
+  /* ── ข้อเสนอแนะ/แจ้งปัญหา (`/backend/feedback`) ─────────────────────────
+     Ported VERBATIM from the prototype (`.fb-*`, ~1357-1379). Component classes
+     rather than utilities because the code picks between them per record (ISS
+     vs FDB, a venue vs "ปัญหาทั่วไป").
+     ⚠️ `.fb-code` IS NOT `.badge`. The reference code and the status sit two
+     columns apart in the same row; an `FDB-` code in sky beside a
+     กำลังดำเนินการ badge in sky read as one fact printed twice. The code is
+     mono, bordered and 12.5px (a HANDLE, read out over the phone) and the status
+     keeps the badge shape every other queue uses. */
+  .fb-code     { @apply inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[12.5px] font-semibold tracking-tight whitespace-nowrap tabular-nums; }
+  .fb-code-iss { @apply border-error/35 bg-error/10 text-error; }
+  .fb-code-fdb { @apply border-info/35 bg-info/10 text-info; }
+  .fb-venue    { @apply block min-w-0 truncate text-[14px] text-base-content/90; }
+  .fb-general  { @apply inline-flex items-center whitespace-nowrap rounded-full bg-base-content/10 px-2 py-0.5 text-[12px] font-medium text-base-content/80; }
+  /* `[hidden]` restated: `.fb-photos` sets a display, and a class display beats
+     the UA `[hidden]{display:none}`. The React port renders the chip
+     conditionally, so this rule is defence only. */
+  .fb-photos   { @apply inline-flex shrink-0 items-center gap-1 rounded-full bg-base-content/10 px-1.5 py-0.5 text-[12px] font-medium text-base-content/80 tabular-nums; }
+  .fb-photos[hidden] { display: none; }
+  .fb-type     { @apply inline-flex items-center gap-1.5 rounded-full border border-base-content/20 px-2.5 py-1 text-[13px] font-medium text-base-content/80 whitespace-nowrap; }
+  .fb-thumb    { @apply relative block aspect-[16/10] w-full overflow-hidden rounded-control border border-base-300 bg-base-200 transition-[filter] hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  /* The photo viewer: an absolute layer INSIDE the detail dialog panel, never
+     a second <dialog> (two stacked modals paint ::backdrop twice). */
+  .fb-lightbox { @apply absolute inset-0 z-20 flex flex-col bg-black/90 p-3 sm:p-5; }
+  .fb-lb-btn   { @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-white/90 transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:pointer-events-none disabled:opacity-40; }
+  .fb-log      { @apply relative border-l-2 border-base-300 py-2 pl-4; }
+  .fb-log-dot  { @apply absolute -left-[7px] top-3.5 h-3 w-3 rounded-full border-2 border-base-100 bg-base-content/40; }
+  /* Detail-dialog section cards. `.fb-sec` deliberately sets NO display (the
+     prototype gates the update card with an attribute that loses to any
+     display value; the port renders it conditionally instead). The form
+     card primary edge is an inset shadow, not `border-l-4`, so its content box
+     stays aligned with the cards above it. */
+  .fb-sec      { @apply rounded-control border border-base-300 bg-base-100 p-4; }
+  .fb-sec-form { @apply border-primary/30 shadow-[inset_3px_0_0_var(--color-primary)]; }
+  .fb-sec-h    { @apply m-0 mb-3 flex items-center gap-2 text-[14px] font-semibold text-base-content; }
+  .fb-sec-ico  { @apply h-4.5 w-4.5 shrink-0 text-base-content/60; }
 }
 
 /* Plain CSS: only things Tailwind has no utility for (scrollbar, mask, marker). */

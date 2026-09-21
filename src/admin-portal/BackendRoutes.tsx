@@ -27,6 +27,7 @@ import { useAuth } from './lib/auth-context'
 import { BookingRequestsPage } from './pages/bookings/BookingRequestsPage'
 import { BootScreen } from './pages/login/BootScreen'
 import { ComingSoonPage } from './pages/ComingSoonPage'
+import { FeedbackPage } from './pages/feedback/FeedbackPage'
 import { ForcePasswordChangePage } from './pages/password/ForcePasswordChangePage'
 import { LineUsersPage } from './pages/line-users/LineUsersPage'
 import { LoginPage } from './pages/login/LoginPage'
@@ -70,6 +71,8 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   // Stage A of three: the shell (toolbar, table, cards, pager). The five dialogs land in B/C, in
   // this same component — the route does not change again.
   คำขอจองสถานที่: (route) => <BookingRequestsPage route={route} />,
+  // Reachable by all three roles (not in `VIEWER_DENY`); only the dialog's update card is write-only.
+  'ข้อเสนอแนะ/แจ้งปัญหา': (route) => <FeedbackPage route={route} />,
 }
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */

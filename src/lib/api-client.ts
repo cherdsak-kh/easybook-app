@@ -98,8 +98,11 @@ api.use(csrfMiddleware)
 /**
  * Run an unsafe request; if it 403s (a stale/rotated CSRF token is the common
  * cause), drop the cached token and retry exactly once with a fresh one.
+ *
+ * Exported for page-local API seams (`admin-portal/pages/feedback/feedback-api.ts`)
+ * that must keep this retry-once behaviour on their own unsafe calls.
  */
-async function withCsrfRetry<T extends { response: Response }>(
+export async function withCsrfRetry<T extends { response: Response }>(
   fn: () => Promise<T>,
 ): Promise<T> {
   const first = await fn()

@@ -25,6 +25,7 @@ export function PageHeading({
   // means "decide from `desc`" and the second means "hide it below `sm`".
   descAtEveryWidth,
   actions,
+  titleExtra,
 }: {
   route: AdminRoute
   /**
@@ -61,6 +62,12 @@ export function PageHeading({
    * and everything in it down by exactly the `lg:mb-4`.
    */
   actions?: ReactNode
+  /**
+   * Rendered INSIDE the `<h1>`, after the label — a count chip that is what the page is worth
+   * opening for (ข้อเสนอแนะ/แจ้งปัญหา's `N รายการรอดำเนินการ`). The caller decides when it is
+   * absent; a chip reading "0 …" still has to be read to be ignored.
+   */
+  titleExtra?: ReactNode
 }) {
   const subtitle = desc ?? route.desc
   /*
@@ -98,6 +105,7 @@ export function PageHeading({
 
         <h1 className="text-[18px] font-semibold text-base-content th-tight sm:text-[22px]">
           {route.label}
+          {titleExtra}
         </h1>
 
         <p
