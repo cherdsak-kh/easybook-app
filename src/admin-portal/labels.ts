@@ -187,18 +187,31 @@ export const ANNOUNCEMENT_STATUS: Record<AnnouncementStatus, { label: string; to
   DRAFT: { label: 'ฉบับร่าง', tone: 'amber' },
 }
 
+/** The list's format badge AND the compose dialog's choice — one spelling (phase 4 A-1). */
 export const ANNOUNCEMENT_FORMAT: Record<AnnouncementFormat, string> = {
   TEXT: 'ข้อความธรรมดา',
-  FLEX: 'การ์ดประกาศ',
+  FLEX: 'การ์ด Flex Message',
 }
 
 /**
  * ⚠️ `DEPARTMENT` IS A PREFIX — the department's own name follows it (`กลุ่ม/ฝ่าย · ชื่อ`), and a
  * hard-deleted one reads `(ถูกลบแล้ว)`. See `audienceLabel` in the announcements page folder.
+ *
+ * `ALL` is `บุคลากรทั้งหมด` since phase 4 (A-1): the audience is approved personnel, and the list row
+ * and the compose dialog now say the same word for the same value.
  */
 export const ANNOUNCEMENT_AUDIENCE: Record<AnnouncementAudience, string> = {
-  ALL: 'ผู้ใช้ LINE ทั้งหมด',
+  ALL: 'บุคลากรทั้งหมด',
   DEPARTMENT: 'กลุ่ม/ฝ่าย',
+}
+
+/**
+ * The compose dialog's กลุ่มผู้รับ CHOICES. `DEPARTMENT` is a whole option here, not a prefix, so it
+ * needs its own words; `ALL` points at the map above so it has exactly one spelling.
+ */
+export const ANNOUNCEMENT_AUDIENCE_CHOICE: Record<AnnouncementAudience, string> = {
+  ALL: ANNOUNCEMENT_AUDIENCE.ALL,
+  DEPARTMENT: 'เฉพาะกลุ่ม/ฝ่าย',
 }
 
 /**

@@ -1,12 +1,19 @@
 /**
- * `ประกาศและข่าวสาร` — `/backend/announcements`. Phase 3 of 4: READ-ONLY.
+ * `ประกาศและข่าวสาร` — `/backend/announcements`.
  *
  * Two jobs on one page, and they are deliberately not the same kind of tool (prototype 6754–6926):
- *   · LEFT  — the broadcasts WE own: list, filter and search announcements (`GET /announcements`).
+ *   · LEFT  — the broadcasts WE own: list, filter and search announcements (`GET /announcements`),
+ *             and — since phase 4 (`ANNOUNCE-UI-4`) — compose, edit, delete and send them through
+ *             `AnnouncementDialog`.
  *   · RIGHT — one-to-one chat, which we do NOT rebuild: the OA's identity and reply mode
  *             (`GET /announcements/line-bot-info`), canned replies to copy, and one link that opens
  *             LINE's own console in a new tab (LINE refuses to be framed).
- * Compose, edit, delete and send are phase 4 (`ANNOUNCE-UI-4`).
+ *
+ * ── The dialog ──
+ * This page owns only whether it is open and what it was opened with (`dlg`), and re-keys it on
+ * every open (`seq`). Everything inside — form, record, mode, the send lock — is the dialog's. After
+ * any write attempt that reached the server the dialog calls `onChanged`, which re-reads the list AND
+ * both counts; the counts keep their numbers during that refresh instead of flashing `—` (A-10).
  *
  * ── Filtering and paging are server-side, and the state is the component's ──
  * `status` (the tab), `q`, `page` and `limit` are query parameters; this component holds one page of
@@ -16,20 +23,21 @@
  * `counts` block, so on entry two more calls — `status=sent` and `status=draft`, `limit=10`, no `q` —
  * are read for their `meta.total`. ทั้งหมด is their sum, which is exact because the status enum has
  * only those two values. They do NOT move while searching or paging, and they are re-read only on
- * entry and on the list's error retry. A failed count reads `—`, never a made-up 0. Do not "fix" a
- * pill by counting `rows`: that would count the PAGE.
+ * entry, on the list's error retry and after a write. A failed count reads `—`, never a made-up 0.
+ * Do not "fix" a pill by counting `rows`: that would count the PAGE.
  *
  * ⚠️ UNDER <StrictMode> THE DEV SERVER FIRES EVERY ENTRY REQUEST TWICE (design S-9) — two identical
  * triples of list calls, two bot-info calls — and the `seq` guards keep only the newest. That is
  * StrictMode doing its job; do not add a ref latch that skips the second mount.
  *
  * ── Three roles ──
- * All three read everything here. Only `acl.write` renders the divider and `+ สร้างประกาศใหม่`
- * (plan D-7) — which in phase 3 is `aria-disabled` and only explains itself (plan D-3). The server's
- * `@Roles` is the control.
+ * All three read everything here, and every row opens (`view` for a VIEWER, or for anyone on a SENT
+ * row). Only `acl.write` renders the divider and `+ สร้างประกาศใหม่` (plan D-7) and gets `edit` on a
+ * DRAFT. The server's `@Roles` is the control.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { ApiError } from '@/lib/api-client'
 import { LoadError, type LoadErrorKind } from '../../components/feedback/LoadError'
 import { PageHeading } from '../../components/shell/PageHeading'
@@ -38,7 +46,6 @@ import { PaginationBar, PaginationBarSkeleton } from '../../components/ui/Pagina
 import { useAcl } from '../../lib/use-acl'
 import { useAuth } from '../../lib/auth-context'
 import { thaiTime } from '../../lib/thai-date'
-import { useToast } from '../../lib/toast-context'
 import type { AdminRoute } from '../../routes'
 import {
   getLineBotInfo,
@@ -48,7 +55,9 @@ import {
   type AnnouncementStatusFilter,
   type OaState,
 } from './announcements-api'
+import type { DialogMode } from './announcement-form'
 import { ICON } from './announcement-icons'
+import { AnnouncementDialog } from './components/AnnouncementDialog'
 import { Glyph } from './components/AnnouncementGlyph'
 import { AnnouncementRow, EmptyBox, ListSkeleton } from './components/AnnouncementRows'
 import { CannedRepliesCard } from './components/CannedRepliesCard'
@@ -70,6 +79,12 @@ const TABS: readonly { key: AnnouncementStatusFilter; label: string }[] = [
 /** `null` = still loading OR failed; both render `—`. */
 type Counts = { sent: number | null; draft: number | null }
 
+/**
+ * `open: false` KEEPS `seq`, so the same dialog instance stays mounted for the close commit — the
+ * `Modal` rule: `close` fires and the opener gets focus back. The next open bumps `seq` and re-keys it.
+ */
+type DialogState = { open: boolean; seq: number; mode: DialogMode; record: Announcement | null }
+
 /** `ApiError` → which error panel. A 401 has already raised the session-expired dialog. */
 const kindOf = (err: unknown): LoadErrorKind => {
   const status = err instanceof ApiError ? err.status : 0
@@ -81,7 +96,16 @@ const kindOf = (err: unknown): LoadErrorKind => {
 export function AnnouncementsPage({ route }: { route: AdminRoute }) {
   const { user } = useAuth()
   const acl = useAcl(user!.role)
-  const toast = useToast()
+
+  /* ── the dialog ── */
+  const [dlg, setDlg] = useState<DialogState>({ open: false, seq: 0, mode: 'create', record: null })
+  /** The row button or the create button that opened it — where focus goes back after a re-read. */
+  const anchor = useRef<HTMLElement | null>(null)
+  /** Set by a close that a list re-read will follow; spent by the next committed rows. */
+  const refocus = useRef(false)
+  /** A `load` is in flight — whether a close can leave the refocus to the rows effect. */
+  const listLoading = useRef(false)
+  const listHead = useRef<HTMLHeadingElement>(null)
 
   /* ── the list ── */
   const [rows, setRows] = useState<Announcement[] | null>(null)
@@ -123,6 +147,7 @@ export function AnnouncementsPage({ route }: { route: AdminRoute }) {
 
   const load = useCallback(async () => {
     const seq = ++loadSeq.current
+    listLoading.current = true
     setError(null)
     try {
       const res = await listAnnouncements({ page, limit, status: tab, q: query || undefined })
@@ -140,8 +165,12 @@ export function AnnouncementsPage({ route }: { route: AdminRoute }) {
       announced.current = true
     } catch (err) {
       if (seq !== loadSeq.current) return
+      // No rows are coming, so no refocus either — a stale flag would steal focus on a later load.
+      refocus.current = false
       setRows(null)
       setError(kindOf(err))
+    } finally {
+      if (seq === loadSeq.current) listLoading.current = false
     }
   }, [page, limit, tab, query])
 
@@ -149,10 +178,14 @@ export function AnnouncementsPage({ route }: { route: AdminRoute }) {
     void load()
   }, [load])
 
-  /** Both pills from their own `meta.total`, settled independently — one failure is one `—`. */
-  const loadCounts = useCallback(async () => {
+  /**
+   * Both pills from their own `meta.total`, settled independently — one failure is one `—`.
+   * `keep` (after a write) skips the reset, so the pills hold their numbers during the refresh
+   * instead of flashing `—` (A-10).
+   */
+  const loadCounts = useCallback(async (keep = false) => {
     const seq = ++countsSeq.current
-    setCounts({ sent: null, draft: null })
+    if (!keep) setCounts({ sent: null, draft: null })
     const [sent, draft] = await Promise.allSettled([
       listAnnouncements({ page: 1, limit: 10, status: 'sent' }),
       listAnnouncements({ page: 1, limit: 10, status: 'draft' }),
@@ -206,8 +239,67 @@ export function AnnouncementsPage({ route }: { route: AdminRoute }) {
     return counts.sent !== null && counts.draft !== null ? counts.sent + counts.draft : '—'
   }
 
-  /** Phase 3: explains itself, opens nothing, sends nothing (plan D-3). */
-  const onCreate = () => toast('info', 'การสร้างประกาศจะเปิดใช้งานในระยะถัดไป')
+  /* ── the dialog: open, close, and focus after a re-read ── */
+
+  const openCreate = (e: MouseEvent<HTMLButtonElement>) => {
+    anchor.current = e.currentTarget
+    setDlg((d) => ({ open: true, seq: d.seq + 1, mode: 'create', record: null }))
+  }
+
+  /** From the ROW DATA — list and detail share `AnnouncementDto`, so there is no spinner (D-10). */
+  const openRow = useCallback(
+    (item: Announcement, opener: HTMLElement) => {
+      anchor.current = opener
+      setDlg((d) => ({
+        open: true,
+        seq: d.seq + 1,
+        mode: acl.write && item.status === 'DRAFT' ? 'edit' : 'view',
+        record: item,
+      }))
+    },
+    [acl.write],
+  )
+
+  /**
+   * ⚠️ IDEMPOTENT: `Modal` calls `onClose` twice (the ✕, then its `close` event).
+   *
+   * When a re-read is in flight, the rows effect below re-applies focus once the new rows commit.
+   * Otherwise `Modal` has already restored focus to the opener; if that opener is gone, the list
+   * heading takes it — in a timeout, so it runs after `Modal`'s own restore.
+   */
+  const closeDialog = useCallback(({ changed }: { changed: boolean }) => {
+    setDlg((d) => (d.open ? { ...d, open: false } : d))
+    if (changed && listLoading.current) {
+      refocus.current = true
+      return
+    }
+    setTimeout(() => {
+      if (!anchor.current?.isConnected) listHead.current?.focus()
+    }, 0)
+  }, [])
+
+  /** The dialog's `onChanged`: the list AND both counts, the counts without the `—` flash. */
+  const refresh = useCallback(() => {
+    void load()
+    void loadCounts(true)
+  }, [load, loadCounts])
+
+  /**
+   * After a write closed the dialog and the list re-read, focus goes back to the row or the create
+   * button — or to the list heading if the row left the page (DRAFT → SENT under ฉบับร่าง, a
+   * deletion). Runs on the COMMIT of the new rows, when the DOM is current (the FeedbackPage AC-48
+   * pattern).
+   */
+  useEffect(() => {
+    if (!refocus.current || rows === null) return
+    refocus.current = false
+    const back = anchor.current
+    if (back?.isConnected) {
+      if (document.activeElement !== back) back.focus()
+    } else {
+      listHead.current?.focus()
+    }
+  }, [rows])
 
   return (
     <div className="card-shell lg:overflow-y-auto">
@@ -229,7 +321,14 @@ export function AnnouncementsPage({ route }: { route: AdminRoute }) {
           <div className="pf-body flex flex-col gap-4">
             {/* ── title | tabs · divider · create ── */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 id="an-list-h" className="pf-title flex items-center gap-2">
+              {/* `tabIndex={-1}`: focus lands here when the row that opened a written record has
+                  left the page. */}
+              <h2
+                id="an-list-h"
+                ref={listHead}
+                tabIndex={-1}
+                className="pf-title flex items-center gap-2 outline-none"
+              >
                 <Glyph d={ICON.megaphone} className="h-5 w-5 shrink-0 text-base-content/60" />
                 ประกาศทั้งหมด
               </h2>
@@ -266,13 +365,10 @@ export function AnnouncementsPage({ route }: { route: AdminRoute }) {
                 {acl.write && (
                   <>
                     <span aria-hidden="true" className="hidden h-6 w-px bg-base-300 sm:block" />
-                    {/* `aria-disabled`, NOT `disabled`: it stays focusable and can say why it does
-                        nothing yet. Enter, Space and a click all reach `onCreate`. */}
                     <button
                       type="button"
-                      aria-disabled="true"
-                      onClick={onCreate}
-                      className="btn-primary2 min-h-9 gap-1.5 px-3 text-[13px] aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:brightness-100"
+                      onClick={openCreate}
+                      className="btn-primary2 min-h-9 gap-1.5 px-3 text-[13px]"
                     >
                       <Glyph d={ICON.plus} className="h-4 w-4 shrink-0" strokeWidth={2} />
                       สร้างประกาศใหม่
@@ -323,7 +419,7 @@ export function AnnouncementsPage({ route }: { route: AdminRoute }) {
               // screen reader is not read every row again.
               <ul className="-mx-1 my-0 flex list-none flex-col divide-y divide-base-300 p-0">
                 {rows.map((r) => (
-                  <AnnouncementRow key={r.id} item={r} />
+                  <AnnouncementRow key={r.id} item={r} onOpen={openRow} />
                 ))}
               </ul>
             )}
@@ -353,9 +449,22 @@ export function AnnouncementsPage({ route }: { route: AdminRoute }) {
 
         <aside aria-label="แชท LINE Official Account" className="flex min-w-0 flex-col gap-6">
           <LineOaCard state={oa} onRetry={retryOa} />
-          <CannedRepliesCard />
+          <CannedRepliesCard canWrite={acl.write} />
         </aside>
       </div>
+
+      {dlg.seq > 0 && (
+        <AnnouncementDialog
+          key={dlg.seq}
+          open={dlg.open}
+          initialMode={dlg.mode}
+          initialRecord={dlg.record}
+          canWrite={acl.write}
+          oa={oa.status === 'ok' ? oa.info : null}
+          onClose={closeDialog}
+          onChanged={refresh}
+        />
+      )}
     </div>
   )
 }

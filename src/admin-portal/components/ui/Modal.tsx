@@ -201,6 +201,13 @@ export function Modal({
         // dialog whose ✕ we deliberately removed.
         if (!dismissable) e.preventDefault()
       }}
+      // ⚠️ `onCancel` ALONE IS NOT ENOUGH while non-dismissable. Chrome's close watcher makes the
+      // SECOND Esc (with no click in between) a non-cancelable `cancel`, so the dialog closed
+      // anyway while React still held it open. A cancelled `keydown` stops the close request
+      // before the watcher sees it. Only active while `dismissable` is false (ประกาศ phase 4 A-3).
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && !dismissable) e.preventDefault()
+      }}
       onClick={(e) => {
         // Backdrop dismissal is opt-in (#ISSUE-10). Esc is `onCancel` above and the ✕ is its own
         // button, so neither passes through here.

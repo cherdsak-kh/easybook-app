@@ -2,9 +2,11 @@
  * One announcement as a list row (`#an-row-tpl`, prototype 6928–6954), its first-load skeleton, and
  * the empty box.
  *
- * ⚠️ THE ROW IS A STATIC <li>, NOT A BUTTON (plan D-3). In the prototype the whole row opens the
- * compose/edit dialog, which is phase 4. A focusable row that does nothing is worse than a plain one,
- * so there is no `tabIndex`, no handler and no hover until that dialog exists.
+ * ⚠️ SINCE PHASE 4 THE ROW IS A BUTTON (plan D-10, the prototype's `[data-an-open]`). A full-width
+ * `<button type="button">` inside the `<li>` opens the dialog FROM THE ROW DATA — `edit` for a
+ * writer on a DRAFT, `view` otherwise — with a visible focus ring. A `<button>` admits only phrasing
+ * content, so every block inside it is a `<span>` with `block`/`flex`. Its accessible name is the full
+ * row text, as the prototype's is.
  *
  * ⚠️ NO OPEN-RATE ANYWHERE (plan D-4). The API has no such figure; the prototype's `เปิดอ่าน %` and
  * its bar are dropped, and "ส่งถึง" is reworded `ส่งออก` because `sentCount` is what LINE ACCEPTED,
@@ -15,56 +17,60 @@ import { Skeleton, SkeletonRegion } from '../../../components/feedback/Skeleton'
 import { Badge } from '../../../components/ui/Badge'
 import { ANNOUNCEMENT_FORMAT, ANNOUNCEMENT_STATUS } from '../../../labels'
 import type { Announcement } from '../announcements-api'
+import { AUDIENCE_PILL } from '../announcement-classes'
 import { audienceLabel, whenLabel } from '../announcement-record'
 
-/**
- * The audience pill — the prototype's `badge badge-sm badge-outline`, written as utilities.
- *
- * ⚠️ NOT `.badge` (design S-3): the portal's unlayered `[data-theme^="easybook-admin"] .badge` sets
- * `border-0`, which would erase the outline, and utilities cannot beat an unlayered rule. The
- * geometry matches the portal `.badge`; the border token is the one FeedbackPage's type chip uses.
- * `truncate` keeps a long department name inside the row at 390px.
- */
-const AUDIENCE_PILL =
-  'inline-block max-w-full truncate rounded-full border border-base-content/20 px-2.5 py-1 align-middle text-[13px] font-medium text-base-content/80'
-
 /** The right-hand line, both states — one width, so the titles of SENT and DRAFT rows align. */
-const TAIL = 'm-0 shrink-0 text-[13px] text-base-content/70 sm:w-44 sm:text-right'
+const TAIL = 'block shrink-0 text-[13px] text-base-content/70 sm:w-44 sm:text-right'
 
-export function AnnouncementRow({ item }: { item: Announcement }) {
+export function AnnouncementRow({
+  item,
+  onOpen,
+}: {
+  item: Announcement
+  /** The button itself is handed back, so focus can return to it after a write re-reads the list. */
+  onOpen: (item: Announcement, opener: HTMLElement) => void
+}) {
   const status = ANNOUNCEMENT_STATUS[item.status]
   const audience = audienceLabel(item)
 
   return (
-    <li className="flex flex-col gap-2 px-3 py-3.5 sm:flex-row sm:items-center sm:gap-4">
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        {/* `wrap-anywhere`: a 100-character title with no spaces must break inside the row, not
-            push it wider than a phone. Clamped to two lines, as the prototype. */}
-        <p className="m-0 line-clamp-2 wrap-anywhere text-[15px] font-medium leading-[1.45] text-base-content">
-          {item.title}
-        </p>
-        {/* status · audience · format — the prototype's order (design S-7). */}
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <Badge tone={status.tone}>{status.label}</Badge>
-          <span className={AUDIENCE_PILL} title={audience}>
-            {audience}
+    <li className="p-0">
+      <button
+        type="button"
+        onClick={(e) => onOpen(item, e.currentTarget)}
+        className="flex w-full flex-col gap-2 rounded-control px-3 py-3.5 text-left transition-colors hover:bg-base-content/5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary sm:flex-row sm:items-center sm:gap-4"
+      >
+        <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {/* `wrap-anywhere`: a 100-character title with no spaces must break inside the row, not
+              push it wider than a phone. Clamped to two lines, as the prototype — `line-clamp-2`
+              sets its own display, so no `block` beside it. */}
+          <span className="line-clamp-2 wrap-anywhere text-[15px] font-medium leading-[1.45] text-base-content">
+            {item.title}
           </span>
-          <span className="badge badge-ghost">{ANNOUNCEMENT_FORMAT[item.format]}</span>
-        </div>
-        <p className="m-0 text-[13px] text-base-content/70">{whenLabel(item)}</p>
-      </div>
-      {/* A partial send's small number is rendered as it is — never hidden or restyled. */}
-      {item.status === 'SENT' ? (
-        <p className={TAIL}>
-          ส่งออก{' '}
-          <span className="font-medium tabular-nums text-base-content">
-            {item.sentCount.toLocaleString('th-TH')}
-          </span>{' '}
-          คน
-        </p>
-      ) : (
-        <p className={TAIL}>ยังไม่ได้ส่ง</p>
-      )}
+          {/* status · audience · format — the prototype's order (design S-7). */}
+          <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <Badge tone={status.tone}>{status.label}</Badge>
+            <span className={AUDIENCE_PILL} title={audience}>
+              {audience}
+            </span>
+            <span className="badge badge-ghost">{ANNOUNCEMENT_FORMAT[item.format]}</span>
+          </span>
+          <span className="block text-[13px] text-base-content/70">{whenLabel(item)}</span>
+        </span>
+        {/* A partial send's small number is rendered as it is — never hidden or restyled. */}
+        {item.status === 'SENT' ? (
+          <span className={TAIL}>
+            ส่งออก{' '}
+            <span className="font-medium tabular-nums text-base-content">
+              {item.sentCount.toLocaleString('th-TH')}
+            </span>{' '}
+            คน
+          </span>
+        ) : (
+          <span className={TAIL}>ยังไม่ได้ส่ง</span>
+        )}
+      </button>
     </li>
   )
 }

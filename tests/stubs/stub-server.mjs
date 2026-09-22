@@ -32,6 +32,28 @@
  *   - GET  announcements/line-bot-info      — SUPER_ADMIN|ADMIN|VIEWER. Every answer the real route
  *                                             gives, driven by `botMode` (ok, bot mode, the two coded
  *                                             503s, the code-less session-store 503, a dead socket)
+ *   - GET  announcements/:id                — SUPER_ADMIN|ADMIN|VIEWER. 404 `Announcement not found.`
+ *                                             Declared AFTER `line-bot-info`, as in the real controller
+ *   - POST announcements, PATCH/DELETE announcements/:id, POST announcements/:id/send
+ *                                           — SUPER_ADMIN|ADMIN only (VIEWER 403). ⚠️ THESE FIVE and
+ *                                             the three canned-reply writes (and only these — the
+ *                                             booking writes never did) CHECK CSRF: `x-csrf-token`
+ *                                             must equal `stub-csrf-token`, else 403 `Invalid CSRF
+ *                                             token.` (CSRF runs before the role guard, as in the real
+ *                                             stack). POST/PATCH validate like the phase-1 DTOs under
+ *                                             the global pipe; send follows the phase-2 order. DELETE
+ *                                             is a SOFT delete of a DRAFT or a SENT row (ANNOUNCE-API-5)
+ *                                             with a coded 404/409. Driven by `sendMode` / `saveMode` /
+ *                                             `deleteMode` / `csrfMode` / `sendDelayMs` / `mutate`
+ *   - GET  canned-replies                   — SUPER_ADMIN|ADMIN|VIEWER. A PLAIN array in the server's
+ *                                             order (`sortOrder`, `createdAt`, `id`). Seeded with the
+ *                                             migration's four defaults, byte for byte
+ *   - POST canned-replies, PATCH/DELETE canned-replies/:id
+ *                                           — SUPER_ADMIN|ADMIN only (VIEWER 403), CSRF-checked.
+ *                                             Validate like `Create/UpdateCannedReplyDto`; coded 400
+ *                                             `CANNED_REPLIES_LIMIT_EXCEEDED` / `CANNED_REPLY_UPDATE_
+ *                                             EMPTY`, coded 404 `CANNED_REPLY_NOT_FOUND`. Driven by
+ *                                             `POST /__control/canned-replies` — see below
  *
  * What this stub does NOT serve (a 404 here is expected, not a bug):
  *   - Any WRITE on line-users (`PATCH /line-users/:id`, `PATCH /line-users/:id/registration`)
@@ -39,7 +61,6 @@
  *   - Any CRUD on venues beyond the list (POST/PATCH/DELETE, close/reopen, photo upload)
  *   - system-users writes (create/update/delete/restore/reset-password)
  *   - auth/system/password, avatar upload, LINE registration/webhook routes
- *   - announcements `GET :id`, POST, PATCH, DELETE and `POST :id/send` — phase 4 (ANNOUNCE-UI-4)
  * A screen that calls one of the above against this stub will see a 404, not a 403 or a shape bug
  * — that is a genuinely unimplemented corner of the stub, not a contract mismatch.
  *
@@ -47,9 +68,16 @@
  *   POST /__control/role      { role }                       — switch the signed-in role
  *   POST /__control/emit      { event, id, status, actor }   — push a realtime event
  *   POST /__control/version   { version, build?, releasedAt? } — set what GET system/version reports
- *   POST /__control/announcements { botMode?, listMode? }    — force the bot-info card / list state
+ *   POST /__control/announcements { botMode?, listMode?, sendMode?, sendDelayMs?, saveMode?,
+ *                                   deleteMode?, csrfMode?, mutate? }
+ *                                                            — force the bot-info card, the list,
+ *                                                              the write outcomes; `mutate` acts as
+ *                                                              another admin would, once
+ *   POST /__control/canned-replies { listMode?, createMode?, saveMode?, csrfMode?, delayMs?,
+ *                                    mutate?, fill? }        — force the canned-reply card's load,
+ *                                                              the write outcomes, the limit
  *   POST /__control/reset                                     — restore the seeds, the version and
- *                                                              both announcement modes
+ *                                                              every announcement and canned mode
  *
  * ── How to run this (the full recipe) ─────────────────────────────────────
  *
@@ -84,7 +112,7 @@
  *   # …and the reset that undoes it — back to agreeing with `package.json`
  *   curl -s -X POST http://localhost:3301/__control/reset \
  *     -H "Content-Type: application/json" -d '{}'
- *   # → {"ok":true,"rows":96,"version":"0.13.0"}
+ *   # → {"ok":true,"rows":96,"version":"0.13.0",…,"deleteMode":"ok","cannedReplies":4}
  *
  *   # A bad body is REFUSED rather than half-applied, so `/api/v1/system/version` can never
  *   # serve `{"version":undefined}` and turn a stub typo into a phantom frontend bug.
@@ -96,11 +124,100 @@
  *   # botMode: ok | ok-picture | bot | not-configured | unavailable | no-code | network
  *   curl -s -X POST http://localhost:3301/__control/announcements \
  *     -H "Content-Type: application/json" -d '{"botMode":"not-configured"}'
- *   # → {"botMode":"not-configured","listMode":"ok"}
+ *   # → {"botMode":"not-configured","listMode":"ok","sendMode":"ok","sendDelayMs":0,
+ *   #    "saveMode":"ok","deleteMode":"ok","csrfMode":"ok"}
  *
  *   # …and the list. listMode: ok | empty (every query 0 rows, pills 0/0/0) | fail (code-less 503)
  *   curl -s -X POST http://localhost:3301/__control/announcements \
  *     -H "Content-Type: application/json" -d '{"listMode":"fail"}'
+ *
+ *   # ── Phase 4: the writes. Every switch is STICKY until changed or `/__control/reset`. ──
+ *   # sendMode — what `POST /announcements/:id/send` answers once the row passes the 404 / already-
+ *   # sent / body / department checks:
+ *   #   ok (SENT; sentCount 1248 for ALL, 42 for a department) ·
+ *   #   zero-recipients (200, SENT, sentAt now, sentCount 0 — ANNOUNCE-API-5: nobody eligible is
+ *   #     not an error any more; the old `no-recipients` value is GONE and is refused with a 400) ·
+ *   #   partial (commits SENT with 500, then 502 with acceptedCount 500 / targetedCount 734) ·
+ *   #   line-failed (502, row untouched) · not-configured (503) · rate-limited (503) ·
+ *   #   no-code (code-less 503, the session store — answered BEFORE any row check) ·
+ *   #   in-progress (409) · already-sent (commits SENT FIRST, as another admin would, then 409) ·
+ *   #   network (drops the socket, the row stays DRAFT) ·
+ *   #   network-after-commit (commits SENT, then drops the socket)
+ *   curl -s -X POST http://localhost:3301/__control/announcements \
+ *     -H "Content-Type: application/json" -d '{"sendMode":"line-failed"}'
+ *
+ *   # sendDelayMs — an integer 0–10000, slept before the send answers (watch the double-submit lock)
+ *   curl -s -X POST http://localhost:3301/__control/announcements \
+ *     -H "Content-Type: application/json" -d '{"sendDelayMs":5000}'
+ *
+ *   # saveMode — POST, PATCH and DELETE: ok · no-code (code-less 503) · network (drops the socket;
+ *   # nothing is written)
+ *   curl -s -X POST http://localhost:3301/__control/announcements \
+ *     -H "Content-Type: application/json" -d '{"saveMode":"no-code"}'
+ *
+ *   # csrfMode — ok · reject (EVERY announcement write answers 403 `Invalid CSRF token.`, so the
+ *   # app's one retry shows as two requests before the 403 copy)
+ *   curl -s -X POST http://localhost:3301/__control/announcements \
+ *     -H "Content-Type: application/json" -d '{"csrfMode":"reject"}'
+ *
+ *   # deleteMode — `DELETE /announcements/:id` once the row exists: ok (soft delete, 204, DRAFT or
+ *   # SENT) · in-progress (coded 409 ANNOUNCEMENT_SEND_IN_PROGRESS, nothing deleted). A missing row
+ *   # is a coded 404 ANNOUNCEMENT_NOT_FOUND FIRST, whatever the mode — the real lock only sees live rows.
+ *   curl -s -X POST http://localhost:3301/__control/announcements \
+ *     -H "Content-Type: application/json" -d '{"deleteMode":"in-progress"}'
+ *
+ *   # mutate — act as ANOTHER admin, once, right now (not stored as a mode). The id must exist.
+ *   #   delete (row gone → 404 paths; a DRAFT or a SENT row) ·
+ *   #   markSent (row SENT → 409 paths; DRAFT only) ·
+ *   #   clearBody (body '' → the server's ANNOUNCEMENT_BODY_REQUIRED behind an unchanged dialog;
+ *   #   DRAFT only)
+ *   curl -s -X POST http://localhost:3301/__control/announcements \
+ *     -H "Content-Type: application/json" \
+ *     -d '{"mutate":{"id":"cmfann015x7k2q9w4e1r5t8y0","action":"markSent"}}'
+ *   # …another admin deletes the SENT seed row 001 while you have it open in `view`:
+ *   curl -s -X POST http://localhost:3301/__control/announcements \
+ *     -H "Content-Type: application/json" \
+ *     -d '{"mutate":{"id":"cmfann001x7k2q9w4e1r5t8y0","action":"delete"}}'
+ *
+ *   # Any unknown key or bad value is a 400 and changes NOTHING (all-or-nothing). The answer echoes
+ *   # every mode, plus `mutated: <id>` when `mutate` was given.
+ *
+ *   # ── ข้อความตอบกลับด่วน (ANNOUNCE-UI-6). Every switch is STICKY until changed or reset. ──
+ *   # listMode — every GET: ok · error (code-less 503, the session store) · network (drops the socket)
+ *   curl -s -X POST http://localhost:3301/__control/canned-replies \
+ *     -H "Content-Type: application/json" -d '{"listMode":"error"}'
+ *
+ *   # createMode — POST: ok · limit (coded 400 CANNED_REPLIES_LIMIT_EXCEEDED even below 5 rows —
+ *   # the "UI shows 4/5, somebody else added the 5th" race)
+ *   curl -s -X POST http://localhost:3301/__control/canned-replies \
+ *     -H "Content-Type: application/json" -d '{"createMode":"limit"}'
+ *
+ *   # saveMode — POST, PATCH and DELETE: ok · no-code (code-less 503) · network (drops the socket;
+ *   # nothing is written)
+ *   curl -s -X POST http://localhost:3301/__control/canned-replies \
+ *     -H "Content-Type: application/json" -d '{"saveMode":"no-code"}'
+ *
+ *   # csrfMode — ok · reject (every canned write answers 403 `Invalid CSRF token.`; the app's one
+ *   # retry shows as two requests). INDEPENDENT of the announcements' `csrfMode`.
+ *   curl -s -X POST http://localhost:3301/__control/canned-replies \
+ *     -H "Content-Type: application/json" -d '{"csrfMode":"reject"}'
+ *
+ *   # delayMs — an integer 0–10000, slept before EVERY canned route answers, GET included (the
+ *   # skeleton, the busy state; a `csrfMode: reject` write takes 2 × delay)
+ *   curl -s -X POST http://localhost:3301/__control/canned-replies \
+ *     -H "Content-Type: application/json" -d '{"delayMs":5000}'
+ *
+ *   # mutate — ANOTHER admin deletes a reply, once, now → 404 on your next PATCH/DELETE of it
+ *   curl -s -X POST http://localhost:3301/__control/canned-replies \
+ *     -H "Content-Type: application/json" \
+ *     -d '{"mutate":{"id":"canned_reply_default_2","action":"delete"}}'
+ *
+ *   # fill — append test rows until there are 5 (the limit in one call). Only `true` is accepted.
+ *   curl -s -X POST http://localhost:3301/__control/canned-replies \
+ *     -H "Content-Type: application/json" -d '{"fill":true}'
+ *
+ *   # All-or-nothing like the others. The answer echoes every mode plus `count`, and `mutated` /
+ *   # `filled` (rows appended) when those were given.
  */
 import express from 'express';
 import cors from 'cors';
@@ -119,8 +236,10 @@ app.use(cors({ origin: ORIGIN, credentials: true }));
 /* ── vocabularies (option tables) ─────────────────────────────────────────
  * Shapes mirror `DepartmentResponseDto` / `PersonnelRoleResponseDto` (holderCount = staffCount +
  * registrationCount, two populations) and `VenueTypeResponseDto` / `AmenityResponseDto` (one
- * population, `holderCount` only). `isFallback` is always false here — this stub does not model a
- * tombstone row.
+ * population, `holderCount` only). `isFallback` is false on every PLAIN row. Departments alone also
+ * model the two reserved rows the real server shows ONLY to SUPER_ADMIN — the System-Developer row
+ * and the `ไม่พบกลุ่ม/ฝ่าย` tombstone — in `RESERVED_DEPARTMENTS` below (announcements phase 4 A-17).
+ * `findDept` and every other seed stay on the plain rows.
  */
 
 const OPTION_STAMP = { createdAt: '2026-07-14T10:00:00.000Z', updatedAt: '2026-07-14T10:00:00.000Z' };
@@ -129,6 +248,19 @@ const DEPARTMENTS = [
   { id: 1, name: 'ฝ่ายกิจการนักเรียน', isSystemReserved: false, staffCount: 4, registrationCount: 9 },
   { id: 2, name: 'กลุ่มสาระวิทยาศาสตร์', isSystemReserved: false, staffCount: 7, registrationCount: 6 },
 ].map((d) => ({ ...d, ...OPTION_STAMP, isFallback: false, holderCount: d.staffCount + d.registrationCount }));
+
+/**
+ * ⚠️ SUPER_ADMIN ONLY (`GET /departments`, and the announcement write validation). The tombstone
+ * carries BOTH flags, as the real one does — `isSystemReserved` AND `isFallback` — so a client that
+ * forgets to drop `isFallback` rows offers `ไม่พบกลุ่ม/ฝ่าย` as a choice and the check catches it.
+ */
+const RESERVED_DEPARTMENTS = [
+  { id: 98, name: 'ไม่พบกลุ่ม/ฝ่าย', isSystemReserved: true, isFallback: true, staffCount: 0, registrationCount: 0 },
+  { id: 99, name: 'ฝ่ายพัฒนาระบบ', isSystemReserved: true, isFallback: false, staffCount: 1, registrationCount: 0 },
+].map((d) => ({ ...d, ...OPTION_STAMP, holderCount: d.staffCount + d.registrationCount }));
+
+/** What `GET /departments` answers this role — and so what an announcement may target (A-17). */
+const activeDeptsFor = (r) => (r === 'SUPER_ADMIN' ? [...DEPARTMENTS, ...RESERVED_DEPARTMENTS] : DEPARTMENTS);
 
 const PERSONNEL_ROLES = [
   { id: 1, name: 'ครู', isSystemReserved: false, staffCount: 5, registrationCount: 10 },
@@ -353,7 +485,10 @@ const denyViewerRead = (req, res, next) => {
 
 /* ── auth ──────────────────────────────────────────────────────────────── */
 
-app.get('/api/v1/auth/system/csrf', (_req, res) => res.json({ csrfToken: 'stub-csrf-token' }));
+/** The token `GET /csrf` hands out, and the one the five announcement and three canned writes check. */
+const CSRF_TOKEN = 'stub-csrf-token';
+
+app.get('/api/v1/auth/system/csrf', (_req, res) => res.json({ csrfToken: CSRF_TOKEN }));
 
 app.get('/api/v1/auth/system/me', (_req, res) =>
   res.json({
@@ -379,7 +514,8 @@ app.post('/api/v1/auth/system/logout', (_req, res) => res.status(204).end());
 
 app.get('/api/v1/venues', (_req, res) => res.json(VENUES.map(venueDto)));
 
-app.get('/api/v1/departments', denyViewerRead, (_req, res) => res.json(DEPARTMENTS));
+// SUPER_ADMIN also gets the reserved row and the tombstone; ADMIN only the plain rows (A-17).
+app.get('/api/v1/departments', denyViewerRead, (_req, res) => res.json(activeDeptsFor(role)));
 app.get('/api/v1/personnel-roles', denyViewerRead, (_req, res) => res.json(PERSONNEL_ROLES));
 app.get('/api/v1/venue-types', denyViewerRead, (_req, res) => res.json(VENUE_TYPES));
 app.get('/api/v1/amenities', denyViewerRead, (_req, res) => res.json(AMENITIES));
@@ -705,7 +841,7 @@ app.post('/api/v1/booking-requests/direct', requireWrite, (req, res) => {
   res.status(201).json(row);
 });
 
-/* ── announcements (ประกาศและข่าวสาร, phase 3: the two GETs only) ─────── */
+/* ── announcements (ประกาศและข่าวสาร: phase 3 reads, phase 4 writes) ───── */
 
 /**
  * Seed for `GET /announcements`. Every row is EXACTLY `AnnouncementDto` — twelve keys, nothing more:
@@ -713,14 +849,18 @@ app.post('/api/v1/booking-requests/direct', requireWrite, (req, res) => {
  * updatedAt`. `department` is `AnnouncementDepartmentDto` (`{id,name}` — never the option table's
  * full row) and `createdBy` is `AnnouncementCreatorDto` (`{id,firstName,lastName}`).
  *
- * 14 SENT + 9 DRAFT = 23, so the three pills are distinguishable (23 / 14 / 9) and the list has three
- * pages at `limit=10`. Deliberately included, one each or more:
+ * 14 SENT + 10 DRAFT = 24, so the three pills are distinguishable (24 / 14 / 10) and the list has three
+ * pages at `limit=10`. Ids are `cmfann001…024x7k2q9w4e1r5t8y0` in the order below. Deliberately
+ * included, one each or more:
  *   · DEPARTMENT with `department: null` — a hard-deleted department → `(ถูกลบแล้ว)` (two rows)
  *   · a 100-character title with no spaces — the 390px overflow check
  *   · a SENT row with a small partial `sentCount` (7) — rendered as-is, never hidden
  *   · `createdBy: null` — a hard-deleted staff account
  *   · a title-only draft (`body: ''`)
- * `dept` below: absent → ALL; a number → that stub `DEPARTMENTS` row; `'gone'` → DEPARTMENT + null.
+ *   · a DRAFT whose `department` is NOT in `DEPARTMENTS` (id 9, soft-deleted) — the dialog's
+ *     `(ไม่พร้อมใช้งาน)` path; PATCH and send refuse it, as the real server re-validates (phase 4)
+ * `dept` below: absent → ALL; a number → that stub `DEPARTMENTS` row; `'gone'` → DEPARTMENT + null;
+ * an object → that literal `{id,name}`, whether or not the option table still has it.
  */
 const LONG_ANNOUNCEMENT_TITLE = 'ประกาศด่วนเรื่องการปิดปรับปรุงหอประชุมวารณและห้องประชุมไอยราพรต'
   .repeat(2)
@@ -745,7 +885,7 @@ const ANNOUNCEMENT_SPECS = [
   { title: 'เชิญชมการแสดงดนตรีไทยในหอประชุม', status: 'SENT', format: 'FLEX', sent: 1172, at: [6, 15, 0] },
   { title: 'รับสมัครอาสาสมัครดูแลสนามฟุตซอล', status: 'SENT', format: 'TEXT', sent: 1160, at: [4, 11, 15] },
   { title: 'ปรับปรุงระบบเสียงในห้องประชุมเสร็จแล้ว', status: 'SENT', format: 'TEXT', sent: 1149, at: [2, 10, 0] },
-  // ── DRAFT (9) ──
+  // ── DRAFT (10) ──
   { title: 'กำหนดการสอบปลายภาค ภาคเรียนที่ 2', status: 'DRAFT', format: 'TEXT', at: [21, 10, 0] },
   { title: 'เปิดจองสนามฟุตซอลช่วงปิดภาคเรียน', status: 'DRAFT', format: 'FLEX', at: [21, 8, 30] },
   { title: 'ประชุมกลุ่มสาระวิทยาศาสตร์ประจำเดือนตุลาคม', status: 'DRAFT', format: 'TEXT', dept: 2, at: [20, 15, 0] },
@@ -755,6 +895,8 @@ const ANNOUNCEMENT_SPECS = [
   { title: 'กิจกรรมวันเด็กแห่งชาติ 2570', status: 'DRAFT', format: 'FLEX', at: [9, 11, 0], by: null },
   { title: 'ปรับเวลาเปิด-ปิดโดมเขียว', status: 'DRAFT', format: 'TEXT', at: [7, 13, 30] },
   { title: 'ประกาศรายชื่อผู้ได้รับทุนการศึกษา', status: 'DRAFT', format: 'TEXT', dept: 1, at: [3, 9, 0] },
+  // Appended LAST so every earlier id keeps its number (this one is `cmfann024…`).
+  { title: 'นัดประชุมฝ่ายโสตทัศนูปกรณ์', status: 'DRAFT', format: 'TEXT', dept: { id: 9, name: 'ฝ่ายโสตทัศนูปกรณ์' }, at: [5, 10, 0] },
 ];
 
 function announcementSeed() {
@@ -762,10 +904,10 @@ function announcementSeed() {
     const createdAt = iso(...s.at);
     const sentAt = s.status === 'SENT' ? iso(s.at[0], s.at[1] + 1, s.at[2]) : null;
     const department =
-      s.dept === undefined
+      s.dept === undefined || s.dept === 'gone'
         ? null
-        : s.dept === 'gone'
-          ? null
+        : typeof s.dept === 'object'
+          ? { id: s.dept.id, name: s.dept.name }
           : (({ id, name }) => ({ id, name }))(findDept(s.dept));
     return {
       id: `cmfann${String(i + 1).padStart(3, '0')}x7k2q9w4e1r5t8y0`,
@@ -931,6 +1073,546 @@ app.get('/__assets/line-oa.svg', (_req, res) => {
     );
 });
 
+/* ── announcements, phase 4: GET :id and the four writes ──────────────── */
+
+/** `createdBy` of a row created here — the same person `GET /auth/system/me` answers. */
+const STUB_AUTHOR = { id: 'u1', firstName: 'ผู้ทดสอบ', lastName: 'ระบบ' };
+
+/** `easybook-service/src/announcements/announcements.constants.ts`, VERBATIM (as of ANNOUNCE-API-5). */
+const MSG = {
+  NOT_FOUND: 'Announcement not found.',
+  /** PATCH only since ANNOUNCE-API-5 — a SENT row can be deleted now. */
+  SENT_IMMUTABLE: 'A sent announcement cannot be edited.',
+  DEPT_REQUIRED: 'departmentId is required when audience is DEPARTMENT.',
+  DEPT_NOT_ALLOWED: 'departmentId must be null when audience is ALL.',
+  DEPT_INVALID: 'The selected department does not exist or is not available.',
+  UPDATE_EMPTY: 'Provide at least one field to update.',
+  BODY_REQUIRED: 'An announcement needs a body before it can be sent.',
+  IN_PROGRESS: 'This announcement is being sent or edited right now. Try again in a moment.',
+  ALREADY_SENT: 'This announcement has already been sent.',
+  PARTIAL:
+    'LINE accepted the announcement for only some recipients. It is marked as sent and cannot be sent again.',
+  LINE_FAILED: 'LINE did not accept the announcement. It was not marked as sent; please try again.',
+  NOT_CONFIGURED: 'The LINE Official Account is not configured or its access token was rejected.',
+  RATE_LIMITED:
+    'LINE refused the request because a rate limit or the monthly message quota was reached.',
+};
+
+const ERR = {
+  400: 'Bad Request',
+  403: 'Forbidden',
+  404: 'Not Found',
+  409: 'Conflict',
+  502: 'Bad Gateway',
+  503: 'Service Unavailable',
+};
+
+/**
+ * GET :id, POST and PATCH answer the house body — NO `code` key. DELETE's 404/409 are coded since
+ * ANNOUNCE-API-5, and so are the canned-reply service errors (their pipe 400s stay house).
+ */
+const house = (s, message) => ({ statusCode: s, message, error: ERR[s] });
+
+/** The coded body, in this key order (plan D-12), plus the partial-send counts. */
+const coded = (s, code, message, extra = {}) => ({ statusCode: s, error: ERR[s], message, code, ...extra });
+
+const SEND_MODES = [
+  'ok',
+  'zero-recipients',
+  'partial',
+  'line-failed',
+  'not-configured',
+  'rate-limited',
+  'no-code',
+  'in-progress',
+  'already-sent',
+  'network',
+  'network-after-commit',
+];
+const SAVE_MODES = ['ok', 'no-code', 'network'];
+/** `DELETE /announcements/:id` once the row exists (ANNOUNCE-API-5's `FOR UPDATE NOWAIT`). */
+const DELETE_MODES = ['ok', 'in-progress'];
+const CSRF_MODES = ['ok', 'reject'];
+const MUTATE_ACTIONS = ['delete', 'markSent', 'clearBody'];
+const SEND_DELAY_MAX = 10_000;
+
+let sendMode = 'ok';
+let sendDelayMs = 0;
+let saveMode = 'ok';
+let deleteMode = 'ok';
+let csrfMode = 'ok';
+/** The next created row's number — `cmfann100…`, which no seed id can collide with. */
+let nextId = 100;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const findAnnouncement = (id) => ANNOUNCEMENTS.find((a) => a.id === id);
+
+/** What a committed send writes. `count` is the partial send's accepted number. */
+function commitSent(row, count) {
+  const now = new Date().toISOString();
+  row.status = 'SENT';
+  row.sentAt = now;
+  row.updatedAt = now;
+  row.sentCount = count ?? (row.audience === 'ALL' ? 1248 : 42);
+}
+
+/**
+ * POST/PATCH/DELETE only — NOT send. The session store fails before anything else, so nothing is
+ * written. `network` drops the socket: no status at all reaches the app.
+ */
+const saveGate = (req, res, next) => {
+  if (saveMode === 'no-code') return res.status(503).json(SESSION_STORE_DOWN);
+  if (saveMode === 'network') return req.socket.destroy();
+  next();
+};
+
+/**
+ * The double-submit check, on the five announcement writes and the three canned-reply writes ONLY
+ * (A-16). In the real stack CSRF runs before the role guard, so a VIEWER with a bad token also gets
+ * THIS 403. A FACTORY, so the announcement and canned `csrfMode`s stay independent (ANNOUNCE-UI-6).
+ */
+const csrfCheck = (modeOf) => (req, res, next) => {
+  if (modeOf() === 'reject' || req.get('x-csrf-token') !== CSRF_TOKEN) {
+    return res.status(403).json({ statusCode: 403, message: 'Invalid CSRF token.', error: 'Forbidden' });
+  }
+  next();
+};
+
+const requireCsrf = csrfCheck(() => csrfMode);
+
+const ANNOUNCEMENT_BODY_KEYS = ['title', 'body', 'format', 'audience', 'departmentId'];
+const ANNOUNCEMENT_FORMATS = ['TEXT', 'FLEX'];
+const ANNOUNCEMENT_AUDIENCES = ['ALL', 'DEPARTMENT'];
+const DEPARTMENT_ID_MAX = 2_147_483_647;
+
+/**
+ * `CreateAnnouncementDto` (`partial` false) / `UpdateAnnouncementDto` (`partial` true) under the
+ * real global pipe (`whitelist`, `forbidNonWhitelisted`, `transform`) — the class-validator messages.
+ * Returns `{ errors }` (the 400's `message` ARRAY) or `{ value }` holding ONLY the keys that were
+ * present, `title`/`body` trimmed (`@Transform(trim)` runs before validation). `null` is a present
+ * value: a 400 everywhere except `departmentId`.
+ */
+function parseAnnouncementBody(raw, partial) {
+  const body = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const errors = [];
+  const value = {};
+  for (const key of Object.keys(body)) {
+    if (!ANNOUNCEMENT_BODY_KEYS.includes(key)) errors.push(`property ${key} should not exist`);
+  }
+  const trim = (v) => (typeof v === 'string' ? v.trim() : v);
+
+  if (!partial || body.title !== undefined) {
+    const t = trim(body.title);
+    if (typeof t !== 'string') errors.push('title must be a string');
+    if (t === undefined || t === null || t === '') errors.push('title should not be empty');
+    if (typeof t !== 'string' || t.length > 100) {
+      errors.push('title must be shorter than or equal to 100 characters');
+    }
+    value.title = t;
+  }
+  if (body.body !== undefined) {
+    const b = trim(body.body);
+    if (typeof b !== 'string') errors.push('body must be a string');
+    if (typeof b !== 'string' || b.length > 1000) {
+      errors.push('body must be shorter than or equal to 1000 characters');
+    }
+    value.body = b;
+  }
+  if (body.format !== undefined) {
+    if (!ANNOUNCEMENT_FORMATS.includes(body.format)) {
+      errors.push(`format must be one of the following values: ${ANNOUNCEMENT_FORMATS.join(', ')}`);
+    }
+    value.format = body.format;
+  }
+  if (body.audience !== undefined) {
+    if (!ANNOUNCEMENT_AUDIENCES.includes(body.audience)) {
+      errors.push(`audience must be one of the following values: ${ANNOUNCEMENT_AUDIENCES.join(', ')}`);
+    }
+    value.audience = body.audience;
+  }
+  if (body.departmentId !== undefined) {
+    const d = body.departmentId;
+    // A JSON string such as "3" is a 400 — the pipe does no implicit conversion here.
+    if (d !== null) {
+      if (typeof d !== 'number' || !Number.isInteger(d)) {
+        errors.push('departmentId must be an integer number');
+      } else {
+        if (d < 1) errors.push('departmentId must not be less than 1');
+        if (d > DEPARTMENT_ID_MAX) errors.push(`departmentId must not be greater than ${DEPARTMENT_ID_MAX}`);
+      }
+    }
+    value.departmentId = d;
+  }
+  return errors.length ? { errors } : { value };
+}
+
+/** The `{id,name}` of an ACTIVE department this role may target, or `null` (one indistinguishable 400). */
+const targetableDept = (id) => {
+  const d = activeDeptsFor(role).find((x) => x.id === id);
+  return d ? { id: d.id, name: d.name } : null;
+};
+
+/** Mirrors `@Roles(SUPER_ADMIN, ADMIN, VIEWER)`. Registered AFTER `line-bot-info` (see above). */
+app.get('/api/v1/announcements/:id', (req, res) => {
+  const row = findAnnouncement(req.params.id);
+  if (!row) return res.status(404).json(house(404, MSG.NOT_FOUND));
+  res.json(row);
+});
+
+/** 201 with the full 12-key `AnnouncementDto`, status DRAFT, `createdBy` = the stub user. */
+app.post('/api/v1/announcements', saveGate, requireCsrf, requireWrite, (req, res) => {
+  const parsed = parseAnnouncementBody(req.body, false);
+  if (parsed.errors) return res.status(400).json(house(400, parsed.errors));
+  const v = parsed.value;
+
+  const audience = v.audience ?? 'ALL';
+  const deptId = v.departmentId ?? null;
+  if (audience === 'DEPARTMENT' && deptId === null) return res.status(400).json(house(400, MSG.DEPT_REQUIRED));
+  if (audience === 'ALL' && deptId !== null) return res.status(400).json(house(400, MSG.DEPT_NOT_ALLOWED));
+  let department = null;
+  if (audience === 'DEPARTMENT') {
+    department = targetableDept(deptId);
+    if (!department) return res.status(400).json(house(400, MSG.DEPT_INVALID));
+  }
+
+  const now = new Date().toISOString();
+  const row = {
+    id: `cmfann${String(nextId++).padStart(3, '0')}x7k2q9w4e1r5t8y0`,
+    title: v.title,
+    body: v.body ?? '',
+    format: v.format ?? 'TEXT',
+    status: 'DRAFT',
+    audience,
+    department,
+    sentAt: null,
+    sentCount: 0,
+    createdBy: { ...STUB_AUTHOR },
+    createdAt: now,
+    updatedAt: now,
+  };
+  ANNOUNCEMENTS.unshift(row);
+  res.status(201).json(row);
+});
+
+/**
+ * The real service's order: DTO → all five absent (`UPDATE_EMPTY`) → 404 → 409 SENT → the MERGED
+ * audience rule. An omitted `departmentId` keeps the stored one AND RE-VALIDATES it, so an unchanged
+ * save of the soft-deleted-department seed is refused, as the real server does.
+ */
+app.patch('/api/v1/announcements/:id', saveGate, requireCsrf, requireWrite, (req, res) => {
+  const parsed = parseAnnouncementBody(req.body, true);
+  if (parsed.errors) return res.status(400).json(house(400, parsed.errors));
+  const v = parsed.value;
+  if (Object.keys(v).length === 0) return res.status(400).json(house(400, MSG.UPDATE_EMPTY));
+
+  const row = findAnnouncement(req.params.id);
+  if (!row) return res.status(404).json(house(404, MSG.NOT_FOUND));
+  if (row.status === 'SENT') return res.status(409).json(house(409, MSG.SENT_IMMUTABLE));
+
+  const audience = v.audience ?? row.audience;
+  let department = null;
+  if (audience === 'ALL') {
+    if (v.departmentId !== undefined && v.departmentId !== null) {
+      return res.status(400).json(house(400, MSG.DEPT_NOT_ALLOWED));
+    }
+  } else {
+    const id = v.departmentId !== undefined ? v.departmentId : (row.department?.id ?? null);
+    if (id === null) return res.status(400).json(house(400, MSG.DEPT_REQUIRED));
+    department = targetableDept(id);
+    if (!department) return res.status(400).json(house(400, MSG.DEPT_INVALID));
+  }
+
+  if (v.title !== undefined) row.title = v.title;
+  if (v.body !== undefined) row.body = v.body;
+  if (v.format !== undefined) row.format = v.format;
+  row.audience = audience;
+  row.department = department;
+  row.updatedAt = new Date().toISOString();
+  res.json(row);
+});
+
+/**
+ * ANNOUNCE-API-5: a SOFT delete of a DRAFT **or** a SENT row → 204 with an EMPTY body. `splice` is
+ * indistinguishable from a soft delete through the API (gone from list, counts, GET :id, PATCH, send
+ * and a second DELETE) and keeps every row at exactly twelve keys (design S-11).
+ *
+ * Order (design S-12): 404 BEFORE `deleteMode: in-progress` — the real `FOR UPDATE NOWAIT` only locks
+ * live rows, so a missing row answers 404 and never contends for the lock.
+ */
+app.delete('/api/v1/announcements/:id', saveGate, requireCsrf, requireWrite, (req, res) => {
+  const row = findAnnouncement(req.params.id);
+  if (!row) return res.status(404).json(coded(404, 'ANNOUNCEMENT_NOT_FOUND', MSG.NOT_FOUND));
+  if (deleteMode === 'in-progress') {
+    return res.status(409).json(coded(409, 'ANNOUNCEMENT_SEND_IN_PROGRESS', MSG.IN_PROGRESS));
+  }
+  ANNOUNCEMENTS.splice(ANNOUNCEMENTS.indexOf(row), 1);
+  res.status(204).end();
+});
+
+/**
+ * Phase 2 D-D's order: (session store) → 404 → 409 in progress → 409 already sent → 400 body →
+ * 400 department → the outcome `sendMode` picks. No `saveGate`: `saveMode` never touches a send.
+ * `sendMode` is read ONCE, when the request arrives.
+ */
+app.post('/api/v1/announcements/:id/send', requireCsrf, requireWrite, async (req, res) => {
+  const mode = sendMode;
+  if (mode === 'no-code') return res.status(503).json(SESSION_STORE_DOWN);
+  if (sendDelayMs > 0) await sleep(sendDelayMs);
+
+  const row = findAnnouncement(req.params.id);
+  if (!row) return res.status(404).json(coded(404, 'ANNOUNCEMENT_NOT_FOUND', MSG.NOT_FOUND));
+  if (mode === 'in-progress') {
+    return res.status(409).json(coded(409, 'ANNOUNCEMENT_SEND_IN_PROGRESS', MSG.IN_PROGRESS));
+  }
+  // A-14: another admin got there first — COMMITTED, so the app's `GET :id` re-read agrees.
+  if (mode === 'already-sent' && row.status !== 'SENT') commitSent(row);
+  if (row.status === 'SENT') {
+    return res.status(409).json(coded(409, 'ANNOUNCEMENT_ALREADY_SENT', MSG.ALREADY_SENT));
+  }
+  if (row.body.trim() === '') {
+    return res.status(400).json(coded(400, 'ANNOUNCEMENT_BODY_REQUIRED', MSG.BODY_REQUIRED));
+  }
+  // The real send checks only `deletedAt` — reserved rows INCLUDED, whoever the actor is.
+  const everyDept = [...DEPARTMENTS, ...RESERVED_DEPARTMENTS];
+  if (
+    row.audience === 'DEPARTMENT' &&
+    (row.department === null || !everyDept.some((d) => d.id === row.department.id))
+  ) {
+    return res.status(400).json(coded(400, 'ANNOUNCEMENT_DEPARTMENT_INVALID', MSG.DEPT_INVALID));
+  }
+
+  switch (mode) {
+    case 'zero-recipients':
+      // ANNOUNCE-API-5: nobody eligible → 200, SENT, `sentCount` 0, no LINE call. ⚠️ `commitSent`
+      // uses `count ?? …`, so the 0 survives — never change that to `||`.
+      commitSent(row, 0);
+      return res.json(row);
+    case 'partial':
+      commitSent(row, 500);
+      return res
+        .status(502)
+        .json(coded(502, 'ANNOUNCEMENT_PARTIALLY_SENT', MSG.PARTIAL, { acceptedCount: 500, targetedCount: 734 }));
+    case 'line-failed':
+      return res.status(502).json(coded(502, 'LINE_SEND_FAILED', MSG.LINE_FAILED));
+    case 'not-configured':
+      return res.status(503).json(coded(503, 'LINE_NOT_CONFIGURED', MSG.NOT_CONFIGURED));
+    case 'rate-limited':
+      return res.status(503).json(coded(503, 'LINE_RATE_LIMITED', MSG.RATE_LIMITED));
+    case 'network':
+      // No status at all; the row stays DRAFT. Works because `.env.stub` points straight at :3301.
+      return req.socket.destroy();
+    case 'network-after-commit':
+      // The server DID send, and the answer never arrived — the app must say "unknown", not "failed".
+      commitSent(row);
+      return req.socket.destroy();
+    default:
+      commitSent(row);
+      return res.json(row);
+  }
+});
+
+/* ── canned replies (ข้อความตอบกลับด่วน: ANNOUNCE-API-5, ANNOUNCE-UI-6) ───── */
+
+/**
+ * The four defaults the migration seeds — `easybook-service/prisma/migrations/20260922115151_add_
+ * canned_replies_table/migration.sql`. ⚠️ COPIED PROGRAMMATICALLY and compared with `===`, never
+ * retyped: they contain ASCII `"`, en dashes (`–`) and `08:30–16:30 น.`, which a retype quietly
+ * "fixes". UTF-16 lengths: titles 18/21/22/18, texts 150/126/125/125.
+ */
+const CANNED_DEFAULTS = [
+  {
+    title: 'แจ้งวิธีจองสถานที่',
+    text:
+      'สวัสดีค่ะ จองสถานที่ได้ที่เมนู "จองสถานที่" ด้านล่างห้องแชทนี้ เลือกสถานที่ วันและเวลา แล้วกดยืนยัน ระบบจะแจ้งผลการอนุมัติทาง LINE ภายใน 1 วันทำการค่ะ',
+  },
+  {
+    title: 'แจ้งเงื่อนไขการยกเลิก',
+    text:
+      'ยกเลิกการจองได้เองที่เมนู "การจองของฉัน" ก่อนเวลาใช้งานอย่างน้อย 24 ชั่วโมง หากน้อยกว่านั้นกรุณาติดต่อเจ้าหน้าที่ผ่านแชทนี้ค่ะ',
+  },
+  {
+    title: 'แจ้งสถานะคำขอรออนุมัติ',
+    text:
+      'ได้รับคำขอจองของท่านแล้วค่ะ ขณะนี้อยู่ระหว่างรอเจ้าหน้าที่อนุมัติ เมื่อพิจารณาแล้วระบบจะแจ้งผลให้ทราบทาง LINE โดยอัตโนมัติค่ะ',
+  },
+  {
+    title: 'ติดต่อนอกเวลาทำการ',
+    text:
+      'ขอบคุณที่ติดต่อมาค่ะ ขณะนี้อยู่นอกเวลาทำการ (จันทร์–ศุกร์ 08:30–16:30 น.) เจ้าหน้าที่จะตอบกลับโดยเร็วที่สุดในวันทำการถัดไปค่ะ',
+  },
+];
+
+/** One shared stamp for both dates of every seed row (design §6.2). */
+const CANNED_STAMP = '2026-09-22T08:00:00.000Z';
+
+/** `CannedReplyDto` — EXACTLY six keys. Ids `canned_reply_default_1…4`, `sortOrder` 0–3. */
+function cannedSeed() {
+  return CANNED_DEFAULTS.map((d, i) => ({
+    id: `canned_reply_default_${i + 1}`,
+    title: d.title,
+    text: d.text,
+    sortOrder: i,
+    createdAt: CANNED_STAMP,
+    updatedAt: CANNED_STAMP,
+  }));
+}
+
+let CANNED = cannedSeed();
+/** The next created row's number — `cmfcan100…`, which no seed id can collide with. */
+let nextCannedId = 100;
+
+/** `easybook-service/src/canned-replies/canned-replies.constants.ts`, VERBATIM. */
+const CANNED_MAX = 5;
+const CANNED_TITLE_MAX = 100;
+const CANNED_TEXT_MAX = 1000;
+const CANNED_SORT_ORDER_MAX = 9999;
+const CANNED_MSG = {
+  LIMIT: 'ข้อความตอบกลับด่วนสามารถมีได้สูงสุดไม่เกิน 5 ข้อความ',
+  NOT_FOUND: 'Canned reply not found.',
+  UPDATE_EMPTY: 'Provide at least one field to update.',
+};
+
+const CANNED_LIST_MODES = ['ok', 'error', 'network'];
+const CANNED_CREATE_MODES = ['ok', 'limit'];
+const CANNED_SAVE_MODES = ['ok', 'no-code', 'network'];
+const CANNED_DELAY_MAX = 10_000;
+
+let cannedListMode = 'ok';
+let cannedCreateMode = 'ok';
+let cannedSaveMode = 'ok';
+let cannedCsrfMode = 'ok';
+let cannedDelayMs = 0;
+
+const findCanned = (id) => CANNED.find((r) => r.id === id);
+
+/** The service's order: `sortOrder ASC`, then `createdAt ASC`, then `id ASC`. */
+const cannedOrder = (a, b) =>
+  a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
+
+/** An omitted `sortOrder` → the bottom: `min(max + 1, 9999)`, or 0 on an empty table (backend S-4). */
+const nextSortOrder = () =>
+  CANNED.length ? Math.min(Math.max(...CANNED.map((r) => r.sortOrder)) + 1, CANNED_SORT_ORDER_MAX) : 0;
+
+/** Slept before EVERY canned route answers, GET included (design S-10). */
+const cannedDelay = async (_req, _res, next) => {
+  if (cannedDelayMs > 0) await sleep(cannedDelayMs);
+  next();
+};
+
+/** GET: the session store fails (code-less 503), or the socket drops. */
+const cannedListGate = (req, res, next) => {
+  if (cannedListMode === 'error') return res.status(503).json(SESSION_STORE_DOWN);
+  if (cannedListMode === 'network') return req.socket.destroy();
+  next();
+};
+
+/** POST / PATCH / DELETE: the same, before anything is written. */
+const cannedSaveGate = (req, res, next) => {
+  if (cannedSaveMode === 'no-code') return res.status(503).json(SESSION_STORE_DOWN);
+  if (cannedSaveMode === 'network') return req.socket.destroy();
+  next();
+};
+
+const cannedCsrf = csrfCheck(() => cannedCsrfMode);
+
+const CANNED_BODY_KEYS = ['title', 'text', 'sortOrder'];
+
+/**
+ * `CreateCannedReplyDto` (`partial` false) / `UpdateCannedReplyDto` (`partial` true) under the real
+ * global pipe (`whitelist`, `forbidNonWhitelisted`, `transform`) — the class-validator messages.
+ * Returns `{ errors }` (the 400's `message` ARRAY, no `code`) or `{ value }` holding ONLY the keys
+ * that were present, `title`/`text` trimmed. `null` is a PRESENT value (`@ValidateIf(v !== undefined)`)
+ * and is refused everywhere. `sortOrder` gets no conversion: a JSON `"3"` is a 400.
+ */
+function parseCannedBody(raw, partial) {
+  const body = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const errors = [];
+  const value = {};
+  for (const key of Object.keys(body)) {
+    if (!CANNED_BODY_KEYS.includes(key)) errors.push(`property ${key} should not exist`);
+  }
+  const trim = (v) => (typeof v === 'string' ? v.trim() : v);
+
+  for (const [key, max] of [
+    ['title', CANNED_TITLE_MAX],
+    ['text', CANNED_TEXT_MAX],
+  ]) {
+    if (partial && body[key] === undefined) continue;
+    const v = trim(body[key]);
+    if (typeof v !== 'string') errors.push(`${key} must be a string`);
+    if (v === undefined || v === null || v === '') errors.push(`${key} should not be empty`);
+    if (typeof v !== 'string' || v.length > max) {
+      errors.push(`${key} must be shorter than or equal to ${max} characters`);
+    }
+    value[key] = v;
+  }
+  if (body.sortOrder !== undefined) {
+    const s = body.sortOrder;
+    // class-validator's `@Min` / `@Max` also fail on a non-number, hence the `typeof` in each.
+    if (typeof s !== 'number' || !Number.isInteger(s)) errors.push('sortOrder must be an integer number');
+    if (typeof s !== 'number' || s < 0) errors.push('sortOrder must not be less than 0');
+    if (typeof s !== 'number' || s > CANNED_SORT_ORDER_MAX) {
+      errors.push(`sortOrder must not be greater than ${CANNED_SORT_ORDER_MAX}`);
+    }
+    value.sortOrder = s;
+  }
+  return errors.length ? { errors } : { value };
+}
+
+/** Mirrors `@Roles(SUPER_ADMIN, ADMIN, VIEWER)`: a PLAIN array, in the server's order. */
+app.get('/api/v1/canned-replies', cannedDelay, cannedListGate, (_req, res) => {
+  res.json(CANNED.slice().sort(cannedOrder));
+});
+
+/**
+ * Mirrors `@Roles(SUPER_ADMIN, ADMIN)`. Pipe 400 → limit (coded 400, at 5 rows or `createMode:
+ * limit`) → 201 with the row. An omitted `sortOrder` puts it at the bottom.
+ */
+app.post('/api/v1/canned-replies', cannedDelay, cannedSaveGate, cannedCsrf, requireWrite, (req, res) => {
+  const parsed = parseCannedBody(req.body, false);
+  if (parsed.errors) return res.status(400).json(house(400, parsed.errors));
+  if (cannedCreateMode === 'limit' || CANNED.length >= CANNED_MAX) {
+    return res.status(400).json(coded(400, 'CANNED_REPLIES_LIMIT_EXCEEDED', CANNED_MSG.LIMIT));
+  }
+  const v = parsed.value;
+  const now = new Date().toISOString();
+  const row = {
+    id: `cmfcan${String(nextCannedId++).padStart(3, '0')}x7k2q9w4e1r5t8y0`,
+    title: v.title,
+    text: v.text,
+    sortOrder: v.sortOrder ?? nextSortOrder(),
+    createdAt: now,
+    updatedAt: now,
+  };
+  CANNED.push(row);
+  res.status(201).json(row);
+});
+
+/** The service's order: pipe 400 → `{}` (coded `UPDATE_EMPTY`) → 404 (coded) → 200 with the row. */
+app.patch('/api/v1/canned-replies/:id', cannedDelay, cannedSaveGate, cannedCsrf, requireWrite, (req, res) => {
+  const parsed = parseCannedBody(req.body, true);
+  if (parsed.errors) return res.status(400).json(house(400, parsed.errors));
+  const v = parsed.value;
+  if (Object.keys(v).length === 0) {
+    return res.status(400).json(coded(400, 'CANNED_REPLY_UPDATE_EMPTY', CANNED_MSG.UPDATE_EMPTY));
+  }
+  const row = findCanned(req.params.id);
+  if (!row) return res.status(404).json(coded(404, 'CANNED_REPLY_NOT_FOUND', CANNED_MSG.NOT_FOUND));
+  if (v.title !== undefined) row.title = v.title;
+  if (v.text !== undefined) row.text = v.text;
+  if (v.sortOrder !== undefined) row.sortOrder = v.sortOrder;
+  row.updatedAt = new Date().toISOString();
+  res.json(row);
+});
+
+/** A HARD delete → 204 with an EMPTY body. Nothing re-seeds, even at zero rows. */
+app.delete('/api/v1/canned-replies/:id', cannedDelay, cannedSaveGate, cannedCsrf, requireWrite, (req, res) => {
+  const row = findCanned(req.params.id);
+  if (!row) return res.status(404).json(coded(404, 'CANNED_REPLY_NOT_FOUND', CANNED_MSG.NOT_FOUND));
+  CANNED.splice(CANNED.indexOf(row), 1);
+  res.status(204).end();
+});
+
 /* ── control plane ─────────────────────────────────────────────────────── */
 
 app.post('/__control/role', (req, res) => {
@@ -973,32 +1655,193 @@ app.post('/__control/version', (req, res) => {
 });
 
 /**
- * Force ประกาศและข่าวสาร's two data sources into a state: `botMode` (the LINE OA card) and
- * `listMode` (the list AND the two tab-count calls, which are the same route). Either or both.
+ * Force ประกาศและข่าวสาร into a state — any subset of:
+ *   · `botMode` (the LINE OA card) and `listMode` (the list AND the two tab-count calls)
+ *   · `sendMode`, `sendDelayMs`, `saveMode`, `deleteMode`, `csrfMode` (the writes; sticky until
+ *     changed)
+ *   · `mutate: { id, action }` — ANOTHER admin acting, once, right now: `delete` (a DRAFT or, since
+ *     ANNOUNCE-API-5, a SENT row), `markSent` (a DRAFT sent elsewhere → the 409 paths) or `clearBody`
+ *     (a DRAFT; A-19: the only way to reach the server's `ANNOUNCEMENT_BODY_REQUIRED`, since client
+ *     validation always runs first)
  *
  * ⚠️ VALIDATED, AND APPLIED ALL-OR-NOTHING, like `/__control/version`: an unknown key (a typo such
  * as `botmode`) or an unknown value is a 400 and changes NOTHING — a control route that half-applies
  * leaves the screen in a state nobody asked for, which reads as a frontend bug.
  */
+const ANNOUNCEMENT_CONTROL_KEYS = [
+  'botMode',
+  'listMode',
+  'sendMode',
+  'sendDelayMs',
+  'saveMode',
+  'deleteMode',
+  'csrfMode',
+  'mutate',
+];
+
 app.post('/__control/announcements', (req, res) => {
   const body = req.body ?? {};
   const keys = Object.keys(body);
-  const unknown = keys.filter((k) => k !== 'botMode' && k !== 'listMode');
+  const unknown = keys.filter((k) => !ANNOUNCEMENT_CONTROL_KEYS.includes(k));
   if (unknown.length) {
     return res.status(400).json({ error: `unknown key(s): ${unknown.join(', ')}` });
   }
   if (!keys.length) {
-    return res.status(400).json({ error: 'give `botMode` and/or `listMode`' });
+    return res.status(400).json({ error: `give at least one of: ${ANNOUNCEMENT_CONTROL_KEYS.join(', ')}` });
   }
-  if (body.botMode !== undefined && !BOT_MODES.includes(body.botMode)) {
-    return res.status(400).json({ error: `\`botMode\` must be one of: ${BOT_MODES.join(', ')}` });
+  const oneOf = (key, allowed) =>
+    body[key] !== undefined && !allowed.includes(body[key])
+      ? `\`${key}\` must be one of: ${allowed.join(', ')}`
+      : null;
+  const bad =
+    oneOf('botMode', BOT_MODES) ??
+    oneOf('listMode', LIST_MODES) ??
+    oneOf('sendMode', SEND_MODES) ??
+    oneOf('saveMode', SAVE_MODES) ??
+    oneOf('deleteMode', DELETE_MODES) ??
+    oneOf('csrfMode', CSRF_MODES);
+  if (bad) return res.status(400).json({ error: bad });
+  if (
+    body.sendDelayMs !== undefined &&
+    !(Number.isInteger(body.sendDelayMs) && body.sendDelayMs >= 0 && body.sendDelayMs <= SEND_DELAY_MAX)
+  ) {
+    return res.status(400).json({ error: `\`sendDelayMs\` must be an integer from 0 to ${SEND_DELAY_MAX}` });
   }
-  if (body.listMode !== undefined && !LIST_MODES.includes(body.listMode)) {
-    return res.status(400).json({ error: `\`listMode\` must be one of: ${LIST_MODES.join(', ')}` });
+  let target = null;
+  if (body.mutate !== undefined) {
+    const m = body.mutate;
+    if (!m || typeof m !== 'object' || !MUTATE_ACTIONS.includes(m.action)) {
+      return res
+        .status(400)
+        .json({ error: `\`mutate\` must be { id, action } with action one of: ${MUTATE_ACTIONS.join(', ')}` });
+    }
+    target = findAnnouncement(m.id);
+    if (!target) return res.status(400).json({ error: `\`mutate.id\` matches no announcement: ${m.id}` });
+    // A SENT row can be deleted since ANNOUNCE-API-5 (the `view`-mode 404 path); it still cannot be
+    // edited, so `markSent` and `clearBody` stay DRAFT-only.
+    if (m.action !== 'delete' && target.status !== 'DRAFT') {
+      return res
+        .status(400)
+        .json({ error: `\`mutate ${m.action}\` needs a DRAFT; ${m.id} is ${target.status}` });
+    }
   }
+
+  // Everything is valid — apply it all.
   if (body.botMode !== undefined) botMode = body.botMode;
   if (body.listMode !== undefined) listMode = body.listMode;
-  res.json({ botMode, listMode });
+  if (body.sendMode !== undefined) sendMode = body.sendMode;
+  if (body.sendDelayMs !== undefined) sendDelayMs = body.sendDelayMs;
+  if (body.saveMode !== undefined) saveMode = body.saveMode;
+  if (body.deleteMode !== undefined) deleteMode = body.deleteMode;
+  if (body.csrfMode !== undefined) csrfMode = body.csrfMode;
+  if (target) {
+    const action = body.mutate.action;
+    if (action === 'delete') ANNOUNCEMENTS.splice(ANNOUNCEMENTS.indexOf(target), 1);
+    else if (action === 'markSent') commitSent(target);
+    else {
+      target.body = '';
+      target.updatedAt = new Date().toISOString();
+    }
+  }
+  res.json({
+    botMode,
+    listMode,
+    sendMode,
+    sendDelayMs,
+    saveMode,
+    deleteMode,
+    csrfMode,
+    ...(target ? { mutated: target.id } : {}),
+  });
+});
+
+/**
+ * Force ข้อความตอบกลับด่วน into a state (ANNOUNCE-UI-6 D-7) — any subset of:
+ *   · `listMode: ok|error|network` — every GET (`error` = the code-less session-store 503)
+ *   · `createMode: ok|limit` — `limit` forces the coded 400 on POST even below 5 rows
+ *   · `saveMode: ok|no-code|network` — POST, PATCH and DELETE, before anything is written
+ *   · `csrfMode: ok|reject` — the canned writes only (the announcements have their own)
+ *   · `delayMs` — an integer 0–10000, slept before EVERY canned route answers, GET included
+ *   · `mutate: { id, action: 'delete' }` — ANOTHER admin deletes it, once, now (404 paths)
+ *   · `fill: true` — append test rows until there are 5
+ *
+ * ⚠️ ALL-OR-NOTHING like `/__control/announcements`: an unknown key, a bad value or an empty body is
+ * a 400 `{ error }` and changes NOTHING.
+ */
+const CANNED_CONTROL_KEYS = ['listMode', 'createMode', 'saveMode', 'csrfMode', 'delayMs', 'mutate', 'fill'];
+
+app.post('/__control/canned-replies', (req, res) => {
+  const body = req.body ?? {};
+  const keys = Object.keys(body);
+  const unknown = keys.filter((k) => !CANNED_CONTROL_KEYS.includes(k));
+  if (unknown.length) {
+    return res.status(400).json({ error: `unknown key(s): ${unknown.join(', ')}` });
+  }
+  if (!keys.length) {
+    return res.status(400).json({ error: `give at least one of: ${CANNED_CONTROL_KEYS.join(', ')}` });
+  }
+  const oneOf = (key, allowed) =>
+    body[key] !== undefined && !allowed.includes(body[key])
+      ? `\`${key}\` must be one of: ${allowed.join(', ')}`
+      : null;
+  const bad =
+    oneOf('listMode', CANNED_LIST_MODES) ??
+    oneOf('createMode', CANNED_CREATE_MODES) ??
+    oneOf('saveMode', CANNED_SAVE_MODES) ??
+    oneOf('csrfMode', CSRF_MODES);
+  if (bad) return res.status(400).json({ error: bad });
+  if (
+    body.delayMs !== undefined &&
+    !(Number.isInteger(body.delayMs) && body.delayMs >= 0 && body.delayMs <= CANNED_DELAY_MAX)
+  ) {
+    return res.status(400).json({ error: `\`delayMs\` must be an integer from 0 to ${CANNED_DELAY_MAX}` });
+  }
+  if (body.fill !== undefined && body.fill !== true) {
+    return res.status(400).json({ error: '`fill` must be true' });
+  }
+  let target = null;
+  if (body.mutate !== undefined) {
+    const m = body.mutate;
+    if (!m || typeof m !== 'object' || m.action !== 'delete') {
+      return res.status(400).json({ error: "`mutate` must be { id, action: 'delete' }" });
+    }
+    target = findCanned(m.id);
+    if (!target) return res.status(400).json({ error: `\`mutate.id\` matches no canned reply: ${m.id}` });
+  }
+
+  // Everything is valid — apply it all.
+  if (body.listMode !== undefined) cannedListMode = body.listMode;
+  if (body.createMode !== undefined) cannedCreateMode = body.createMode;
+  if (body.saveMode !== undefined) cannedSaveMode = body.saveMode;
+  if (body.csrfMode !== undefined) cannedCsrfMode = body.csrfMode;
+  if (body.delayMs !== undefined) cannedDelayMs = body.delayMs;
+  if (target) CANNED.splice(CANNED.indexOf(target), 1);
+  let filled = 0;
+  if (body.fill) {
+    while (CANNED.length < CANNED_MAX) {
+      const k = CANNED.length + 1;
+      const now = new Date().toISOString();
+      CANNED.push({
+        id: `cmfcan${String(nextCannedId++).padStart(3, '0')}x7k2q9w4e1r5t8y0`,
+        title: `ข้อความทดสอบ ${k}`,
+        text: `ข้อความทดสอบสำหรับตรวจขีดจำกัด ${k}`,
+        sortOrder: nextSortOrder(),
+        createdAt: now,
+        updatedAt: now,
+      });
+      filled++;
+    }
+  }
+  res.json({
+    listMode: cannedListMode,
+    createMode: cannedCreateMode,
+    saveMode: cannedSaveMode,
+    csrfMode: cannedCsrfMode,
+    delayMs: cannedDelayMs,
+    count: CANNED.length,
+    ...(target ? { mutated: target.id } : {}),
+    ...(body.fill ? { filled } : {}),
+  });
 });
 
 app.post('/__control/reset', (_req, res) => {
@@ -1011,6 +1854,20 @@ app.post('/__control/reset', (_req, res) => {
   ANNOUNCEMENTS = announcementSeed();
   botMode = 'ok';
   listMode = 'ok';
+  sendMode = 'ok';
+  sendDelayMs = 0;
+  saveMode = 'ok';
+  deleteMode = 'ok';
+  csrfMode = 'ok';
+  nextId = 100;
+  // …and the canned replies: the four migration defaults and every canned mode.
+  CANNED = cannedSeed();
+  nextCannedId = 100;
+  cannedListMode = 'ok';
+  cannedCreateMode = 'ok';
+  cannedSaveMode = 'ok';
+  cannedCsrfMode = 'ok';
+  cannedDelayMs = 0;
   res.json({
     ok: true,
     rows: ROWS.length,
@@ -1018,6 +1875,12 @@ app.post('/__control/reset', (_req, res) => {
     announcements: ANNOUNCEMENTS.length,
     botMode,
     listMode,
+    sendMode,
+    sendDelayMs,
+    saveMode,
+    deleteMode,
+    csrfMode,
+    cannedReplies: CANNED.length,
   });
 });
 app.post('/__control/emit', (req, res) => {
@@ -1053,6 +1916,6 @@ function emit(event, payload) {
 
 server.listen(PORT, () =>
   console.log(
-    `[stub] :${PORT} — role=${role}, ${ROWS.length} booking rows, ${ANNOUNCEMENTS.length} announcements, version=${systemVersion.version} (from package.json)`,
+    `[stub] :${PORT} — role=${role}, ${ROWS.length} booking rows, ${ANNOUNCEMENTS.length} announcements, ${CANNED.length} canned replies, version=${systemVersion.version} (from package.json)`,
   ),
 );

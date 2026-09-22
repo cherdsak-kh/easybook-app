@@ -1,13 +1,18 @@
 /**
- * `ประกาศและข่าวสาร` — the two READ routes phase 3 uses, on the SHARED `api` client.
+ * `ประกาศและข่าวสาร` — every announcements route the admin portal calls, on the SHARED `api` client:
+ * the two phase-3 READS (list, bot info) and, since phase 4, `GET :id`, create, edit, delete and send.
  *
  * ⚠️ NEVER A SECOND FETCH CLIENT (D-12, same rule as `feedback-api.ts`). `api` carries the
  * credentials, the CSRF middleware and the 401 watcher `AuthProvider` installs; a client built here
- * would silently skip all three. Phase 3 writes nothing, so there is no `withCsrfRetry` yet — create,
- * edit, delete and send arrive with the compose dialog in phase 4.
+ * would silently skip all three.
+ *
+ * ⚠️ EVERY WRITE GOES THROUGH `withCsrfRetry`: a 403 from a rotated token is retried exactly once
+ * with a fresh one. A 403 that survives the retry is a real refusal (a VIEWER, or a CSRF failure) and
+ * nothing was written. Retrying `/send` is safe for the same reason — CSRF and `RolesGuard` refuse
+ * before the handler runs.
  */
 
-import { ApiError, api } from '@/lib/api-client'
+import { ApiError, api, withCsrfRetry } from '@/lib/api-client'
 import type { components, paths } from '@/lib/api-types'
 
 export type Announcement = components['schemas']['AnnouncementDto']
@@ -15,6 +20,14 @@ export type PaginatedAnnouncements = components['schemas']['PaginatedAnnouncemen
 /** `all | sent | draft` — LOWERCASE, a different enum from the stored `AnnouncementStatus`. */
 export type AnnouncementStatusFilter = components['schemas']['AnnouncementStatusFilter']
 export type LineBotInfo = components['schemas']['LineBotInfoDto']
+export type CreateAnnouncementBody = components['schemas']['CreateAnnouncementDto']
+export type UpdateAnnouncementBody = components['schemas']['UpdateAnnouncementDto']
+/**
+ * The generated union of every `code` an announcement route can answer. `sendOutcome` casts its
+ * `switch` to it, so a `case` for a code the contract no longer has is a compile error (TS2678)
+ * instead of dead code (ANNOUNCE-UI-6 design S-1).
+ */
+export type AnnouncementErrorCode = components['schemas']['AnnouncementErrorCode']
 
 type ListQuery = NonNullable<paths['/api/v1/announcements']['get']['parameters']['query']>
 
@@ -115,5 +128,148 @@ export async function getLineBotInfo(): Promise<BotInfoResult> {
   } catch {
     // fetch rejected: no status at all.
     return { ok: false, reason: 'network' }
+  }
+}
+
+/* ── one record, and the four writes (phase 4) ─────────────────────────────────────────────── */
+
+/**
+ * Why a call failed, AS DATA — the dialog maps it to an outcome in `announcement-outcomes.ts`.
+ *
+ * ⚠️ `code` IS READ AT RUNTIME (`codeOf`), NEVER FROM THE GENERATED TYPE. The send route's 503 is
+ * typed `AnnouncementCodedErrorDto` with a REQUIRED `code`, but the session-store 503 has none. POST
+ * and PATCH never carry one; their 400s are matched on `message`. DELETE's 404/409 are coded since
+ * ANNOUNCE-API-5, but the dialog branches on status there (`deleteOutcome`).
+ */
+export interface WriteFailure {
+  ok: false
+  /** 0 = no response at all: the fetch rejected (a dropped socket, no network). */
+  status: number
+  code?: string
+  /** `message` when it is a single string. A pipe 400's `string[]` leaves this unset. */
+  message?: string
+  /** Only on 502 `ANNOUNCEMENT_PARTIALLY_SENT`; each read with `typeof === 'number'`. */
+  acceptedCount?: number
+  targetedCount?: number
+}
+
+export type WriteResult<T> = { ok: true; value: T } | WriteFailure
+
+/**
+ * Exported for `canned-replies-api.ts` (ANNOUNCE-UI-6 design S-9), so both modules decode a failure
+ * the same way. Do not copy it.
+ */
+export function failureOf(status: number, error: unknown): WriteFailure {
+  const out: WriteFailure = { ok: false, status }
+  const code = codeOf(error)
+  if (code) out.code = code
+  if (error && typeof error === 'object') {
+    const e = error as { message?: unknown; acceptedCount?: unknown; targetedCount?: unknown }
+    if (typeof e.message === 'string') out.message = e.message
+    if (typeof e.acceptedCount === 'number') out.acceptedCount = e.acceptedCount
+    if (typeof e.targetedCount === 'number') out.targetedCount = e.targetedCount
+  }
+  return out
+}
+
+/**
+ * A rejected fetch is a `TypeError` (status 0); a failed `GET /csrf` inside the middleware is an
+ * `ApiError` with that call's status. Either way nothing about THIS write is known. Exported for
+ * `canned-replies-api.ts`, like `failureOf`.
+ */
+export const thrown = (err: unknown): WriteFailure => ({
+  ok: false,
+  status: err instanceof ApiError ? err.status : 0,
+})
+
+/*
+ * ⚠️ THE FIVE CALLS BELOW NEVER THROW (the `getLineBotInfo` precedent). Every failure comes back as a
+ * `WriteFailure`, so the dialog's state machine has one shape to branch on and no path where an
+ * exception skips the unlock.
+ *
+ * The `x-csrf-token: ''` placeholder satisfies the generated header type; `csrfMiddleware` overwrites
+ * it with the real token (the `feedback-api.ts` idiom).
+ */
+
+/** One announcement — the same shape as a list row. Every role may read it (no CSRF: a GET). */
+export async function getAnnouncement(id: string): Promise<WriteResult<Announcement>> {
+  try {
+    const { data, error, response } = await api.GET('/api/v1/announcements/{id}', {
+      params: { path: { id } },
+    })
+    return data ? { ok: true, value: data } : failureOf(response.status, error)
+  } catch (err) {
+    return thrown(err)
+  }
+}
+
+/** 201 — a new DRAFT, `createdBy` = the session. */
+export async function createAnnouncement(
+  body: CreateAnnouncementBody,
+): Promise<WriteResult<Announcement>> {
+  try {
+    const { data, error, response } = await withCsrfRetry(() =>
+      api.POST('/api/v1/announcements', {
+        params: { header: { 'x-csrf-token': '' } },
+        body,
+      }),
+    )
+    return data ? { ok: true, value: data } : failureOf(response.status, error)
+  } catch (err) {
+    return thrown(err)
+  }
+}
+
+/** 200 — the edited DRAFT. The dialog always sends the full field set, so this is never `{}`. */
+export async function updateAnnouncement(
+  id: string,
+  body: UpdateAnnouncementBody,
+): Promise<WriteResult<Announcement>> {
+  try {
+    const { data, error, response } = await withCsrfRetry(() =>
+      api.PATCH('/api/v1/announcements/{id}', {
+        params: { path: { id }, header: { 'x-csrf-token': '' } },
+        body,
+      }),
+    )
+    return data ? { ok: true, value: data } : failureOf(response.status, error)
+  } catch (err) {
+    return thrown(err)
+  }
+}
+
+/**
+ * 204, no body — so success is read from the status, not from `data`. A SOFT delete of a DRAFT or a
+ * SENT row since ANNOUNCE-API-5.
+ */
+export async function deleteAnnouncement(id: string): Promise<WriteResult<null>> {
+  try {
+    const { error, response } = await withCsrfRetry(() =>
+      api.DELETE('/api/v1/announcements/{id}', {
+        params: { path: { id }, header: { 'x-csrf-token': '' } },
+      }),
+    )
+    return response.status === 204 ? { ok: true, value: null } : failureOf(response.status, error)
+  } catch (err) {
+    return thrown(err)
+  }
+}
+
+/**
+ * 200 — the row, now SENT, with the `sentCount` LINE accepted. IRREVERSIBLE. No body.
+ *
+ * ⚠️ NO ABORT, NO CLIENT TIMEOUT (plan D-3). A send may take ~90 s; aborting does not stop the server
+ * and would only turn a send that succeeds into a false failure.
+ */
+export async function sendAnnouncement(id: string): Promise<WriteResult<Announcement>> {
+  try {
+    const { data, error, response } = await withCsrfRetry(() =>
+      api.POST('/api/v1/announcements/{id}/send', {
+        params: { path: { id }, header: { 'x-csrf-token': '' } },
+      }),
+    )
+    return data ? { ok: true, value: data } : failureOf(response.status, error)
+  } catch (err) {
+    return thrown(err)
   }
 }

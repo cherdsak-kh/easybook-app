@@ -1215,8 +1215,8 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Delete a draft announcement.
-         * @description A HARD delete, DRAFT only. A `SENT` row cannot be deleted (409). A second DELETE on the same id is a 404.
+         * Delete an announcement (soft delete).
+         * @description A SOFT delete of a DRAFT or a SENT announcement: the row is kept for audit with `deletedAt` set and disappears from every route (list, counts, get, edit, send → 404). Irreversible through the API. Fails fast with 409 `ANNOUNCEMENT_SEND_IN_PROGRESS` if the row is being sent or edited at that moment; retry after the send completes. A second DELETE is a 404.
          */
         delete: operations["AnnouncementsController_remove"];
         options?: never;
@@ -1241,19 +1241,21 @@ export interface paths {
          * Send a draft announcement to LINE users.
          * @description **Irreversible.** Sends a DRAFT to LINE users as one multicast message — `TEXT`: `title` + blank line + `body`; `FLEX`: one card — and marks it `SENT`. No request body.
          *
-         *     Recipients: LINE users with `access = ALLOWED`, not deleted, with a well-formed LINE id, who have not switched announcements off in their settings; for `DEPARTMENT`, also a live registration in that department. Sent in chunks of up to 500, each with its own `X-Line-Retry-Key`.
+         *     Recipients: LINE users with `access = ALLOWED`, not deleted, with a well-formed LINE id, who have not switched announcements off in their settings; for `DEPARTMENT`, also a live registration in that department. Sent in chunks of up to 500, each with its own `X-Line-Retry-Key`. An empty audience is not an error.
          *
          *     `sentCount` is the number of recipients LINE **accepted**, not delivered or read.
+         *
+         *     Zero eligible recipients → 200, `sentCount` 0, no LINE call — the former 400 "no recipients found" answer was removed in ANNOUNCE-API-5.
          *
          *     CSRF applies: a request with no session AND no `x-csrf-token` is a 403 (the CSRF middleware runs before the guards).
          *
          *     | Status | `code` | When | Row after |
          *     |---|---|---|---|
          *     | 200 | — | every chunk accepted | SENT, `sentAt` = now, `sentCount` = targeted |
+         *     | 200 | — | zero eligible recipients after every filter | SENT, `sentAt` = now, `sentCount` = 0, **no LINE call** |
          *     | 400 | `ANNOUNCEMENT_BODY_REQUIRED` | `body` is blank | unchanged |
          *     | 400 | `ANNOUNCEMENT_DEPARTMENT_INVALID` | `DEPARTMENT` with a null, missing or soft-deleted department | unchanged |
-         *     | 400 | `NO_RECIPIENTS_FOUND` | nobody eligible after every filter | unchanged |
-         *     | 404 | `ANNOUNCEMENT_NOT_FOUND` | unknown or malformed id | — |
+         *     | 404 | `ANNOUNCEMENT_NOT_FOUND` | unknown, malformed or deleted id | — |
          *     | 409 | `ANNOUNCEMENT_SEND_IN_PROGRESS` | the row is being sent or edited right now | unchanged |
          *     | 409 | `ANNOUNCEMENT_ALREADY_SENT` | the row is `SENT` | unchanged |
          *     | 502 | `ANNOUNCEMENT_PARTIALLY_SENT` (+ `acceptedCount`, `targetedCount`) | at least one chunk accepted, then a failure | **SENT and final**, `sentCount` = `acceptedCount` |
@@ -1268,6 +1270,54 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/canned-replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List canned replies.
+         * @description Every canned reply (at most 5) as a PLAIN ARRAY, ordered `sortOrder ASC`, ties broken on `createdAt ASC` then `id ASC`. `[]` when there are none. No pagination and no query parameters.
+         */
+        get: operations["CannedRepliesController_list"];
+        put?: never;
+        /**
+         * Create a canned reply.
+         * @description At most 5 canned replies exist; a POST at 5 is a 400 `CANNED_REPLIES_LIMIT_EXCEEDED` and writes nothing. Two concurrent POSTs at 4 serialise: exactly one succeeds. An omitted `sortOrder` puts the reply at the bottom (current maximum + 1, capped at 9999; 0 on an empty table).
+         */
+        post: operations["CannedRepliesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/canned-replies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a canned reply.
+         * @description A HARD delete — there is no restore. A second DELETE on the same id is a 404. Deleting every reply is allowed; nothing re-seeds the defaults.
+         */
+        delete: operations["CannedRepliesController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a canned reply.
+         * @description Any subset of `title`, `text`, `sortOrder` (at least one). An empty body `{}` is a 400 `CANNED_REPLY_UPDATE_EMPTY`; `null` for any field is a 400. `updatedAt` advances. Answers with the updated record.
+         */
+        patch: operations["CannedRepliesController_update"];
         trace?: never;
     };
     "/api/v1/system/version": {
@@ -2905,7 +2955,7 @@ export interface components {
         /** @enum {string} */
         AnnouncementFormat: "TEXT" | "FLEX";
         /**
-         * @description A row is created as `DRAFT`; only `POST /announcements/{id}/send` makes it `SENT`. `SENT` rows are immutable (PATCH/DELETE → 409) and cannot be sent again.
+         * @description A row is created as `DRAFT`; only `POST /announcements/{id}/send` makes it `SENT`. `SENT` rows cannot be edited (PATCH → 409) or sent again; DRAFT and SENT rows alike can be soft-deleted (DELETE → 204).
          * @enum {string}
          */
         AnnouncementStatus: "DRAFT" | "SENT";
@@ -2922,7 +2972,7 @@ export interface components {
              */
             body: string;
             format: components["schemas"]["AnnouncementFormat"];
-            /** @description A row is created as `DRAFT`; only `POST /announcements/{id}/send` makes it `SENT`. `SENT` rows are immutable (PATCH/DELETE → 409) and cannot be sent again. */
+            /** @description A row is created as `DRAFT`; only `POST /announcements/{id}/send` makes it `SENT`. `SENT` rows cannot be edited (PATCH → 409) or sent again; DRAFT and SENT rows alike can be soft-deleted (DELETE → 204). */
             status: components["schemas"]["AnnouncementStatus"];
             audience: components["schemas"]["AnnouncementAudience"];
             /** @description null iff `audience` is `ALL` — or after a HARD delete of the department (never happens through the API; departments are soft-deleted). */
@@ -2933,7 +2983,7 @@ export interface components {
              */
             sentAt: string | null;
             /**
-             * @description Recipients whose multicast request LINE **accepted** (HTTP 200, or 409 on a repeated retry key). Not a delivered or read count: LINE silently drops users who blocked the OA. On a partial send (502 `ANNOUNCEMENT_PARTIALLY_SENT`) it is less than the targeted count. 0 for a DRAFT.
+             * @description Recipients whose multicast request LINE **accepted** (HTTP 200, or 409 on a repeated retry key). Not a delivered or read count: LINE silently drops users who blocked the OA. On a partial send (502 `ANNOUNCEMENT_PARTIALLY_SENT`) it is less than the targeted count. 0 for a DRAFT, and for a SENT row whose send found nobody eligible (no LINE call was made).
              * @example 0
              */
             sentCount: number;
@@ -2977,7 +3027,7 @@ export interface components {
             chatMode: components["schemas"]["LineBotChatMode"];
         };
         /** @enum {string} */
-        AnnouncementErrorCode: "ANNOUNCEMENT_NOT_FOUND" | "ANNOUNCEMENT_ALREADY_SENT" | "ANNOUNCEMENT_SEND_IN_PROGRESS" | "ANNOUNCEMENT_BODY_REQUIRED" | "ANNOUNCEMENT_DEPARTMENT_INVALID" | "NO_RECIPIENTS_FOUND" | "ANNOUNCEMENT_PARTIALLY_SENT" | "LINE_SEND_FAILED" | "LINE_NOT_CONFIGURED" | "LINE_RATE_LIMITED" | "LINE_BOT_INFO_UNAVAILABLE";
+        AnnouncementErrorCode: "ANNOUNCEMENT_NOT_FOUND" | "ANNOUNCEMENT_ALREADY_SENT" | "ANNOUNCEMENT_SEND_IN_PROGRESS" | "ANNOUNCEMENT_BODY_REQUIRED" | "ANNOUNCEMENT_DEPARTMENT_INVALID" | "ANNOUNCEMENT_PARTIALLY_SENT" | "LINE_SEND_FAILED" | "LINE_NOT_CONFIGURED" | "LINE_RATE_LIMITED" | "LINE_BOT_INFO_UNAVAILABLE";
         AnnouncementCodedErrorDto: {
             /** @example 401 */
             statusCode: number;
@@ -3033,6 +3083,66 @@ export interface components {
              * @example 3
              */
             departmentId?: number | null;
+        };
+        CannedReplyDto: {
+            /** @example canned_reply_default_1 */
+            id: string;
+            /** @example แจ้งวิธีจองสถานที่ */
+            title: string;
+            /** @example สวัสดีค่ะ จองสถานที่ได้ที่เมนู "จองสถานที่" ด้านล่างห้องแชทนี้ เลือกสถานที่ วันและเวลา แล้วกดยืนยัน */
+            text: string;
+            /**
+             * @description Display order, ascending; ties break on `createdAt` then `id`. Duplicates are allowed.
+             * @example 0
+             */
+            sortOrder: number;
+            /**
+             * Format: date-time
+             * @example 2026-09-22T08:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2026-09-22T08:05:00.000Z
+             */
+            updatedAt: string;
+        };
+        CreateCannedReplyDto: {
+            /**
+             * @description Trimmed; 1–100 characters after trimming.
+             * @example แจ้งวิธีจองสถานที่
+             */
+            title: string;
+            /**
+             * @description The snippet staff copy. Trimmed; 1–1000 characters after trimming.
+             * @example สวัสดีค่ะ จองสถานที่ได้ที่เมนู "จองสถานที่" ด้านล่างห้องแชทนี้
+             */
+            text: string;
+            /**
+             * @description Display order, ascending; ties break on `createdAt` then `id`. Duplicates are allowed. A JSON string such as "3" is a 400. Omitted → one past the current maximum (bottom of the list), capped at 9999; 0 on an empty table. `null` → 400.
+             * @example 4
+             */
+            sortOrder?: number;
+        };
+        /** @enum {string} */
+        CannedReplyErrorCode: "CANNED_REPLIES_LIMIT_EXCEEDED" | "CANNED_REPLY_NOT_FOUND" | "CANNED_REPLY_UPDATE_EMPTY";
+        CannedReplyCodedErrorDto: {
+            /** @example 401 */
+            statusCode: number;
+            /** @example Unauthorized */
+            error: string;
+            /** @example Invalid email or password. */
+            message: string;
+            /** @example CANNED_REPLIES_LIMIT_EXCEEDED */
+            code: components["schemas"]["CannedReplyErrorCode"];
+        };
+        UpdateCannedReplyDto: {
+            /** @description Trimmed; 1–100 characters after trimming. Blank or `null` → 400. */
+            title?: string;
+            /** @description The snippet staff copy. Trimmed; 1–1000 characters after trimming. Blank or `null` → 400. */
+            text?: string;
+            /** @description Display order, ascending; ties break on `createdAt` then `id`. Duplicates are allowed. A JSON string such as "3" is a 400. `null` → 400. */
+            sortOrder?: number;
         };
         VersionResponseDto: {
             /**
@@ -7600,7 +7710,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description Unknown or malformed id. */
+            /** @description Unknown, malformed or deleted id. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7633,7 +7743,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Deleted. Empty body. */
+            /** @description Soft-deleted. Empty body. */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -7658,22 +7768,22 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description Unknown or malformed id. */
+            /** @description `ANNOUNCEMENT_NOT_FOUND`: unknown, malformed or already deleted id. */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponseDto"];
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
                 };
             };
-            /** @description The announcement is `SENT` — sent rows are immutable (D-2). Also answered when the row stopped being a draft between the read and the conditional write. Nothing is written. */
+            /** @description `ANNOUNCEMENT_SEND_IN_PROGRESS`: the row is being sent or edited right now. Nothing is deleted. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponseDto"];
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
                 };
             };
             /** @description Session store unavailable. */
@@ -7740,7 +7850,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description Unknown or malformed id. */
+            /** @description Unknown, malformed or deleted id. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7749,7 +7859,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description The announcement is `SENT` — sent rows are immutable (D-2). Also answered when the row stopped being a draft between the read and the conditional write. Nothing is written. */
+            /** @description The announcement is `SENT`: sent rows cannot be edited. Also answered when the row stopped being a draft between the read and the conditional write. Nothing is written. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7782,7 +7892,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Sent — status `SENT`, `sentAt` set, `sentCount` = recipients LINE accepted. */
+            /** @description Sent — status `SENT`, `sentAt` set, `sentCount` = recipients LINE accepted. `sentCount` 0 when nobody was eligible (no LINE call). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7791,7 +7901,7 @@ export interface operations {
                     "application/json": components["schemas"]["AnnouncementDto"];
                 };
             };
-            /** @description `ANNOUNCEMENT_BODY_REQUIRED`, `ANNOUNCEMENT_DEPARTMENT_INVALID` or `NO_RECIPIENTS_FOUND`. Nothing is sent or written. */
+            /** @description `ANNOUNCEMENT_BODY_REQUIRED` or `ANNOUNCEMENT_DEPARTMENT_INVALID`. Nothing is sent or written. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7818,7 +7928,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description `ANNOUNCEMENT_NOT_FOUND` — unknown or malformed id. */
+            /** @description `ANNOUNCEMENT_NOT_FOUND` — unknown, malformed or deleted id. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -7852,6 +7962,246 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+        };
+    };
+    CannedRepliesController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The replies. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyDto"][];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Password change required (`mustChangePassword`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    CannedRepliesController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCannedReplyDto"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyDto"];
+                };
+            };
+            /** @description `CANNED_REPLIES_LIMIT_EXCEEDED` (coded body, Thai `message`). A validation failure — blank or over-length `title`/`text`, a `sortOrder` outside 0–9999 or not an integer (a JSON string included), an unknown key — is the house body with a `string[]` `message` and NO `code`. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (a missing or forged `x-csrf-token`, including with no session), or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    CannedRepliesController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (a missing or forged `x-csrf-token`, including with no session), or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description `CANNED_REPLY_NOT_FOUND` — unknown or malformed id (including one already deleted). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyCodedErrorDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    CannedRepliesController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCannedReplyDto"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyDto"];
+                };
+            };
+            /** @description `CANNED_REPLY_UPDATE_EMPTY` (coded body). A validation failure is the house body with a `string[]` `message` and NO `code`. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (a missing or forged `x-csrf-token`, including with no session), or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description `CANNED_REPLY_NOT_FOUND` — unknown or malformed id (including one already deleted). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyCodedErrorDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
         };
