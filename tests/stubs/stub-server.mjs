@@ -24,6 +24,14 @@
  *                                             DEFAULT AGREES WITH `package.json`; drive the
  *                                             disagreement state via `POST /__control/version`
  *   - booking-requests (list/detail/approve/reject/cancel/preflight/direct) — as before
+ *   - GET  announcements                    — SUPER_ADMIN|ADMIN|VIEWER. Validates the query like
+ *                                             `ListAnnouncementsQueryDto` + the global pipe (400 on
+ *                                             an unknown key, `limit` ∉ {10,20,50}, `page` < 1, an
+ *                                             unknown/uppercase `status`, `q` > 100). Driven by
+ *                                             `listMode` — see `POST /__control/announcements`
+ *   - GET  announcements/line-bot-info      — SUPER_ADMIN|ADMIN|VIEWER. Every answer the real route
+ *                                             gives, driven by `botMode` (ok, bot mode, the two coded
+ *                                             503s, the code-less session-store 503, a dead socket)
  *
  * What this stub does NOT serve (a 404 here is expected, not a bug):
  *   - Any WRITE on line-users (`PATCH /line-users/:id`, `PATCH /line-users/:id/registration`)
@@ -31,6 +39,7 @@
  *   - Any CRUD on venues beyond the list (POST/PATCH/DELETE, close/reopen, photo upload)
  *   - system-users writes (create/update/delete/restore/reset-password)
  *   - auth/system/password, avatar upload, LINE registration/webhook routes
+ *   - announcements `GET :id`, POST, PATCH, DELETE and `POST :id/send` — phase 4 (ANNOUNCE-UI-4)
  * A screen that calls one of the above against this stub will see a 404, not a 403 or a shape bug
  * — that is a genuinely unimplemented corner of the stub, not a contract mismatch.
  *
@@ -38,7 +47,9 @@
  *   POST /__control/role      { role }                       — switch the signed-in role
  *   POST /__control/emit      { event, id, status, actor }   — push a realtime event
  *   POST /__control/version   { version, build?, releasedAt? } — set what GET system/version reports
- *   POST /__control/reset                                     — restore the seed AND the version
+ *   POST /__control/announcements { botMode?, listMode? }    — force the bot-info card / list state
+ *   POST /__control/reset                                     — restore the seeds, the version and
+ *                                                              both announcement modes
  *
  * ── How to run this (the full recipe) ─────────────────────────────────────
  *
@@ -80,6 +91,16 @@
  *   curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3301/__control/version \
  *     -H "Content-Type: application/json" -d '{}'
  *   # → 400
+ *
+ *   # ประกาศและข่าวสาร — force the LINE OA card into one state, then reload (or press ลองอีกครั้ง).
+ *   # botMode: ok | ok-picture | bot | not-configured | unavailable | no-code | network
+ *   curl -s -X POST http://localhost:3301/__control/announcements \
+ *     -H "Content-Type: application/json" -d '{"botMode":"not-configured"}'
+ *   # → {"botMode":"not-configured","listMode":"ok"}
+ *
+ *   # …and the list. listMode: ok | empty (every query 0 rows, pills 0/0/0) | fail (code-less 503)
+ *   curl -s -X POST http://localhost:3301/__control/announcements \
+ *     -H "Content-Type: application/json" -d '{"listMode":"fail"}'
  */
 import express from 'express';
 import cors from 'cors';
@@ -684,6 +705,232 @@ app.post('/api/v1/booking-requests/direct', requireWrite, (req, res) => {
   res.status(201).json(row);
 });
 
+/* ── announcements (ประกาศและข่าวสาร, phase 3: the two GETs only) ─────── */
+
+/**
+ * Seed for `GET /announcements`. Every row is EXACTLY `AnnouncementDto` — twelve keys, nothing more:
+ * `id, title, body, format, status, audience, department, sentAt, sentCount, createdBy, createdAt,
+ * updatedAt`. `department` is `AnnouncementDepartmentDto` (`{id,name}` — never the option table's
+ * full row) and `createdBy` is `AnnouncementCreatorDto` (`{id,firstName,lastName}`).
+ *
+ * 14 SENT + 9 DRAFT = 23, so the three pills are distinguishable (23 / 14 / 9) and the list has three
+ * pages at `limit=10`. Deliberately included, one each or more:
+ *   · DEPARTMENT with `department: null` — a hard-deleted department → `(ถูกลบแล้ว)` (two rows)
+ *   · a 100-character title with no spaces — the 390px overflow check
+ *   · a SENT row with a small partial `sentCount` (7) — rendered as-is, never hidden
+ *   · `createdBy: null` — a hard-deleted staff account
+ *   · a title-only draft (`body: ''`)
+ * `dept` below: absent → ALL; a number → that stub `DEPARTMENTS` row; `'gone'` → DEPARTMENT + null.
+ */
+const LONG_ANNOUNCEMENT_TITLE = 'ประกาศด่วนเรื่องการปิดปรับปรุงหอประชุมวารณและห้องประชุมไอยราพรต'
+  .repeat(2)
+  .slice(0, 100);
+
+const STAFF_A = { id: 'su0', firstName: 'ผู้ทดสอบ', lastName: 'ระบบ' };
+const STAFF_B = { id: 'su1', firstName: 'เจ้าหน้าที่', lastName: 'คนที่ 2' };
+
+const ANNOUNCEMENT_SPECS = [
+  // ── SENT (14) ──
+  { title: 'ปิดปรับปรุงหอประชุมวารณ วันที่ 25 ก.ย. 2569', status: 'SENT', format: 'TEXT', sent: 1248, at: [20, 9, 0] },
+  { title: 'เปิดให้จองห้องประชุมไอยราพรตผ่าน LINE แล้ว', status: 'SENT', format: 'FLEX', sent: 1236, at: [19, 14, 30] },
+  { title: 'ประชุมผู้ปกครองประจำภาคเรียนที่ 2', status: 'SENT', format: 'TEXT', dept: 1, sent: 312, at: [18, 10, 0] },
+  { title: 'ขอเชิญร่วมกิจกรรมวันวิทยาศาสตร์', status: 'SENT', format: 'FLEX', dept: 2, sent: 187, at: [17, 8, 45] },
+  { title: 'แจ้งเปลี่ยนเวลาเปิดโรงยิม 1', status: 'SENT', format: 'TEXT', sent: 7, at: [16, 16, 10] },
+  { title: LONG_ANNOUNCEMENT_TITLE, status: 'SENT', format: 'TEXT', sent: 1190, at: [15, 11, 0] },
+  { title: 'กำหนดการซ้อมกีฬาสีประจำปี 2569', status: 'SENT', format: 'FLEX', dept: 'gone', sent: 95, at: [14, 9, 20] },
+  { title: 'งดใช้ลานกิจกรรมช่วงสอบกลางภาค', status: 'SENT', format: 'TEXT', sent: 1201, at: [12, 13, 0], by: STAFF_B },
+  { title: 'อบรมการใช้งานระบบจองสถานที่สำหรับครู', status: 'SENT', format: 'TEXT', dept: 2, sent: 64, at: [11, 10, 30] },
+  { title: 'แจ้งปิดระบบชั่วคราวเพื่อบำรุงรักษา', status: 'SENT', format: 'FLEX', sent: 1255, at: [10, 17, 0] },
+  { title: 'ประกาศผลการจัดสรรห้องเรียนพิเศษ', status: 'SENT', format: 'TEXT', dept: 1, sent: 208, at: [8, 9, 0], by: STAFF_B },
+  { title: 'เชิญชมการแสดงดนตรีไทยในหอประชุม', status: 'SENT', format: 'FLEX', sent: 1172, at: [6, 15, 0] },
+  { title: 'รับสมัครอาสาสมัครดูแลสนามฟุตซอล', status: 'SENT', format: 'TEXT', sent: 1160, at: [4, 11, 15] },
+  { title: 'ปรับปรุงระบบเสียงในห้องประชุมเสร็จแล้ว', status: 'SENT', format: 'TEXT', sent: 1149, at: [2, 10, 0] },
+  // ── DRAFT (9) ──
+  { title: 'กำหนดการสอบปลายภาค ภาคเรียนที่ 2', status: 'DRAFT', format: 'TEXT', at: [21, 10, 0] },
+  { title: 'เปิดจองสนามฟุตซอลช่วงปิดภาคเรียน', status: 'DRAFT', format: 'FLEX', at: [21, 8, 30] },
+  { title: 'ประชุมกลุ่มสาระวิทยาศาสตร์ประจำเดือนตุลาคม', status: 'DRAFT', format: 'TEXT', dept: 2, at: [20, 15, 0] },
+  { title: 'แนวปฏิบัติการใช้หอประชุมหลังเวลาราชการ', status: 'DRAFT', format: 'TEXT', body: '', at: [18, 16, 40] },
+  { title: 'ขอความร่วมมือคืนอุปกรณ์เครื่องเสียง', status: 'DRAFT', format: 'FLEX', dept: 1, at: [16, 9, 0], by: STAFF_B },
+  { title: 'แจ้งตารางเวรดูแลห้องประชุม', status: 'DRAFT', format: 'TEXT', dept: 'gone', at: [13, 14, 0] },
+  { title: 'กิจกรรมวันเด็กแห่งชาติ 2570', status: 'DRAFT', format: 'FLEX', at: [9, 11, 0], by: null },
+  { title: 'ปรับเวลาเปิด-ปิดโดมเขียว', status: 'DRAFT', format: 'TEXT', at: [7, 13, 30] },
+  { title: 'ประกาศรายชื่อผู้ได้รับทุนการศึกษา', status: 'DRAFT', format: 'TEXT', dept: 1, at: [3, 9, 0] },
+];
+
+function announcementSeed() {
+  return ANNOUNCEMENT_SPECS.map((s, i) => {
+    const createdAt = iso(...s.at);
+    const sentAt = s.status === 'SENT' ? iso(s.at[0], s.at[1] + 1, s.at[2]) : null;
+    const department =
+      s.dept === undefined
+        ? null
+        : s.dept === 'gone'
+          ? null
+          : (({ id, name }) => ({ id, name }))(findDept(s.dept));
+    return {
+      id: `cmfann${String(i + 1).padStart(3, '0')}x7k2q9w4e1r5t8y0`,
+      title: s.title,
+      body: s.body ?? `${s.title} — รายละเอียดเพิ่มเติมติดต่อฝ่ายอาคารสถานที่`,
+      format: s.format,
+      status: s.status,
+      audience: s.dept === undefined ? 'ALL' : 'DEPARTMENT',
+      department,
+      sentAt,
+      sentCount: s.status === 'SENT' ? s.sent : 0,
+      createdBy: s.by === undefined ? STAFF_A : s.by,
+      createdAt,
+      updatedAt: sentAt ?? iso(s.at[0], s.at[1], s.at[2] + 5),
+    };
+  });
+}
+
+let ANNOUNCEMENTS = announcementSeed();
+
+/** `botMode` → what `GET /announcements/line-bot-info` answers. `ok` is the default. */
+const BOT_MODES = ['ok', 'ok-picture', 'bot', 'not-configured', 'unavailable', 'no-code', 'network'];
+/** `listMode` → what every `GET /announcements` answers (the two count calls included). */
+const LIST_MODES = ['ok', 'empty', 'fail'];
+
+let botMode = 'ok';
+let listMode = 'ok';
+
+/** The house body the real stack answers when the session store is down — NO `code` key. */
+const SESSION_STORE_DOWN = {
+  statusCode: 503,
+  error: 'Service Unavailable',
+  message: 'Session store unavailable.',
+};
+
+/** `LineBotInfoDto` — exactly four keys. `pictureUrl` is null unless `botMode` is `ok-picture`. */
+const LINE_BOT_INFO = {
+  basicId: '@easybook',
+  displayName: 'EasyBook School OA',
+  pictureUrl: null,
+  chatMode: 'chat',
+};
+
+/**
+ * `ListAnnouncementsQueryDto` under the real global pipe (`whitelist`, `forbidNonWhitelisted`,
+ * `transform`). Returns the parsed query, or the class-validator `message` ARRAY for a 400.
+ * `@Type(() => Number)` means `page=abc` is NaN and `page=` is 0 — both refused, never defaulted.
+ */
+const ANNOUNCEMENT_QUERY_KEYS = ['page', 'limit', 'status', 'q'];
+
+function parseAnnouncementQuery(query) {
+  const errors = [];
+  for (const key of Object.keys(query)) {
+    if (!ANNOUNCEMENT_QUERY_KEYS.includes(key)) errors.push(`property ${key} should not exist`);
+  }
+
+  let page = 1;
+  if (query.page !== undefined) {
+    page = Number(query.page);
+    if (!Number.isInteger(page)) errors.push('page must be an integer number');
+    if (!(page >= 1)) errors.push('page must not be less than 1');
+  }
+
+  let limit = 10;
+  if (query.limit !== undefined) {
+    limit = Number(query.limit);
+    if (!Number.isInteger(limit)) errors.push('limit must be an integer number');
+    if (![10, 20, 50].includes(limit)) {
+      errors.push('limit must be one of the following values: 10, 20, 50');
+    }
+  }
+
+  const status = query.status ?? 'all';
+  if (!['all', 'sent', 'draft'].includes(status)) {
+    errors.push('status must be one of the following values: all, sent, draft');
+  }
+
+  let q;
+  if (query.q !== undefined) {
+    if (typeof query.q !== 'string') {
+      errors.push('q must be a string');
+    } else {
+      q = query.q.trim();
+      if (q.length > 100) errors.push('q must be shorter than or equal to 100 characters');
+    }
+  }
+
+  return errors.length ? { errors } : { page, limit, status, q };
+}
+
+/** Mirrors `@Roles(SUPER_ADMIN, ADMIN, VIEWER)` — every role reads, so there is no guard here. */
+app.get('/api/v1/announcements', (req, res) => {
+  const parsed = parseAnnouncementQuery(req.query);
+  if (parsed.errors) {
+    return res.status(400).json({ statusCode: 400, message: parsed.errors, error: 'Bad Request' });
+  }
+  if (listMode === 'fail') return res.status(503).json(SESSION_STORE_DOWN);
+
+  const { page, limit, status, q } = parsed;
+  let out = listMode === 'empty' ? [] : ANNOUNCEMENTS.slice();
+  if (status === 'sent') out = out.filter((a) => a.status === 'SENT');
+  if (status === 'draft') out = out.filter((a) => a.status === 'DRAFT');
+  // Title ONLY, never `body`, case-insensitive; an empty `q` after trimming is no filter.
+  if (q) out = out.filter((a) => a.title.toLowerCase().includes(q.toLowerCase()));
+  out.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+
+  const total = out.length;
+  // A page past the end is `data: []` with a correct `meta` — NOT clamped (that is the client's job).
+  res.json({
+    data: out.slice((page - 1) * limit, page * limit),
+    meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
+});
+
+/**
+ * Mirrors `@Roles(SUPER_ADMIN, ADMIN, VIEWER)`. 🔴 Registered BEFORE any future `/:id` route, as in
+ * the real controller (D-H) — or `line-bot-info` would be read as an id.
+ */
+app.get('/api/v1/announcements/line-bot-info', (req, res) => {
+  switch (botMode) {
+    case 'ok-picture':
+      return res.json({
+        ...LINE_BOT_INFO,
+        pictureUrl: `http://localhost:${PORT}/__assets/line-oa.svg`,
+      });
+    case 'bot':
+      return res.json({ ...LINE_BOT_INFO, chatMode: 'bot' });
+    case 'not-configured':
+      return res.status(503).json({
+        statusCode: 503,
+        error: 'Service Unavailable',
+        message: 'The LINE Official Account is not configured or its access token was rejected.',
+        code: 'LINE_NOT_CONFIGURED',
+      });
+    case 'unavailable':
+      return res.status(503).json({
+        statusCode: 503,
+        error: 'Service Unavailable',
+        message: 'The LINE Official Account details are unavailable right now.',
+        code: 'LINE_BOT_INFO_UNAVAILABLE',
+      });
+    case 'no-code':
+      return res.status(503).json(SESSION_STORE_DOWN);
+    case 'network':
+      // No status at all: the fetch rejects, and the app sees a network failure. This works only
+      // because `.env.stub` points the app straight at :3301 — no Vite proxy to answer 502 instead.
+      return req.socket.destroy();
+    default:
+      return res.json(LINE_BOT_INFO);
+  }
+});
+
+/**
+ * The OA picture for `botMode=ok-picture`, served from here so the check needs no internet. NOT
+ * part of the contract (hence `__`). A flat disc with a letter — deliberately unlike the app's
+ * initial fallback, so "the image rendered" is obvious at a glance.
+ */
+app.get('/__assets/line-oa.svg', (_req, res) => {
+  res
+    .type('image/svg+xml')
+    .send(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" fill="#06c755"/><text x="48" y="62" font-family="sans-serif" font-size="44" font-weight="700" text-anchor="middle" fill="#ffffff">EB</text></svg>',
+    );
+});
+
 /* ── control plane ─────────────────────────────────────────────────────── */
 
 app.post('/__control/role', (req, res) => {
@@ -725,12 +972,53 @@ app.post('/__control/version', (req, res) => {
   res.json(systemVersion);
 });
 
+/**
+ * Force ประกาศและข่าวสาร's two data sources into a state: `botMode` (the LINE OA card) and
+ * `listMode` (the list AND the two tab-count calls, which are the same route). Either or both.
+ *
+ * ⚠️ VALIDATED, AND APPLIED ALL-OR-NOTHING, like `/__control/version`: an unknown key (a typo such
+ * as `botmode`) or an unknown value is a 400 and changes NOTHING — a control route that half-applies
+ * leaves the screen in a state nobody asked for, which reads as a frontend bug.
+ */
+app.post('/__control/announcements', (req, res) => {
+  const body = req.body ?? {};
+  const keys = Object.keys(body);
+  const unknown = keys.filter((k) => k !== 'botMode' && k !== 'listMode');
+  if (unknown.length) {
+    return res.status(400).json({ error: `unknown key(s): ${unknown.join(', ')}` });
+  }
+  if (!keys.length) {
+    return res.status(400).json({ error: 'give `botMode` and/or `listMode`' });
+  }
+  if (body.botMode !== undefined && !BOT_MODES.includes(body.botMode)) {
+    return res.status(400).json({ error: `\`botMode\` must be one of: ${BOT_MODES.join(', ')}` });
+  }
+  if (body.listMode !== undefined && !LIST_MODES.includes(body.listMode)) {
+    return res.status(400).json({ error: `\`listMode\` must be one of: ${LIST_MODES.join(', ')}` });
+  }
+  if (body.botMode !== undefined) botMode = body.botMode;
+  if (body.listMode !== undefined) listMode = body.listMode;
+  res.json({ botMode, listMode });
+});
+
 app.post('/__control/reset', (_req, res) => {
   ROWS = seed();
   // The version is state too, so it comes back with the seed — otherwise a downgrade driven for
   // one check survives into the next one and quietly repaints an unrelated screen amber.
   systemVersion = { ...DEFAULT_SYSTEM_VERSION };
-  res.json({ ok: true, rows: ROWS.length, version: systemVersion.version });
+  // Same reasoning for the announcement modes: a `not-configured` forced for one check must not
+  // still be failing the OA card in the next.
+  ANNOUNCEMENTS = announcementSeed();
+  botMode = 'ok';
+  listMode = 'ok';
+  res.json({
+    ok: true,
+    rows: ROWS.length,
+    version: systemVersion.version,
+    announcements: ANNOUNCEMENTS.length,
+    botMode,
+    listMode,
+  });
 });
 app.post('/__control/emit', (req, res) => {
   const { event, id, status } = req.body;
@@ -765,6 +1053,6 @@ function emit(event, payload) {
 
 server.listen(PORT, () =>
   console.log(
-    `[stub] :${PORT} — role=${role}, ${ROWS.length} booking rows, version=${systemVersion.version} (from package.json)`,
+    `[stub] :${PORT} — role=${role}, ${ROWS.length} booking rows, ${ANNOUNCEMENTS.length} announcements, version=${systemVersion.version} (from package.json)`,
   ),
 );

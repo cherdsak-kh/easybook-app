@@ -24,6 +24,7 @@ import { AuthProvider } from './AuthProvider'
 import { BackendLayout } from './BackendLayout'
 import { NotFound } from '@/components/shared/NotFound'
 import { useAuth } from './lib/auth-context'
+import { AnnouncementsPage } from './pages/announcements/AnnouncementsPage'
 import { BookingCalendarPage } from './pages/bookings/BookingCalendarPage'
 import { BookingRequestsPage } from './pages/bookings/BookingRequestsPage'
 import { BootScreen } from './pages/login/BootScreen'
@@ -76,6 +77,9 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   'ปฏิทินการจอง': (route) => <BookingCalendarPage route={route} />,
   // Reachable by all three roles (not in `VIEWER_DENY`); only the dialog's update card is write-only.
   'ข้อเสนอแนะ/แจ้งปัญหา': (route) => <FeedbackPage route={route} />,
+  // Read-only in phase 3, reachable by all three roles (not in `VIEWER_DENY`); only the create
+  // button is write-only, and it only explains that creating arrives in phase 4.
+  ประกาศและข่าวสาร: (route) => <AnnouncementsPage route={route} />,
 }
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */

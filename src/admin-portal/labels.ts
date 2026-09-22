@@ -165,3 +165,59 @@ export const FEEDBACK_STATUS: Record<
   RESOLVED: { tone: 'emerald', label: { ISSUE: 'แก้ไขแล้ว', FEEDBACK: 'รับทราบแล้ว' } },
   DISMISSED: { tone: 'amber', label: { ISSUE: 'ไม่ดำเนินการ', FEEDBACK: 'ไม่ดำเนินการ' } },
 }
+
+/** `AnnouncementStatus` — a row is created `DRAFT`; only the send makes it `SENT`. */
+export type AnnouncementStatus = components['schemas']['AnnouncementStatus']
+
+/** `AnnouncementFormat` — `TEXT` is a plain chat message, `FLEX` the card with a header band. */
+export type AnnouncementFormat = components['schemas']['AnnouncementFormat']
+
+/** `AnnouncementAudience` — everyone, or one กลุ่ม/ฝ่าย. */
+export type AnnouncementAudience = components['schemas']['AnnouncementAudience']
+
+/** `LineBotChatMode` — whether staff can answer the OA's chat by hand. */
+export type LineBotChatMode = components['schemas']['LineBotChatMode']
+
+/**
+ * The status badge. `emerald`/`amber` are the portal's 10% washes — the prototype's
+ * `badge-success`/`badge-warning` in its shim, NOT daisyUI's solid fills (design S-3).
+ */
+export const ANNOUNCEMENT_STATUS: Record<AnnouncementStatus, { label: string; tone: BadgeTone }> = {
+  SENT: { label: 'ส่งแล้ว', tone: 'emerald' },
+  DRAFT: { label: 'ฉบับร่าง', tone: 'amber' },
+}
+
+export const ANNOUNCEMENT_FORMAT: Record<AnnouncementFormat, string> = {
+  TEXT: 'ข้อความธรรมดา',
+  FLEX: 'การ์ดประกาศ',
+}
+
+/**
+ * ⚠️ `DEPARTMENT` IS A PREFIX — the department's own name follows it (`กลุ่ม/ฝ่าย · ชื่อ`), and a
+ * hard-deleted one reads `(ถูกลบแล้ว)`. See `audienceLabel` in the announcements page folder.
+ */
+export const ANNOUNCEMENT_AUDIENCE: Record<AnnouncementAudience, string> = {
+  ALL: 'ผู้ใช้ LINE ทั้งหมด',
+  DEPARTMENT: 'กลุ่ม/ฝ่าย',
+}
+
+/**
+ * The reply mode and its status dot. `bot` is amber because in bot mode chat.line.biz cannot be
+ * used to answer by hand — the one thing the card's link is there for.
+ */
+export const LINE_CHAT_MODE: Record<
+  LineBotChatMode,
+  { label: string; dot: 'status-success' | 'status-warning' }
+> = {
+  chat: { label: 'แชท (Chat Mode)', dot: 'status-success' },
+  bot: { label: 'บอท (Bot Mode)', dot: 'status-warning' },
+}
+
+/**
+ * A mode the enum does not list (LINE adding one) reads `ไม่ทราบ` with a neutral dot — never a
+ * throw, never a blank. `dot` is `''`, so the caller's plain `status` stays the neutral grey.
+ */
+export function chatModeOf(mode: string): { label: string; dot: string } {
+  const known = (LINE_CHAT_MODE as Record<string, { label: string; dot: string } | undefined>)[mode]
+  return known ?? { label: 'ไม่ทราบ', dot: '' }
+}

@@ -1156,6 +1156,120 @@ export interface paths {
         patch: operations["AdminFeedbackController_update"];
         trace?: never;
     };
+    "/api/v1/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List announcements, newest first.
+         * @description Paginated by the server; ordered `createdAt DESC`, ties broken on `id DESC`. `status` (`all|sent|draft`) and `q` (case-insensitive substring over `title` only) combine with AND. `meta.total` is the FILTERED total. A page past the end is `data: []` with a correct `meta`.
+         */
+        get: operations["AnnouncementsController_list"];
+        put?: never;
+        /**
+         * Create a draft announcement.
+         * @description ALWAYS creates a `DRAFT` and pushes nothing to LINE — sending is `POST /announcements/{id}/send`. `status`, `sentAt`, `sentCount` and `createdById` are not accepted (400); the author is the session user. `departmentId` is required (non-null) iff `audience` is `DEPARTMENT`, and must be null/omitted for `ALL`; it must reference an ACTIVE department (unknown, soft-deleted, or — for non-SUPER_ADMIN — system-reserved is one indistinguishable 400).
+         */
+        post: operations["AnnouncementsController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/announcements/line-bot-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The LINE Official Account announcements are sent from.
+         * @description One live call to LINE per request — **not cached**, so a fixed token shows at once. Exactly four fields; `pictureUrl` is null when the OA has none. Any LINE failure is a **503 with a `code`, never a 500**: `LINE_NOT_CONFIGURED` when the channel token is missing or rejected (401/403), `LINE_BOT_INFO_UNAVAILABLE` for anything else (429, network, 5xx, timeout).
+         */
+        get: operations["AnnouncementsController_getLineBotInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/announcements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One announcement.
+         * @description Addressed by cuid. The same item shape as a list row. `department` and `createdBy` resolve as history — a soft-deleted department or staff member still shows.
+         */
+        get: operations["AnnouncementsController_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a draft announcement.
+         * @description A HARD delete, DRAFT only. A `SENT` row cannot be deleted (409). A second DELETE on the same id is a 404.
+         */
+        delete: operations["AnnouncementsController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a draft announcement.
+         * @description DRAFT only — a `SENT` row is immutable (409). An empty body `{}` is a 400 (`Provide at least one field to update.`). The audience rule is checked on the MERGED state (stored + patch): `{ "audience": "DEPARTMENT" }` alone keeps the stored department, `{ "audience": "ALL" }` alone clears it, and a patch of a DEPARTMENT draft re-validates the stored department. `departmentId` is required (non-null) iff `audience` is `DEPARTMENT`, and must be null/omitted for `ALL`; it must reference an ACTIVE department (unknown, soft-deleted, or — for non-SUPER_ADMIN — system-reserved is one indistinguishable 400). Answers with the updated record.
+         */
+        patch: operations["AnnouncementsController_update"];
+        trace?: never;
+    };
+    "/api/v1/announcements/{id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a draft announcement to LINE users.
+         * @description **Irreversible.** Sends a DRAFT to LINE users as one multicast message — `TEXT`: `title` + blank line + `body`; `FLEX`: one card — and marks it `SENT`. No request body.
+         *
+         *     Recipients: LINE users with `access = ALLOWED`, not deleted, with a well-formed LINE id, who have not switched announcements off in their settings; for `DEPARTMENT`, also a live registration in that department. Sent in chunks of up to 500, each with its own `X-Line-Retry-Key`.
+         *
+         *     `sentCount` is the number of recipients LINE **accepted**, not delivered or read.
+         *
+         *     CSRF applies: a request with no session AND no `x-csrf-token` is a 403 (the CSRF middleware runs before the guards).
+         *
+         *     | Status | `code` | When | Row after |
+         *     |---|---|---|---|
+         *     | 200 | — | every chunk accepted | SENT, `sentAt` = now, `sentCount` = targeted |
+         *     | 400 | `ANNOUNCEMENT_BODY_REQUIRED` | `body` is blank | unchanged |
+         *     | 400 | `ANNOUNCEMENT_DEPARTMENT_INVALID` | `DEPARTMENT` with a null, missing or soft-deleted department | unchanged |
+         *     | 400 | `NO_RECIPIENTS_FOUND` | nobody eligible after every filter | unchanged |
+         *     | 404 | `ANNOUNCEMENT_NOT_FOUND` | unknown or malformed id | — |
+         *     | 409 | `ANNOUNCEMENT_SEND_IN_PROGRESS` | the row is being sent or edited right now | unchanged |
+         *     | 409 | `ANNOUNCEMENT_ALREADY_SENT` | the row is `SENT` | unchanged |
+         *     | 502 | `ANNOUNCEMENT_PARTIALLY_SENT` (+ `acceptedCount`, `targetedCount`) | at least one chunk accepted, then a failure | **SENT and final**, `sentCount` = `acceptedCount` |
+         *     | 502 | `LINE_SEND_FAILED` | first chunk: network, 5xx or timeout after one retry, or another 4xx | DRAFT, untouched |
+         *     | 503 | `LINE_NOT_CONFIGURED` | no token, or LINE answered 401/403 | DRAFT, untouched |
+         *     | 503 | `LINE_RATE_LIMITED` | LINE answered 429 (rate limit or monthly quota) | DRAFT, untouched |
+         *
+         *     A partial send is final: a resend is a 409, and the missed users need a new announcement. After a total failure (DRAFT untouched) a resend is safe within 24 h — the retry keys make LINE answer 409 for any chunk it had in fact accepted. Editing the draft changes the keys.
+         */
+        post: operations["AnnouncementsController_send"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/version": {
         parameters: {
             query?: never;
@@ -2768,6 +2882,157 @@ export interface components {
              * @example ประสานช่างแอร์แล้ว นัดเข้าตรวจวันพรุ่งนี้ 10:00 น.
              */
             note?: string;
+        };
+        /** @enum {string} */
+        AnnouncementStatusFilter: "all" | "sent" | "draft";
+        AnnouncementDepartmentDto: {
+            /**
+             * @description Auto-increment integer id.
+             * @example 3
+             */
+            id: number;
+            /** @example กลุ่มบริหารงานวิชาการ */
+            name: string;
+        };
+        AnnouncementCreatorDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @example วีระ */
+            firstName: string;
+            /** @example ทองดี */
+            lastName: string;
+        };
+        /** @enum {string} */
+        AnnouncementFormat: "TEXT" | "FLEX";
+        /**
+         * @description A row is created as `DRAFT`; only `POST /announcements/{id}/send` makes it `SENT`. `SENT` rows are immutable (PATCH/DELETE → 409) and cannot be sent again.
+         * @enum {string}
+         */
+        AnnouncementStatus: "DRAFT" | "SENT";
+        /** @enum {string} */
+        AnnouncementAudience: "ALL" | "DEPARTMENT";
+        AnnouncementDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @example ปิดปรับปรุงห้องประชุม 1 วันที่ 25 ก.ย. */
+            title: string;
+            /**
+             * @description `""` for a title-only draft.
+             * @example ขออภัยในความไม่สะดวก
+             */
+            body: string;
+            format: components["schemas"]["AnnouncementFormat"];
+            /** @description A row is created as `DRAFT`; only `POST /announcements/{id}/send` makes it `SENT`. `SENT` rows are immutable (PATCH/DELETE → 409) and cannot be sent again. */
+            status: components["schemas"]["AnnouncementStatus"];
+            audience: components["schemas"]["AnnouncementAudience"];
+            /** @description null iff `audience` is `ALL` — or after a HARD delete of the department (never happens through the API; departments are soft-deleted). */
+            department: components["schemas"]["AnnouncementDepartmentDto"] | null;
+            /**
+             * Format: date-time
+             * @description When the send committed; null for a DRAFT.
+             */
+            sentAt: string | null;
+            /**
+             * @description Recipients whose multicast request LINE **accepted** (HTTP 200, or 409 on a repeated retry key). Not a delivered or read count: LINE silently drops users who blocked the OA. On a partial send (502 `ANNOUNCEMENT_PARTIALLY_SENT`) it is less than the targeted count. 0 for a DRAFT.
+             * @example 0
+             */
+            sentCount: number;
+            /** @description null only after the staff account was HARD-deleted. */
+            createdBy: components["schemas"]["AnnouncementCreatorDto"] | null;
+            /**
+             * Format: date-time
+             * @example 2026-09-22T08:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2026-09-22T08:05:00.000Z
+             */
+            updatedAt: string;
+        };
+        PaginatedAnnouncementsResponseDto: {
+            data: components["schemas"]["AnnouncementDto"][];
+            /** @description `total` is the count AFTER filters — what the pager needs. */
+            meta: components["schemas"]["PaginationMetaDto"];
+        };
+        /**
+         * @description `chat` — chat is on in the LINE Official Account Manager; `bot` — the OA answers by bot only.
+         * @enum {string}
+         */
+        LineBotChatMode: "chat" | "bot";
+        LineBotInfoDto: {
+            /**
+             * @description The OA’s basic id, `@` included.
+             * @example @123abcde
+             */
+            basicId: string;
+            /** @example EasyBook */
+            displayName: string;
+            /**
+             * @description null when the OA has no profile picture.
+             * @example https://profile.line-scdn.net/abcdefghijklmn
+             */
+            pictureUrl: string | null;
+            /** @description `chat` — chat is on in the LINE Official Account Manager; `bot` — the OA answers by bot only. */
+            chatMode: components["schemas"]["LineBotChatMode"];
+        };
+        /** @enum {string} */
+        AnnouncementErrorCode: "ANNOUNCEMENT_NOT_FOUND" | "ANNOUNCEMENT_ALREADY_SENT" | "ANNOUNCEMENT_SEND_IN_PROGRESS" | "ANNOUNCEMENT_BODY_REQUIRED" | "ANNOUNCEMENT_DEPARTMENT_INVALID" | "NO_RECIPIENTS_FOUND" | "ANNOUNCEMENT_PARTIALLY_SENT" | "LINE_SEND_FAILED" | "LINE_NOT_CONFIGURED" | "LINE_RATE_LIMITED" | "LINE_BOT_INFO_UNAVAILABLE";
+        AnnouncementCodedErrorDto: {
+            /** @example 401 */
+            statusCode: number;
+            /** @example Unauthorized */
+            error: string;
+            /** @example Invalid email or password. */
+            message: string;
+            /** @example ANNOUNCEMENT_ALREADY_SENT */
+            code: components["schemas"]["AnnouncementErrorCode"];
+            /**
+             * @description Present iff `code` is `ANNOUNCEMENT_PARTIALLY_SENT`: recipients whose chunk LINE accepted — what `sentCount` now holds.
+             * @example 500
+             */
+            acceptedCount?: number;
+            /**
+             * @description Present iff `code` is `ANNOUNCEMENT_PARTIALLY_SENT`: recipients the send targeted.
+             * @example 734
+             */
+            targetedCount?: number;
+        };
+        CreateAnnouncementDto: {
+            /**
+             * @description หัวข้อ. Trimmed; 1–100 characters after trimming (blank → 400).
+             * @example ปิดปรับปรุงห้องประชุม 1 วันที่ 25 ก.ย.
+             */
+            title: string;
+            /**
+             * @description เนื้อหา. Trimmed; at most 1000 characters after trimming. Absent → `""` (a title-only draft). `null` → 400.
+             * @example ขออภัยในความไม่สะดวก
+             */
+            body?: string;
+            /** @description Absent → `TEXT`. `null` → 400. */
+            format?: components["schemas"]["AnnouncementFormat"];
+            /** @description Absent → `ALL`. `null` → 400. */
+            audience?: components["schemas"]["AnnouncementAudience"];
+            /**
+             * @description Required (non-null) iff `audience` is `DEPARTMENT`; must be null or omitted when `audience` is `ALL` (400). Must reference an ACTIVE department — an unknown, soft-deleted, or (for non-SUPER_ADMIN) system-reserved id is one indistinguishable 400. A JSON string such as `"3"` is a 400.
+             * @example 3
+             */
+            departmentId?: number | null;
+        };
+        UpdateAnnouncementDto: {
+            /** @description หัวข้อ. Trimmed; 1–100 characters after trimming. Blank or `null` → 400. */
+            title?: string;
+            /** @description เนื้อหา. Trimmed; at most 1000 characters after trimming. `""` clears it; `null` → 400. */
+            body?: string;
+            /** @description `null` → 400. */
+            format?: components["schemas"]["AnnouncementFormat"];
+            /** @description Switching to `ALL` clears the stored department (send `departmentId: null` or omit it). `null` → 400. */
+            audience?: components["schemas"]["AnnouncementAudience"];
+            /**
+             * @description Required (non-null) iff `audience` is `DEPARTMENT`; must be null or omitted when `audience` is `ALL` (400). Must reference an ACTIVE department — an unknown, soft-deleted, or (for non-SUPER_ADMIN) system-reserved id is one indistinguishable 400. A JSON string such as `"3"` is a 400. Omitted → the stored department is kept (and re-validated).
+             * @example 3
+             */
+            departmentId?: number | null;
         };
         VersionResponseDto: {
             /**
@@ -7119,6 +7384,474 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_list: {
+        parameters: {
+            query?: {
+                /** @description 1-based page number. A page beyond the last returns `data: []` with a correct `meta`, not an error. */
+                page?: number;
+                /** @description Rows per page. Exactly 10, 20 or 50 — anything else is a 400, never clamped. */
+                limit?: 10 | 20 | 50;
+                /** @description `draft` → status DRAFT, `sent` → status SENT, `all` → no status predicate. Lowercase only. */
+                status?: components["schemas"]["AnnouncementStatusFilter"];
+                /** @description Case-insensitive substring over `title` ONLY (never `body`). Trimmed; empty → no filter. `%` and `_` match literally. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAnnouncementsResponseDto"];
+                };
+            };
+            /** @description Invalid query — `limit` outside 10/20/50, `page` < 1, an unknown `status` (the filter is lowercase), `q` over 100 characters, or an unrecognised parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Password change required (`mustChangePassword`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAnnouncementDto"];
+            };
+        };
+        responses: {
+            /** @description Created — status `DRAFT`. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementDto"];
+                };
+            };
+            /** @description Validation failed (blank title, title over 100 or body over 1000 characters after trimming, a bad `format`/`audience`, a non-integer `departmentId`, an unknown key such as `status`) — or, as a single string, an audience/department rule or an invalid department. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure, or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_getLineBotInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The OA. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineBotInfoDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Password change required (`mustChangePassword`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE is unavailable or not configured — `code` is `LINE_NOT_CONFIGURED` or `LINE_BOT_INFO_UNAVAILABLE`. Never a 500, never cached. (A session-store outage is also a 503, with the house body and no `code`.) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The announcement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Password change required (`mustChangePassword`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or malformed id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure, or password change required. Nothing is deleted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or malformed id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The announcement is `SENT` — sent rows are immutable (D-2). Also answered when the row stopped being a draft between the read and the conditional write. Nothing is written. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAnnouncementDto"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementDto"];
+                };
+            };
+            /** @description Validation failed (blank or `null` title, over-length title/body, bad enum, a non-integer `departmentId`, an unknown key) — or, as a single string, an empty body, an audience/department rule, or an invalid department. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure, or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or malformed id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The announcement is `SENT` — sent rows are immutable (D-2). Also answered when the row stopped being a draft between the read and the conditional write. Nothing is written. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_send: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sent — status `SENT`, `sentAt` set, `sentCount` = recipients LINE accepted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementDto"];
+                };
+            };
+            /** @description `ANNOUNCEMENT_BODY_REQUIRED`, `ANNOUNCEMENT_DEPARTMENT_INVALID` or `NO_RECIPIENTS_FOUND`. Nothing is sent or written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (a missing or forged `x-csrf-token`, including with no session), or password change required. Nothing is sent or written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description `ANNOUNCEMENT_NOT_FOUND` — unknown or malformed id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+            /** @description `ANNOUNCEMENT_ALREADY_SENT` — the row is `SENT` (a partial send included); or `ANNOUNCEMENT_SEND_IN_PROGRESS` — another request is sending or editing this row right now. Nothing is sent. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+            /** @description `ANNOUNCEMENT_PARTIALLY_SENT` (with `acceptedCount`, `targetedCount`) — the row IS `SENT` and final, `sentCount` = `acceptedCount`; or `LINE_SEND_FAILED` — LINE accepted nobody, the row stays DRAFT and a resend within 24 h is safe. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+            /** @description `LINE_NOT_CONFIGURED` (no token, or LINE answered 401/403) or `LINE_RATE_LIMITED` (429 — rate limit or monthly quota). The row stays DRAFT. (A session-store outage is also a 503, with the house body and no `code`.) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
                 };
             };
         };
