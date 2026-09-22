@@ -8,13 +8,14 @@
  *   · loading — skeletons in the avatar, the Basic ID line and the status box.
  *   · ok      — avatar with a green dot, the OA name, `Basic ID · @…`, `การเชื่อมต่อ LINE:
  *               เชื่อมต่อได้` (a 200 is exactly that fact), the reply mode, and when it was checked.
+ *               Also the `QR Code` pill and its dialog (`LineQrModal`, LINE-OA-QR-1) — ONLY here.
  *   · failed  — the fallback title and initial, NO dot, and one of four messages (plan D-5).
  *
  * ⚠️ THE chat.line.biz LINK IS RENDERED IN EVERY STATE. LINE's console does not depend on our
  * backend, so our failure to describe the OA is no reason to hide the way into it.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { InlineAlert } from '../../../components/feedback/InlineAlert'
 import { Skeleton, SkeletonRegion } from '../../../components/feedback/Skeleton'
 import { Spinner } from '../../../components/feedback/Spinner'
@@ -24,7 +25,9 @@ import { chatModeOf } from '../../../labels'
 import { useBusy } from '../../../lib/use-busy'
 import type { BotInfoFailure, OaState } from '../announcements-api'
 import { ICON } from '../announcement-icons'
+import { hasQrId } from '../line-qr'
 import { Glyph } from './AnnouncementGlyph'
+import { LineQrModal } from './LineQrModal'
 
 /** Shown in place of the OA's own name whenever we could not read it. */
 const FALLBACK_NAME = 'LINE Official Account'
@@ -48,6 +51,16 @@ const MESSAGE: Record<BotInfoFailure, string> = {
 const BASIC_ID_PILL =
   'inline-block max-w-full rounded-full border border-base-content/20 px-2.5 py-1 align-middle text-[13px] font-medium text-base-content/80'
 
+/**
+ * The `QR Code` pill beside it (LINE-OA-QR-1, plan D-1): the same box as `BASIC_ID_PILL`, so the two
+ * sit level, plus a foreground wash on hover — a surface step (`bg-base-200`) would go DARKER on a
+ * dark base — and the portal's focus ring. Never `outline-none`: a base one blanks the later ring.
+ * About 28px tall — above the 24px of WCAG 2.2 SC 2.5.8, below the portal's 44px, by decision: a
+ * secondary inline action, where a 44px box would break the identity row's alignment.
+ */
+const QR_PILL =
+  'inline-flex items-center gap-1 rounded-full border border-base-content/20 px-2.5 py-1 align-middle text-[13px] font-medium text-base-content/80 transition-colors hover:bg-base-content/5 hover:text-base-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
+
 export function LineOaCard({
   state,
   onRetry,
@@ -62,6 +75,7 @@ export function LineOaCard({
   const { busy, run } = useBusy()
   const titleRef = useRef<HTMLHeadingElement>(null)
   const previous = useRef(state.status)
+  const [qrOpen, setQrOpen] = useState(false)
 
   /**
    * A successful retry unmounts the button that had focus, which would drop a keyboard user on
@@ -77,6 +91,8 @@ export function LineOaCard({
   const ok = state.status === 'ok' ? state : null
   const failed = state.status === 'failed' ? state : null
   const mode = ok ? chatModeOf(ok.info.chatMode) : null
+  /** Only in `ok`, and only with an id to encode — an empty or `@`-only one gets no pill (D-5). */
+  const qr = ok !== null && hasQrId(ok.info.basicId)
 
   return (
     <section aria-labelledby="an-oa-name" className="pf-card flex min-w-0 flex-col">
@@ -114,6 +130,18 @@ export function LineOaCard({
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 {/* `basicId` already carries its `@`. */}
                 <span className={BASIC_ID_PILL}>Basic ID · {ok.info.basicId}</span>
+                {qr && (
+                  <button
+                    type="button"
+                    onClick={() => setQrOpen(true)}
+                    title="ดู QR Code สำหรับเพิ่มเพื่อน LINE Official Account"
+                    aria-label="ดู QR Code บัญชีทางการ LINE"
+                    className={QR_PILL}
+                  >
+                    <Glyph d={ICON.qrCode} className="h-3.5 w-3.5 shrink-0" />
+                    QR Code
+                  </button>
+                )}
               </div>
             )}
             {/* Holds the Basic ID line's height, so the card does not grow when it lands. */}
@@ -197,6 +225,14 @@ export function LineOaCard({
           LINE ไม่อนุญาตให้ฝังหน้าแชทไว้ในระบบอื่น ห้องแชทจึงเปิดในแท็บใหม่
           {ok && <> ตรวจสอบสถานะล่าสุดเมื่อ {ok.checkedAt} น.</>}
         </p>
+
+        {/* Mounted for as long as `ok` holds — which it does while the dialog is open (no polling,
+            retry only in `failed`) — so closing is `open` going false, never an unmount (the
+            `Modal` rule), and focus returns to the pill. `setQrOpen(false)` is idempotent, as
+            `Modal` calls `onClose` twice (the ✕ or ปิด, then its `close` event). */}
+        {ok && qr && (
+          <LineQrModal open={qrOpen} onClose={() => setQrOpen(false)} botInfo={ok.info} />
+        )}
       </div>
     </section>
   )
