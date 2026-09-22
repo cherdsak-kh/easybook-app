@@ -26,7 +26,7 @@ import type { AdminRouteLabel } from '../routes'
  * ⚠️ TYPED AS `AdminRouteLabel`, not `string`, and that is the whole guard. The prototype could
  * only warn in a comment that "a typo here is a menu row that never hides rather than a silent
  * half-grant" — and a half-grant is the failure nobody reports, because the row keeps working
- * for the role that was supposed to lose it. Now a label that is not one of the 31 fails the
+ * for the role that was supposed to lose it. Now a label that is not one of the 30 fails the
  * build, and a label RENAMED in the route table fails it too.
  *
  * การตั้งค่าระบบ (all of it): configuration is an ACTION surface. There is no read-only value
@@ -44,7 +44,6 @@ export const VIEWER_DENY: readonly AdminRouteLabel[] = [
   'สิ่งอำนวยความสะดวก',
   'กลุ่ม/ฝ่ายบุคลากร',
   'ตำแหน่งบุคลากร',
-  'เทมเพลตข้อความ',
   'การเชื่อมต่อระบบ',
   'บันทึกข้อผิดพลาด',
 ]

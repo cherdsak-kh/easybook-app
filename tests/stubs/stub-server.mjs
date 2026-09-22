@@ -55,6 +55,13 @@
  *                                             EMPTY`, coded 404 `CANNED_REPLY_NOT_FOUND`. Driven by
  *                                             `POST /__control/canned-replies` — see below
  *
+ *   - GET system/integrations; PATCH …/swagger, …/line; POST …/line/verify, …/storage/probe
+ *                                           — INTEGRATIONS-API-1. GET + POSTs SUPER_ADMIN|ADMIN, the
+ *                                             two PATCHes SUPER_ADMIN only; VIEWER 403 on all. CSRF-
+ *                                             checked before the role guard. Driven by
+ *                                             `POST /__control/integrations` { lineMode, storageMode,
+ *                                             dbMode, redisMode, swagger, configured }
+ *
  * What this stub does NOT serve (a 404 here is expected, not a bug):
  *   - Any WRITE on line-users (`PATCH /line-users/:id`, `PATCH /line-users/:id/registration`)
  *   - Any CRUD on personnel-roles / departments / venue-types / amenities (POST/PATCH/DELETE)
@@ -1844,6 +1851,169 @@ app.post('/__control/canned-replies', (req, res) => {
   });
 });
 
+/* ── system/integrations (INTEGRATIONS-API-1) ─────────────────────────────
+ * Mirrors `easybook-service/src/system/integrations.controller.ts` + `dto/integrations.dto.ts`:
+ *   GET  /system/integrations            — SUPER_ADMIN|ADMIN (VIEWER 403)
+ *   PATCH /system/integrations/swagger   — SUPER_ADMIN only (ADMIN + VIEWER 403), CSRF first
+ *   PATCH /system/integrations/line      — SUPER_ADMIN only, CSRF first
+ *   POST /system/integrations/line/verify, /storage/probe — SUPER_ADMIN|ADMIN, CSRF first
+ * The secret and token are write-only here too: the stub never stores them, only `configured`.
+ * Failure modes via `POST /__control/integrations`. */
+
+const INTEG_DEFAULTS = () => ({
+  swagger: false,
+  channelId: '2006123442',
+  configured: true,
+  lineMode: 'ok', // ok | not-configured | unavailable
+  storageMode: 'ok', // ok | read-fail | write-fail | unconfigured
+  dbMode: 'ok', // ok | degraded | error
+  redisMode: 'up', // up | down
+  used: 44,
+});
+let INTEG = INTEG_DEFAULTS();
+
+const requireSuper = (req, res, next) => {
+  if (role !== 'SUPER_ADMIN') {
+    return res
+      .status(403)
+      .json({ statusCode: 403, message: 'Forbidden resource', error: 'Forbidden' });
+  }
+  next();
+};
+const integCsrf = csrfCheck(() => 'ok');
+const maskId = (id) => (id.length > 6 ? `${id.slice(0, 4)}••••${id.slice(-2)}` : id);
+const BOT = { basicId: '@easybook_th', displayName: 'EasyBook Bot', pictureUrl: null, chatMode: 'bot' };
+const lineOk = () => INTEG.configured && INTEG.lineMode === 'ok';
+const quota = () => ({ total: 500, used: INTEG.used });
+const badRequest = (res, message) =>
+  res.status(400).json({ statusCode: 400, message, error: 'Bad Request' });
+
+app.get('/api/v1/system/integrations', denyViewerRead, (_req, res) => {
+  const storageConfigured = INTEG.storageMode !== 'unconfigured';
+  res.json({
+    swagger: { enabled: INTEG.swagger },
+    line: {
+      configured: INTEG.configured,
+      channelId: INTEG.channelId ? maskId(INTEG.channelId) : null,
+      botInfo: lineOk() ? BOT : null,
+      quota: lineOk() ? quota() : null,
+    },
+    storage: {
+      configured: storageConfigured,
+      bucket: storageConfigured ? 'easybook-dev' : null,
+      publicBaseUrl: storageConfigured ? 'https://pub-3f9a2c.r2.dev' : null,
+    },
+    infrastructure: {
+      database: {
+        status: INTEG.dbMode,
+        latencyMs: INTEG.dbMode === 'ok' ? 2 : INTEG.dbMode === 'degraded' ? 340 : 2000,
+      },
+      redis: { status: INTEG.redisMode, latencyMs: INTEG.redisMode === 'up' ? 1 : 2000 },
+    },
+  });
+});
+
+app.patch('/api/v1/system/integrations/swagger', integCsrf, requireSuper, (req, res) => {
+  const body = req.body ?? {};
+  const errors = Object.keys(body)
+    .filter((k) => k !== 'enabled')
+    .map((k) => `property ${k} should not exist`);
+  if (typeof body.enabled !== 'boolean') errors.push('enabled must be a boolean value');
+  if (errors.length) return badRequest(res, errors);
+  INTEG.swagger = body.enabled;
+  res.json({ success: true, enabled: INTEG.swagger });
+});
+
+app.patch('/api/v1/system/integrations/line', integCsrf, requireSuper, (req, res) => {
+  const body = req.body ?? {};
+  const allowed = ['channelId', 'channelSecret', 'channelAccessToken'];
+  const errors = Object.keys(body)
+    .filter((k) => !allowed.includes(k))
+    .map((k) => `property ${k} should not exist`);
+  const { channelId, channelSecret, channelAccessToken } = body;
+  if (channelId !== undefined && !(typeof channelId === 'string' && /^\d{10}$/.test(channelId)))
+    errors.push('channelId must be exactly 10 digits');
+  if (
+    channelSecret !== undefined &&
+    !(typeof channelSecret === 'string' && /^[0-9a-f]{32}$/i.test(channelSecret))
+  )
+    errors.push('channelSecret must be 32 hexadecimal characters');
+  if (
+    channelAccessToken !== undefined &&
+    !(
+      typeof channelAccessToken === 'string' &&
+      channelAccessToken.length >= 40 &&
+      channelAccessToken.length <= 1000 &&
+      /^\S+$/.test(channelAccessToken)
+    )
+  )
+    errors.push('channelAccessToken must be longer than or equal to 40 characters');
+  if (errors.length) return badRequest(res, errors);
+  if (channelId === undefined && channelSecret === undefined && channelAccessToken === undefined) {
+    return res.status(400).json({
+      statusCode: 400,
+      message: 'ต้องระบุค่าที่ต้องการเปลี่ยนอย่างน้อยหนึ่งค่า',
+      error: 'Bad Request',
+      code: 'LINE_UPDATE_EMPTY',
+    });
+  }
+  if (channelId !== undefined) INTEG.channelId = channelId;
+  if (channelAccessToken !== undefined) {
+    INTEG.configured = true;
+    INTEG.lineMode = 'ok';
+  }
+  res.json({ success: true, maskedChannelId: INTEG.channelId ? maskId(INTEG.channelId) : null });
+});
+
+app.post('/api/v1/system/integrations/line/verify', integCsrf, denyViewerRead, (_req, res) => {
+  if (!INTEG.configured || INTEG.lineMode === 'not-configured') {
+    return res.status(503).json({
+      statusCode: 503,
+      message: 'ยังไม่ได้ตั้งค่า LINE หรือ Channel Access Token ไม่ถูกต้อง',
+      error: 'Service Unavailable',
+      code: 'LINE_NOT_CONFIGURED',
+    });
+  }
+  if (INTEG.lineMode === 'unavailable') {
+    return res.status(503).json({
+      statusCode: 503,
+      message: 'ติดต่อ LINE ไม่ได้ชั่วคราว ลองใหม่อีกครั้ง',
+      error: 'Service Unavailable',
+      code: 'LINE_UNAVAILABLE',
+    });
+  }
+  INTEG.used = 40 + Math.floor(Math.random() * 20);
+  res.json({ valid: true, botInfo: BOT, quota: quota() });
+});
+
+app.post('/api/v1/system/integrations/storage/probe', integCsrf, denyViewerRead, (_req, res) => {
+  const m = INTEG.storageMode;
+  if (m === 'unconfigured') return res.json({ ok: false, latencyMs: 0, read: false, write: false });
+  const read = m !== 'read-fail';
+  const write = m !== 'write-fail';
+  res.json({ ok: read && write, latencyMs: 35 + Math.floor(Math.random() * 30), read, write });
+});
+
+app.post('/__control/integrations', (req, res) => {
+  const b = req.body ?? {};
+  const pick = (k, allowed) => {
+    if (b[k] === undefined) return null;
+    if (!allowed.includes(b[k])) return `${k} must be one of ${allowed.join('|')}`;
+    INTEG[k] = b[k];
+    return null;
+  };
+  const errors = [
+    pick('lineMode', ['ok', 'not-configured', 'unavailable']),
+    pick('storageMode', ['ok', 'read-fail', 'write-fail', 'unconfigured']),
+    pick('dbMode', ['ok', 'degraded', 'error']),
+    pick('redisMode', ['up', 'down']),
+    pick('swagger', [true, false]),
+    pick('configured', [true, false]),
+  ].filter(Boolean);
+  if (errors.length) return res.status(400).json({ errors });
+  res.json({ ...INTEG });
+});
+
 app.post('/__control/reset', (_req, res) => {
   ROWS = seed();
   // The version is state too, so it comes back with the seed — otherwise a downgrade driven for
@@ -1868,6 +2038,8 @@ app.post('/__control/reset', (_req, res) => {
   cannedSaveMode = 'ok';
   cannedCsrfMode = 'ok';
   cannedDelayMs = 0;
+  // …and การเชื่อมต่อระบบ: Swagger back OFF, LINE / R2 / DB / Redis back to healthy.
+  INTEG = INTEG_DEFAULTS();
   res.json({
     ok: true,
     rows: ROWS.length,

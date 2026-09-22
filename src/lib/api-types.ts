@@ -1340,6 +1340,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Connection health and runtime configuration of every external dependency.
+         * @description Fail-soft: LINE, PostgreSQL or Redis failing yields `null` / `error` fields in a 200, never a 5xx. Calls LINE `GET /v2/bot/info` and the two quota reads when a token is loaded — no message is sent and no quota is spent. The channel secret and access token are NEVER returned; the Channel ID is masked.
+         */
+        get: operations["IntegrationsController_overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/integrations/swagger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Turn Swagger UI and the OpenAPI JSON on or off, at runtime.
+         * @description Persisted to `AppSetting system.swagger_enabled` and applied to the next request — no restart. While off, `/docs`, `/docs/*`, `/docs-json` and `/docs-yaml` answer the same 404 as any unknown route.
+         */
+        patch: operations["IntegrationsController_setSwagger"];
+        trace?: never;
+    };
+    "/api/v1/system/integrations/line": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Replace the LINE channel credentials, at runtime.
+         * @description Every field optional, at least one required. Omitted fields are kept. Persisted to `AppSetting` (**plaintext** — see the service) and applied at once: a new token replaces the live Messaging client, a new secret verifies the next webhook. Values are never echoed back.
+         */
+        patch: operations["IntegrationsController_updateLine"];
+        trace?: never;
+    };
+    "/api/v1/system/integrations/line/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Prove the channel access token works — without spending quota.
+         * @description Calls LINE `GET /v2/bot/info`, `GET /v2/bot/message/quota` and `GET /v2/bot/message/quota/consumption`. Nothing is pushed.
+         */
+        post: operations["IntegrationsController_verifyLine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/integrations/storage/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read and write probe against the Cloudflare R2 bucket.
+         * @description Always 200. `read`: list one key. `write`: put then delete a two-byte object under `_healthcheck/`. `ok` is both. An unconfigured bucket is all false with `latencyMs` 0. Bucket settings are READ-ONLY here by design — they are baked into every stored object URL.
+         */
+        post: operations["IntegrationsController_probeStorage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3160,6 +3260,130 @@ export interface components {
              * @example 2026-08-12T02:00:00.000Z
              */
             releasedAt: string | null;
+        };
+        SwaggerStatusDto: {
+            /** @description Whether /docs and /docs-json are served right now. */
+            enabled: boolean;
+        };
+        LineQuotaDto: {
+            /**
+             * @description This month's push target limit; null when LINE reports no limit (`type: none`).
+             * @example 500
+             */
+            total: number | null;
+            /**
+             * @description Pushes counted against the quota this month.
+             * @example 44
+             */
+            used: number;
+        };
+        LineIntegrationDto: {
+            /** @description A channel access token is loaded (a Messaging client exists). */
+            configured: boolean;
+            /**
+             * @description Masked. null until a Channel ID is saved. The secret and token are never returned.
+             * @example 2006••••42
+             */
+            channelId: string | null;
+            /** @description From GET /v2/bot/info. null when unconfigured or when LINE did not answer. */
+            botInfo: components["schemas"]["LineBotInfoDto"] | null;
+            /** @description From the two quota reads. null when unconfigured or when LINE did not answer. */
+            quota: components["schemas"]["LineQuotaDto"] | null;
+        };
+        StorageIntegrationDto: {
+            /** @description All five R2_* variables are set. */
+            configured: boolean;
+            /** @example easybook-dev */
+            bucket: string | null;
+            /** @example https://pub-3f9a2c.r2.dev */
+            publicBaseUrl: string | null;
+        };
+        /**
+         * @description `ok` under 200 ms, `degraded` at or over 200 ms, `error` on failure or a 2 s timeout.
+         * @enum {string}
+         */
+        DatabaseHealthStatus: "ok" | "degraded" | "error";
+        DatabaseHealthDto: {
+            /** @description `ok` under 200 ms, `degraded` at or over 200 ms, `error` on failure or a 2 s timeout. */
+            status: components["schemas"]["DatabaseHealthStatus"];
+            /** @example 2 */
+            latencyMs: number;
+        };
+        /** @enum {string} */
+        RedisHealthStatus: "up" | "down";
+        RedisHealthDto: {
+            status: components["schemas"]["RedisHealthStatus"];
+            /** @example 1 */
+            latencyMs: number;
+        };
+        InfrastructureHealthDto: {
+            database: components["schemas"]["DatabaseHealthDto"];
+            redis: components["schemas"]["RedisHealthDto"];
+        };
+        SystemIntegrationsResponseDto: {
+            swagger: components["schemas"]["SwaggerStatusDto"];
+            line: components["schemas"]["LineIntegrationDto"];
+            storage: components["schemas"]["StorageIntegrationDto"];
+            infrastructure: components["schemas"]["InfrastructureHealthDto"];
+        };
+        SetSwaggerDto: {
+            /** @description A JSON boolean — the string "true" is a 400. */
+            enabled: boolean;
+        };
+        SetSwaggerResponseDto: {
+            /** @example true */
+            success: boolean;
+            enabled: boolean;
+        };
+        UpdateLineIntegrationDto: {
+            /**
+             * @description Exactly 10 digits.
+             * @example 2006123442
+             */
+            channelId?: string;
+            /** @description 32 hexadecimal characters. */
+            channelSecret?: string;
+            /** @description 40–1000 characters, no whitespace. */
+            channelAccessToken?: string;
+        };
+        UpdateLineIntegrationResponseDto: {
+            /** @example true */
+            success: boolean;
+            /** @example 2006••••42 */
+            maskedChannelId: string | null;
+        };
+        /** @enum {string} */
+        IntegrationErrorCode: "LINE_UPDATE_EMPTY" | "LINE_NOT_CONFIGURED" | "LINE_UNAVAILABLE";
+        IntegrationCodedErrorDto: {
+            /** @example 503 */
+            statusCode: number;
+            /** @example Service Unavailable */
+            error: string;
+            /** @example ยังไม่ได้ตั้งค่า LINE หรือ Token ไม่ถูกต้อง */
+            message: string;
+            code: components["schemas"]["IntegrationErrorCode"];
+        };
+        LineVerifyResponseDto: {
+            /**
+             * @description Always true on a 200 — a failed check is a 503.
+             * @example true
+             */
+            valid: boolean;
+            botInfo: components["schemas"]["LineBotInfoDto"];
+            quota: components["schemas"]["LineQuotaDto"];
+        };
+        StorageProbeResponseDto: {
+            /** @description `read && write`. */
+            ok: boolean;
+            /**
+             * @description Whole probe, milliseconds. 0 when unconfigured.
+             * @example 48
+             */
+            latencyMs: number;
+            /** @description ListObjectsV2 (one key) succeeded. */
+            read: boolean;
+            /** @description A two-byte PutObject + DeleteObject succeeded. */
+            write: boolean;
         };
     };
     responses: never;
@@ -8234,6 +8458,270 @@ export interface operations {
                 };
             };
             /** @description CSRF failure, or a password change is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_overview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemIntegrationsResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or password change required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_setSwagger: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSwaggerDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetSwaggerResponseDto"];
+                };
+            };
+            /** @description `enabled` missing or not a JSON boolean, or an unknown key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description ADMIN or VIEWER (SUPER_ADMIN only), CSRF failure (including with no session), or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_updateLine: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLineIntegrationDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateLineIntegrationResponseDto"];
+                };
+            };
+            /** @description `LINE_UPDATE_EMPTY` (coded) for an empty body. A malformed field (Channel ID not 10 digits, secret not 32 hex, token outside 40–1000 characters or containing whitespace, an unknown key) is the house body with a `string[]` `message` and no `code`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description ADMIN or VIEWER (SUPER_ADMIN only), CSRF failure (including with no session), or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_verifyLine: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineVerifyResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (including with no session — CSRF runs before the guards), or password change required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description `LINE_NOT_CONFIGURED` — no token, or LINE answered 401/403. `LINE_UNAVAILABLE` — a timeout, 5xx, 429 or any other LINE failure. Also the session store being down (no `code`). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationCodedErrorDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_probeStorage: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageProbeResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (including with no session — CSRF runs before the guards), or password change required. */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -1,7 +1,7 @@
 /**
  * The `/backend` branch, generated from `ADMIN_PORTAL_ROUTES`.
  *
- * ⚠️ THE 31 `<Route>`s ARE MAPPED, NEVER LISTED. A hand-written list is a second copy of the
+ * ⚠️ THE 30 `<Route>`s ARE MAPPED, NEVER LISTED. A hand-written list is a second copy of the
  * route table, and the failure it produces is a menu row that 404s — or worse, a URL that works
  * while the menu says it does not exist. Adding a destination means adding a row to the table
  * and nothing else.
@@ -30,6 +30,7 @@ import { BookingRequestsPage } from './pages/bookings/BookingRequestsPage'
 import { BootScreen } from './pages/login/BootScreen'
 import { ComingSoonPage } from './pages/ComingSoonPage'
 import { FeedbackPage } from './pages/feedback/FeedbackPage'
+import { IntegrationsPage } from './pages/settings/IntegrationsPage'
 import { ForcePasswordChangePage } from './pages/password/ForcePasswordChangePage'
 import { LineUsersPage } from './pages/line-users/LineUsersPage'
 import { LoginPage } from './pages/login/LoginPage'
@@ -54,7 +55,7 @@ import {
  *
  * The prototype's `DESIGNED` map is the same idea, and the reason it is a map rather than a
  * branch inside the loop is that this is the ONE place the two populations are distinguished —
- * so "which of the 31 are built?" is answerable by reading a single object.
+ * so "which of the 30 are built?" is answerable by reading a single object.
  */
 const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElement>> = {
   ข้อมูลเวอร์ชันระบบ: (route) => <VersionPage route={route} />,
@@ -80,6 +81,9 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   // Read-only in phase 3, reachable by all three roles (not in `VIEWER_DENY`); only the create
   // button is write-only, and it only explains that creating arrives in phase 4.
   ประกาศและข่าวสาร: (route) => <AnnouncementsPage route={route} />,
+  // SUPER_ADMIN and ADMIN only — in `VIEWER_DENY`, so `BackendLayout` refuses it for a VIEWER.
+  // Simulated end to end until the integration endpoints exist; see the page's header.
+  'การเชื่อมต่อระบบ': (route) => <IntegrationsPage route={route} />,
 }
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */

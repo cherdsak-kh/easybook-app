@@ -1,7 +1,7 @@
 /**
  * The sidebar: brand, menu, and the identity card that doubles as the account menu.
  *
- * ⚠️ THE MENU HOLDS 25 OF THE 31 DESTINATIONS, AND THAT IS THE DESIGN, not an omission.
+ * ⚠️ THE MENU HOLDS 24 OF THE 30 DESTINATIONS, AND THAT IS THE DESIGN, not an omission.
  *  · `บัญชีผู้ใช้งาน`'s five leaves live in the account menu at the bottom of this column.
  *    They are the only screens scoped to *the signed-in person* rather than to the system, so
  *    they belong to the identity control and not to the site nav.

@@ -18,8 +18,10 @@
  * while staying reachable. `AdminRouteLabel` below turns that from a convention into a compile
  * error.
  *
- * 7 of the 31 have a design. The other 24 render the coming-soon stand-in, so it is impossible
- * to walk this file and come away thinking a screen exists when it does not.
+ * 30 destinations since 22 ก.ย. 2569, when เทมเพลตข้อความ was retired (quick replies live in
+ * ประกาศและข่าวสาร now). Which of them have a design is `DESIGNED` in `BackendRoutes.tsx` — the
+ * rest render the coming-soon stand-in, so it is impossible to walk this file and come away
+ * thinking a screen exists when it does not.
  */
 
 /** Where the whole back-office is mounted. Every `path` below is relative to this. */
@@ -209,16 +211,10 @@ export const ADMIN_PORTAL_ROUTES = [
     desc: 'จัดการรายการกลุ่ม/ฝ่ายของบุคลากรในโรงเรียน',
   },
   {
-    label: 'เทมเพลตข้อความ',
-    path: 'settings/message-templates',
-    group: 'การตั้งค่าระบบ',
-    desc: 'แก้ไขข้อความแจ้งเตือนที่ระบบส่งให้ผู้ใช้ผ่าน LINE',
-  },
-  {
     label: 'การเชื่อมต่อระบบ',
     path: 'settings/integrations',
     group: 'การตั้งค่าระบบ',
-    desc: 'ตั้งค่าการเชื่อมต่อกับ LINE และบริการภายนอก',
+    desc: 'ตรวจสอบสถานะการเชื่อมต่อบริการภายนอก และควบคุมการเข้าถึงระบบ',
   },
 
   {
@@ -280,7 +276,7 @@ export const ADMIN_PORTAL_ROUTES = [
 ] as const satisfies readonly AdminRoute[]
 
 /**
- * The 31 labels as a union type.
+ * The 30 labels as a union type.
  *
  * This is what makes `VIEWER_DENY` in `lib/use-acl.ts` impossible to typo. The prototype could
  * only warn about it in a comment — "a typo here is a menu row that never hides rather than a
