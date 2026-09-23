@@ -4,13 +4,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`easybook-app` is the frontend for EasyBook. It is **one Vite SPA serving two different portals**
-with two different audiences, split by URL:
+`easybook-app` is the frontend for EasyBook. Today it is **one Vite SPA serving one surface**:
 
-- **Client portal** (`/*` → `HomePage`, `RegistrationForm`) — the public LINE **LIFF** surface end
-  users see inside the LINE app. Anonymous, fail-soft, mixed Thai/English copy.
-- **Backend portal** (`/backend/*`) — the internal back-office for staff: cookie-session login,
-  forced password change, and a dashboard shell (`line-users` / `options` / `staff` / `profile`).
+- **Client portal** (index `/` → `HomePage`, `RegistrationForm`) — the public LINE **LIFF** surface
+  end users see inside the LINE app. Anonymous, fail-soft, mixed Thai/English copy.
+
+## ⚠️ The back-office was deleted on 2026-08-16 — read this before looking for it
+
+There is **no `/admin-portal` branch, no session, no guard and no admin components.** The old
+back-office (its login, its guarded shell, its two wired pages, its 29 stub routes, four hooks,
+four `lib/` modules, seven string modules and four daisyUI themes) was removed whole. An
+`/admin-portal/*` URL is now a plain 404.
+
+**Why it went early.** The plan called for building v2 to parity and then switching. That rule
+exists to avoid losing a working capability mid-flight — and at `0.0.0` nobody was using this one,
+so there was nothing to lose, while every backend contract change cost a round of repairs to a
+portal already scheduled for deletion.
+
+**What replaces it.** Admin Portal v2, built from
+`docs/prototypes/admin-portal/master_layout_prototype_v2.html` in the parent repo, landing under
+`src/admin-portal/` with its own routes, guard, session handling and theming. Plan and status:
+`claude_planning/feature/20260815_2111_admin_portal_v2_build/`.
+
+**What was deliberately KEPT**, because it binds to the API contract rather than to the old UI:
+
+- `src/lib/api-client.ts` — every typed helper, including the ~25 back-office ones. They follow
+  the generated types, cost nothing to hold, and v2 needs the same calls. Most are unreferenced
+  until it arrives; that is expected, not dead code to prune.
+- `src/lib/api-types.ts` — generated, and the reason the above stays honest.
+
+**The `/demo/*` mockups went too, in a second pass the same day.** They were self-contained (no
+API, no session, no shared components), so they cost nothing to run — but they *did* cost
+something to read: 1,107 lines of invented booking UI, with mock approvals and a fake
+`[LINE Notify]` toast, sitting in `src/` for a domain that has no Prisma model, no endpoint and no
+prototype design. Anyone porting the booking screens later would have found them first and treated
+them as the spec. They were a scripted pitch for a thesis defence that has already happened; git
+holds them (`src/pages/demo/`, before the deletion commit) if that script is ever needed again.
 
 It talks to the backend (`easybook-service`, a separate NestJS repo) over `/api/v1`. It runs on port
 **2200**; the backend runs on port **3300**.
@@ -24,8 +53,9 @@ cp .env.example .env.local   # set VITE_LIFF_ID (optional in a plain browser)
 npm run dev          # start dev server on :2200 (proxies /api -> :3300)
 npm run build         # tsc -b && vite build   (tsc -b IS the type-check; there is no `typecheck` script)
 npm run preview       # preview the production build
-npm run test          # vitest run (single run)
+npm run test          # vitest run (single run) — 1 file / 6 tests; see Testing for why that is policy
 npm run test:watch    # vitest (watch mode)
+npm run stub          # QA stub backend on :3301 (tests/stubs/stub-server.mjs), paired with .env.stub
 npm run lint          # oxlint
 npm run gen:api       # regenerate src/lib/api-types.ts from the backend's OpenAPI spec (backend must be up on :3300)
 ```
@@ -34,8 +64,9 @@ There is **no `typecheck` script** — `tsc -b` (via `npm run build`, or `tsc -b
 real type gate. The IDE may bundle an older TypeScript than the installed one (6.x); verify a
 compiler-option warning against `node_modules/typescript` before "fixing" a tsconfig to silence it.
 
-To run a single test file: `npx vitest run src/pages/admin/LineUsersPage.test.tsx`.
-To run tests matching a name: `npx vitest run -t "renders the ok status"`.
+To run a single test file: `npx vitest run tests/unit/pages/NotFoundPage.test.tsx` — which is
+currently the *only* test file (see Testing below; that is deliberate).
+To run tests matching a name: `npx vitest run -t "renders the global 404"`.
 
 A husky pre-commit hook runs `lint-staged`: for staged `*.{ts,tsx}` it runs oxlint, then
 `vitest related --run` — i.e. only the tests **related to the staged files**, not the full suite, so
@@ -59,45 +90,67 @@ elsewhere.
   needed locally).
 - Prod: `VITE_API_URL` is set to the backend origin.
 
-### Two portals, one router
+### One router, two routes
 
-`App.tsx` mounts the backend portal branch first and the client portal `/*` catch-all **last**, so
-React Router's specificity ranking lets the portal win and `/*` only catches non-portal paths.
+`App.tsx` holds a single pathless `ThemeLayout portal="client"` wrapper containing exactly two
+routes: the client index (`/` → `HomePage`) and the app's global `path="*"` → `NotFoundPage`, kept
+LAST so it only catches genuinely unmatched URLs. `HomePage` is route-less — it swaps screens via
+internal state, not the URL — so `/` is an `index` route with no children.
 
-`src/constants/routes.ts` is the single source of the portal's **URL** paths: `PORTAL_BASE = '/backend'`
-and everything derives from it, so rebasing the whole back-office is a one-line edit. **These are
-`react-router` paths, not API paths** — never import `routes.ts` into `api-client.ts`. The backend's
-admin surface lives at `/auth/system/*` and `/api/v1/system-users` ("system", never "admin"); the two
-namespaces are unrelated and coupling them breaks auth.
+When v2 adds its branch back, one rule from the deleted version is worth carrying over: the route
+constants are **`react-router` paths, not API paths** — never import them into `api-client.ts`. The
+backend's admin surface lives at `/auth/system/*` and `/api/v1/system-users` ("system", never
+"admin"); the two namespaces are unrelated and coupling them breaks auth.
 
-### Back-office auth: cookie session + CSRF (client portal is anonymous)
+### Components live in their portal's folder — HARD RULE
 
-The backend portal authenticates with an **httpOnly cookie session** issued by the backend — the
-frontend never reads or stores a token. This is wired in three places that must stay consistent:
+**Components used strictly by one portal belong in `src/components/<portal>/`. Genuinely shared
+primitives belong in `src/components/shared/`.** PO mandate, not a preference. Today that means
+`src/components/client-portal/` and `src/components/shared/` — do **not** open a new top-level
+`src/components/<feature>/` bucket. Pages mirror the split under `src/pages/client-portal/`.
 
-- `api-client.ts` sets `credentials: 'include'` and installs a **CSRF middleware**: it fetches
-  `GET /auth/system/csrf` once, caches the in-flight promise, attaches the token as the `x-csrf-token`
-  header on every unsafe verb (POST/PUT/PATCH/DELETE, double-submit), and invalidates + retries **once**
-  on a 403. A 401 is the session-dead signal that bounces to login; a 403 is CSRF/forbidden. Never send
-  the CSRF token as a body field.
-- `src/auth/AuthProvider.tsx` holds session state and probes `GET /auth/system/me` **once** on mount
-  (a 401 there is a normal "unauthenticated" outcome, not an error). `ProtectedRoute` gates the portal;
-  `useAuth` exposes `{ status, user, login, logout, refresh, expireSession }`.
-- `mustChangePassword` is authoritative **only** from `/me`, never from the login body — a user logging
-  in with a temp password is re-probed via `/me` (which is exempt from the server-side force-reset gate)
-  and routed to `ForcePasswordChangePage`. The frontend redirect is UX; the server gate is the control.
+⚠️ **v2 does NOT follow this layout, deliberately.** It lives entirely under `src/admin-portal/`
+with its own `components/` and `pages/` inside, so the whole back-office is one folder that can be
+reasoned about — and, if it ever comes to it, removed — in one piece. The reasoning is in
+`claude_planning/feature/20260815_2111_admin_portal_v2_build/CONVENTIONS.md` §4.
 
-The **client portal is unauthenticated** and shares no session with the back-office. `src/lib/access-policy.ts`
-mirrors the backend's ADMIN access-transition matrix purely so an ADMIN never *sees* a button that would
-403 — the backend is still the authority.
+### Auth: the client portal is anonymous, and nothing else is authenticated yet
+
+`src/auth/` was deleted with the back-office. The **client portal is unauthenticated** and shares no
+session with the backend's `SystemUser` surface.
+
+One piece of the wiring survives, in `api-client.ts`, and v2 should reuse rather than reinvent it: it
+sets `credentials: 'include'` and installs a **CSRF middleware** that fetches `GET /auth/system/csrf`
+once, caches the in-flight promise, attaches the token as the `x-csrf-token` header on every unsafe
+verb (POST/PUT/PATCH/DELETE, double-submit), and invalidates + retries **once** on a 403. A 401 is the
+session-dead signal; a 403 is CSRF/forbidden. **Never send the CSRF token as a body field** —
+`forbidNonWhitelisted` would reject a `_csrf` body key with a 400 before the middleware ever saw it.
+
+Two rules the deleted provider learned the hard way, recorded here so v2 does not rediscover them:
+
+- **The session is an httpOnly cookie.** The frontend never reads or stores a token, and
+  `GET /auth/system/me` is the only way to know whether one is live — a 401 there is a normal
+  "unauthenticated" outcome, not an error.
+- **`mustChangePassword` is authoritative only from `/me`**, never from the login response body: a
+  user logging in with a temp password must be re-probed, and `/me` is exempt from the server-side
+  force-reset gate precisely so that probe works. v2 DOES have a force-reset screen (the prototype
+  designs one), which closes the accepted lockout the old portal shipped with.
 
 ### LIFF integration is isolated and fails soft
 
-`src/lib/liff.ts` wraps `@line/liff` behind `initLiff()`, which **never throws** — it resolves to
-`null` when `VITE_LIFF_ID` is unset, the user isn't logged in, or LIFF init fails for any reason.
-Callers (e.g. `HomePage`) treat `null` as "anonymous" and fall back to generic behavior. Preserve this
-fail-soft contract when touching LIFF code: the app must remain usable in a plain dev browser with no
-LIFF id configured.
+`src/lib/liff.ts` wraps `@line/liff`. Every helper **never throws** — the app must stay usable in a
+plain dev browser with no LIFF id configured. Preserve that contract when touching LIFF code.
+
+⚠️ **`initLiff()` is gone (2 ก.ย. 2569); the entry point is `bootLiff()`.** The old function
+resolved to `null` for three different situations — no `VITE_LIFF_ID`, init failed, not logged in —
+and it had no callers left after Client Portal v1 was deleted. `bootLiff()` returns
+`'ready' | 'unconfigured' | 'failed'` instead, because the client portal's gate has to tell them
+apart: `unconfigured` is a dev browser and lands on the login screen, `failed` is `line-down` and
+lands on the error screen with a retry button. Collapsing them makes a network outage look like a
+misconfigured `.env`, and offers the user the wrong thing to do about it.
+
+The gate that consumes it is `src/client-portal/hooks/useLiffGate.ts` — four checks, twelve
+outcomes, documented in the plan folder's `PAGE_INDEX.md` §2.
 
 ### Path alias
 
@@ -108,38 +161,82 @@ if changed). Use `@/...` imports rather than relative `../../` paths.
 
 `as const` string modules under `src/constants/`, one per feature/surface
 (`ui-strings-<feature>.ts`), so a component and its tests read the **same** literal (copy was changed
-out-of-band while tests queried the old string, silently reddening the suite). Each exports named
-objects; some values are template *formatters* (`(name) => string`) for interpolation.
+out-of-band while tests queried the old string, silently reddening the suite).
 
-- `ui-strings-auth.ts` — `AUTH_STRINGS`: the admin-portal login screen and the session-probe gate.
-- `ui-strings-line-users.ts` — `T` / `STATUS_BADGE`: the admin-portal LINE-users page.
-- `ui-strings-client.ts` — `UI_STRINGS_CLIENT`: client/LIFF copy (`HomePage`, `RegistrationForm`),
-  deliberately mixed Thai/English (product's current state, not drift).
+**Exactly one module remains:** `ui-strings-client.ts` — `UI_STRINGS_CLIENT`, the client/LIFF copy
+(`HomePage`, `RegistrationForm`), deliberately mixed Thai/English (the product's current state, not
+drift). The other seven went with the back-office on 2026-08-16.
 
-The legacy `/backend` portal (and its monolithic `ui-strings-backend.ts` dictionary) was removed in
-the Big-Bang cutover; the internal back-office now lives under `/admin-portal`. Add a new feature's
-copy as its own `ui-strings-<feature>.ts` module rather than growing a shared dictionary.
+⚠️ **v2 does NOT use this pattern, and that is a PO ruling (`Q9`), not drift.** Its copy is written
+INLINE in the page that renders it, so the PO can open one file and see the words next to the markup
+they appear in — and so a port can be compared against the prototype line by line, which is the one
+thing that port has to get right. The single exception is `admin-portal/labels.ts`: enum→Thai maps,
+which are not copy but a translation of values the API sends, and which must have exactly one
+spelling because `ผู้ดูแลระบบสูงสุด` appears on four different screens.
 
 **Do not import a back-office string module from a client component, or vice versa** — the separation
-is what keeps a back-office re-word from ever reaching an end user's screen. None of these is i18n: no
+is what keeps a back-office re-word from ever reaching an end user's screen. None of this is i18n: no
 locale, no `t()` lookup. Don't grow any into a locale system without a plan that asks for one.
 
 ### Testing
 
 Vitest + Testing Library + jsdom, configured in `vite.config.ts` (`test` block) with globals enabled
-(no need to import `describe`/`it`/`vi`). `src/test/setup.ts` registers `@testing-library/jest-dom`
+(no need to import `describe`/`it`/`vi`). `tests/setup.ts` registers `@testing-library/jest-dom`
 matchers.
 
-Convention used throughout: mock dependency modules at the import boundary with `vi.mock('@/lib/...')`
-rather than mocking `fetch`/network calls directly — see `HealthStatus.test.tsx` and
-`HomePage.test.tsx` for the pattern (mock the `lib` module, assert on rendered states: loading /
-ok / error).
+Tests live **outside** `src/`, mirroring the source hierarchy: unit specs in `tests/unit/**` (e.g.
+`src/pages/NotFoundPage.tsx` -> `tests/unit/pages/NotFoundPage.test.tsx`). `src/` holds production
+code only. Vitest collects `tests/unit/**/*.test.{ts,tsx}` and `tests/e2e/**/*.e2e.{ts,tsx}`; the
+`@tests/*` alias (`vite.config.ts`, `tsconfig.app.json`) is there for shared fixtures when a suite
+needs them. ⚠️ **Neither `tests/e2e/` nor `tests/helpers/` exists right now** — the e2e `.gitkeep`
+placeholder went in `ca56b08` and no fixtures have been needed since. The globs and the alias stay
+so that adding either back is a directory, not a config change. `tests/stubs/` is infrastructure,
+not a suite (`npm run stub` serves the QA stub backend on :3301); neither glob collects it.
+
+🔴 **The suite is ONE file / SIX tests, and the number is a policy, not a gap.** `npm test` reports
+`Test Files 1 passed (1) · Tests 6 passed (6)`. The file is
+`tests/unit/pages/NotFoundPage.test.tsx`, and what it pins is *route ranking* — that the client
+index beats the global `path="*"`, that an unknown path (including anything under the deleted
+`/admin-portal`) reaches the 404, that the 404 quotes the URL which missed, and that its one way out
+is a public `<a href="/">` rather than a button.
+
+⚠️ **There are ZERO UI component unit tests, by PO ruling, and "restoring coverage" by writing some
+is the wrong instinct.** What replaces them:
+
+- **`npm run build`** (`tsc -b`) is the type gate — there is no `npm run typecheck` script — and
+  **`npm run lint`** (oxlint) is the correctness gate. Both run on every change; between them they
+  catch the class of defect a shallow render test catches.
+- **Presentation is verified by measuring a running browser**, at 390 and 820 px in both themes, not
+  by asserting on jsdom — because the properties that matter here (tap-target size, contrast, header
+  geometry, overflow) are computed values jsdom does not compute. The reasoning, and what it trades
+  away, is in the client plan folder's `CONVENTIONS.md` §2.
+- **Unit tests are reserved for pure functions** — a formatter, a validator, a route resolver —
+  where there is a return value to assert and no DOM to measure. Write one there without asking.
+
+The count is not decay: 18 files / 426 tests → 4 / 48 when the back-office was deleted (2026-08-16),
+→ 2 / 12 when Client Portal v1 was purged and took its two component specs with it (2 ก.ย. 2569),
+→ 1 / 6 when `ca56b08` removed the unmounted `HealthStatus` component and its spec the same day.
+Every drop deleted specs for code that no longer exists. Do not read the small number as permission
+to skip verification — read it as an instruction to verify in the browser instead.
+
+Convention for the specs that DO get written: mock dependency modules at the import boundary with
+`vi.mock('@/lib/...')` rather than mocking `fetch`/network calls directly — mock the `lib` module and
+assert on the rendered states (loading / ok / error). The two specs that demonstrated it,
+`HealthStatus.test.tsx` and `HomePage.test.tsx`, were deleted with their components; the rule
+outlived them because it is about where the seam goes, not about those two screens.
 
 ### Styling — daisyUI is the UI source of truth
 
 Tailwind **v4** via the `@tailwindcss/vite` plugin (no `tailwind.config.js` — config is CSS-driven
 from `src/index.css`: `@import "tailwindcss"; @plugin "daisyui";`). UI is built with **daisyUI 5**
 (installed 5.6.x).
+
+⚠️ **v2 is the exception to almost everything in this section.** It ports the prototype's
+`@theme static` block and ~122 `@layer components` classes verbatim, because every value in them was
+measured (row heights, 44px targets, contrast in both themes) and converting them to daisyUI
+components is exactly where that fidelity would be lost. daisyUI stays as the **token provider**
+(`base-100`, `base-content`, `primary`…), which the prototype already uses, so the two connect
+directly.
 
 **Before generating or editing ANY component markup — buttons, tables, modals, inputs, badges, cards,
 drawers, etc. — consult the `daisyui` skill** (`.claude/skills/daisyui`, the official daisyUI 5.6.x
@@ -150,11 +247,22 @@ bind on top of it.
 
 - **Semantic tokens only.** Style with daisyUI semantic classes/tokens (`bg-base-100`,
   `text-base-content`, `border-base-300`, `btn-primary`, `badge-success`, …), never hard-coded colors.
-- **Theming is `data-theme`, NOT `dark:`.** Light/dark and per-portal identity come from the daisyUI
-  themes declared in `index.css` (`easybook-client(-dark)`, `easybook-admin(-dark)`, `dashwind(-light|
-  -dark)`), applied via a `data-theme` wrapper and the `@custom-variant dark` rule. **Ship zero `dark:`
-  utilities in new code.** New/adjusted themes are additive `@plugin "daisyui/theme"` blocks appended
-  to `index.css` — never edit the existing blocks or add a `tailwind.config.js`.
+- **Theming is `data-theme`, NOT `dark:`.** Light/dark and per-portal identity come from the themes
+  available in `index.css`, applied via a `data-theme` wrapper and the `@custom-variant dark` rule:
+  **two** are declared locally as `@plugin "daisyui/theme"` blocks (`easybook-client` and
+  `easybook-client-dark`), and daisyUI **built-ins** are opted into by name on the
+  `@plugin "daisyui" { themes: … }` invocation — currently `light --default` and
+  `dark --prefersdark`. The four themes the back-office used (`easybook-admin(-dark)`,
+  `dashwind(-light|-dark)`) and its `cupcake` opt-in were deleted with it on 2026-08-16; v2 brings
+  its own tokens from the prototype rather than restoring them. **Ship zero `dark:` utilities in new
+  code.** New/adjusted themes are additive
+  `@plugin "daisyui/theme"` blocks appended to `index.css` — never edit the existing blocks or add a
+  `tailwind.config.js`.
+  - **`@custom-variant dark` is `[data-theme$="-dark"]`** (`index.css:10`), so any dark theme must be
+    named with a `-dark` suffix or the variant silently stops matching.
+  - A theme's `primary` is **not** guaranteed readable as text/border on its own `base-100` —
+    `cupcake`'s measures 1.40:1. For focus rings, outline buttons and state borders use
+    `base-content`, which is by definition the readable foreground for `base-100` in any theme.
 - **Accessibility still applies:** semantic HTML, sufficient contrast in every theme, visible focus,
   `aria-*` where daisyUI markup alone is insufficient.
 

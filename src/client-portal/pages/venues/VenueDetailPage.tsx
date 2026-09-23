@@ -1,0 +1,375 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { AvailabilityCalendar, type CalendarView } from './components/AvailabilityCalendar'
+import { SlotList } from './components/SlotList'
+import { VenueCarousel } from './components/VenueCarousel'
+import { addDays, availabilityWindow, midnight, type VenueSlot } from './venue-availability'
+import { getVenue, isNotFound, listAvailability, messageFor } from './venues-api'
+import { Skeleton } from '@/client-portal/components/feedback/Skeleton'
+import { Breadcrumbs } from '@/client-portal/components/ui/Breadcrumbs'
+import { useWatchVenue } from '@/client-portal/hooks/useClientRealtime'
+import { LIcon } from '@/client-portal/icons/LucideIcon'
+import { TH_DOW_FULL, fmtD } from '@/client-portal/lib/formatters'
+import type { Venue } from '@/lib/api-client'
+
+/**
+ * `#/venue/:id` — one venue, its availability, and the way into a request. Prototype 1058–1234.
+ *
+ * ── 🟠 NO IN-PAGE BACK ARROW, ANYWHERE (`D-C3` rule 2) ──
+ * LIFF draws its own. A second one is a second answer to the same question, and the two disagree
+ * the moment history and layout do. The way back is the breadcrumb (`D-C14`), which names its own
+ * destination — which is exactly why it can coexist with LIFF's arrow without contradicting it.
+ * ⚠️ THE "ย้อนกลับ" BUTTON AT THE BOTTOM IS NOT AN EXCEPTION TO THIS. It is a link to a written-down
+ * destination (`/venues`) at the end of the content, the same kind of thing the breadcrumb is —
+ * not a chrome control popping real history. `#/booking/:id` and `#/version` carry the same pair.
+ *
+ * ── ⚠️ THE TRAIL IS TWO LEVELS, NOT THREE ──
+ * `จองสถานที่ › ชื่อสถานที่` (prototype 3955). The brief asks for a `หน้าแรก` root; the prototype
+ * does not have one here, and adding it would claim this screen was reached through the home
+ * screen, which it was not — it is reached from the catalogue, which is what the trail says.
+ *
+ * ── 🔴 A CLOSED VENUE IS READ-ONLY, NOT HIDDEN ──
+ * The alert sits ABOVE the photo, not below it: somebody arriving by deep link needs to know they
+ * cannot book before they start reading how good the room is. The CTA is **disabled, not removed**
+ * — a button that has vanished makes the screen look half-loaded, whereas one that is present and
+ * unpressable, with the reason written on its face, answers "why can't I". And it is `disabled` for
+ * real, not merely `btn-disabled`: the class only makes it *look* unpressable while keyboard and
+ * screen-reader users can still activate it.
+ *
+ * ── 🔴 THE CALENDAR HAS NO DATA SOURCE YET, AND THIS IS NOT A BUG IN THIS SCREEN ──
+ * `listAvailability()` is a seam over an endpoint that `TRANSPORT.md` §3.1 assigns to
+ * `CLIENT-BOOKING-1` — Phase 5a, unbuilt. In production it resolves to `[]`, so every day renders
+ * the empty-day card, which is a true statement about what this app can currently read.
+ */
+
+export function VenueDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+
+  const [venue, setVenue] = useState<Venue | null>(null)
+  const [slots, setSlots] = useState<readonly VenueSlot[]>([])
+  const [failure, setFailure] = useState<string | null>(null)
+
+  const today = midnight(new Date())
+  const [picked, setPicked] = useState<Date>(today)
+  const [view, setView] = useState<CalendarView>('week')
+  const [anchor, setAnchor] = useState({
+    week: addDays(today, -today.getDay()),
+    month: new Date(today.getFullYear(), today.getMonth(), 1),
+  })
+
+  /* ⚠️ THE SELECTED DAY RESETS ONLY WHEN THE VENUE CHANGES — keyed on `id`. Re-entering the same
+     screen (pressing back out of `#/request/:id`, say) must return the day the reader had chosen,
+     not snap to today and throw away what they just did. */
+  useEffect(() => {
+    const t = midnight(new Date())
+    setPicked(t)
+    setView('week')
+    setAnchor({ week: addDays(t, -t.getDay()), month: new Date(t.getFullYear(), t.getMonth(), 1) })
+  }, [id])
+
+  /**
+   * The window the availability currently on screen was read for, tagged with the venue it belongs
+   * to. Written when the load runs, cleared the moment `:id` changes.
+   *
+   * 🔴 THE LIVE REFETCH MUST USE **THIS**, NOT A FRESHLY COMPUTED WINDOW. `availabilityWindow()`
+   * derives from `new Date()`, so a socket event arriving after midnight — or after the app sat
+   * backgrounded in LINE for a day — would re-read a window shifted a month from the one the
+   * calendar is painting, and the reader would watch approved bookings quietly vanish off the far
+   * end. Storing what was asked for is the only version of "refetch what is on screen" that stays
+   * true. `id` rides along so a refetch fired for the venue the reader just left cannot land in the
+   * new one's calendar (an in-flight request survives the navigation; the ref does not).
+   */
+  const loaded = useRef<{ id: string; from: Date; to: Date } | null>(null)
+
+  useEffect(() => {
+    if (!id) return
+    let cancelled = false
+    setVenue(null)
+    setFailure(null)
+    loaded.current = null
+    void (async () => {
+      try {
+        const found = await getVenue(id)
+        if (cancelled) return
+        setVenue(found)
+        /* Availability is fetched separately and its failure is NOT this screen's failure: the
+           venue's own facts (where it is, how many fit) are still worth showing when the schedule
+           cannot be read. */
+        try {
+          /* ⚠️ AN EXPLICIT WINDOW, not the endpoint's default. Its default is the current month,
+             which is what the calendar opens on — and the first press of the "next month" arrow
+             would then draw an empty month that is not empty. See `availabilityWindow`. */
+          const { from, to } = availabilityWindow()
+          loaded.current = { id, from, to }
+          const rows = await listAvailability(id, from, to)
+          if (!cancelled) setSlots(rows)
+        } catch (error) {
+          console.warn('[venue] availability failed:', error)
+        }
+      } catch (error) {
+        if (cancelled) return
+        /* 🔴 A BAD `:id` GOES BACK TO THE CATALOGUE, NEVER TO A BLANK SCREEN (`PAGE_INDEX.md`
+           §2.3). The reader is looking for *a venue*; dropping them on the welcome screen makes
+           them navigate again. `replace`, so pressing back does not walk into the 404 they just
+           left. A 404 and a soft-deleted venue are byte-identical here by design. */
+        if (isNotFound(error)) {
+          void navigate('/venues', { replace: true })
+          return
+        }
+        console.warn('[venue] load failed:', error)
+        setFailure(messageFor(error))
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id, navigate])
+
+  /**
+   * Re-read the availability for the window on screen, quietly.
+   *
+   * ⚠️ NO LOADING STATE AND NO ERROR STATE, ON PURPOSE. `slots` is replaced in one commit, so the
+   * calendar repaints without ever passing through an empty frame — a spinner here would blank the
+   * grid the reader is looking at for the length of a round trip, which is the entire thing a live
+   * update is supposed to prevent. A failure leaves the previous slots up: they are one event
+   * stale, which is exactly what they were before the event arrived, and the alternative is turning
+   * a working calendar into an error card over news nobody asked for. It is logged, not silent.
+   */
+  const refreshAvailability = useCallback(async () => {
+    const win = loaded.current
+    if (!win || win.id !== id) return
+    try {
+      const rows = await listAvailability(win.id, win.from, win.to)
+      /* The reader may have walked to another venue while this was in flight. */
+      if (loaded.current?.id === win.id) setSlots(rows)
+    } catch (error) {
+      console.warn('[venue] availability refresh failed:', error)
+    }
+  }, [id])
+
+  /* ── The venue room (`CLIENT-REALTIME-1`) ────────────────────────────────────────────────────
+     Joins `venue:<id>` while this screen is mounted — and rejoins it after every reconnect, which
+     the provider handles.
+     🔴 `client.venueAvailabilityChanged` CARRIES ONLY THE VENUE ID (`D-C13`), so a refetch is the
+     only correct response: the event does not say which hours moved, whose, or in which direction,
+     and it fires for `PENDING` as well as `APPROVED` because a pending request occupies the
+     calendar. That is what makes this screen's live update matter — somebody else asking for the
+     hour this reader is about to request has to turn amber before they submit for it. */
+  useWatchVenue(id, () => void refreshAvailability())
+
+  if (failure) {
+    return (
+      <section className="pb-safe grid min-h-dvh place-items-center px-4">
+        <div role="alert" className="w-full max-w-sm rounded-box border border-error/40 bg-base-100 p-6 text-center">
+          <p className="text-sm font-medium">{failure}</p>
+          <Link to="/venues" className="btn btn-app btn-outline mt-4 w-full">
+            กลับสู่รายการสถานที่
+          </Link>
+        </div>
+      </section>
+    )
+  }
+
+  /* ⚠️ `pb-safe`, NOT `pad-nav` — this screen is not in `NAV_SCREENS`, so no dock appears and there
+     is nothing to reserve room for. Reserving it anyway leaves 7 rem of empty space under the CTA. */
+  return (
+    <section className="pb-safe min-h-dvh">
+      <header className="hdr-blur sticky top-0 z-30 border-b border-base-300 bg-base-100/90 shadow-xs backdrop-blur-md">
+        <div className="border-b border-base-300/60">
+          <div className="mx-auto w-full max-w-md px-4 pb-2.5 pt-safe-lg sm:max-w-2xl md:max-w-4xl lg:max-w-5xl">
+            {/* ⚠️ The venue name appears twice on purpose — at the end of the trail and as the
+                `<h1>`. The trail says where you came FROM; the heading says where you ARE. */}
+            <Breadcrumbs
+              className="text-xs text-base-content/60"
+              trail={[{ label: 'จองสถานที่', to: '/venues' }, { label: venue?.name ?? '…' }]}
+            />
+          </div>
+        </div>
+        <div className="mx-auto w-full max-w-md px-4 py-3 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl">
+          <h1 className="truncate text-lg font-semibold leading-snug">
+            {venue?.name ?? <Skeleton className="h-6 w-2/3" />}
+          </h1>
+        </div>
+      </header>
+
+      <div className="mx-auto w-full max-w-md px-4 pt-4 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl">
+        {venue === null ? (
+          <div className="space-y-4">
+            <Skeleton className="aspect-video w-full" />
+            <Skeleton className="h-40 w-full" />
+          </div>
+        ) : (
+          <>
+            {/* ⚠️ ABOVE THE PHOTO, not below it — see the header note. */}
+            {/* 🔴 `text-base-content` ON THE WORDS, NOT ON THE ALERT (P5b). daisyUI's
+                  `alert-soft` colours its text with the semantic token, and in the LIGHT theme
+                  that measures **2.04:1** for `warning` — the worst reading in this portal, and it
+                  shipped in P4 unnoticed. The full sweep: success 3.45 · warning 2.04 · error 4.36
+                  · info 4.64, against 16.0–17.0 once the text is `base-content`. Dark passes on its
+                  own (4.97–7.76), which is why it hid.
+                  ⚠️ THE CLASS GOES ON THE `<span>` so the ICON KEEPS the semantic colour — moving
+                  it to the container greys the icon out and the alert levels stop being
+                  distinguishable at a glance. The icon is `aria-hidden` and decorative: the Thai
+                  beside it says the same thing, and the level is also carried by the background. */}
+            {!venue.isOpen ? (
+                <div role="alert" className="alert alert-warning alert-soft mb-4 text-sm">
+                <LIcon name="circleAlert" className="h-5 w-5 shrink-0" />
+                <span className="text-base-content">
+                  <span className="font-semibold">ปิดปรับปรุงชั่วคราว</span> —{' '}
+                  {venue.closedReason || 'ปิดปรับปรุงชั่วคราว'}
+                </span>
+              </div>
+            ) : null}
+
+            <VenueCarousel photos={venue.photos} venueName={venue.name} />
+
+            {/* ─── One card for "what is this room like" ────────────────────────────────
+                🔴 CATEGORY · LOCATION · CAPACITY · DESCRIPTION · AMENITIES IN A SINGLE CARD. They
+                used to be several boxes each with its own border, which made a screen holding
+                little information read as several unrelated headings. All five answer one question.
+                ⚠️ THE AMENITY BADGES DEPEND ON THIS CARD'S `bg-base-100` (`DECISIONS.md` §3.3). A
+                `base-200` pill on a `base-200` page surface measures **1.05** in light and simply
+                dissolves into plain words; the fix was the SURFACE, not the badge, which is why the
+                tags must never be lifted out of a `bg-base-100` container. */}
+            <div className="card mt-4 bg-base-100 shadow-sm">
+              <div className="card-body gap-2.5 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="badge badge-sm border-base-content/20 bg-base-200 font-medium text-base-content/80">
+                    {venue.venueType.name}
+                  </span>
+                </div>
+                <div className="space-y-1 text-xs text-base-content/70">
+                  <p className="flex items-center gap-1.5">
+                    <LIcon name="mapPin" className="h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 font-medium text-base-content/90">
+                      {venue.location || '—'}
+                    </span>
+                  </p>
+                  <p className="flex items-center gap-1.5">
+                    <LIcon name="users" className="h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0">
+                      รองรับ {venue.capacity.toLocaleString('th-TH')} คน
+                    </span>
+                  </p>
+                </div>
+                {venue.description ? (
+                  <p className="mt-1 text-sm leading-relaxed text-base-content/80">
+                    {venue.description}
+                  </p>
+                ) : null}
+
+                {/* ⚠️ NOT TRUNCATED AT THREE HERE, unlike the catalogue card. A card in a list is
+                    scanned against its neighbours, so the eleventh amenity is not what anyone is
+                    looking for; this screen is where the decision is made, and "is there a
+                    microphone" is asked here and nowhere else. */}
+                {venue.amenities.length > 0 ? (
+                  <div className="mt-2 border-t border-base-200/80 pt-3">
+                    <p className="mb-2 text-xs font-semibold text-base-content/60">
+                      สิ่งอำนวยความสะดวก
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {venue.amenities.map((a) => (
+                        /* Identical to the catalogue card's tag, to the character (PO,
+                           27 ส.ค. 2569) — the same badge in two screens must be the same, not
+                           similar. */
+                        <span
+                          key={a.id}
+                          className="badge badge-xs border-none bg-base-200 text-base-content/70"
+                        >
+                          {a.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {/* ─── Availability ────────────────────────────────────────────────────────
+                ⚠️ THE SECTION HEADING EXISTS BECAUSE THE CALENDAR USED TO FOLLOW THE INFO CARD
+                with nothing between them, so it read as a continuation of the card above. The
+                sub-line says what can be done here rather than restating the heading: this calendar
+                answers two questions at once, and the coloured bar under each date is only legible
+                once the reader knows what they are looking at. */}
+            <div className="mb-2 mt-6">
+              <h2 className="text-base font-semibold text-base-content">
+                ปฏิทินความพร้อมและการใช้สถานที่
+              </h2>
+              <p className="mt-0.5 text-xs text-base-content/60">
+                ตรวจสอบช่วงเวลาว่าง หรือกิจกรรมที่ได้รับอนุมัติแล้ว
+              </p>
+            </div>
+            <AvailabilityCalendar
+              slots={slots}
+              view={view}
+              onViewChange={setView}
+              anchorWeek={anchor.week}
+              anchorMonth={anchor.month}
+              onAnchorChange={setAnchor}
+              selected={picked}
+              onSelect={setPicked}
+              today={today}
+            />
+
+            {/* ⚠️ THE HEADING NAMES THE SELECTED DAY IN FULL. The calendar is directly above, but
+                once the page is scrolled the reader can no longer see which cell is chosen. */}
+            <div className="mt-6">
+              <h2 className="font-semibold">ตารางการใช้งาน</h2>
+              <p className="mt-0.5 text-sm text-base-content/60">
+                {TH_DOW_FULL[picked.getDay()]}ที่ {fmtD(picked)}
+              </p>
+            </div>
+            <div className="mt-3 space-y-3">
+              <SlotList slots={slots} day={picked} />
+            </div>
+
+            {/* 🔴 THE NOTE IS A FOOTNOTE TO THE SCHEDULE, NOT A LINE BETWEEN TWO BUTTONS
+                (`#ISSUE-04`, 12 ก.ย. 2569). It used to sit under the CTA, which put it *inside* the
+                action block once a second button joined it — and a caveat wedged between two
+                buttons breaks the one thing a button group is for: reading as a single set of
+                choices. Moved up here it belongs to the thing it is about (these hours are not
+                yours yet), and the buttons close the page as a pair. Prototype 1243.
+                ⚠️ `text-start`, NOT `text-center`, AND THE PREFIX IS PART OF IT. Centred, it read
+                as a second caption for the CTA; left-aligned under a "หมายเหตุ:" it reads as what
+                it is — a footnote on the list above.
+                ⚠️ HIDDEN WHEN THE VENUE IS CLOSED, because there is no request to caveat — the
+                prototype does the same with `#vd-cta-note`.hidden (4040). */}
+            {venue.isOpen ? (
+              <p className="mt-3 text-start text-xs text-base-content/60">
+                หมายเหตุ: คำขอจะถูกส่งให้เจ้าหน้าที่พิจารณา ยังไม่ถือเป็นการจองที่ได้รับอนุมัติ
+              </p>
+            ) : null}
+
+            {/* ─── CTA + the way back ──────────────────────────────────────────────────
+                🔴 "ย้อนกลับ" IS A LINK TO A NAMED DESTINATION, NOT A BACK ARROW, and that is what
+                keeps it inside `D-C3`. The ban is on chrome that races LIFF's own arrow through
+                real history; this sits at the END of the content and walks to `/venues`, which is
+                the same thing the breadcrumb at the top of the screen does — it just does it where
+                the reader actually is after scrolling a calendar and a day's bookings.
+                ⚠️ TEXT-ONLY OUTLINE, NO ICON. A chevron here would make it look like the history
+                control it deliberately is not, and `border-base-300 text-base-content/80` is the
+                same pair `#/booking/:id` and `#/version` use — one secondary button, one look. */}
+            <div className="mb-8 mt-4 flex flex-col gap-2">
+              {venue.isOpen ? (
+                <Link to={`/request/${venue.id}`} className="btn btn-app btn-primary w-full shadow-sm">
+                  ยื่นคำขอใช้สถานที่
+                </Link>
+              ) : (
+                <button type="button" disabled className="btn btn-app btn-disabled w-full shadow-sm">
+                  สถานที่ปิดปรับปรุงชั่วคราว
+                </button>
+              )}
+              <Link
+                to="/venues"
+                className="btn btn-app btn-outline w-full border-base-300 text-base-content/80"
+              >
+                ย้อนกลับ
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  )
+}

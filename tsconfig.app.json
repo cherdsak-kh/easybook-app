@@ -8,8 +8,8 @@
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"],
     "skipLibCheck": true,
 
-    /* Path alias: @/* -> src/* (paths resolve relative to this config) */
-    "paths": { "@/*": ["./src/*"] },
+    /* Path aliases (resolve relative to this config) */
+    "paths": { "@/*": ["./src/*"], "@tests/*": ["./tests/*"] },
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -25,5 +25,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }

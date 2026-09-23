@@ -1,0 +1,203 @@
+/**
+ * label + shell + control + error, wired together.
+ *
+ * The wiring is the reason this is a component rather than three classes. Every field in the
+ * prototype carries the same four-part relationship — `for`/`id`, `aria-describedby` pointing
+ * at the error paragraph, `form-shell-err` on the shell when invalid, and the error kept in
+ * the DOM rather than conditionally created — and each of those was got wrong at least once
+ * while it was hand-written per form.
+ *
+ * ⚠️ The error <p> is ALWAYS rendered and hidden with `hidden`, never mounted on demand. An
+ * assistive technology announces a live region only if it already existed when the text
+ * arrived; a paragraph that appears at the same moment as its message is silent. The same
+ * rule governs `#login-alert` and `#dm-alert` in the prototype.
+ *
+ * Forms using this must be `noValidate`. The browser's own bubble cannot be styled, cannot be
+ * translated, and cannot be tied to `aria-describedby` — the prototype renders its own
+ * messages for exactly those three reasons.
+ */
+
+import { useId } from 'react'
+import type { InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes } from 'react'
+import { keyboardDefaults } from './keyboard'
+
+/** The 16×16 alert glyph every field error carries. */
+function ErrIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="form-err-ico"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+      />
+    </svg>
+  )
+}
+
+/**
+ * The shared frame. Exposed on its own so a field with an unusual control — the avatar
+ * picker, a two-input date range — gets the same label/error treatment without pretending
+ * to be an <input>.
+ */
+export function Field({
+  label,
+  error,
+  hint,
+  htmlFor,
+  labelId,
+  errorId,
+  children,
+  className = '',
+  shell = true,
+}: {
+  label: ReactNode
+  error?: string
+  hint?: ReactNode
+  htmlFor: string
+  /**
+   * An id on the <label>, for a control whose accessible name cannot come from the label
+   * element itself.
+   *
+   * ⚠️ ONLY `Combobox` NEEDS THIS, and the reason is a rule of the name computation rather
+   * than a preference: its control is a <button>, and HTML-AAM names a button from its own
+   * SUBTREE — the associated <label> is skipped. Left alone, "ตำแหน่ง" is never announced
+   * and the field reads as just the value it currently holds. Pointing `aria-labelledby` at
+   * this id AND at the button gives "ตำแหน่ง อาจารย์", which is the pair a listener needs.
+   * `for` still points at the button, so the label stays a 44px click target.
+   */
+  labelId?: string
+  errorId: string
+  children: ReactNode
+  className?: string
+  /**
+   * `false` drops the `.form-shell` frame and renders the control bare, for a control that draws
+   * its own surface, border and error tone — today only `SelectField`'s daisyUI `select`. The
+   * default stays `true`, so every <input>, the password field and `Combobox` are untouched.
+   */
+  shell?: boolean
+}) {
+  return (
+    <div className={className}>
+      <label className="form-label" id={labelId} htmlFor={htmlFor}>
+        {label}
+      </label>
+      {shell ? (
+        <div className={`form-shell ${error ? 'form-shell-err' : ''}`.trim()}>{children}</div>
+      ) : (
+        children
+      )}
+      {/* Always present, hidden when empty — see the note at the top of this file. */}
+      <p id={errorId} className={`form-err ${error ? '' : 'hidden'}`.trim()}>
+        <ErrIcon />
+        <span>{error}</span>
+      </p>
+      {/* ⚠️ AFTER the error, and `mt-1.5 text-[13px]` — the first port had `mt-1 text-[12px]
+          th-tight` ABOVE it. Measured on การลงทะเบียน's edit dialog: 573.4px against the
+          prototype's 577.5. The order matters on its own: when a field is invalid the operator
+          should meet the correction first and the standing advice second, not read past the advice
+          to find out what went wrong.
+
+          ⚠️ NO `leading-` here, deliberately. The prototype's one-line hints inherit 1.5 and its
+          WRAPPING ones set `leading-[1.55]` — 0.65px a line apart. Baking either in makes one of
+          the two groups wrong, so the default matches the plain case and a caller with a hint that
+          wraps passes its own leading. */}
+      {hint && <p className="m-0 mt-1.5 text-[13px] text-base-content/70">{hint}</p>}
+    </div>
+  )
+}
+
+export function FormField({
+  label,
+  error,
+  hint,
+  className,
+  id,
+  ...input
+}: InputHTMLAttributes<HTMLInputElement> & {
+  label: ReactNode
+  error?: string
+  hint?: ReactNode
+  /**
+   * React 19 passes `ref` to a function component as an ordinary prop, so no `forwardRef` — but
+   * `InputHTMLAttributes` does not include it, so without this line a caller holding a ref gets a
+   * type error rather than a working ref. Same reason `Btn` declares one.
+   *
+   * A caller needs it to focus or select the field on open: ตัวเลือกบุคลากร selects the whole
+   * name on a rename so the first keystroke replaces the old title.
+   */
+  ref?: Ref<HTMLInputElement>
+}) {
+  const auto = useId()
+  const fieldId = id ?? auto
+  const errorId = `${fieldId}-err`
+  return (
+    <Field
+      label={label}
+      error={error}
+      hint={hint}
+      htmlFor={fieldId}
+      errorId={errorId}
+      className={className}
+    >
+      <input
+        id={fieldId}
+        className="form-input"
+        aria-invalid={error ? true : undefined}
+        {...keyboardDefaults(input.type, input.inputMode)}
+        {...input}
+        aria-describedby={[input['aria-describedby'], errorId].filter(Boolean).join(' ')}
+      />
+    </Field>
+  )
+}
+
+export function SelectField({
+  label,
+  error,
+  hint,
+  className,
+  id,
+  children,
+  ...select
+}: SelectHTMLAttributes<HTMLSelectElement> & {
+  label: ReactNode
+  error?: string
+  hint?: ReactNode
+}) {
+  const auto = useId()
+  const fieldId = id ?? auto
+  const errorId = `${fieldId}-err`
+  return (
+    <Field
+      label={label}
+      error={error}
+      hint={hint}
+      htmlFor={fieldId}
+      errorId={errorId}
+      className={className}
+      shell={false}
+    >
+      {/* A plain daisyUI `select`: no `.form-shell`, no `.form-select`, no drawn caret. daisyUI
+          draws its own arrow and opts into `appearance: base-select` where supported, which is
+          what gives the rounded popover with a ✓ — `.form-select`'s `appearance-none` is what
+          forced the square OS popup. ⛔ Do not add `appearance-none` back. The error tone moves
+          from `form-shell-err` on the shell to `select-error` on the control itself. */}
+      <select
+        id={fieldId}
+        className={`select w-full ${error ? 'select-error' : ''}`.trim()}
+        aria-invalid={error ? true : undefined}
+        {...select}
+        aria-describedby={[select['aria-describedby'], errorId].filter(Boolean).join(' ')}
+      >
+        {children}
+      </select>
+    </Field>
+  )
+}

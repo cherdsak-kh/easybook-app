@@ -9,17 +9,105 @@
       lets migrated and un-migrated screens coexist during the rollout. */
 @custom-variant dark (&:where([data-theme$="-dark"], [data-theme$="-dark"] *));
 
-/* 3. Enable daisyUI (CSS-first — no tailwind.config.js). No built-in themes are
-      requested, so only the four EasyBook themes below ship. */
-@plugin "daisyui";
+/* 2b. Global type family. Tailwind v4's CSS-first token, so ONE declaration drives
+      Preflight's html/body default, every `font-sans` utility, and every daisyUI
+      component at once — a `body { font-family }` rule would lose to any explicit
+      `font-sans` utility and leave the two out of sync. The faces themselves are
+      self-hosted and imported in `src/main.tsx` (@fontsource/noto-sans-thai).
 
-/* 4. The four EasyBook themes: two portal identities x light/dark.
-      Everything structural is shared (base slate scale, status hues, radius) so
-      the two portals read as one product; only `--color-primary` differs.
+      Fallbacks, in order: Noto Sans Thai → the system sans stack. Noto Sans Thai
+      used to be the SECOND entry here, behind Kanit, precisely because it is
+      Thai-capable and pre-installed on Android/most Thai devices. Now that it is
+      the primary it must appear exactly ONCE: naming it twice buys nothing, and the
+      old safety net moves INSIDE the first entry — if the self-hosted woff2 fails to
+      load, the device's own copy of the same family answers under the same name, so
+      Thai still renders in the intended face rather than a substitute. `ui-sans-serif`
+      / `system-ui` remain as the last resort for a device that has neither.
+      ⚠️ Do NOT re-add a second Thai-capable family "for safety" — a fallback that
+      renders at different advance widths is how a layout tuned to one font silently
+      reflows on the devices that use the other.
+      Font is NOT a daisyUI theme token — the theme blocks below stay untouched. */
+@theme {
+  --font-sans: 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* 2c. Admin Portal v2's NON-COLOUR scale, lifted from the prototype's `@theme static`
+      block. Colour is not here — it is the two daisyUI theme blocks further down, which
+      is what the prototype's own comment names as the port target. What is left is the
+      part daisyUI has no vocabulary for.
+
+      `static`, not plain `@theme`: Tailwind v4 tree-shakes theme variables that no
+      utility references, and a theme override for a variable that was never emitted has
+      nothing to override. The prototype measured exactly that — `--color-base-100` came
+      back as an empty string purely because nothing used it yet.
+
+      Two radii and two shadows, and that is the whole scale on purpose: v1 of the
+      prototype had six radii and seven shadows, which is how a sidebar loses its corners
+      without anyone noticing. Pills use Tailwind's own `rounded-full` as the third.
+
+      ⚠️ These are DUPLICATED as `--radius-box` / `--radius-field` inside the admin theme
+      blocks below, and that is not redundancy: these four drive the `rounded-card`,
+      `rounded-control` and `shadow-e1/e2` UTILITIES the ported markup writes, while the
+      daisyUI ones drive daisyUI's own COMPONENTS (`btn`, `input`, `modal`). Two consumers,
+      one number — change it in both or the two halves of a screen disagree. */
+@theme static {
+  --radius-card: 24px;     /* containers: sidebar, topbar, cards, modals   */
+  --radius-control: 12px;  /* controls: inputs, buttons, nav rows, avatars */
+
+  /* ⚠️ INDIRECTION, NOT A MISSING VALUE — measured, do not "simplify" this back.
+     Tailwind v4 emits a `--shadow-*` theme value INLINE into the utility it
+     generates: `shadow-e1` compiles to a literal `box-shadow: 0 1px 2px …`, not to
+     `box-shadow: var(--shadow-e1)`. So redefining `--shadow-e1` under the dark theme
+     changes nothing — measured in the browser: `.pf-card` returned the LIGHT
+     `rgba(15,23,42,0.04)` in both themes, and the dark elevation block was dead code.
+
+     Pointing the theme value at a SECOND variable is what survives the inlining: the
+     literal Tailwind writes is now `var(--elev-1)`, which resolves per theme at paint.
+     This is the trap the prototype's README predicted for the build-time port, and it
+     is silent — the shadows still render, just never the dark ones. */
+  --shadow-e1: var(--elev-1);
+  --shadow-e2: var(--elev-2);
+}
+
+/* The elevation pair itself. Light on `:root` so it is the default everywhere; the dark
+   theme overrides it further down. In light, higher = whiter + a shadow. */
+:root {
+  --elev-1: 0 1px 2px 0 rgb(15 23 42 / .04), 0 1px 3px 0 rgb(15 23 42 / .06);
+  --elev-2: 0 4px 6px -2px rgb(15 23 42 / .05), 0 12px 20px -4px rgb(15 23 42 / .08);
+}
+
+/* 3. Enable daisyUI (CSS-first — no tailwind.config.js).
+      `light --default, dark --prefersdark` is daisyUI 5's OWN implicit default when the
+      plugin is given no config, and it is spelled out here verbatim so that adding a
+      theme to the list does not silently drop those two. There are no other built-ins
+      opted in: the `cupcake` opt-in that used to sit here belonged to the old
+      back-office and went with it on 2026-08-16.
+
+      `easybook-client` (below) keeps `default: true` and stays the `:root` theme. The
+      `@plugin "daisyui/theme"` blocks below are additive and never edited in place. */
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}
+
+/* 4. The EasyBook client themes: one portal identity x light/dark.
+      Was "two portal identities" until 2026-08-16, when the old back-office and its two
+      themes were deleted. What is left is the LIFF surface.
         - client primary = LINE green #06C755  → oklch(72.4% 0.205 148.63)
-        - admin  primary = emerald-600 #059669 → oklch(59.6% 0.127 163.23)
       All values pinned from the current design language (Tailwind slate/emerald/
-      amber/red/blue). See 02_design_log.md §Q2/Q3/Q6. */
+      amber/red/blue). See 02_design_log.md §Q2/Q3/Q6.
+
+      🔴 THE `primary` LINE FROM THAT COMMENT IS NO LONGER TRUE, AND THAT IS THE POINT.
+      `D-C17` (PO, 27 Aug 2026) moved `primary` off LINE green in BOTH blocks below. The
+      values there now match the admin portal's emerald exactly, and `#06C755` survives on
+      one control only — `.btn-line`, the LINE sign-in button, defined near the bottom of
+      this file. Measured, and the reason the ruling exists:
+        · white on `#06C755`  = 2.26:1  → fails AA (accepted, one button, brand-mandated)
+        · white on `#047857`  = 5.48:1  → light theme
+        · `#0f172a` on `#34d399` = 9.29:1 → dark theme
+      The portal still READS as LINE green where users associate it with LINE — the logo
+      and the sign-in button — while every "this button does something" control matches the
+      back office, so a staff member who opens both sides sees one colour for one meaning.
+      ⚠️ The exception does NOT transfer: `btn-primary` on any other screen never gets it. */
 
 /* --- Client (LINE LIFF surface) — light --------------------------------- */
 @plugin "daisyui/theme" {
@@ -32,8 +120,11 @@
   --color-base-300: oklch(92.9% 0.013 255.51);  /* slate-200 — borders / dividers*/
   --color-base-content: oklch(20.8% 0.040 265.75); /* slate-900 — body text      */
 
-  --color-primary: oklch(72.4% 0.205 148.63);   /* LINE green #06C755            */
-  --color-primary-content: oklch(100% 0 0);     /* white — BRAND EXCEPTION (§Q6) */
+  /* D-C17 · hex, not oklch — copied character-for-character from the admin block below
+     and from the prototype, which is the design authority for this portal. Converting to
+     oklch would move it by a hair and silently invalidate the 5.48:1 recorded above. */
+  --color-primary: #047857;                     /* emerald-700 — = admin primary */
+  --color-primary-content: #ffffff;             /* white — 5.48:1, passes AA     */
   --color-secondary: oklch(59.6% 0.127 163.23); /* emerald-600                   */
   --color-secondary-content: oklch(100% 0 0);
   --color-accent: oklch(54.6% 0.215 262.88);    /* blue-600                      */
@@ -70,8 +161,11 @@
   --color-base-300: oklch(37.2% 0.039 257.29);  /* slate-700 — borders           */
   --color-base-content: oklch(96.8% 0.007 247.90); /* slate-100 — body text      */
 
-  --color-primary: oklch(72.4% 0.205 148.63);   /* LINE green #06C755            */
-  --color-primary-content: oklch(100% 0 0);     /* white — BRAND EXCEPTION       */
+  /* D-C17 · on a dark field the same emerald is unreadable, so it lifts to emerald-400 —
+     and once it is that light, white text on it fails, so `-content` goes dark. Background
+     and foreground move together; that is why these are two themes and not one. */
+  --color-primary: #34d399;                     /* emerald-400 — = admin primary */
+  --color-primary-content: #0f172a;             /* slate-900 — 9.29:1            */
   --color-secondary: oklch(69.6% 0.149 162.48); /* emerald-500                   */
   --color-secondary-content: oklch(20.8% 0.040 265.75);
   --color-accent: oklch(62.3% 0.188 259.81);    /* blue-500                      */
@@ -98,168 +192,539 @@
   --noise: 0;
 }
 
-/* --- Admin (internal back-office) — light -------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ADMIN PORTAL v2 — light + dark. Written FROM THE PROTOTYPE, not restored.
+
+   The old back-office's four themes (`easybook-admin`, `easybook-admin-dark`,
+   `dashwind-light`, `dashwind-dark`) were deleted with it on 2026-08-16. These two
+   reuse two of those NAMES and none of their values: every number below is copied from
+   `master_layout_prototype_v2.html`'s `@theme static` block, which is the design
+   authority. The prototype's own comment on that block names a daisyUI theme block in
+   this file as its port target, so this is the port landing where it was aimed — not a
+   second system describing the same colours.
+
+   ⚠️ HEX, NOT OKLCH, and deliberately so — unlike the client themes above. These exact
+   values are what the prototype's contrast sweeps were measured against. Converting
+   them would move each one by a hair and silently invalidate every ratio recorded in
+   the plan folder, for no benefit: daisyUI 5 accepts any CSS colour.
+
+   Three of these values are BUG FIXES relative to the deleted `easybook-admin`, and
+   they are the reason porting the markup without porting the theme would have shipped a
+   failing contrast ratio on the portal's most-used control:
+     · primary emerald-600 → emerald-700. White on emerald-600 measures 3.65:1 (fails
+       AA); on emerald-700 it is 5.48:1. Every filled button in the prototype was already
+       drawn on emerald-700.
+     · radius-box 1rem → 24px, radius-field 0.5rem → 12px — the prototype's card and
+       control radii.
+
+   Semantic hues are anchored at the 700 step so ONE value serves both jobs: white on it
+   for a solid button, and it on a 10% wash of itself for a soft badge. daisyUI has no
+   "readable-on-tint" variant, so `bg-success/10 text-success` inherits whatever
+   `success` is, and a mid-tone one lands near 3:1.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* --- Admin Portal v2 — light -------------------------------------------- */
 @plugin "daisyui/theme" {
   name: "easybook-admin";
   color-scheme: light;
 
-  --color-base-100: oklch(100% 0 0);            /* white                         */
-  --color-base-200: oklch(98.4% 0.003 247.86);  /* slate-50                      */
-  --color-base-300: oklch(92.9% 0.013 255.51);  /* slate-200                     */
-  --color-base-content: oklch(20.8% 0.040 265.75); /* slate-900                  */
+  --color-base-100: #ffffff;     /* raised: cards, modals, topbar, sidebar    */
+  --color-base-200: #f1f5f9;     /* sunken: page bg, input fills   (slate-100)*/
+  --color-base-300: #e2e8f0;     /* lines: borders, dividers       (slate-200)*/
+  --color-base-content: #0f172a; /* foreground                     (slate-900)*/
 
-  --color-primary: oklch(59.6% 0.127 163.23);   /* emerald-600 #059669           */
-  --color-primary-content: oklch(100% 0 0);     /* white (large-text/UI — §Q6)   */
-  --color-secondary: oklch(37.2% 0.039 257.29); /* slate-700                     */
-  --color-secondary-content: oklch(96.8% 0.007 247.90);
-  --color-accent: oklch(54.6% 0.215 262.88);    /* blue-600                      */
-  --color-accent-content: oklch(100% 0 0);
-  --color-neutral: oklch(37.2% 0.039 257.29);   /* slate-700                     */
-  --color-neutral-content: oklch(96.8% 0.007 247.90);
+  --color-primary: #047857;         /* emerald-700 */
+  --color-primary-content: #ffffff;
+  --color-neutral: #334155;         /* slate-700 — UNREGISTERED, quiet chips */
+  --color-neutral-content: #ffffff;
 
-  --color-info: oklch(54.6% 0.215 262.88);      /* blue-600                      */
-  --color-info-content: oklch(100% 0 0);
-  --color-success: oklch(59.6% 0.127 163.23);   /* emerald-600 — ALLOWED         */
-  --color-success-content: oklch(100% 0 0);
-  --color-warning: oklch(76.9% 0.165 70.08);    /* amber-500 — PENDING           */
-  --color-warning-content: oklch(20.8% 0.040 265.75);
-  --color-error: oklch(57.7% 0.215 27.33);      /* red-600 — BLOCKED/destructive */
-  --color-error-content: oklch(100% 0 0);
+  --color-success: #047857;         /* emerald-700 — ALLOWED  */
+  --color-success-content: #ffffff;
+  /* amber-800, not amber-700. Amber is the weakest hue on white — amber-700 only
+     reaches 4.9:1 there, and on a 10% wash of ITSELF (which is what
+     `bg-warning/10 text-warning` means) it drops to 4.35 and fails. Every other hue
+     had headroom to spare; this one did not. */
+  --color-warning: #92400e;         /* amber-800   — PENDING  */
+  --color-warning-content: #ffffff;
+  --color-info: #0369a1;            /* sky-700     — REJECTED */
+  --color-info-content: #ffffff;
+  --color-error: #be123c;           /* rose-700    — BLOCKED  */
+  --color-error-content: #ffffff;
 
-  --radius-selector: 0.5rem;
-  --radius-field: 0.5rem;
-  --radius-box: 1rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 1;
-  --noise: 0;
-}
-
-/* --- Admin — dark -------------------------------------------------------- */
-@plugin "daisyui/theme" {
-  name: "easybook-admin-dark";
-  color-scheme: dark;
-
-  --color-base-100: oklch(20.8% 0.040 265.75);  /* slate-900                     */
-  --color-base-200: oklch(12.9% 0.041 264.70);  /* slate-950                     */
-  --color-base-300: oklch(37.2% 0.039 257.29);  /* slate-700                     */
-  --color-base-content: oklch(96.8% 0.007 247.90); /* slate-100                  */
-
-  --color-primary: oklch(69.6% 0.149 162.48);   /* emerald-500 (brighter in dark)*/
-  --color-primary-content: oklch(20.8% 0.040 265.75);
-  --color-secondary: oklch(37.2% 0.039 257.29); /* slate-700                     */
-  --color-secondary-content: oklch(96.8% 0.007 247.90);
-  --color-accent: oklch(62.3% 0.188 259.81);    /* blue-500                      */
-  --color-accent-content: oklch(100% 0 0);
-  --color-neutral: oklch(37.2% 0.039 257.29);   /* slate-700                     */
-  --color-neutral-content: oklch(96.8% 0.007 247.90);
-
-  --color-info: oklch(62.3% 0.188 259.81);      /* blue-500                      */
-  --color-info-content: oklch(20.8% 0.040 265.75);
-  --color-success: oklch(69.6% 0.149 162.48);   /* emerald-500 — ALLOWED         */
-  --color-success-content: oklch(20.8% 0.040 265.75);
-  --color-warning: oklch(76.9% 0.165 70.08);    /* amber-500 — PENDING           */
-  --color-warning-content: oklch(20.8% 0.040 265.75);
-  --color-error: oklch(63.7% 0.208 25.33);      /* red-500 — BLOCKED/destructive */
-  --color-error-content: oklch(20.8% 0.040 265.75);
-
-  --radius-selector: 0.5rem;
-  --radius-field: 0.5rem;
-  --radius-box: 1rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 1;
-  --noise: 0;
-}
-
-/* 5. ADDITIVE (Phase 3): DashWind replica themes for the isolated /admin-portal
-      branch ONLY. Appended after the four easybook-* themes — nothing above this
-      point is edited or reordered. Values are pinned from daisyUI-4.4.19's compiled
-      `dist/themes.css` (the template's own daisyUI), transcribed into daisyUI-5's
-      `--color-*: oklch(...)` form, so they reproduce DashWind exactly (NOT
-      daisyUI-5's retuned built-ins). Neither block sets `default:` (easybook-client
-      stays the daisyUI default); the `-dark` suffix keeps the `@custom-variant dark`
-      selector above valid with zero change. See 02_design_log.md §2. */
-
-/* --- DashWind replica (isolated /admin-portal branch) — light ------------
-   Pinned to daisyUI-4.4.19 stock `light` (dist/themes.css). NOT daisyUI-5's
-   retuned built-in. `default:` intentionally unset — easybook-client stays the
-   daisyUI default. See claude_planning/20260720_1415_.../02_design_log.md §2. */
-@plugin "daisyui/theme" {
-  name: "dashwind-light";
-  color-scheme: light;
-
-  --color-base-100: oklch(1 0 0);                       /* --b1 */
-  --color-base-200: oklch(0.961151 0 0);                /* --b2 */
-  --color-base-300: oklch(0.924169 0.00108 197.137559); /* --b3 */
-  --color-base-content: oklch(0.278078 0.029596 256.847952); /* --bc */
-
-  --color-primary: oklch(0.4912 0.3096 275.75);         /* --p  */
-  --color-primary-content: oklch(0.89824 0.06192 275.75); /* --pc */
-  --color-secondary: oklch(0.6971 0.329 342.55);        /* --s  */
-  --color-secondary-content: oklch(0.9871 0.0106 342.55); /* --sc */
-  --color-accent: oklch(0.7676 0.184 183.61);           /* --a  */
-  --color-accent-content: oklch(0.15352 0.0368 183.61); /* --ac */
-  --color-neutral: oklch(0.321785 0.02476 255.701624);  /* --n  */
-  --color-neutral-content: oklch(0.894994 0.011585 252.096176); /* --nc */
-
-  --color-info: oklch(0.7206 0.191 231.6);              /* --in */
-  --color-info-content: oklch(0 0 0);                   /* --inc */
-  --color-success: oklch(64.8% 0.150 160);              /* --su  */
-  --color-success-content: oklch(0 0 0);                /* --suc */
-  --color-warning: oklch(0.8471 0.199 83.87);           /* --wa  */
-  --color-warning-content: oklch(0 0 0);                /* --wac */
-  --color-error: oklch(0.7176 0.221 22.18);             /* --er  */
-  --color-error-content: oklch(0 0 0);                  /* --erc */
-
-  --radius-selector: 1.9rem;   /* daisyUI-4 --rounded-badge */
-  --radius-field: 0.5rem;      /* daisyUI-4 --rounded-btn   */
-  --radius-box: 1rem;          /* daisyUI-4 --rounded-box   */
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 0;                  /* DashWind is flat */
-  --noise: 0;
-}
-
-/* --- DashWind replica — dark --------------------------------------------
-   Pinned to daisyUI-4.4.19 stock `dark`. `-dark` suffix so the existing
-   @custom-variant dark selector matches with no change. */
-@plugin "daisyui/theme" {
-  name: "dashwind-dark";
-  color-scheme: dark;
-
-  --color-base-100: oklch(0.253267 0.015896 252.417568); /* --b1 */
-  --color-base-200: oklch(0.232607 0.013807 253.100675); /* --b2 */
-  --color-base-300: oklch(0.211484 0.01165 254.087939);  /* --b3 */
-  --color-base-content: oklch(0.746477 0.0216 264.435964); /* --bc */
-
-  --color-primary: oklch(0.6569 0.196 275.75);           /* --p  */
-  --color-primary-content: oklch(0.13138 0.0392 275.75); /* --pc */
-  --color-secondary: oklch(0.748 0.26 342.55);           /* --s  */
-  --color-secondary-content: oklch(0.1496 0.052 342.55); /* --sc */
-  --color-accent: oklch(0.7451 0.167 183.61);            /* --a  */
-  --color-accent-content: oklch(0.14902 0.0334 183.61);  /* --ac */
-  --color-neutral: oklch(0.313815 0.021108 254.139175);  /* --n  */
-  --color-neutral-content: oklch(0.746477 0.0216 264.435964); /* --nc */
-
-  --color-info: oklch(0.7206 0.191 231.6);               /* --in */
-  --color-info-content: oklch(0 0 0);                    /* --inc */
-  --color-success: oklch(64.8% 0.150 160);               /* --su  */
-  --color-success-content: oklch(0 0 0);                 /* --suc */
-  --color-warning: oklch(0.8471 0.199 83.87);            /* --wa  */
-  --color-warning-content: oklch(0 0 0);                 /* --wac */
-  --color-error: oklch(0.7176 0.221 22.18);              /* --er  */
-  --color-error-content: oklch(0 0 0);                   /* --erc */
-
-  --radius-selector: 1.9rem;
-  --radius-field: 0.5rem;
-  --radius-box: 1rem;
+  --radius-selector: 9999px;  /* pills/circles — the 3rd and last radius */
+  --radius-field: 12px;       /* = --radius-control */
+  --radius-box: 24px;         /* = --radius-card    */
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
   --depth: 0;
   --noise: 0;
 }
+
+/* --- Admin Portal v2 — dark ---------------------------------------------
+   Note what does NOT appear here: a `dark:` utility. Swapping the values behind the
+   same names IS the whole mechanism, and `@custom-variant dark` at the top of this
+   file keys off the `-dark` suffix in this theme's name. Rename it and that silently
+   stops matching. */
+@plugin "daisyui/theme" {
+  name: "easybook-admin-dark";
+  color-scheme: dark;
+
+  --color-base-100: #0f172a;     /* slate-900 — cards sit ABOVE the page     */
+  --color-base-200: #020617;     /* slate-950 — page bg                      */
+  --color-base-300: #334155;     /* slate-700 — borders                      */
+  --color-base-content: #e2e8f0; /* slate-200 — never pure white: on a dark
+                                    field it blooms, and Thai suffers most
+                                    because สระ/วรรณยุกต์ are thin marks     */
+
+  /* Polarity flips: at the 700 step these hues are unreadable on a dark field, so they
+     lift to 400 — and once they are that light, white text on them fails, so `-content`
+     becomes dark. Background and foreground must move together. */
+  --color-primary: #34d399;         /* emerald-400 */
+  --color-primary-content: #0f172a;
+  --color-neutral: #cbd5e1;         /* slate-300   */
+  --color-neutral-content: #0f172a;
+
+  --color-success: #34d399;         /* emerald-400 */
+  --color-success-content: #0f172a;
+  --color-warning: #fbbf24;         /* amber-400   */
+  --color-warning-content: #0f172a;
+  --color-info: #38bdf8;            /* sky-400     */
+  --color-info-content: #0f172a;
+  --color-error: #fb7185;           /* rose-400    */
+  --color-error-content: #0f172a;
+
+  --radius-selector: 9999px;
+  --radius-field: 12px;
+  --radius-box: 24px;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* Elevation inverts in dark. On a dark field a shadow is invisible, so height comes from
+   the surface being lighter than the page — which base-100 over base-200 already does.
+   These stay only to hold a modal off its backdrop.
+
+   ⚠️ Overrides `--elev-*`, NOT `--shadow-e*`. Writing `--shadow-e1` here looks right and
+   does nothing — see the note in section 2c. Verified in the browser: `.pf-card` returns
+   `rgba(0,0,0,0.35)` under this theme and `rgba(15,23,42,0.04)` under the light one. */
+[data-theme="easybook-admin-dark"] {
+  --elev-1: 0 1px 2px 0 rgb(0 0 0 / .35);
+  --elev-2: 0 8px 24px -6px rgb(0 0 0 / .55);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   5. CLIENT PORTAL v2 — the custom CSS layer, ported from
+      `docs/prototypes/client-portal/client_portal_prototype.html` lines 108–439.
+
+   ⚠️ THIS IS A SHORT LIST ON PURPOSE, AND IT IS THE OPPOSITE OF THE ADMIN LAYER.
+   `D-C1`: the client portal is built from daisyUI COMPONENTS, not from a private
+   `@layer components` vocabulary. That is why there are ~19 selectors here where
+   `admin-portal.css` has 133. Custom CSS is admitted only where daisyUI and Tailwind
+   have no vocabulary at all: `env(safe-area-inset-*)`, the floating dock, the blurred
+   sticky header, scrollbar suppression, the sent animation, the visual-viewport dialog
+   geometry, and the combobox sheet rows.
+
+   🔴 THE TWO PORTALS SHARE NO CLASSES. Do not port an admin class in here, and do not
+   "harmonise" the two stylesheets — they are two different structural bets.
+
+   ⚠️ Two of the selectors below (`.btn`, `.select`) are OVERRIDES of daisyUI components
+   rather than new classes. Each carries its own note saying why it exists; an override
+   with no recorded reason is the thing the next person deletes.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Safe-area padding ────────────────────────────────────────────────────────
+   Hand-written only because Tailwind has no utility for `env(safe-area-inset-*)`. */
+.pad-safe {
+  padding-top: max(1.5rem, env(safe-area-inset-top));
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  padding-left: max(1.5rem, env(safe-area-inset-left));
+  padding-right: max(1.5rem, env(safe-area-inset-right));
+}
+
+/* ⚠️ THE TRAP `D-C5` PREDICTED: a FLOATING dock is out of flow, so every screen's last
+   row sits under it unless the page reserves the space — and short pages look fine, so
+   it survives review.
+   The number is computed FROM THE SCRIM, not from the dock, because the scrim is taller:
+     · dock  = 64.5px tall (item 46.5 + `py-2` 16 + border 2), its bottom edge at
+       `max(1.3rem, inset × 0.3)` → its TOP edge sits 85–86px above the bottom of the screen
+     · scrim = `h-15` (60px) and is not bound to the inset at all
+   The last row must clear the SCRIM, not merely the dock: content sunk in the scrim's
+   upper half is still legible but faded, which reads as "a disabled line", not as "the
+   last line of the list". 7rem = 112px leaves headroom above both.
+   ⚠️ `+ env(safe-area-inset-bottom)` is NOT a leftover from when the dock cleared the whole
+   inset. The dock now deliberately sits INSIDE the home-indicator band (see `.dock-float`),
+   so this term is the only thing still keeping PAGE CONTENT out of that 34px strip. The
+   pill is chrome the PO chose to place low; the last row of a list was not chosen that way. */
+.pad-nav { padding-bottom: calc(7rem + env(safe-area-inset-bottom)); }
+
+.pt-safe { padding-top: max(0.75rem, env(safe-area-inset-top)); }
+/* The two-tier headers on the P2 route (breadcrumbs + title) measured cramped at 49px with
+   12px above and below a single line. 20px top / 16px bottom, and a breadcrumb row. */
+.pt-safe-lg { padding-top: max(1.25rem, env(safe-area-inset-top)); }
+/* ⚠️ `.pad-safe` pads all four sides, which is right for a screen that IS a centred card
+   (gate, login, register) and wrong for a screen with a full-bleed header: the section's
+   left/right padding pushes the header in by 24px, so the bar stops touching the edge of
+   the screen and its contents get padded twice to 40px. Those screens want the bottom
+   only; the top is `pt-safe`'s job, inside the header itself. */
+.pb-safe { padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); }
+
+/* ── Scrollbar suppression ────────────────────────────────────────────────────
+   No Tailwind utility exists for `::-webkit-scrollbar`. Used by the venue photo carousel:
+   a scrollbar drawn over a photo is a line nobody uses, and the position indicator is the
+   `2/3` badge in the corner, which is more legible than either a bar or the dots it
+   replaced. Written as a general rule rather than scoped to that one carousel. */
+.no-sb { scrollbar-width: none; }
+.no-sb::-webkit-scrollbar { display: none; }
+
+/* ── The splash fade (P2) ─────────────────────────────────────────────────────
+   Prototype 274–283, where the selector is `#gate-splash`. A CLASS here for the same reason
+   Phase 1 turned `#cbx-sheet` into `.cbx-sheet`: in React the element is a component, and a
+   component that can only be rendered once is a component with a bug waiting in it.
+
+   🔴 HAND-WRITTEN CSS RATHER THAN `motion-safe:transition-all duration-1000`, which is what
+   `DECISIONS.md` §3.1 asks for and which this build could technically get away with. The
+   prototype's stated reason does not apply here — a compiled Tailwind has every class ready
+   before the first paint, unlike the CDN's MutationObserver JIT — but the ruling's real point
+   survives the change of runtime: this is the FIRST FRAME OF THE SESSION and the one animation
+   that has no second chance to play. It is also two declarations. There is nothing to gain by
+   making it depend on a build step, and one thing to lose.
+
+   ⚠️ `prefers-reduced-motion` REMOVES THE TRANSITION, NOT THE END STATE — note which side of
+   the rule the `opacity: 1` lives on. Written the other way round, somebody who has asked for
+   less motion gets a blank screen stuck at `opacity: 0` forever, which is not "reduced motion",
+   it is a broken app. They see the logo at full strength immediately, which is correct. */
+.gate-splash {
+  opacity: 0;
+  transform: scale(.95);
+  transition: opacity 1s ease-out, transform 1s ease-out;
+}
+.gate-splash[data-entered] { opacity: 1; transform: scale(1); }
+@media (prefers-reduced-motion: reduce) {
+  .gate-splash { transition: none; }
+}
+
+/* ── The "request sent" checkmark ─────────────────────────────────────────────
+   Pure CSS, no animation library. The keyframes have to live in a stylesheet either way,
+   so splitting the rest into a long arbitrary utility name would define one thing in two
+   places for nothing.
+   🔴 `prefers-reduced-motion` IS THE ENABLER, NOT THE DISABLER. The default state is "no
+   animation", and motion is added back for devices that did not ask to reduce it. Written
+   the other way round, a browser that does not know the media query gets the moving
+   version — which is the wrong side of the default.
+   ⚠️ The mark is equally legible either way. What is removed is the movement, not the shape. */
+@keyframes sent-pop { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes sent-draw { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .sent-pop { animation: sent-pop .5s cubic-bezier(.175, .885, .32, 1.275) both; }
+  .sent-draw { animation: sent-draw .4s ease-out .2s both; }
+}
+
+/* ── The floating dock and its scrim ──────────────────────────────────────────
+   The gradient is hand-written because the prototype's CDN build emits no `from-`/`via-`/
+   `to-` utilities for daisyUI token colours, so the spec's `from-base-100 via-base-100/80`
+   compiled to nothing and the fade was invisible. Kept as CSS here rather than converted
+   to gradient utilities: the rule is what the PO reviewed on real devices, and `color-mix`
+   in oklab is the interpolation those screenshots were taken with. */
+.nav-scrim { background: linear-gradient(to top, var(--color-base-100), transparent); }
+@supports (color: color-mix(in oklab, red, red)) {
+  .nav-scrim {
+    background: linear-gradient(to top,
+      var(--color-base-100) 0%,
+      color-mix(in oklab, var(--color-base-100) 80%, transparent) 50%,
+      transparent 100%);
+  }
+}
+
+/* 🔴 THE DOCK SITS LOW AND DELIBERATELY OVERLAPS PART OF THE HOME INDICATOR (PO, from real
+   devices, 31 Aug 2026). The measurements the earlier `max(0.75rem, inset)` rule was built
+   on are all still correct, and are kept here because they are why the 0.3 multiplier exists:
+     · iPhone 17 Pro Max (440×956 CSS): the old bar ended 47px above the bottom edge,
+       = `1rem + inset(34px)` exactly → the home indicator really does own that 34px
+     · Android (Honor Pad X9A) reports `env(safe-area-inset-bottom)` = 0
+   ⚠️ What changed is the JUDGEMENT, not the measurement: at 47px the pill read as "a bar
+   that has come loose from the edge of the screen". `max(1.3rem, inset × 0.3)` is a
+   deliberate half-retreat, not a forgotten inset.
+   ⚠️ DO NOT SIMPLIFY TO A BARE `bottom-2`. The 0.3 multiplier is the only thing that still
+   makes an iPhone differ from an Android here; dropping it is going back to knowing nothing
+   about the inset, which is not what was asked for.
+   ⚠️ What overlaps the gesture zone is the pill's shadowed edge, not the target: the real
+   tap target is the whole 46.5px item. */
+.dock-float { bottom: max(1.3rem, calc(env(safe-area-inset-bottom) * 0.3)); }
+
+/* The current-destination marker. `aria-current` already drives it — the router writes that
+   on every navigation — so there is no second piece of state in JS that can disagree with
+   what a screen reader announces. Neutral rather than `primary` on purpose. */
+.dock-item[aria-current="page"] {
+  background-color: color-mix(in oklab, var(--color-base-content) 12%, transparent);
+}
+
+/* Translucency is the DEFAULT and the opaque plate is the FALLBACK, not the other way round:
+   a 90%-transparent surface with no blur behind it is unreadable, not "softer". In the
+   prototype's CDN build this had been written as `supports-not-[backdrop-filter]:bg-base-100`,
+   a class that never had a CSS rule behind it and so had been a silently-missing fallback all
+   along. Here it is a real `@supports`. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .hdr-blur, .dock-pill { background-color: var(--color-base-100); }
+}
+
+/* ── Dialog geometry ──────────────────────────────────────────────────────────
+   🔴 DIALOGS ARE ALWAYS CENTRED; `modal-bottom` IS BANNED (`DECISIONS.md` §3.5). The bottom
+   edge of a phone is contested by the home indicator, a collapsing URL bar, LINE's own
+   toolbar and the keyboard — placing something that must be reachable there is a bet on
+   things we do not control. The middle of the screen is contested by nobody.
+   ⚠️ THE ONE DOCUMENTED EXCEPTION is the combobox sheet (`.cbx-sheet`, further down): it is
+   a VALUE PICKER that must open under the thumb and scroll, not a confirmation whose buttons
+   can end up unreachable. It sits flush ON that bottom edge on purpose and owns its own
+   geometry, which is why the two rules below explicitly exclude it.
+
+   ⚠️ The two rules below are still required even though dialogs are centred — they are not
+   leftovers. daisyUI's `.modal` is `position: fixed; inset: 0`, and on iOS Safari a fixed
+   element's containing block is the LARGE viewport (the size with the URL bar hidden). A
+   "centre" computed from that lands half a URL-bar below the centre the eye sees. Binding
+   the height to `--vvh` (from `window.visualViewport.height`, the only value that subtracts
+   browser chrome; `100dvh` is the pre-JS fallback) makes "centre" mean the centre of what is
+   actually visible.
+   ⚠️ `dialog.modal` — element AND class — is deliberate: it beats daisyUI's `.modal` on
+   specificity, so it does not depend on stylesheet order.
+   ⚠️ `:not(.modal-bottom)` EXCLUDES THE COMBOBOX SHEET, and is not decoration. That sheet is
+   pinned to the screen bottom and sized by its own `!important` block further down; a `--vvh`
+   height here would fight it, and the fight is what produced the double-displacement that threw
+   the sheet's header off-screen when the keyboard opened. Ported verbatim from the prototype,
+   which chose this guard over an `!important` war. */
+dialog.modal:not(.modal-bottom) { top: 0; bottom: auto; height: var(--vvh, 100dvh); }
+/* daisyUI's backdrop is a grid item inside `.modal`'s own grid, so it shrinks with the new
+   height and leaves an uncovered strip. Pin it. */
+dialog.modal .modal-backdrop { position: fixed; inset: 0; }
+/* 🔴 The box's height CEILING has to come from `--vvh` too, or a long dialog grows past the
+   visible area and its bottom edge sinks under the bar again — the original bug, resurfacing
+   under a different condition. `5em` is daisyUI's own value, unchanged; what changed is which
+   viewport it is measured against.
+   ⚠️ Same `:not(.modal-bottom)` exclusion as above — the combobox sheet's box has its own
+   `80dvh` ceiling. */
+dialog.modal:not(.modal-bottom) .modal-box { max-height: calc(var(--vvh, 100dvh) - 5em); }
+
+/* ── daisyUI OVERRIDE 1 of 2 · `.btn` ─────────────────────────────────────────
+   WHY THIS OVERRIDE EXISTS: daisyUI's buttons are too heavy for this portal (PO). Measured,
+   `btn-lg` is 48px tall with 18px/600 text, while the admin prototype's button is 44px with
+   14px/500 — two steps of weight and size is what "fat" meant. The 48px HEIGHT stays, because
+   the input device is a thumb; the TEXT drops to 16px/500.
+   ⚠️ Written as `.btn.btn-app` (two classes) on purpose — it wins on specificity rather than
+   on file order, which has already broken here once when two background utilities collided.
+   ⚠️ Corollary of that specificity: a single utility like `h-11` LOSES to this rule. If a
+   button needs another height, it needs another two-class rule, not a utility. */
+.btn.btn-app { height: 3rem; min-height: 3rem; padding-inline: 1.25rem; font-size: 1rem; font-weight: 500; }
+.btn.btn-app-sm { height: 2.25rem; min-height: 2.25rem; font-size: .875rem; font-weight: 500; }
+
+/* 🔴 THE ONE PLACE `#06C755` IS ALLOWED (`D-C17`). The LINE sign-in button is the PLATFORM's
+   button, not ours, so it takes LINE green with white text, both per LINE's brand guidelines.
+   White on `#06C755` measures 2.26:1 and FAILS AA — a deliberate, one-button exception, not
+   an oversight: this control must be recognised as LINE's before it is read, and the user
+   meets it exactly once per session with the heading above it already saying what it does.
+   ⚠️ The exception is bound to this button. `btn-primary` elsewhere does not inherit it. */
+.btn.btn-line { background-color: #06C755; border-color: #06C755; color: #ffffff; }
+
+/* The disabled state has ONE appearance for every button (PO). Before this rule a disabled
+   button looked like whatever colour it was when enabled — a disabled `btn-neutral` went pale
+   grey while a disabled `btn-primary` stayed FULLY GREEN and still read as pressable.
+   ⚠️ Text at 55%, not daisyUI's 20%: the latter measured around 1.3:1, genuinely unreadable.
+   A disabled button still has to be legible, because it is the answer to "what can I not do
+   right now". Background AND border are overwritten, not just the text colour. */
+.btn.btn-app:disabled, .btn.btn-app[disabled] {
+  background-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+  border-color: transparent;
+  color: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+  box-shadow: none;
+}
+
+/* ── The three theme buttons in `#/settings` · selected state ─────────────────
+   🔴 THE STATE IS DRIVEN BY `aria-pressed`, NOT BY A CLASS — the same rule as
+   `.dock-item[aria-current="page"]` above. The colour and what a screen reader announces
+   come from ONE value, so they cannot end up in different states.
+   🟠 This is not a breach of "semantic tokens only": amber and indigo are the colours of what
+   the MODE MEANS (daylight / night), not of the brand or of a status. The third card
+   ("follow the system") is the only one that lives under both themes, and it stays pure token
+   so it flips with the theme by itself.
+   ⚠️ No `dark:` and no nested `[data-theme=…]` needed: the light card is only ever
+   `aria-pressed="true"` while the theme IS light, and likewise for dark.
+   🔴 ALPHA IS WRITTEN INLINE AS `oklch(… / .15)`; DO NOT REWRITE THESE AS `color-mix()`.
+   Measured from the CSSOM in the prototype: with a literal colour as the first argument the
+   browser build dropped the `in oklab` keyword, producing invalid syntax that was discarded
+   silently — background and border vanished while `color:` survived, which reads as "the
+   button has no fill", not as "the CSS is broken". The `color-mix()` rules elsewhere in this
+   file take `var(--color-…)` as their first argument and are not affected. */
+[data-theme-set="light"][aria-pressed="true"] {
+  background-color: oklch(0.769 0.188 70.08 / .15);
+  border-color: oklch(0.769 0.188 70.08 / .4);
+  color: oklch(0.279 0.077 45.635);
+}
+[data-theme-set="light"][aria-pressed="true"] svg { color: oklch(0.769 0.188 70.08); }
+[data-theme-set="dark"][aria-pressed="true"] {
+  background-color: oklch(0.257 0.09 281.288 / .4);
+  border-color: oklch(0.585 0.233 277.117 / .4);
+  color: oklch(0.93 0.034 272.788);
+}
+[data-theme-set="dark"][aria-pressed="true"] svg { color: oklch(0.673 0.182 276.935); }
+[data-theme-set="system"][aria-pressed="true"] {
+  background-color: var(--color-base-200);
+  border-color: color-mix(in oklab, var(--color-base-content) 20%, transparent);
+  color: var(--color-base-content);
+}
+[data-theme-set="system"][aria-pressed="true"] svg { color: var(--color-primary); }
+
+/* ── The combobox bottom sheet ────────────────────────────────────────────────
+   🔴 THE DOCUMENTED EXCEPTION to "dialogs are always centred" (PO, 30 Aug 2026), not a
+   forgetting of it. That rule came from a CONFIRMATION box whose buttons were being hidden by
+   the URL bar — what lost was "a button you cannot reach". This is a VALUE PICKER that must
+   open under the thumb with a scrollable list, so it is a different bet. The ruling stands; the
+   MECHANISM under it was replaced on 9 Sep 2026 after the PO tested the sheet on a real device
+   in LINE, and the old description (height from `--vvh`, "the sheet lifts above the keyboard on
+   its own") is gone because it was no longer true. What it is now:
+     1) the `<dialog>` is `inset: 0` and lays its box out with `align-items: flex-end`, so the
+        sheet is edge-to-edge and FLUSH with the bottom — no side gaps from daisyUI's
+        `width: 91.6667%; max-width: 32rem`, no rounded bottom corners with the form showing
+        through underneath. It is excluded from the app-wide `--vvh` height binding by the
+        `:not(.modal-bottom)` guards further up;
+     2) the box is capped at `80dvh`, a fixed ceiling rather than a viewport-tracking one. When
+        the keyboard opens, the BROWSER's own visual-viewport panning brings the focused search
+        field into view. Doing both — binding the height AND letting the browser pan — is what
+        double-displaced the header off the top of the screen, so exactly one of them may run;
+     3) the list still has a real minimum floor, now `max(env(safe-area-inset-bottom), 1.25rem)`
+        — `env()` knows only the OS bars, never the URL bar, so it can only ever be a MINIMUM.
+   ⚠️ `!important` on every declaration, and `dialog.cbx-sheet…` (element + class) for
+   specificity: this has to beat daisyUI's `.modal-bottom .modal-box` AND the WebKit UA defaults
+   on `<dialog>` (`margin: auto; max-width: calc(100% - 2em - 6px)`), which are what put the gaps
+   there in the first place.
+   ⚠️ THIS BLOCK IS WHAT HOLDS THE GEOMETRY — do not delete it because `Combobox.tsx` "already
+   says `!w-full`". Those utilities do compile (checked in the built CSS: Tailwind 4.3 still
+   emits the legacy `!` prefix as `.\!m-0{margin:0!important}`), but they only cover margin,
+   padding, width, max-width and radius. `position`, `inset`, `display: grid`, `place-items`,
+   the `80dvh` cap, `border-bottom: none`, the upward `box-shadow` and the transparent backdrop
+   colour exist ONLY here, and without them the sheet is a floating centred dialog again.
+   ⚠️ The enter/exit animation belongs entirely to daisyUI's `.modal` + `.modal-bottom`
+   (translate + opacity, plus `transition: overlay .3s allow-discrete` holding the element in
+   the top layer until the slide finishes). Never add `hidden` or `display:none` on top of it —
+   that is the one thing that cuts the closing beat short and makes the sheet blink out. */
+dialog.cbx-sheet.modal-bottom {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background-color: transparent !important;
+  display: grid !important;
+  align-items: flex-end !important;
+  justify-items: stretch !important;
+}
+dialog.cbx-sheet .modal-box {
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  border-top-left-radius: 1.5rem !important;
+  border-top-right-radius: 1.5rem !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-bottom: none !important;
+  max-height: 80dvh !important;
+  margin: 0 !important;
+  box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.15) !important;
+}
+/* The scroller is the LIST, not the box: the title and the search field must stay put while
+   the user scrolls looking for an option. (daisyUI's `.modal-box` is `overflow-y: auto`, which
+   is why it is switched off above.)
+   ⚠️ `calc(3rem * 5.5)` IS THE SCROLL AFFORDANCE, not a round number: `.cbx-opt` is `3rem`
+   tall, so five and a half rows fit and the sixth is BISECTED by the fold. A list clipped
+   cleanly on a row boundary reads as a complete list — users did not know there was more.
+   The thin scrollbar is the second cue, for the platforms that draw one at all. */
+.cbx-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: .25rem;
+  padding-bottom: max(env(safe-area-inset-bottom), 1.25rem);
+  max-height: calc(3rem * 5.5);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-base-content) 25%, transparent) transparent;
+}
+.cbx-scroll::-webkit-scrollbar { width: 5px; }
+.cbx-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-base-content) 25%, transparent);
+  border-radius: 9999px;
+}
+.cbx-scroll::-webkit-scrollbar-track { background: transparent; }
+/* ⚠️ daisyUI has NO listbox component — `menu` is navigation links and `list` is data rows,
+   and both are the wrong meaning for "pick one value". Composing this one by hand is what
+   rule 4 of the daisyUI usage guide is for. 48px tall because it is a thumb target. */
+.cbx-opt {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  min-height: 3rem;
+  padding: .75rem 1.25rem;
+  cursor: pointer;
+  scroll-margin-block: .5rem;
+}
+.cbx-opt[data-active] { background-color: var(--color-base-200); }
+@media (hover: hover) { .cbx-opt:hover { background-color: var(--color-base-200); } }
+/* The selected row is marked TWO ways, not by colour alone — colour plus a checkmark, so a
+   colour-blind reader sees the same difference. `aria-selected` is the third channel. */
+.cbx-opt[aria-selected="true"] { color: var(--color-primary); font-weight: 500; }
+.cbx-opt-label { flex: 1 1 auto; min-width: 0; }
+.cbx-opt-check { width: 1.25rem; height: 1.25rem; flex: none; }
+
+/* ── daisyUI OVERRIDE 2 of 2 · `.select` ──────────────────────────────────────
+   WHY THIS OVERRIDE EXISTS: the sheet's trigger borrows the whole geometry of a `select`
+   (48px tall, border, radius, focus ring) so it IS the same field the form always had, rather
+   than a button that resembles one. What it turns off is the caret daisyUI paints as a
+   `background-image`, because a real `<svg>` sits there instead — an svg can rotate when the
+   sheet opens, a background image cannot. */
+.select.cbx-trigger {
+  justify-content: space-between;
+  padding-inline-end: .75rem;
+  text-align: start;
+  background-image: none;
+}
+.cbx-trigger[aria-expanded="true"] .cbx-caret { rotate: 180deg; }
+@media (prefers-reduced-motion: no-preference) {
+  .cbx-caret { transition: rotate .2s ease-out; }
+}
+/* Lock the page behind the sheet. daisyUI 5.7 does this itself via `--page-scroll-lock`, but
+   the lock is a REQUIREMENT of the sheet rather than a side effect of whichever version
+   happens to be installed — the day the dependency moves, the behaviour must not. */
+html[data-sheet-open], html[data-sheet-open] body { overflow: hidden; }
+/* Our own clear button, so WebKit's built-in cross on `type="search"` has to go or there are
+   two of them. No Tailwind utility exists for a browser pseudo-element. */
+.cbx-search::-webkit-search-cancel-button,
+.cbx-search::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+
+/* ── The `#/issues` photo dropzone ────────────────────────────────────────────
+   Ported from the prototype's two rules at 308–309. They are CSS rather than utilities for
+   one reason each: `:has(:focus-visible)` styles the LABEL from the state of the real
+   `<input type="file">` hidden inside it — the input is `sr-only`, so keyboard focus would
+   otherwise be invisible — and the hover/drag pair has to resolve to the same declaration
+   from two different triggers.
+   ⚠️ THE DRAG STATE IS `[data-over]`, NOT THE PROTOTYPE'S `.is-over` CLASS. React drives it
+   from state, and this file's convention for a state written by a component is an attribute
+   (`[data-entered]`, `[data-sheet-open]`, `[data-theme-set]`) — a `classList.toggle` from
+   inside a render is the thing that convention exists to avoid. The declaration is unchanged.
+   ⚠️ `--color-primary` AS A BORDER IS SAFE IN BOTH CLIENT THEMES and was checked rather than
+   assumed (`CLAUDE.md` warns it is not guaranteed): `#047857` on white measures 5.48:1, and
+   `#34d399` on slate-900 far more. It is a state border and an outline here, never text. */
+.is-drop:hover,
+.is-drop[data-over] { border-color: var(--color-primary); background-color: var(--color-base-200); }
+.is-drop:has(:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+/* 6. The admin portal's own component layer — 122 classes lifted verbatim from the
+      prototype. Imported LAST so `@apply bg-base-100` resolves against the themes
+      declared above. */
+@import "./admin-portal/admin-portal.css";

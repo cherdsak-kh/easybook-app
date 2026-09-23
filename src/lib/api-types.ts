@@ -84,6 +84,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/line-users/venues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List venues for the LIFF catalogue screen, one page at a time.
+         * @description The consumer half of `GET /venues`, which is admin-only at class level and unreachable with a LINE ID token. Same service and the SAME search/filter `where` — a different guard in front of it. Unlike the admin list it is offset-paginated (`CLIENT-PAGINATION-1`) and ordered `isOpen DESC, name ASC, id ASC`, so bookable venues come first and appended pages never reshuffle. CLOSED venues ARE returned (`isOpen: false`, with `closedReason`): a closed venue stays visible to end users and simply accepts no new booking requests. Soft-deleted venues are never returned. `facets.venueTypes` lists the categories matching `q`, independent of `venueTypeId`, `status` and the page.
+         */
+        get: operations["LineRegistrationController_listVenues"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/venues/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one venue for the LIFF detail screen.
+         * @description There is no admin equivalent — the back office renders detail from the row its unpaginated list already holds, whereas `#/venue/:id` is a URL and can be opened cold, deep-linked, or restored by LINE. A CLOSED venue returns normally, because the screen renders `closedReason` as an alert; a soft-deleted or unknown id is a 404, and the two are byte-identical.
+         */
+        get: operations["LineRegistrationController_getVenue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/line-users/register": {
         parameters: {
             query?: never;
@@ -124,6 +164,50 @@ export interface paths {
         patch: operations["LineRegistrationController_updateRegistration"];
         trace?: never;
     };
+    "/api/v1/line-users/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the caller's client-portal settings.
+         * @description Header-derived and param-less: the caller reads only their own settings (identity = the verified `sub`). ⚠️ A user who has never saved anything HAS NO ROW and gets the documented defaults with `updatedAt: null` — this read never writes, so a follower who never opens the settings screen costs zero rows forever (`Q-C9`).
+         */
+        get: operations["LineSettingsController_getSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update the caller's client-portal settings (partial, merged).
+         * @description Every field is optional and **absence means unchanged**. `notifications` is merged PER KEY, so sending `{"notifications":{"decisions":false}}` leaves `announcements` and `reminders` exactly as they were. The row is created on first save. Unknown keys, a theme outside `light|dark|system`, and a non-boolean (or explicitly `null`) toggle are all `400`. There is no `lineUserId` body field — the identity is the verified `sub`.
+         */
+        patch: operations["LineSettingsController_patchSettings"];
+        trace?: never;
+    };
+    "/api/v1/line-users/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The version this API is running, for the `#/version` screen.
+         * @description The consumer counterpart of the admin `GET /system/version`, which is behind the cookie session the client portal does not have (`NEEDS_DESIGN.md` §3). Authenticated on purpose and deliberately NOT on the public `/health` probe: publishing an exact build to the open internet is how a scanner matches a CVE to a deployment. Carries no per-user data — every caller gets the identical answer.
+         */
+        get: operations["LineSettingsController_getVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/line-users": {
         parameters: {
             query?: never;
@@ -133,7 +217,7 @@ export interface paths {
         };
         /**
          * List LINE users, paginated.
-         * @description Soft-deleted rows are excluded from `data` and from `meta.total`. Optional `search` is a case-insensitive substring match on `displayName`; optional `access` narrows to one state. Ordered `followedAt DESC, id DESC`. A page beyond the last one is a 200 with an empty `data`, not a 404.
+         * @description Soft-deleted rows are excluded from `data` and from `meta.total`. Optional `search` matches the LINE display name, the registered name, the resolved position/department and the phone (digits-only too); optional `access` narrows to one state; `sort` picks one of `new`/`old`/`name`, defaulting to `new`. Readable by every role. A page beyond the last one is a 200 with an empty `data`, not a 404.
          */
         get: operations["LineUsersController_list"];
         put?: never;
@@ -182,6 +266,118 @@ export interface paths {
          * @description Full re-submit of firstName, lastName, phone, departmentId, personnelRoleId. Does NOT change `access` or the rich menu — it is orthogonal to the approve/block transition matrix. Both ADMIN and SUPER_ADMIN may edit. A system-reserved or soft-deleted option id is rejected for every actor (400). For ADMIN a soft-deleted user is 404; SUPER_ADMIN may edit one, with no LINE side-effect.
          */
         patch: operations["LineUsersController_updateRegistrationByAdmin"];
+        trace?: never;
+    };
+    "/api/v1/venues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List venues.
+         * @description Non-deleted venues only, ordered `name ASC`. Returns EVERYTHING — there is no pagination; the screen states a count. `q` matches the name or the location. The reserved tombstone category id is accepted by `venueTypeId` so orphaned venues can be found (unlike on create/update, which refuse it).
+         */
+        get: operations["VenuesController_list"];
+        put?: never;
+        /**
+         * Create a venue.
+         * @description Always created OPEN — the form has no switch in create mode and neither has this body. A name colliding with an ACTIVE venue is a 409; a name matching only soft-deleted rows succeeds. `venueTypeId` must be an ACTIVE, non-reserved category, and every `amenityIds` entry an ACTIVE amenity — otherwise the SAME 400 an unknown id gets, never a 403. `photoUrls` is ordered, index 0 is the cover, max 10, and every entry must already have been uploaded via POST /venues/photos.
+         */
+        post: operations["VenuesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/venues/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload one venue photo and get its URL back.
+         * @description Multipart, one part named `file`. NO venue id: photos are picked inside the CREATE dialog, before a venue exists. The object is stored UNBOUND and becomes part of a venue only when its URL appears in `photoUrls` on a create/update. If the operator cancels instead, call DELETE /venues/photos to discard it. The declared MIME is a first filter only — the real control is a MAGIC-BYTE sniff, and the stored ContentType and key extension come from the SNIFFED type, never from the filename. The CSRF token is a HEADER and works fine with multipart.
+         */
+        post: operations["VenuesController_upload"];
+        /**
+         * Discard an uploaded photo that was never attached to a venue.
+         * @description For the cancel path: the dialog uploaded an object and the operator backed out. REFUSES any URL a venue still references (409) — removing a photo FROM a venue is a PATCH of `photoUrls`, which deletes the dropped objects itself. A URL outside this deployment’s bucket is a 400.
+         */
+        delete: operations["VenuesController_discardPhoto"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/venues/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Soft-delete a venue.
+         * @description Sets `deletedAt`; never a hard delete — a future `Booking.venueId` must keep resolving a name, which is what the confirm dialog’s "ประวัติคำขอจองยังอยู่ครบ" promises. The photo rows and their objects are kept with it; a soft-deleted venue is invisible to every route, so nothing renders them. A second DELETE on the same id is a 404.
+         */
+        delete: operations["VenuesController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a venue.
+         * @description Every field is optional. An omitted `amenityIds`/`photoUrls` means UNCHANGED; clearing is `[]`. Both are REPLACED, never merged. `isOpen` and `closedReason` are absent from the body on purpose — sending either is a 400, because closing needs a reason and is its own transition (POST /:id/close).
+         */
+        patch: operations["VenuesController_update"];
+        trace?: never;
+    };
+    "/api/v1/venues/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ปิดชั่วคราว — stop accepting new booking requests.
+         * @description NOT a delete: the venue stays visible to end users. The reason is REQUIRED (400 without one) because it is shown to the people it affects — on the venue card, and in LINE. Closing an already-closed venue is a 409 rather than a silent no-op: it would replace the reason people are reading, and the screen only offers this on an open venue.
+         */
+        post: operations["VenuesController_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/venues/{id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * เปิดให้จอง — accept booking requests again.
+         * @description Clears `closedReason` to NULL, which the confirm dialog promises explicitly. Reopening an already-open venue is a 409.
+         */
+        post: operations["VenuesController_reopen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/auth/system/csrf": {
@@ -263,7 +459,7 @@ export interface paths {
         head?: never;
         /**
          * Update your own profile.
-         * @description Self-service. Accepts EXACTLY `firstName`, `lastName`, `phoneNumber`, `profilePictureUrl`. `role`, `isActive`, `departmentId`, `personnelRoleId`, `email`, `password` and `lineUserId` are absent from the DTO, so any attempt to set one is a 400 — a SUPER_ADMIN manages those via PATCH /system-users/:id. An empty body is a 400. `phoneNumber`/`profilePictureUrl` accept an explicit null to clear them.
+         * @description Self-service. Accepts EXACTLY `profilePictureUrl` — your avatar is the only part of your own profile you maintain. `firstName`, `lastName` and `phoneNumber` were removed on 2026-08-16: an administrator maintains them via PATCH /system-users/:id, which is what the padlock on the profile screen means. They join `role`, `isActive`, `departmentId`, `personnelRoleId`, `email`, `password` and `lineUserId` in being absent from the DTO, so any attempt to set one is a 400. An explicit null clears the avatar; an empty body is a 200 that changes nothing.
          */
         patch: operations["AuthSystemController_updateOwnProfile"];
         trace?: never;
@@ -279,7 +475,7 @@ export interface paths {
         put?: never;
         /**
          * Change your own password (forced or voluntary).
-         * @description Requires `currentPassword`: without it a hijacked session becomes a permanent account takeover in one request. A WRONG current password is a 400, never a 401 — the session is valid, only the re-auth failed, and a 401 would log you out for a typo. The new password must be >= 12 chars and differ from the current one. On success `mustChangePassword` clears and the very NEXT request to any previously-gated route succeeds on the same cookie — no re-login, because SessionGuard re-reads the user every request. The session is deliberately NOT destroyed.
+         * @description Requires `currentPassword`: without it a hijacked session becomes a permanent account takeover in one request. A WRONG current password is a 400, never a 401 — the session is valid, only the re-auth failed, and a 401 would log you out for a typo. The new password must be >= 8 chars, contain an uppercase letter, a lowercase letter, a digit and a special character, and differ from the current one — the same five rules the portal shows as a live checklist. On success `mustChangePassword` clears and the very NEXT request to any previously-gated route succeeds on the same cookie — no re-login, because SessionGuard re-reads the user every request. The session is deliberately NOT destroyed.
          */
         post: operations["AuthSystemController_changePassword"];
         delete?: never;
@@ -317,7 +513,7 @@ export interface paths {
         };
         /**
          * List back-office users, paginated.
-         * @description Soft-deleted rows are excluded from `data` and from `meta.total`. Ordered `createdAt DESC, id DESC`. A page beyond the last one is a 200 with an empty `data`, not a 404.
+         * @description Search matches the first name, last name, email or phone number, case-insensitively. The phone match is on the number as stored and is therefore format-sensitive (`0812345678` does not match a stored `081-234-5678`). `role` and `status` narrow further; `status` is derived (`deleted` > `suspended` > `pending` > `active`), matching the badge the screen shows. Soft-deleted rows are excluded from `data` and from `meta.total` unless `status=deleted`, which is SUPER_ADMIN-only and is the only way to obtain the id a restore needs. Ordered `createdAt DESC, id DESC`. A page beyond the last one is a 200 with an empty `data`, not a 404.
          */
         get: operations["SystemUsersController_list"];
         put?: never;
@@ -496,6 +692,754 @@ export interface paths {
         patch: operations["PersonnelRolesController_update"];
         trace?: never;
     };
+    "/api/v1/venue-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List venue type options.
+         * @description Non-deleted options only, ordered `name ASC`. The reserved tombstone row is visible to SUPER_ADMIN only.
+         */
+        get: operations["VenueTypesController_list"];
+        put?: never;
+        /**
+         * Create a venue type option.
+         * @description A name that collides with an ACTIVE option is a 409; a name matching only soft-deleted rows succeeds (names are reusable after soft-delete).
+         */
+        post: operations["VenueTypesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/venue-types/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Soft-delete a venue type option.
+         * @description Sets `deletedAt`; never a hard delete. Venues filed under it are re-pointed to the reserved tombstone row in the same transaction. A second DELETE on the same id is a 404, as is the reserved row itself. Answers 500 if the tombstone row has never been seeded — run `npm run venue-types:seed`.
+         */
+        delete: operations["VenueTypesController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a venue type option.
+         * @description An unknown or soft-deleted id is a 404; an active-name collision is a 409. The reserved tombstone row is not editable and answers 404 for every role, SUPER_ADMIN included.
+         */
+        patch: operations["VenueTypesController_update"];
+        trace?: never;
+    };
+    "/api/v1/amenities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List amenity options.
+         * @description Non-deleted options only, ordered `name ASC`. Identical for every role — this table has no reserved rows. May legitimately be empty: amenities are optional on the venue form, and nothing is seeded.
+         */
+        get: operations["AmenitiesController_list"];
+        put?: never;
+        /**
+         * Create an amenity option.
+         * @description A name that collides with an ACTIVE option is a 409; a name matching only soft-deleted rows succeeds.
+         */
+        post: operations["AmenitiesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/amenities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Soft-delete an amenity option and release its ticks.
+         * @description Sets `deletedAt` on the amenity and removes it from every venue that provided it, in one transaction. The venues themselves are untouched and remain bookable. Returns how many venues lost the amenity. A second DELETE on the same id is a 404.
+         */
+        delete: operations["AmenitiesController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename an amenity option.
+         * @description An unknown or soft-deleted id is a 404; an active-name collision is a 409. Every row on this table is editable — there are no reserved rows to refuse.
+         */
+        patch: operations["AmenitiesController_update"];
+        trace?: never;
+    };
+    "/api/v1/line-users/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller’s own booking requests, one page at a time (`#/bookings`).
+         * @description Scoped to the verified `sub` — there is no parameter that widens it, and ownership is part of the rows, the count AND the facets. Offset-paginated (`CLIENT-PAGINATION-1`), so every filter runs in Postgres: 🔴 `state` is the screen’s DERIVED bucket (`pending` / `approved` / `history`), bucketed against the server clock, and the three partition the set. `facets.venueTypes` lists the categories in the caller’s searched set, independent of `state`, `venueTypeId` and the page. The former `status` parameter (stored enum) is gone and is now a 400.
+         */
+        get: operations["LineBookingsController_list"];
+        put?: never;
+        /**
+         * Submit a booking request (always PENDING).
+         * @description Creates one `BookingRequest` and its `BookingSlot` children in a single transaction. A continuous span and a repeat-across-days request differ only in how many slots are sent (`D-C13` rule 2) — there is no mode flag. The caller must be `ALLOWED`; the venue must exist and be OPEN. Status is `PENDING` and nothing is held: several people may hold overlapping pending requests, and the approver picks one (`D-C13` rule 4). There is no `lineUserId` body field — the identity is the verified `sub`.
+         */
+        post: operations["LineBookingsController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/bookings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one of the caller’s own bookings, by id **or** by code.
+         * @description `:id` accepts the cuid (what `#/booking/:id` navigates by) or the human-readable `code` with or without a leading `#` (what `#/sent/:id` has, and what a user pastes out of LINE). 🔴 Somebody else’s booking is a **404, never a 403** — `code` is a guessable label, so a distinguishable answer would be an enumeration oracle over every booking in the product. Carries `cancelLeadMinutes` so the client can both hide the cancel control and word its own Thai explanation with the real number.
+         */
+        get: operations["LineBookingsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/bookings/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Withdraw a PENDING request (`Q-C4`).
+         * @description Sets the request to `CANCELLED` and marks every live child slot cancelled in one transaction — `Q-C4` ② puts the truth at slot level, so flipping the parent alone would leave rows the venue calendar still paints. 🔴 `PENDING` only: an APPROVED booking is cancelled one slot at a time, and `REJECTED`/`CANCELLED` are terminal. The denormalised span is deliberately NOT recomputed — a fully cancelled request keeps its original dates so the history list still has something to sort it by.
+         */
+        patch: operations["LineBookingsController_cancel"];
+        trace?: never;
+    };
+    "/api/v1/line-users/bookings/{id}/slots/{slotId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Cancel ONE slot of an APPROVED booking (`Q-C4` ②).
+         * @description A three-slot request whose Monday has already begun can still have its Tuesday and Wednesday cancelled; the lead-time check runs against **that slot’s** `startAt`, never the request’s. 🔴 The slot frees the venue calendar **immediately** — availability filters `isCancelled` at slot level, so there is nothing to invalidate — and requests previously auto-rejected for it are NOT revived (`Q-C4`). When the last live slot goes, the request becomes `CANCELLED` by computation; otherwise `firstStartAt`/`lastEndAt` are recomputed over what remains, in the same transaction.
+         */
+        patch: operations["LineBookingsController_cancelSlot"];
+        trace?: never;
+    };
+    "/api/v1/line-users/venues/{id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a venue’s occupied spans for a date range.
+         * @description Feeds the `#/venue/:id` calendar and its proportional 24-hour timeline bar. Returns every non-cancelled slot of an APPROVED or PENDING request that OVERLAPS the window — a span crossing midnight appears on every day it touches. 🔴 Approved and pending are returned as distinct states and must not be collapsed: red = taken, amber = somebody else has asked (`TRANSPORT.md` §3.1). 🔴 `purpose` and `requesterName` are `null` on somebody else’s pending request (`D-C13`).
+         */
+        get: operations["LineBookingsController_availability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read org-wide approved booking schedule across all venues.
+         * @description Feeds `#/home` — both the calendar’s day dots and the activity list, from ONE round trip, which is why the window defaults to a whole Bangkok month rather than a day. 🔴 **APPROVED only, and there is no parameter that widens it**: a PENDING request is not a fact about the school, several people may hold overlapping ones (`D-C13` rule 4), and painting one on the organisation’s calendar reads to its own author as *my request was granted*. Cancelled slots and soft-deleted venues are excluded too. Returns every matching slot that OVERLAPS the window, `startAt ASC`; `isMine` marks the caller’s own rows for the `คุณ` badge.
+         */
+        get: operations["LineBookingsController_getMasterSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/direct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * จองแทน — staff book a room outright, already approved.
+         * @description Creates a request with `status = APPROVED` in one transaction: creation IS the approval (`D-C18`), so `createdById` and `approvedById` are both the caller and `approvedAt` is now. Two mutually exclusive shapes — (A) `lineUserId` for a LINE user who has an account, or (B) `requesterName` + `contactPhone` (both required) for an outside body, optionally with `departmentId`. Sending both shapes is a 400. ADR-001 applies exactly as it does to approve: every overlapping PENDING request is auto-rejected in this same transaction and reported in `autoRejected`. A CLOSED venue is accepted — `isOpen` refuses new REQUESTS and a staff lock is not a request; the response carries `venue.isOpen` so the screen can warn. `attendees` is deliberately NOT checked against the venue capacity.
+         */
+        post: operations["BookingRequestsController_createDirect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/preflight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview the conflicts of UNSAVED spans — the create dialog’s live banner.
+         * @description Answers two questions about spans that are not in the database yet: do they clash with an APPROVED booking (which would 409 on submit), and which PENDING requests would ADR-001 auto-reject if they were submitted — named, so the operator sees whom they are about to bump BEFORE committing. It shares one core with `GET /booking-requests/:id`’s `conflicts`, so the two can never disagree about the same venue and the same hour, and it validates its spans with the SAME function `direct` uses, so a preflight that says "clean" predicts a submit that succeeds. ⚠️ ADVISORY: read outside any transaction and with NO advisory lock (locking a venue while somebody types would block every approval on it), so a disabled submit button is UX and the `direct` transaction refuses again. `venueIsOpen` is informational — a closed venue still accepts a direct booking. 🔴 Writes NOTHING, despite the verb.
+         */
+        post: operations["BookingRequestsController_preflight"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ปฏิทินการจอง — every occupying slot in a window, one row per slot.
+         * @description Returns every NON-cancelled slot of an APPROVED or PENDING request on a non-deleted venue that OVERLAPS the half-open window `[from, to)` (`startAt < to AND endAt > from`). `from`/`to` default to the current Bangkok (UTC+7) month, through the same window logic as the LIFF venue calendar and master schedule. `to == from` → `[]`. One flat row per slot: a three-slot request is three rows sharing `bookingRequestId`/`code`, numbered by `slotIndex`/`slotCount` over the request’s live slots (not the window). `date`/`start`/`end` are Bangkok wall-clock strings; `end` is `24:00` for a slot ending at the next Bangkok midnight. Ordered by `startAt`, then APPROVED before PENDING, then `code`. Not paginated — the window is capped at 366 days.
+         */
+        get: operations["BookingRequestsController_calendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List booking requests — the approval queue.
+         * @description Filtered, sorted AND paginated entirely by the server. `counts` carries the six tab totals and is computed with `search` and `venueId` applied but WITHOUT `status`, so selecting a tab does not zero the others. Every row carries ALL its slots, cancelled ones included. `EXPIRED` is a stored status written by the expiry job at the request’s first slot start.
+         */
+        get: operations["BookingRequestsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One booking request, with its conflict picture.
+         * @description Addressed by CUID only — the admin screen opens this from a row that already carries the id, unlike the LIFF detail which also accepts a `BR-…` code. Adds `venue.capacity`/`isOpen`, `createdBy`, `approvedBy`, `approvedAt` and `conflicts` to the list shape. ⚠️ `conflicts` is ADVISORY: it is read outside the deciding transaction and may be stale a second later, so a disabled confirm button is UX and never the boundary — the approval transaction refuses again.
+         */
+        get: operations["BookingRequestsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * อนุมัติ — approve a pending request (ADR-001).
+         * @description NO BODY: any key at all is a 400, because there is nothing to say. One transaction sets this request APPROVED with `approvedById`/`approvedAt` and auto-rejects EVERY overlapping PENDING request, whose losers are collected BEFORE this request’s own status flips. `autoRejected` reports what actually happened, which can differ from the `conflicts.pendingLosers` the dialog showed if a new request arrived meanwhile. Overlapping an already-APPROVED slot is a hard 409 with NO write of any kind. The losers’ own slots are never touched — a rejected request stops occupying the calendar because the filter reads the parent’s status.
+         */
+        post: operations["BookingRequestsController_approve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ปฏิเสธ — refuse a pending request, with a reason.
+         * @description The reason is MANDATORY and is trimmed before it is checked, so whitespace-only is a 400 — it is shown RAW to the requester in My Bookings and in LINE. Only a PENDING request may be rejected: an APPROVED one is a 409, and the way back from an approval is `cancel`. ⚠️ This touches NO slot row. "Refused" and "cancelled" are different facts, and writing `isCancelled` here would produce rows with a null `cancelledAt` that the schema calls corrupt.
+         */
+        post: operations["BookingRequestsController_reject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/booking-requests/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ยกเลิก — cancel an approved booking, whole or by slot.
+         * @description Omit `slotIds` to cancel every live slot; supply them to drop only those days. The reason is mandatory either way. `firstStartAt`/`lastEndAt` are recomputed from the SURVIVING slots in the same transaction, and cancelling the last live slot turns the request CANCELLED (its span is then left as-is — the history list still needs a date to sort by). A cancelled span frees the room immediately, with nothing to invalidate. ⚠️ The `booking.cancel_lead_minutes` rule is NOT applied here: it governs what an END USER may do, and staff cancelling this afternoon’s event because a pipe burst is what this route is for.
+         */
+        post: operations["BookingRequestsController_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/feedback/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload one feedback photo and get its URL back.
+         * @description Multipart, one part named `file`. The client uploads each photo AS IT IS PICKED and sends the returned URLs in `photos[]` on the submit call — there is no photo body on that call and no discard endpoint. The declared MIME is a first filter only: the real control is a MAGIC-BYTE sniff, and both the stored ContentType and the key extension come from the SNIFFED type, never from the filename. 🔴 JPEG and PNG only — webp is refused here even though the shared sniffer recognises it. Oversize is a **400**, not a 413. No CSRF token: this route is bearer-authenticated and cookieless.
+         */
+        post: operations["FeedbackController_uploadPhoto"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/line-users/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a facility issue or a suggestion.
+         * @description Creates one write-once `Feedback` row and answers with its human-readable `code` (`ISS-25690920-001` / `FDB-25690920-001`), which is the value the success dialog prints — the client never generates or guesses one. The caller must be `ALLOWED`. There is no `lineUserId` body field: the identity is the verified `sub`, resolved server-side to the cuid FK. `venueId` is optional — absent or `null` both persist as `ปัญหาทั่วไป / ไม่ระบุสถานที่`, and a CLOSED venue is accepted. There is deliberately no `category` field (`D-4`) and no status lifecycle in this cycle.
+         */
+        post: operations["FeedbackController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List feedback and issue reports — the triage queue.
+         * @description Filtered and paginated by the server, newest first (ties broken on `code`, so the order is total). `type`, `status`, `venueId` and `q` combine with AND; `venueId=general` selects reports with no venue. `meta.total` is the FILTERED total. `counts` is GLOBAL — computed over the whole table and unaffected by any filter or page.
+         */
+        get: operations["AdminFeedbackController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feedback/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One report, with its photos and triage log.
+         * @description Addressed by cuid only — no `code` lookup. Adds `photos` (public URLs, stored order) and `logs` (`createdAt` ASC; `[]` for an untouched report) to the list shape. Reporter fields are all nullable: a missing registration is a 200 with nulls, never a 500. The LINE `U…` subject is never included.
+         */
+        get: operations["AdminFeedbackController_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Record a staff action — a status change, an internal note, or both.
+         * @description Every accepted save appends exactly ONE log entry whose `status` is the RESULTING status, authored by the session user (never the body). A status-only change logs `note: null`; a note-only save (status absent or unchanged) logs the current status and leaves the report untouched. Any state may move to any of `PENDING` / `IN_PROGRESS` / `RESOLVED` — there is no transition policy; `DISMISSED` is refused. The status write and the log insert are one transaction under a row lock. The note is internal and is never sent to the reporter. Answers with the updated detail.
+         */
+        patch: operations["AdminFeedbackController_update"];
+        trace?: never;
+    };
+    "/api/v1/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List announcements, newest first.
+         * @description Paginated by the server; ordered `createdAt DESC`, ties broken on `id DESC`. `status` (`all|sent|draft`) and `q` (case-insensitive substring over `title` only) combine with AND. `meta.total` is the FILTERED total. A page past the end is `data: []` with a correct `meta`.
+         */
+        get: operations["AnnouncementsController_list"];
+        put?: never;
+        /**
+         * Create a draft announcement.
+         * @description ALWAYS creates a `DRAFT` and pushes nothing to LINE — sending is `POST /announcements/{id}/send`. `status`, `sentAt`, `sentCount` and `createdById` are not accepted (400); the author is the session user. `departmentId` is required (non-null) iff `audience` is `DEPARTMENT`, and must be null/omitted for `ALL`; it must reference an ACTIVE department (unknown, soft-deleted, or — for non-SUPER_ADMIN — system-reserved is one indistinguishable 400).
+         */
+        post: operations["AnnouncementsController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/announcements/line-bot-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The LINE Official Account announcements are sent from.
+         * @description One live call to LINE per request — **not cached**, so a fixed token shows at once. Exactly four fields; `pictureUrl` is null when the OA has none. Any LINE failure is a **503 with a `code`, never a 500**: `LINE_NOT_CONFIGURED` when the channel token is missing or rejected (401/403), `LINE_BOT_INFO_UNAVAILABLE` for anything else (429, network, 5xx, timeout).
+         */
+        get: operations["AnnouncementsController_getLineBotInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/announcements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One announcement.
+         * @description Addressed by cuid. The same item shape as a list row. `department` and `createdBy` resolve as history — a soft-deleted department or staff member still shows.
+         */
+        get: operations["AnnouncementsController_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an announcement (soft delete).
+         * @description A SOFT delete of a DRAFT or a SENT announcement: the row is kept for audit with `deletedAt` set and disappears from every route (list, counts, get, edit, send → 404). Irreversible through the API. Fails fast with 409 `ANNOUNCEMENT_SEND_IN_PROGRESS` if the row is being sent or edited at that moment; retry after the send completes. A second DELETE is a 404.
+         */
+        delete: operations["AnnouncementsController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a draft announcement.
+         * @description DRAFT only — a `SENT` row is immutable (409). An empty body `{}` is a 400 (`Provide at least one field to update.`). The audience rule is checked on the MERGED state (stored + patch): `{ "audience": "DEPARTMENT" }` alone keeps the stored department, `{ "audience": "ALL" }` alone clears it, and a patch of a DEPARTMENT draft re-validates the stored department. `departmentId` is required (non-null) iff `audience` is `DEPARTMENT`, and must be null/omitted for `ALL`; it must reference an ACTIVE department (unknown, soft-deleted, or — for non-SUPER_ADMIN — system-reserved is one indistinguishable 400). Answers with the updated record.
+         */
+        patch: operations["AnnouncementsController_update"];
+        trace?: never;
+    };
+    "/api/v1/announcements/{id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a draft announcement to LINE users.
+         * @description **Irreversible.** Sends a DRAFT to LINE users as one multicast message — `TEXT`: `title` + blank line + `body`; `FLEX`: one card — and marks it `SENT`. No request body.
+         *
+         *     Recipients: LINE users with `access = ALLOWED`, not deleted, with a well-formed LINE id, who have not switched announcements off in their settings; for `DEPARTMENT`, also a live registration in that department. Sent in chunks of up to 500, each with its own `X-Line-Retry-Key`. An empty audience is not an error.
+         *
+         *     `sentCount` is the number of recipients LINE **accepted**, not delivered or read.
+         *
+         *     Zero eligible recipients → 200, `sentCount` 0, no LINE call — the former 400 "no recipients found" answer was removed in ANNOUNCE-API-5.
+         *
+         *     CSRF applies: a request with no session AND no `x-csrf-token` is a 403 (the CSRF middleware runs before the guards).
+         *
+         *     | Status | `code` | When | Row after |
+         *     |---|---|---|---|
+         *     | 200 | — | every chunk accepted | SENT, `sentAt` = now, `sentCount` = targeted |
+         *     | 200 | — | zero eligible recipients after every filter | SENT, `sentAt` = now, `sentCount` = 0, **no LINE call** |
+         *     | 400 | `ANNOUNCEMENT_BODY_REQUIRED` | `body` is blank | unchanged |
+         *     | 400 | `ANNOUNCEMENT_DEPARTMENT_INVALID` | `DEPARTMENT` with a null, missing or soft-deleted department | unchanged |
+         *     | 404 | `ANNOUNCEMENT_NOT_FOUND` | unknown, malformed or deleted id | — |
+         *     | 409 | `ANNOUNCEMENT_SEND_IN_PROGRESS` | the row is being sent or edited right now | unchanged |
+         *     | 409 | `ANNOUNCEMENT_ALREADY_SENT` | the row is `SENT` | unchanged |
+         *     | 502 | `ANNOUNCEMENT_PARTIALLY_SENT` (+ `acceptedCount`, `targetedCount`) | at least one chunk accepted, then a failure | **SENT and final**, `sentCount` = `acceptedCount` |
+         *     | 502 | `LINE_SEND_FAILED` | first chunk: network, 5xx or timeout after one retry, or another 4xx | DRAFT, untouched |
+         *     | 503 | `LINE_NOT_CONFIGURED` | no token, or LINE answered 401/403 | DRAFT, untouched |
+         *     | 503 | `LINE_RATE_LIMITED` | LINE answered 429 (rate limit or monthly quota) | DRAFT, untouched |
+         *
+         *     A partial send is final: a resend is a 409, and the missed users need a new announcement. After a total failure (DRAFT untouched) a resend is safe within 24 h — the retry keys make LINE answer 409 for any chunk it had in fact accepted. Editing the draft changes the keys.
+         */
+        post: operations["AnnouncementsController_send"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/canned-replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List canned replies.
+         * @description Every canned reply (at most 5) as a PLAIN ARRAY, ordered `sortOrder ASC`, ties broken on `createdAt ASC` then `id ASC`. `[]` when there are none. No pagination and no query parameters.
+         */
+        get: operations["CannedRepliesController_list"];
+        put?: never;
+        /**
+         * Create a canned reply.
+         * @description At most 5 canned replies exist; a POST at 5 is a 400 `CANNED_REPLIES_LIMIT_EXCEEDED` and writes nothing. Two concurrent POSTs at 4 serialise: exactly one succeeds. An omitted `sortOrder` puts the reply at the bottom (current maximum + 1, capped at 9999; 0 on an empty table).
+         */
+        post: operations["CannedRepliesController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/canned-replies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a canned reply.
+         * @description A HARD delete — there is no restore. A second DELETE on the same id is a 404. Deleting every reply is allowed; nothing re-seeds the defaults.
+         */
+        delete: operations["CannedRepliesController_remove"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a canned reply.
+         * @description Any subset of `title`, `text`, `sortOrder` (at least one). An empty body `{}` is a 400 `CANNED_REPLY_UPDATE_EMPTY`; `null` for any field is a 400. `updatedAt` advances. Answers with the updated record.
+         */
+        patch: operations["CannedRepliesController_update"];
+        trace?: never;
+    };
+    "/api/v1/system/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The deployed build of this service.
+         * @description Behind the session guard on purpose — it is deliberately NOT on the public /health probe, because publishing an exact build to the open internet is how a scanner matches a CVE to a deployment. Every role gets the identical answer: the version screen shows the same thing to everyone and carries no per-user data.
+         */
+        get: operations["SystemController_version"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Connection health and runtime configuration of every external dependency.
+         * @description Fail-soft: LINE, PostgreSQL or Redis failing yields `null` / `error` fields in a 200, never a 5xx. Calls LINE `GET /v2/bot/info` and the two quota reads when a token is loaded — no message is sent and no quota is spent. The channel secret and access token are NEVER returned; the Channel ID is masked.
+         */
+        get: operations["IntegrationsController_overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/integrations/swagger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Turn Swagger UI and the OpenAPI JSON on or off, at runtime.
+         * @description Persisted to `AppSetting system.swagger_enabled` and applied to the next request — no restart. While off, `/docs`, `/docs/*`, `/docs-json` and `/docs-yaml` answer the same 404 as any unknown route.
+         */
+        patch: operations["IntegrationsController_setSwagger"];
+        trace?: never;
+    };
+    "/api/v1/system/integrations/line": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Replace the LINE channel credentials, at runtime.
+         * @description Every field optional, at least one required. Omitted fields are kept. Persisted to `AppSetting` (**plaintext** — see the service) and applied at once: a new token replaces the live Messaging client, a new secret verifies the next webhook. Values are never echoed back.
+         */
+        patch: operations["IntegrationsController_updateLine"];
+        trace?: never;
+    };
+    "/api/v1/system/integrations/line/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Prove the channel access token works — without spending quota.
+         * @description Calls LINE `GET /v2/bot/info`, `GET /v2/bot/message/quota` and `GET /v2/bot/message/quota/consumption`. Nothing is pushed.
+         */
+        post: operations["IntegrationsController_verifyLine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/integrations/storage/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read and write probe against the Cloudflare R2 bucket.
+         * @description Always 200. `read`: list one key. `write`: put then delete a two-byte object under `_healthcheck/`. `ok` is both. An unconfigured bucket is all false with `latencyMs` 0. Bucket settings are READ-ONLY here by design — they are baked into every stored object URL.
+         */
+        post: operations["IntegrationsController_probeStorage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -615,6 +1559,97 @@ export interface components {
             departments: components["schemas"]["OptionDto"][];
             personnelRoles: components["schemas"]["OptionDto"][];
         };
+        VenueTypeSummaryDto: {
+            /** @example 4 */
+            id: number;
+            /** @example หอประชุม */
+            name: string;
+            /**
+             * @description True only for the reserved tombstone category. Render it differently; never match on the name.
+             * @example false
+             */
+            isFallback: boolean;
+        };
+        VenuePhotoDto: {
+            /** @example clx0000000000000000000000 */
+            id: string;
+            /** @example https://cdn.example.com/venues/9f8e….jpg */
+            url: string;
+            /**
+             * @description 0-based. Position 0 is the cover.
+             * @example 0
+             */
+            position: number;
+        };
+        VenueAmenityDto: {
+            /** @example 1 */
+            id: number;
+            /** @example เครื่องเสียง */
+            name: string;
+        };
+        VenueResponseDto: {
+            /** @example clx0000000000000000000000 */
+            id: string;
+            /** @example หอประชุมวารณ */
+            name: string;
+            venueType: components["schemas"]["VenueTypeSummaryDto"];
+            /** @example 900 */
+            capacity: number;
+            /** @example อาคารหอประชุม ชั้น 1 */
+            location: string | null;
+            /** @example มีเวทีถาวรและระบบไฟเวที */
+            description: string | null;
+            /**
+             * @description เปิดให้จอง. False = ปิดชั่วคราว — still visible to end users, but accepts no new booking requests. Changed only via POST /venues/:id/close and /reopen.
+             * @example true
+             */
+            isOpen: boolean;
+            /**
+             * @description Non-null if and only if `isOpen` is false. Cleared on every reopen.
+             * @example null
+             */
+            closedReason: string | null;
+            /** @description Ordered. Index 0 is the cover. Empty for a venue with no photos yet. */
+            photos: components["schemas"]["VenuePhotoDto"][];
+            /** @description Ordered `name ASC`. */
+            amenities: components["schemas"]["VenueAmenityDto"][];
+            /** @example 2026-08-25T10:00:00.000Z */
+            createdAt: string;
+            /** @example 2026-08-25T10:00:00.000Z */
+            updatedAt: string;
+        };
+        PaginationMetaDto: {
+            /** @example 1 */
+            page: number;
+            /** @example 20 */
+            limit: number;
+            /**
+             * @description Non-deleted rows only.
+             * @example 42
+             */
+            total: number;
+            /**
+             * @description ceil(total / limit); 0 when total is 0.
+             * @example 3
+             */
+            totalPages: number;
+        };
+        VenueTypeFacetDto: {
+            /** @example 4 */
+            id: number;
+            /** @example โรงยิม */
+            name: string;
+        };
+        ListFacetsDto: {
+            /** @description Venue categories present in the searched set, `name ASC, id ASC`. The client re-sorts labels with a Thai collator. */
+            venueTypes: components["schemas"]["VenueTypeFacetDto"][];
+        };
+        PaginatedLineVenuesResponseDto: {
+            /** @description Ordered `isOpen DESC, name ASC, id ASC` — bookable venues first. The client must not re-sort: appended pages would shuffle. */
+            data: components["schemas"]["VenueResponseDto"][];
+            meta: components["schemas"]["PaginationMetaDto"];
+            facets: components["schemas"]["ListFacetsDto"];
+        };
         CreateLineUserRegistrationDto: {
             /** @example Somchai */
             firstName: string;
@@ -650,6 +1685,67 @@ export interface components {
              * @example 1
              */
             personnelRoleId: number;
+        };
+        NotificationPreferencesDto: {
+            /**
+             * @description ประกาศและข่าวประชาสัมพันธ์ — announcements, activity news and system updates from the admins.
+             * @example true
+             */
+            announcements: boolean;
+            /**
+             * @description ผลการพิจารณาคำขอจองสถานที่ — approved, rejected, or auto-rejected because somebody else was approved first.
+             * @example true
+             */
+            decisions: boolean;
+            /**
+             * @description เตือนความจำก่อนถึงเวลาเข้าใช้งาน — 24 hours before, and again 1 hour before.
+             * @example true
+             */
+            reminders: boolean;
+        };
+        LineUserSettingsResponseDto: {
+            /**
+             * @description One of `light` · `dark` · `system`. ⚠️ The CLIENT-LOCAL value stays authoritative for first paint (`Q-C9`); this is the cross-device sync, never a reason to block the first render on a fetch.
+             * @example system
+             */
+            theme: string;
+            notifications: components["schemas"]["NotificationPreferencesDto"];
+            /**
+             * Format: date-time
+             * @description When the user last saved their settings, or **null** when they never have — in which case every value above is a default and no row exists. Serialised as ISO 8601.
+             * @example 2026-09-07T12:51:05.000Z
+             */
+            updatedAt: string | null;
+        };
+        UpdateNotificationPreferencesDto: {
+            /** @example false */
+            announcements?: boolean;
+            /** @example false */
+            decisions?: boolean;
+            /** @example false */
+            reminders?: boolean;
+        };
+        UpdateLineUserSettingsDto: {
+            /**
+             * @description Absent = unchanged. Anything outside the three values is a 400.
+             * @example dark
+             * @enum {string}
+             */
+            theme?: "light" | "dark" | "system";
+            /** @description Merged PER KEY into the stored object — an absent key is unchanged, never reset to its default. */
+            notifications?: components["schemas"]["UpdateNotificationPreferencesDto"];
+        };
+        LineUserVersionResponseDto: {
+            /**
+             * @description The release train both repositories share (`Q-C8`). `0.x.y` while in development; `1.0.0` on the day the school starts using it.
+             * @example 0.14.0
+             */
+            version: string;
+            /**
+             * @description Always `ok` when the request reached this handler — the client uses it as a liveness marker beside the version comparison.
+             * @example ok
+             */
+            status: string;
         };
         LineUserRegistrationSummaryDto: {
             /** @example Somchai */
@@ -704,24 +1800,23 @@ export interface components {
             access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED" | "REJECTED";
             /** @example 2026-07-07T10:00:00.000Z */
             followedAt: string;
+            /**
+             * @description Registration submission date, or null for a follower who never registered. NOT followedAt.
+             * @example 2026-07-09T04:30:00.000Z
+             */
+            registeredAt: string | null;
+            /**
+             * @description Why this registration was sent back for revision. Non-null only while `access === REJECTED`. Same value the user is shown in the LIFF app.
+             * @example เบอร์โทรศัพท์ไม่ตรงกับที่แจ้งไว้
+             */
+            rejectionReason: string | null;
+            /**
+             * @description Why this user was blocked. Non-null only while `access === BLOCKED`, and only when the operator supplied one — unlike a rejection reason it is optional, because it is an internal note rather than a message pushed to the user. Back-office only; never sent to the LIFF app.
+             * @example ใช้บัญชีผิดคน รอยืนยันตัวตนอีกครั้ง
+             */
+            blockReason: string | null;
             /** @description The user's registration summary, or null for a follower who never submitted the form. */
             registration: components["schemas"]["LineUserRegistrationSummaryDto"] | null;
-        };
-        PaginationMetaDto: {
-            /** @example 1 */
-            page: number;
-            /** @example 20 */
-            limit: number;
-            /**
-             * @description Non-deleted rows only.
-             * @example 42
-             */
-            total: number;
-            /**
-             * @description ceil(total / limit); 0 when total is 0.
-             * @example 3
-             */
-            totalPages: number;
         };
         PaginatedLineUsersResponseDto: {
             data: components["schemas"]["LineUserResponseDto"][];
@@ -735,7 +1830,7 @@ export interface components {
              */
             access: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED" | "REJECTED";
             /**
-             * @description The operator-authored revision reason. Optional at the transport layer (meaningless for ALLOWED/BLOCKED), but the service REQUIRES a non-empty trimmed value when `access === REJECTED` — a missing/blank reason on a REJECTED request is a 400. Ignored (not persisted) for any non-REJECTED target. Max 500 chars.
+             * @description The operator-authored reason. Optional at the transport layer, but the service REQUIRES a non-empty trimmed value when `access === REJECTED` (it is pushed to the user on LINE) — a missing/blank reason there is a 400. On `access === BLOCKED` it is optional and persisted as `blockReason`, a back-office-only note. Ignored (not persisted) for any other target. Max 500 chars.
              * @example เบอร์โทรศัพท์ไม่ถูกต้อง กรุณากรอกใหม่
              */
             reason?: string;
@@ -757,6 +1852,71 @@ export interface components {
              * @example 1
              */
             personnelRoleId: number;
+        };
+        VenuePhotoUploadResponseDto: {
+            /** @description The durable https URL of the stored object. Put it in `photoUrls` on the next create/update, or discard it with DELETE /venues/photos. */
+            url: string;
+        };
+        DiscardVenuePhotoDto: {
+            /** @description A URL previously returned by POST /venues/photos that is NOT referenced by any venue. Referenced URLs are refused. */
+            url: string;
+        };
+        CreateVenueDto: {
+            /** @example หอประชุมวารณ */
+            name: string;
+            /**
+             * @description Category id. Must be an ACTIVE, non-reserved venue type — anything else is the same 400 as an unknown id.
+             * @example 4
+             */
+            venueTypeId: number;
+            /** @example 900 */
+            capacity: number;
+            /**
+             * @description ที่ตั้ง. An empty string clears it.
+             * @example อาคารหอประชุม ชั้น 1
+             */
+            location?: string | null;
+            /**
+             * @description รายละเอียด. An empty string clears it.
+             * @example หอประชุมใหญ่ของโรงเรียน มีเวทีถาวรและระบบไฟเวที
+             */
+            description?: string | null;
+            /**
+             * @description The COMPLETE set of amenity ids for this venue — the server replaces, it does not merge. Every id must be an ACTIVE amenity.
+             * @example [
+             *       1,
+             *       3,
+             *       4
+             *     ]
+             */
+            amenityIds?: number[];
+            /** @description The COMPLETE ordered list of photo URLs; index 0 is the cover. Max 10. Each must be a URL returned by POST /venues/photos. */
+            photoUrls?: string[];
+        };
+        UpdateVenueDto: {
+            /** @example หอประชุมวารณ */
+            name?: string;
+            /** @example 4 */
+            venueTypeId?: number;
+            /** @example 900 */
+            capacity?: number;
+            location?: string | null;
+            description?: string | null;
+            /**
+             * @example [
+             *       1,
+             *       3
+             *     ]
+             */
+            amenityIds?: number[];
+            photoUrls?: string[];
+        };
+        CloseVenueDto: {
+            /**
+             * @description Shown on the venue card and, once LIFF exists, to every end user who tries to book the room. A blank or whitespace-only reason is a 400.
+             * @example ปิดปรับปรุงพื้นสนามถึง 30 ก.ย. 2569
+             */
+            reason: string;
         };
         CsrfTokenResponseDto: {
             /**
@@ -787,7 +1947,7 @@ export interface components {
              * @example ADMIN
              * @enum {string}
              */
-            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            role: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
         };
         SystemUserCreatorDto: {
             /** @example clx1a2b3c4d5e6f7g8h9i0j1 */
@@ -814,10 +1974,10 @@ export interface components {
             lastName: string;
             /**
              * @description Back-office RBAC. The ONLY field that grants privilege — never `personnelRole`.
-             * @example STAFF
+             * @example VIEWER
              * @enum {string}
              */
-            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            role: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
             department: components["schemas"]["SystemUserOptionDto"];
             /** @description Job title. NOT `role` — grants zero privilege. */
             personnelRole: components["schemas"]["SystemUserOptionDto"];
@@ -851,12 +2011,6 @@ export interface components {
             readonly updatedAt: string;
         };
         UpdateOwnProfileDto: {
-            /** @example Ada */
-            firstName?: string;
-            /** @example Lovelace */
-            lastName?: string;
-            /** @example 02-123-4567 ext. 101 */
-            phoneNumber?: string | null;
             profilePictureUrl?: string | null;
         };
         ChangePasswordDto: {
@@ -873,10 +2027,10 @@ export interface components {
             /** @example Lovelace */
             lastName: string;
             /**
-             * @default STAFF
+             * @default VIEWER
              * @enum {string}
              */
-            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            role: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
             /**
              * @description Department option id. Must reference an ACTIVE (non-soft-deleted) option — otherwise 400.
              * @example 3
@@ -887,7 +2041,7 @@ export interface components {
              * @example 5
              */
             personnelRoleId: number;
-            /** @example 02-123-4567 ext. 101 */
+            /** @example 02-123-4567 ต่อ 101 */
             phoneNumber?: string;
             /** @example https://cdn.example.com/avatars/ada.jpg */
             profilePictureUrl?: string;
@@ -903,10 +2057,10 @@ export interface components {
             lastName: string;
             /**
              * @description Back-office RBAC. The ONLY field that grants privilege — never `personnelRole`.
-             * @example STAFF
+             * @example VIEWER
              * @enum {string}
              */
-            role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            role: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
             department: components["schemas"]["SystemUserOptionDto"];
             /** @description Job title. NOT `role` — grants zero privilege. */
             personnelRole: components["schemas"]["SystemUserOptionDto"];
@@ -967,7 +2121,7 @@ export interface components {
             phoneNumber?: string | null;
             profilePictureUrl?: string | null;
             /** @enum {string} */
-            role?: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+            role?: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
             /** @example false */
             isActive?: boolean;
         };
@@ -988,6 +2142,26 @@ export interface components {
             createdAt: string;
             /** @example 2026-07-14T10:00:00.000Z */
             updatedAt: string;
+            /**
+             * @description Holders of this option (staff + registrations), excluding soft-deleted ones.
+             * @example 12
+             */
+            holderCount: number;
+            /**
+             * @description Back-office accounts holding this option, excluding soft-deleted ones.
+             * @example 5
+             */
+            staffCount: number;
+            /**
+             * @description LINE registrations holding this option, excluding soft-deleted ones.
+             * @example 7
+             */
+            registrationCount: number;
+            /**
+             * @description READ-ONLY. True only for the tombstone row that holders are re-pointed to when an option is deleted. Never offer it as a choice; show it only when it is already the current value.
+             * @example false
+             */
+            isFallback: boolean;
         };
         CreateDepartmentDto: {
             /** @example Computer Science */
@@ -1014,6 +2188,26 @@ export interface components {
             createdAt: string;
             /** @example 2026-07-14T10:00:00.000Z */
             updatedAt: string;
+            /**
+             * @description Holders of this option (staff + registrations), excluding soft-deleted ones.
+             * @example 12
+             */
+            holderCount: number;
+            /**
+             * @description Back-office accounts holding this option, excluding soft-deleted ones.
+             * @example 5
+             */
+            staffCount: number;
+            /**
+             * @description LINE registrations holding this option, excluding soft-deleted ones.
+             * @example 7
+             */
+            registrationCount: number;
+            /**
+             * @description READ-ONLY. True only for the tombstone row that holders are re-pointed to when an option is deleted. Never offer it as a choice; show it only when it is already the current value.
+             * @example false
+             */
+            isFallback: boolean;
         };
         CreatePersonnelRoleDto: {
             /** @example Teacher */
@@ -1022,6 +2216,1184 @@ export interface components {
         UpdatePersonnelRoleDto: {
             /** @example Senior Lecturer */
             name: string;
+        };
+        VenueTypeResponseDto: {
+            /**
+             * @description Auto-increment integer id.
+             * @example 1
+             */
+            id: number;
+            /** @example โรงยิม */
+            name: string;
+            /**
+             * @description READ-ONLY. True only for the tombstone row (visible to SUPER_ADMIN only; always false for everyone else). Settable by no endpoint.
+             * @example false
+             */
+            isSystemReserved: boolean;
+            /** @example 2026-08-25T10:00:00.000Z */
+            createdAt: string;
+            /** @example 2026-08-25T10:00:00.000Z */
+            updatedAt: string;
+            /**
+             * @description Venues filed under this category, excluding soft-deleted ones. 0 for every row until the Venue table exists.
+             * @example 3
+             */
+            holderCount: number;
+            /**
+             * @description READ-ONLY. True only for the tombstone row that venues are re-pointed to when a category is deleted. Never offer it as a choice; show it only when it is already the current value.
+             * @example false
+             */
+            isFallback: boolean;
+        };
+        CreateVenueTypeDto: {
+            /** @example โรงยิม */
+            name: string;
+        };
+        UpdateVenueTypeDto: {
+            /** @example โรงยิมและสนามในร่ม */
+            name: string;
+        };
+        AmenityResponseDto: {
+            /**
+             * @description Auto-increment integer id.
+             * @example 1
+             */
+            id: number;
+            /** @example โปรเจกเตอร์ */
+            name: string;
+            /**
+             * @description ALWAYS false. This table has no reserved rows — no System Developer row and no tombstone. Present only so the curated-table screens share one response shape.
+             * @example false
+             */
+            isSystemReserved: boolean;
+            /**
+             * @description ALWAYS false. An amenity is a tick in a join table, so a delete removes ticks and orphans nothing; there is nothing to re-point and therefore no tombstone row.
+             * @example false
+             */
+            isFallback: boolean;
+            /** @example 2026-08-25T10:00:00.000Z */
+            createdAt: string;
+            /** @example 2026-08-25T10:00:00.000Z */
+            updatedAt: string;
+            /**
+             * @description Venues providing this amenity, excluding soft-deleted ones. 0 for every row until the Venue table exists.
+             * @example 6
+             */
+            holderCount: number;
+        };
+        CreateAmenityDto: {
+            /** @example ไมโครโฟนไร้สาย */
+            name: string;
+        };
+        UpdateAmenityDto: {
+            /** @example ไมโครโฟนไร้สาย (2 ตัว) */
+            name: string;
+        };
+        DeleteAmenityResponseDto: {
+            /**
+             * @description How many venues lost this amenity. 0 while the Venue table does not exist.
+             * @example 6
+             */
+            releasedVenueCount: number;
+        };
+        CreateLineBookingSlotDto: {
+            /**
+             * Format: date-time
+             * @description Inclusive start of the span, ISO 8601. Must be in the future (`D-C16`, checked per slot against the real clock, not against midnight).
+             * @example 2026-09-10T09:00:00.000Z
+             */
+            startAt: string;
+            /**
+             * Format: date-time
+             * @description Exclusive end of the span, ISO 8601. Strictly after `startAt`. The interval is half-open — a slot ending 12:00 and one starting 12:00 do NOT overlap.
+             * @example 2026-09-10T12:00:00.000Z
+             */
+            endAt: string;
+        };
+        CreateLineBookingDto: {
+            /**
+             * @description The venue being requested. Must exist, not be deleted, and be OPEN.
+             * @example clx0v3n0e0000abcd1234efgh
+             */
+            venueId: string;
+            /**
+             * @description วัตถุประสงค์ — what the room is for. Mandatory (`D-C13`): the approver chooses between overlapping requests and cannot do it from times alone.
+             * @example ประชุมเตรียมงานกีฬาสี
+             */
+            purpose: string;
+            /**
+             * @description จำนวนผู้เข้าร่วม. Mandatory, at least 1. Deliberately NOT validated against the venue capacity — that is the approver’s judgement.
+             * @example 25
+             */
+            attendees: number;
+            /** @description The requested spans. One entry is a continuous booking; several entries are the repeat-across-days shape. Same request either way (`D-C13` rule 2). */
+            slots: components["schemas"]["CreateLineBookingSlotDto"][];
+        };
+        BookingSlotResponseDto: {
+            id: string;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            /** @description Per-slot cancellation (`Q-C4`). Always `false` on a freshly submitted request; a three-slot request may later have one slot cancelled and keep the other two. */
+            isCancelled: boolean;
+            /**
+             * Format: date-time
+             * @description When it was cancelled. Null unless `isCancelled` is true.
+             */
+            cancelledAt: string | null;
+            /** @description Free-text reason, written only by the staff cancellation path. Always null for a cancellation the user made themselves. */
+            cancelReason: string | null;
+        };
+        BookingRequestResponseDto: {
+            /** @description The cuid primary key — what `/booking/:id` is addressed by. */
+            id: string;
+            /**
+             * @description Human-readable booking number: `BR-` + the Buddhist-era Bangkok date + a per-day sequence. Unique, and quotable over the phone.
+             * @example BR-25690902-001
+             */
+            code: string;
+            venueId: string;
+            /** @description Convenience copy for the confirmation screen. Not a stored column. */
+            venueName: string;
+            purpose: string;
+            attendees: number;
+            /**
+             * @example PENDING
+             * @enum {string}
+             */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
+            /**
+             * Format: date-time
+             * @description Earliest `startAt` across the slots.
+             */
+            firstStartAt: string;
+            /**
+             * Format: date-time
+             * @description Latest `endAt` across the slots.
+             */
+            lastEndAt: string;
+            slots: components["schemas"]["BookingSlotResponseDto"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        BookingVenueSummaryDto: {
+            id: string;
+            /** @example หอประชุมวารณ */
+            name: string;
+            /** @example อาคารหอประชุม ชั้น 1 */
+            location: string | null;
+            venueType: components["schemas"]["VenueTypeSummaryDto"];
+            /** @description Ordered. Index 0 is the cover. Empty for a venue with none. */
+            photos: components["schemas"]["VenuePhotoDto"][];
+        };
+        BookingListItemDto: {
+            id: string;
+            /** @example BR-25690902-001 */
+            code: string;
+            venue: components["schemas"]["BookingVenueSummaryDto"];
+            purpose: string;
+            attendees: number;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
+            /** @description Why it was refused. Null unless `status` is `REJECTED`. */
+            rejectReason: string | null;
+            /** Format: date-time */
+            firstStartAt: string;
+            /** Format: date-time */
+            lastEndAt: string;
+            slots: components["schemas"]["BookingSlotResponseDto"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PaginatedLineBookingsResponseDto: {
+            data: components["schemas"]["BookingListItemDto"][];
+            meta: components["schemas"]["PaginationMetaDto"];
+            facets: components["schemas"]["ListFacetsDto"];
+        };
+        BookingVenueDetailDto: {
+            id: string;
+            /** @example หอประชุมวารณ */
+            name: string;
+            /** @example อาคารหอประชุม ชั้น 1 */
+            location: string | null;
+            /** @example 900 */
+            capacity: number;
+            /** @example true */
+            isOpen: boolean;
+            venueType: components["schemas"]["VenueTypeSummaryDto"];
+            photos: components["schemas"]["VenuePhotoDto"][];
+            /** @description Ordered `name ASC`. */
+            amenities: components["schemas"]["VenueAmenityDto"][];
+        };
+        BookingDetailResponseDto: {
+            id: string;
+            /** @example BR-25690902-001 */
+            code: string;
+            venue: components["schemas"]["BookingVenueDetailDto"];
+            purpose: string;
+            attendees: number;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
+            rejectReason: string | null;
+            /** Format: date-time */
+            firstStartAt: string;
+            /** Format: date-time */
+            lastEndAt: string;
+            /**
+             * Format: date-time
+             * @description When the request was approved. Null while pending, and on a rejected or cancelled request.
+             */
+            approvedAt: string | null;
+            slots: components["schemas"]["BookingSlotResponseDto"][];
+            /**
+             * @description Cancellation lead time in minutes, from `app_settings`. A slot may be cancelled only while it starts more than this far in the future.
+             * @example 30
+             */
+            cancelLeadMinutes: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        VenueAvailabilitySlotDto: {
+            id: string;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            /**
+             * @description `APPROVED` — the slot is taken. `PENDING` — somebody has requested it and nothing is holding it yet (`D-C13` rule 4).
+             * @enum {string}
+             */
+            status: "APPROVED" | "PENDING";
+            /** @description True when this slot belongs to the calling LINE user’s own request. Drives the `คุณ` badge. */
+            isMine: boolean;
+            /** @description The requester’s stated purpose, sent for every slot regardless of status or owner (`#ISSUE-01`). Nullable only because the column is. */
+            purpose: string | null;
+            /** @description The requester’s name, sent for every slot regardless of status or owner (`#ISSUE-01`). `null` on a staff-created booking with no LINE requester and no manual override — an unnamed slot is normal, not an error (`D-C18`). */
+            requesterName: string | null;
+        };
+        LineScheduleSlotDto: {
+            /** @description The `BookingSlot` cuid — one span, not a request. */
+            id: string;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            /** @description The venue cuid, for the link into `#/venue/:id`. */
+            venueId: string;
+            /** @example หอประชุมวารณ */
+            venueName: string;
+            /** @description The venue’s category id, for the shared type-filter row. Always populated today. */
+            venueTypeId: number | null;
+            /**
+             * @description The venue’s category name. Always populated today.
+             * @example หอประชุม
+             */
+            venueTypeName: string | null;
+            /**
+             * @description Never blanked — every row on this endpoint is APPROVED.
+             * @example ประชุมผู้ปกครองระดับชั้น ม.3
+             */
+            purpose: string;
+            /**
+             * @description From the LINE registration, or the staff requester override. Null when a staff booking named nobody.
+             * @example สมชาย ใจดี
+             */
+            requesterName: string | null;
+            /** @description True when this activity belongs to the calling LINE user. */
+            isMine: boolean;
+        };
+        BookingSlotInputDto: {
+            /**
+             * Format: date-time
+             * @description Inclusive start of the span, ISO 8601. Must be in the future (`D-C16`, checked per slot against the real clock).
+             * @example 2026-09-10T09:00:00.000Z
+             */
+            startAt: string;
+            /**
+             * Format: date-time
+             * @description Exclusive end of the span, ISO 8601. Strictly after `startAt`. Half-open — a slot ending 12:00 and one starting 12:00 do NOT overlap.
+             * @example 2026-09-10T12:00:00.000Z
+             */
+            endAt: string;
+        };
+        CreateDirectBookingDto: {
+            /**
+             * @description The venue to lock. Must exist and not be soft-deleted.
+             * @example clx0v3n0e0000abcd1234efgh
+             */
+            venueId: string;
+            /**
+             * @description วัตถุประสงค์ — what the room is for. Mandatory.
+             * @example ประชุมคณะกรรมการสถานศึกษา
+             */
+            purpose: string;
+            /**
+             * @description จำนวนผู้เข้าร่วม. Deliberately NOT checked against the venue capacity — that is the approver’s judgement, and here the approver is the caller.
+             * @example 25
+             */
+            attendees: number;
+            /** @description The spans to lock. One entry is a continuous booking; several are the repeat-across-days shape — the same request either way (`D-C13` rule 2). */
+            slots: components["schemas"]["BookingSlotInputDto"][];
+            /** @description Path (A): `LineUser.id` (a CUID — NOT the `U…` LINE identifier). The booking appears in that user’s My Bookings. Mutually exclusive with the three override fields below. An unknown, soft-deleted or non-ALLOWED user is a 400. */
+            lineUserId?: string;
+            /**
+             * @description Path (B): who the booking is for. REQUIRED when `lineUserId` is omitted; a 400 when sent alongside `lineUserId` (it is an override, not a second profile store).
+             * @example สำนักงานเขตพื้นที่การศึกษา
+             */
+            requesterName?: string;
+            /**
+             * @description Path (B): a contact number. REQUIRED when `lineUserId` is omitted — path (B) receives no LINE notification, so this is the only way to reach them. A 400 when sent alongside `lineUserId`.
+             * @example 081-234-5678
+             */
+            contactPhone?: string;
+            /** @description Path (B): the department the booking is for — NOT the caller’s. Optional. Must be an ACTIVE (`deletedAt: null`) department; anything else is the SAME 400 an unknown id gets. A 400 when sent alongside `lineUserId`. */
+            departmentId?: number;
+        };
+        AdminBookingRequesterDto: {
+            name: string | null;
+            phone: string | null;
+            departmentName: string | null;
+        };
+        AdminBookingVenueDetailDto: {
+            id: string;
+            /** @example หอประชุมวารณ */
+            name: string;
+            location: string | null;
+            capacity: number;
+            /** @description A closed venue still accepts a DIRECT booking — `isOpen` refuses new REQUESTS, and a staff lock is not a request. The screen warns; the server does not refuse. */
+            isOpen: boolean;
+        };
+        AdminBookingSlotDto: {
+            id: string;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            /** @description Per-slot cancellation (`Q-C4`). Cancelled slots are RETURNED, never filtered out — the detail dialog has to show that Wednesday was dropped and why. */
+            isCancelled: boolean;
+            /** Format: date-time */
+            cancelledAt: string | null;
+            cancelReason: string | null;
+            /**
+             * @description Which domain cancelled it: `LINE_USER` for a self-service cancellation, or the staff member’s real `SystemRole`. The matching id is deliberately NOT exposed — it points into one of two unbridged tables.
+             * @enum {string|null}
+             */
+            cancelledByRole: "LINE_USER" | "SUPER_ADMIN" | "ADMIN" | null;
+        };
+        AdminBookingStaffDto: {
+            id: string;
+            firstName: string;
+            lastName: string;
+        };
+        BookingConflictItemDto: {
+            id: string;
+            code: string;
+            /** @description Revealed on purpose: the confirm dialog must list every request it is about to reject, with its code, requester and times. An admin is the permitted viewer. */
+            requesterName: string | null;
+            /** Format: date-time */
+            firstStartAt: string;
+            /** Format: date-time */
+            lastEndAt: string;
+        };
+        BookingConflictsDto: {
+            /** @description True when an APPROVED, non-cancelled slot already overlaps this request — approving it would be a 409. The dialog disables its confirm button on this. ⚠️ Advisory only: the server refuses again inside the transaction. */
+            approvedClash: boolean;
+            /** @description The PENDING requests that approving this one would auto-reject. Empty when this request is not PENDING. */
+            pendingLosers: components["schemas"]["BookingConflictItemDto"][];
+        };
+        AdminBookingRequestDetailDto: {
+            id: string;
+            /** @example BR-25690903-001 */
+            code: string;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
+            /**
+             * @description Where the request came from: `LINE` when `createdById` is null, otherwise `ADMIN`. It answers "who TYPED it" — a staff booking made on behalf of a LINE user reads `ADMIN`.
+             * @enum {string}
+             */
+            origin: "LINE" | "ADMIN";
+            requester: components["schemas"]["AdminBookingRequesterDto"];
+            venue: components["schemas"]["AdminBookingVenueDetailDto"];
+            /** @description วัตถุประสงค์. Returned in EVERY status including PENDING — see the file note; this is the input the approval decision is made from. */
+            purpose: string;
+            attendees: number;
+            /** Format: date-time */
+            firstStartAt: string;
+            /** Format: date-time */
+            lastEndAt: string;
+            slots: components["schemas"]["AdminBookingSlotDto"][];
+            rejectReason: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Who TYPED it. Null on a LINE-origin request. */
+            createdBy: components["schemas"]["AdminBookingStaffDto"] | null;
+            /** @description Who RULED on it. Null until approved. Resolved as history — never filtered by `deletedAt` (DD-4). ⚠️ The LIFF detail deliberately omits this; the admin surface is the permitted viewer. */
+            approvedBy: components["schemas"]["AdminBookingStaffDto"] | null;
+            /** Format: date-time */
+            approvedAt: string | null;
+            conflicts: components["schemas"]["BookingConflictsDto"];
+        };
+        AutoRejectedBookingDto: {
+            id: string;
+            /** @example BR-25690903-002 */
+            code: string;
+        };
+        ApproveBookingResponseDto: {
+            booking: components["schemas"]["AdminBookingRequestDetailDto"];
+            /** @description The requests actually auto-rejected inside this transaction (ADR-001). May differ from the `conflicts.pendingLosers` the dialog was showing — report THIS one. Code and id only: the screen shows a confirmation, not a second dossier on other people’s requests. */
+            autoRejected: components["schemas"]["AutoRejectedBookingDto"][];
+        };
+        BookingPreflightDto: {
+            /**
+             * @description The venue the spans would be booked at. Must exist and not be soft-deleted — anything else is a 404, exactly as on `direct`.
+             * @example clx0v3n0e0000abcd1234efgh
+             */
+            venueId: string;
+            /** @description The spans to test. NOT YET SAVED — this is the whole point: `GET /venues/:id/availability` can only answer about rows that exist, and it is behind the LIFF id-token guard besides. */
+            slots: components["schemas"]["BookingSlotInputDto"][];
+        };
+        BookingPreflightPendingDto: {
+            id: string;
+            /** @example BR-25690903-002 */
+            code: string;
+            /** @description วัตถุประสงค์ of the request that would be bumped. Shown so the operator can weigh what they are about to displace. */
+            purpose: string;
+            requesterName: string | null;
+        };
+        BookingPreflightResponseDto: {
+            /** @description True when an APPROVED, non-cancelled slot already overlaps one of the spans — submitting them would be a 409. The create dialog disables its submit button on this. */
+            hasApprovedClash: boolean;
+            /**
+             * @description How many APPROVED, non-cancelled **SLOTS** overlap the requested spans. ⚠️ SLOTS, not bookings — one three-day booking across three requested days is 3, not 1. `0` exactly when `hasApprovedClash` is false.
+             * @example 2
+             */
+            approvedClashCount: number;
+            /** @description The PENDING requests these spans overlap — ADR-001 would auto-reject every one of them on submit, so the operator sees whom they are about to bump BEFORE committing. One entry per request however many of its slots overlap. */
+            overlappingPendingRequests: components["schemas"]["BookingPreflightPendingDto"][];
+            /** @description `Venue.isOpen`. Informational only: a CLOSED venue still accepts a direct booking, so the dialog shows an override note rather than blocking. */
+            venueIsOpen: boolean;
+        };
+        CalendarBookingSlotDto: {
+            /** @description The `BookingSlot` cuid — one span. */
+            id: string;
+            /** @description The parent `BookingRequest` cuid — what `GET /booking-requests/:id` and the detail dialog open. */
+            bookingRequestId: string;
+            /** @example BR-25690903-001 */
+            code: string;
+            /**
+             * @description The parent request’s status. Only the two occupying statuses ever appear on the calendar.
+             * @enum {string}
+             */
+            status: "APPROVED" | "PENDING";
+            /** @example ประชุมผู้ปกครองระดับชั้น ม.3 */
+            purpose: string;
+            /**
+             * @description From the LINE registration when there is one, otherwise the staff requester override. Null is legitimate — a staff booking that named nobody.
+             * @example สมชาย ใจดี
+             */
+            requesterName: string | null;
+            /** @description The venue cuid (a string, never a number). */
+            venueId: string;
+            /** @example หอประชุมวารณ */
+            venueName: string;
+            /**
+             * Format: date-time
+             * @description Inclusive start instant. Spans are half-open `[startAt, endAt)`.
+             */
+            startAt: string;
+            /**
+             * Format: date-time
+             * @description Exclusive end instant.
+             */
+            endAt: string;
+            /**
+             * @description The Bangkok (UTC+7) calendar date of `startAt`, `YYYY-MM-DD` (Gregorian). A slot is listed on this date ONLY — never duplicated onto the next day, even if it ends there.
+             * @example 2026-09-18
+             */
+            date: string;
+            /**
+             * @description Bangkok wall-clock start, `HH:mm`.
+             * @example 09:00
+             */
+            start: string;
+            /**
+             * @description Bangkok wall-clock end, `HH:mm`. `24:00` when `endAt` is the Bangkok midnight right after `date`, so an end-of-day slot never reads as ending at `00:00`.
+             * @example 12:00
+             */
+            end: string;
+            /**
+             * @description 1-based position of this slot among its request’s NON-cancelled slots, by `startAt`. Counted over the whole request, not the window.
+             * @example 2
+             */
+            slotIndex: number;
+            /**
+             * @description How many non-cancelled slots the request has in total (the `m` of `ช่วงที่ n จาก m`). Counted over the whole request, not the window.
+             * @example 3
+             */
+            slotCount: number;
+        };
+        AdminBookingVenueDto: {
+            id: string;
+            /** @example หอประชุมวารณ */
+            name: string;
+            location: string | null;
+        };
+        AdminBookingRequestListItemDto: {
+            id: string;
+            /** @example BR-25690903-001 */
+            code: string;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
+            /**
+             * @description Where the request came from: `LINE` when `createdById` is null, otherwise `ADMIN`. It answers "who TYPED it" — a staff booking made on behalf of a LINE user reads `ADMIN`.
+             * @enum {string}
+             */
+            origin: "LINE" | "ADMIN";
+            requester: components["schemas"]["AdminBookingRequesterDto"];
+            venue: components["schemas"]["AdminBookingVenueDto"];
+            /** @description วัตถุประสงค์. Returned in EVERY status including PENDING — see the file note; this is the input the approval decision is made from. */
+            purpose: string;
+            attendees: number;
+            /** Format: date-time */
+            firstStartAt: string;
+            /** Format: date-time */
+            lastEndAt: string;
+            slots: components["schemas"]["AdminBookingSlotDto"][];
+            rejectReason: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        BookingStatusCountsDto: {
+            /** @example 42 */
+            all: number;
+            /** @example 7 */
+            pending: number;
+            /** @example 30 */
+            approved: number;
+            /** @example 3 */
+            rejected: number;
+            /** @example 2 */
+            cancelled: number;
+            /**
+             * @description Requests the expiry cron closed (stored `EXPIRED`).
+             * @example 4
+             */
+            expired: number;
+        };
+        PaginatedBookingRequestsResponseDto: {
+            data: components["schemas"]["AdminBookingRequestListItemDto"][];
+            meta: components["schemas"]["PaginationMetaDto"];
+            /** @description Tab counts. Computed with `search` and `venueId` applied but WITHOUT `status`, otherwise selecting a tab would zero the other five. A status with no rows is `0`, never absent. */
+            counts: components["schemas"]["BookingStatusCountsDto"];
+        };
+        RejectBookingRequestDto: {
+            /**
+             * @description Why the request is refused. Mandatory — a blank or whitespace-only reason is a 400. Shown RAW to the requester on My Bookings and in LINE, so it is written for them, not for the audit log.
+             * @example ห้องถูกจัดสรรให้กิจกรรมของโรงเรียนในวันดังกล่าว
+             */
+            reason: string;
+        };
+        CancelBookingRequestDto: {
+            /**
+             * @description Why the booking (or the named slots) is being cancelled. Mandatory for BOTH shapes — blank or whitespace-only is a 400.
+             * @example ห้องประชุมอยู่ระหว่างซ่อมระบบปรับอากาศ
+             */
+            reason: string;
+            /** @description Omit to cancel the WHOLE booking; supply ids to cancel only those slots. `[]` is a 400 (say what you mean), a duplicate id is a 400, an id belonging to another booking is a 400, and an id already cancelled is a 409. Explicit `null` is a 400 — it is not "omitted". */
+            slotIds?: string[];
+        };
+        FeedbackPhotoUploadResponseDto: {
+            /**
+             * @description The durable https URL of the stored object. Hold it client-side and send it in `photos[]` on the submit call; there is no discard endpoint (an abandoned object is bounded and collectable later).
+             * @example https://cdn.example.org/feedback/0123456789abcdef0123456789abcdef.jpg
+             */
+            url: string;
+        };
+        /**
+         * @description What this is. `ISSUE` = แจ้งปัญหาการใช้งาน, `FEEDBACK` = ข้อเสนอแนะ. The wire format is the Prisma enum, UPPERCASE, like every other enum in this service; the prototype’s lowercase `issue`/`feedback` keys survive on the client as a field of its own `IS_TYPES` row.
+         * @enum {string}
+         */
+        FeedbackType: "ISSUE" | "FEEDBACK";
+        CreateFeedbackDto: {
+            /**
+             * @description What this is. `ISSUE` = แจ้งปัญหาการใช้งาน, `FEEDBACK` = ข้อเสนอแนะ. The wire format is the Prisma enum, UPPERCASE, like every other enum in this service; the prototype’s lowercase `issue`/`feedback` keys survive on the client as a field of its own `IS_TYPES` row.
+             * @example ISSUE
+             */
+            type: components["schemas"]["FeedbackType"];
+            /**
+             * @description The venue the report is about. Optional (AC-10): absent **or** an explicit `null` both persist as `ปัญหาทั่วไป / ไม่ระบุสถานที่`. Must be an existing, non-deleted venue — a CLOSED venue is accepted, because a closed room is exactly the kind somebody needs to report a problem about.
+             * @example clx0v3n0e0000abcd1234efgh
+             */
+            venueId?: string | null;
+            /**
+             * @description หัวข้อ — one line the triaging staff member reads first. Required, 1–100 characters after trimming.
+             * @example แอร์ห้องประชุม 1 ไม่เย็น
+             */
+            subject: string;
+            /**
+             * @description รายละเอียด. Required, 1–500 characters **after trimming** — exactly 500 is valid and 501 is not (E-9). Never truncated server-side.
+             * @example แอร์ตัวที่อยู่ฝั่งหน้าต่างไม่ทำงานมา 3 วันแล้วครับ
+             */
+            description: string;
+            /**
+             * @description URLs returned by `POST /line-users/feedback/photos`, in the order the reporter attached them. Absent and `[]` both mean none. 🔴 Every entry must be an object THIS deployment minted under its `feedback/` prefix — a foreign URL is a 400, never a stored link.
+             * @example [
+             *       "https://cdn.example.org/feedback/0123456789abcdef0123456789abcdef.jpg"
+             *     ]
+             */
+            photos?: string[];
+        };
+        FeedbackResponseDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /**
+             * @description The human-readable reference. 🔴 AC-37 — the dialog prints THIS value; the client never generates or guesses a code.
+             * @example ISS-25690920-001
+             */
+            code: string;
+            type: components["schemas"]["FeedbackType"];
+            /**
+             * @description Null for a general report (`ปัญหาทั่วไป / ไม่ระบุสถานที่`).
+             * @example clx0v3n0e0000abcd1234efgh
+             */
+            venueId: string | null;
+            /**
+             * @description The venue’s name as it was resolved at submit time. Null when `venueId` is null.
+             * @example ห้องประชุม 1
+             */
+            venueName: string | null;
+            /** @example แอร์ห้องประชุม 1 ไม่เย็น */
+            subject: string;
+            /** @example แอร์ตัวที่อยู่ฝั่งหน้าต่างไม่ทำงานมา 3 วันแล้วครับ */
+            description: string;
+            /**
+             * @description As stored, in attachment order. Empty when none were sent.
+             * @example [
+             *       "https://cdn.example.org/feedback/0123456789abcdef0123456789abcdef.jpg"
+             *     ]
+             */
+            photos: string[];
+            /**
+             * Format: date-time
+             * @example 2026-09-20T13:05:00.000Z
+             */
+            createdAt: string;
+        };
+        /** @enum {string} */
+        FeedbackStatus: "PENDING" | "IN_PROGRESS" | "RESOLVED" | "DISMISSED";
+        AdminFeedbackVenueDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /**
+             * @description Resolved as HISTORY: a venue soft-deleted after the report still shows its name (E-3).
+             * @example ห้องประชุม 1
+             */
+            name: string;
+        };
+        AdminFeedbackReporterDto: {
+            /** @example สมชาย */
+            firstName: string | null;
+            /** @example ใจดี */
+            lastName: string | null;
+            /** @example ครู */
+            personnelRoleName: string | null;
+            /** @example กลุ่มบริหารงานวิชาการ */
+            departmentName: string | null;
+            /** @example 081-234-5678 */
+            phone: string | null;
+            /**
+             * @description The LINE profile display name — the name shown when no registration exists.
+             * @example Somchai
+             */
+            lineDisplayName: string | null;
+            /**
+             * @description The LINE profile picture URL, or null if unset — the reporter card falls back to initials.
+             * @example https://profile.line-scdn.net/0hAbCdEf
+             */
+            pictureUrl: string | null;
+        };
+        AdminFeedbackListItemDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @example ISS-25690920-001 */
+            code: string;
+            type: components["schemas"]["FeedbackType"];
+            status: components["schemas"]["FeedbackStatus"];
+            /** @example แอร์ห้องประชุม 1 ไม่เย็น */
+            subject: string;
+            /** @example แอร์ตัวที่อยู่ฝั่งหน้าต่างไม่ทำงานมา 3 วันแล้วครับ */
+            description: string;
+            /**
+             * @description How many photos are attached. The list does not ship the URLs.
+             * @example 2
+             */
+            photoCount: number;
+            /** @description null = ปัญหาทั่วไป / ไม่ระบุสถานที่ */
+            venue: components["schemas"]["AdminFeedbackVenueDto"] | null;
+            reporter: components["schemas"]["AdminFeedbackReporterDto"];
+            /**
+             * Format: date-time
+             * @example 2026-09-20T13:05:00.000Z
+             */
+            createdAt: string;
+        };
+        FeedbackCountsDto: {
+            /**
+             * @description `status = PENDING` over the WHOLE table.
+             * @example 5
+             */
+            pendingCount: number;
+            /**
+             * @description `type = ISSUE` over the WHOLE table.
+             * @example 12
+             */
+            issueCount: number;
+            /**
+             * @description `type = FEEDBACK` over the WHOLE table.
+             * @example 8
+             */
+            feedbackCount: number;
+        };
+        PaginatedFeedbackResponseDto: {
+            data: components["schemas"]["AdminFeedbackListItemDto"][];
+            /** @description `total` is the count AFTER filters — what the pager needs. */
+            meta: components["schemas"]["PaginationMetaDto"];
+            /** @description GLOBAL: unaffected by `type` / `status` / `venueId` / `q` / `page` (AC-8). ทั้งหมด = issueCount + feedbackCount. */
+            counts: components["schemas"]["FeedbackCountsDto"];
+        };
+        FeedbackLogAuthorDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @example วีระ */
+            firstName: string;
+            /** @example ทองดี */
+            lastName: string;
+        };
+        FeedbackLogDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @description The status the report was LEFT in by this save — equal to the prior status on a note-only save. */
+            status: components["schemas"]["FeedbackStatus"];
+            /** @description Internal staff note — never sent to the reporter. null = a status-only change. */
+            note: string | null;
+            /**
+             * Format: date-time
+             * @example 2026-09-21T08:00:00.000Z
+             */
+            createdAt: string;
+            /** @description The staff member who saved it. null only when their account was hard-deleted. */
+            author: components["schemas"]["FeedbackLogAuthorDto"] | null;
+        };
+        AdminFeedbackDetailDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @example ISS-25690920-001 */
+            code: string;
+            type: components["schemas"]["FeedbackType"];
+            status: components["schemas"]["FeedbackStatus"];
+            /** @example แอร์ห้องประชุม 1 ไม่เย็น */
+            subject: string;
+            /** @example แอร์ตัวที่อยู่ฝั่งหน้าต่างไม่ทำงานมา 3 วันแล้วครับ */
+            description: string;
+            /**
+             * @description How many photos are attached. The list does not ship the URLs.
+             * @example 2
+             */
+            photoCount: number;
+            /** @description null = ปัญหาทั่วไป / ไม่ระบุสถานที่ */
+            venue: components["schemas"]["AdminFeedbackVenueDto"] | null;
+            reporter: components["schemas"]["AdminFeedbackReporterDto"];
+            /**
+             * Format: date-time
+             * @example 2026-09-20T13:05:00.000Z
+             */
+            createdAt: string;
+            /**
+             * @description Public URLs in stored (attachment) order (D-7). Rendered directly; the backend never fetches them.
+             * @example [
+             *       "https://cdn.example.org/feedback/0123456789abcdef0123456789abcdef.jpg"
+             *     ]
+             */
+            photos: string[];
+            /** @description `createdAt` ASC; `[]` for a report nobody has touched (there is no synthesised "submitted" entry). The UI reverses it for display (D-11). */
+            logs: components["schemas"]["FeedbackLogDto"][];
+        };
+        /**
+         * @description Target status. Any state may move to any of these three (no transition policy). `DISMISSED` is refused (400). Absent = keep the current status (a note-only save).
+         * @enum {string}
+         */
+        FeedbackUpdateStatus: "PENDING" | "IN_PROGRESS" | "RESOLVED";
+        UpdateFeedbackDto: {
+            /** @description Target status. Any state may move to any of these three (no transition policy). `DISMISSED` is refused (400). Absent = keep the current status (a note-only save). */
+            status?: components["schemas"]["FeedbackUpdateStatus"];
+            /**
+             * @description Internal note — staff-only, never sent to the reporter. Trimmed; blank = absent; at most 500 characters after trimming.
+             * @example ประสานช่างแอร์แล้ว นัดเข้าตรวจวันพรุ่งนี้ 10:00 น.
+             */
+            note?: string;
+        };
+        /** @enum {string} */
+        AnnouncementStatusFilter: "all" | "sent" | "draft";
+        AnnouncementDepartmentDto: {
+            /**
+             * @description Auto-increment integer id.
+             * @example 3
+             */
+            id: number;
+            /** @example กลุ่มบริหารงานวิชาการ */
+            name: string;
+        };
+        AnnouncementCreatorDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @example วีระ */
+            firstName: string;
+            /** @example ทองดี */
+            lastName: string;
+        };
+        /** @enum {string} */
+        AnnouncementFormat: "TEXT" | "FLEX";
+        /**
+         * @description A row is created as `DRAFT`; only `POST /announcements/{id}/send` makes it `SENT`. `SENT` rows cannot be edited (PATCH → 409) or sent again; DRAFT and SENT rows alike can be soft-deleted (DELETE → 204).
+         * @enum {string}
+         */
+        AnnouncementStatus: "DRAFT" | "SENT";
+        /** @enum {string} */
+        AnnouncementAudience: "ALL" | "DEPARTMENT";
+        AnnouncementDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            /** @example ปิดปรับปรุงห้องประชุม 1 วันที่ 25 ก.ย. */
+            title: string;
+            /**
+             * @description `""` for a title-only draft.
+             * @example ขออภัยในความไม่สะดวก
+             */
+            body: string;
+            format: components["schemas"]["AnnouncementFormat"];
+            /** @description A row is created as `DRAFT`; only `POST /announcements/{id}/send` makes it `SENT`. `SENT` rows cannot be edited (PATCH → 409) or sent again; DRAFT and SENT rows alike can be soft-deleted (DELETE → 204). */
+            status: components["schemas"]["AnnouncementStatus"];
+            audience: components["schemas"]["AnnouncementAudience"];
+            /** @description null iff `audience` is `ALL` — or after a HARD delete of the department (never happens through the API; departments are soft-deleted). */
+            department: components["schemas"]["AnnouncementDepartmentDto"] | null;
+            /**
+             * Format: date-time
+             * @description When the send committed; null for a DRAFT.
+             */
+            sentAt: string | null;
+            /**
+             * @description Recipients whose multicast request LINE **accepted** (HTTP 200, or 409 on a repeated retry key). Not a delivered or read count: LINE silently drops users who blocked the OA. On a partial send (502 `ANNOUNCEMENT_PARTIALLY_SENT`) it is less than the targeted count. 0 for a DRAFT, and for a SENT row whose send found nobody eligible (no LINE call was made).
+             * @example 0
+             */
+            sentCount: number;
+            /** @description null only after the staff account was HARD-deleted. */
+            createdBy: components["schemas"]["AnnouncementCreatorDto"] | null;
+            /**
+             * Format: date-time
+             * @example 2026-09-22T08:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2026-09-22T08:05:00.000Z
+             */
+            updatedAt: string;
+        };
+        PaginatedAnnouncementsResponseDto: {
+            data: components["schemas"]["AnnouncementDto"][];
+            /** @description `total` is the count AFTER filters — what the pager needs. */
+            meta: components["schemas"]["PaginationMetaDto"];
+        };
+        /**
+         * @description `chat` — chat is on in the LINE Official Account Manager; `bot` — the OA answers by bot only.
+         * @enum {string}
+         */
+        LineBotChatMode: "chat" | "bot";
+        LineBotInfoDto: {
+            /**
+             * @description The OA’s basic id, `@` included.
+             * @example @123abcde
+             */
+            basicId: string;
+            /** @example EasyBook */
+            displayName: string;
+            /**
+             * @description null when the OA has no profile picture.
+             * @example https://profile.line-scdn.net/abcdefghijklmn
+             */
+            pictureUrl: string | null;
+            /** @description `chat` — chat is on in the LINE Official Account Manager; `bot` — the OA answers by bot only. */
+            chatMode: components["schemas"]["LineBotChatMode"];
+        };
+        /** @enum {string} */
+        AnnouncementErrorCode: "ANNOUNCEMENT_NOT_FOUND" | "ANNOUNCEMENT_ALREADY_SENT" | "ANNOUNCEMENT_SEND_IN_PROGRESS" | "ANNOUNCEMENT_BODY_REQUIRED" | "ANNOUNCEMENT_DEPARTMENT_INVALID" | "ANNOUNCEMENT_PARTIALLY_SENT" | "LINE_SEND_FAILED" | "LINE_NOT_CONFIGURED" | "LINE_RATE_LIMITED" | "LINE_BOT_INFO_UNAVAILABLE";
+        AnnouncementCodedErrorDto: {
+            /** @example 401 */
+            statusCode: number;
+            /** @example Unauthorized */
+            error: string;
+            /** @example Invalid email or password. */
+            message: string;
+            /** @example ANNOUNCEMENT_ALREADY_SENT */
+            code: components["schemas"]["AnnouncementErrorCode"];
+            /**
+             * @description Present iff `code` is `ANNOUNCEMENT_PARTIALLY_SENT`: recipients whose chunk LINE accepted — what `sentCount` now holds.
+             * @example 500
+             */
+            acceptedCount?: number;
+            /**
+             * @description Present iff `code` is `ANNOUNCEMENT_PARTIALLY_SENT`: recipients the send targeted.
+             * @example 734
+             */
+            targetedCount?: number;
+        };
+        CreateAnnouncementDto: {
+            /**
+             * @description หัวข้อ. Trimmed; 1–100 characters after trimming (blank → 400).
+             * @example ปิดปรับปรุงห้องประชุม 1 วันที่ 25 ก.ย.
+             */
+            title: string;
+            /**
+             * @description เนื้อหา. Trimmed; at most 1000 characters after trimming. Absent → `""` (a title-only draft). `null` → 400.
+             * @example ขออภัยในความไม่สะดวก
+             */
+            body?: string;
+            /** @description Absent → `TEXT`. `null` → 400. */
+            format?: components["schemas"]["AnnouncementFormat"];
+            /** @description Absent → `ALL`. `null` → 400. */
+            audience?: components["schemas"]["AnnouncementAudience"];
+            /**
+             * @description Required (non-null) iff `audience` is `DEPARTMENT`; must be null or omitted when `audience` is `ALL` (400). Must reference an ACTIVE department — an unknown, soft-deleted, or (for non-SUPER_ADMIN) system-reserved id is one indistinguishable 400. A JSON string such as `"3"` is a 400.
+             * @example 3
+             */
+            departmentId?: number | null;
+        };
+        UpdateAnnouncementDto: {
+            /** @description หัวข้อ. Trimmed; 1–100 characters after trimming. Blank or `null` → 400. */
+            title?: string;
+            /** @description เนื้อหา. Trimmed; at most 1000 characters after trimming. `""` clears it; `null` → 400. */
+            body?: string;
+            /** @description `null` → 400. */
+            format?: components["schemas"]["AnnouncementFormat"];
+            /** @description Switching to `ALL` clears the stored department (send `departmentId: null` or omit it). `null` → 400. */
+            audience?: components["schemas"]["AnnouncementAudience"];
+            /**
+             * @description Required (non-null) iff `audience` is `DEPARTMENT`; must be null or omitted when `audience` is `ALL` (400). Must reference an ACTIVE department — an unknown, soft-deleted, or (for non-SUPER_ADMIN) system-reserved id is one indistinguishable 400. A JSON string such as `"3"` is a 400. Omitted → the stored department is kept (and re-validated).
+             * @example 3
+             */
+            departmentId?: number | null;
+        };
+        CannedReplyDto: {
+            /** @example canned_reply_default_1 */
+            id: string;
+            /** @example แจ้งวิธีจองสถานที่ */
+            title: string;
+            /** @example สวัสดีค่ะ จองสถานที่ได้ที่เมนู "จองสถานที่" ด้านล่างห้องแชทนี้ เลือกสถานที่ วันและเวลา แล้วกดยืนยัน */
+            text: string;
+            /**
+             * @description Display order, ascending; ties break on `createdAt` then `id`. Duplicates are allowed.
+             * @example 0
+             */
+            sortOrder: number;
+            /**
+             * Format: date-time
+             * @example 2026-09-22T08:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2026-09-22T08:05:00.000Z
+             */
+            updatedAt: string;
+        };
+        CreateCannedReplyDto: {
+            /**
+             * @description Trimmed; 1–100 characters after trimming.
+             * @example แจ้งวิธีจองสถานที่
+             */
+            title: string;
+            /**
+             * @description The snippet staff copy. Trimmed; 1–1000 characters after trimming.
+             * @example สวัสดีค่ะ จองสถานที่ได้ที่เมนู "จองสถานที่" ด้านล่างห้องแชทนี้
+             */
+            text: string;
+            /**
+             * @description Display order, ascending; ties break on `createdAt` then `id`. Duplicates are allowed. A JSON string such as "3" is a 400. Omitted → one past the current maximum (bottom of the list), capped at 9999; 0 on an empty table. `null` → 400.
+             * @example 4
+             */
+            sortOrder?: number;
+        };
+        /** @enum {string} */
+        CannedReplyErrorCode: "CANNED_REPLIES_LIMIT_EXCEEDED" | "CANNED_REPLY_NOT_FOUND" | "CANNED_REPLY_UPDATE_EMPTY";
+        CannedReplyCodedErrorDto: {
+            /** @example 401 */
+            statusCode: number;
+            /** @example Unauthorized */
+            error: string;
+            /** @example Invalid email or password. */
+            message: string;
+            /** @example CANNED_REPLIES_LIMIT_EXCEEDED */
+            code: components["schemas"]["CannedReplyErrorCode"];
+        };
+        UpdateCannedReplyDto: {
+            /** @description Trimmed; 1–100 characters after trimming. Blank or `null` → 400. */
+            title?: string;
+            /** @description The snippet staff copy. Trimmed; 1–1000 characters after trimming. Blank or `null` → 400. */
+            text?: string;
+            /** @description Display order, ascending; ties break on `createdAt` then `id`. Duplicates are allowed. A JSON string such as "3" is a 400. `null` → 400. */
+            sortOrder?: number;
+        };
+        VersionResponseDto: {
+            /**
+             * @description The release train both repositories share. `0.x.y` while in development; `1.0.0` on the day the school starts using it.
+             * @example 0.1.0
+             */
+            version: string;
+            /**
+             * @description Short commit of the running build, or `unknown` when the deploy did not stamp one.
+             * @example 5b90ee4
+             */
+            build: string;
+            /**
+             * @description When this build was produced, or null when the deploy did not stamp it.
+             * @example 2026-08-12T02:00:00.000Z
+             */
+            releasedAt: string | null;
+        };
+        SwaggerStatusDto: {
+            /** @description Whether /docs and /docs-json are served right now. */
+            enabled: boolean;
+            /**
+             * @description Canonical URL for Swagger UI.
+             * @example http://localhost:3300/docs
+             */
+            docsUrl: string;
+        };
+        LineQuotaDto: {
+            /**
+             * @description This month's push target limit; null when LINE reports no limit (`type: none`).
+             * @example 500
+             */
+            total: number | null;
+            /**
+             * @description Pushes counted against the quota this month.
+             * @example 44
+             */
+            used: number;
+        };
+        LineIntegrationDto: {
+            /** @description A channel access token is loaded (a Messaging client exists). */
+            configured: boolean;
+            /**
+             * @description Masked. null until a Channel ID is saved. The secret and token are never returned.
+             * @example 2006••••42
+             */
+            channelId: string | null;
+            /** @description From GET /v2/bot/info. null when unconfigured or when LINE did not answer. */
+            botInfo: components["schemas"]["LineBotInfoDto"] | null;
+            /** @description From the two quota reads. null when unconfigured or when LINE did not answer. */
+            quota: components["schemas"]["LineQuotaDto"] | null;
+            /**
+             * @description Canonical LINE Webhook URL to register in the LINE Developers console.
+             * @example http://localhost:3300/api/v1/line/webhook
+             */
+            webhookUrl: string;
+        };
+        StorageIntegrationDto: {
+            /** @description All five R2_* variables are set. */
+            configured: boolean;
+            /** @example easybook-dev */
+            bucket: string | null;
+            /** @example https://pub-3f9a2c.r2.dev */
+            publicBaseUrl: string | null;
+        };
+        /**
+         * @description `ok` under 200 ms, `degraded` at or over 200 ms, `error` on failure or a 2 s timeout.
+         * @enum {string}
+         */
+        DatabaseHealthStatus: "ok" | "degraded" | "error";
+        DatabaseHealthDto: {
+            /** @description `ok` under 200 ms, `degraded` at or over 200 ms, `error` on failure or a 2 s timeout. */
+            status: components["schemas"]["DatabaseHealthStatus"];
+            /** @example 2 */
+            latencyMs: number;
+        };
+        /** @enum {string} */
+        RedisHealthStatus: "up" | "down";
+        RedisHealthDto: {
+            status: components["schemas"]["RedisHealthStatus"];
+            /** @example 1 */
+            latencyMs: number;
+        };
+        InfrastructureHealthDto: {
+            database: components["schemas"]["DatabaseHealthDto"];
+            redis: components["schemas"]["RedisHealthDto"];
+        };
+        SystemIntegrationsResponseDto: {
+            swagger: components["schemas"]["SwaggerStatusDto"];
+            line: components["schemas"]["LineIntegrationDto"];
+            storage: components["schemas"]["StorageIntegrationDto"];
+            infrastructure: components["schemas"]["InfrastructureHealthDto"];
+        };
+        SetSwaggerDto: {
+            /** @description A JSON boolean — the string "true" is a 400. */
+            enabled: boolean;
+        };
+        SetSwaggerResponseDto: {
+            /** @example true */
+            success: boolean;
+            enabled: boolean;
+        };
+        UpdateLineIntegrationDto: {
+            /**
+             * @description Exactly 10 digits.
+             * @example 2006123442
+             */
+            channelId?: string;
+            /** @description 32 hexadecimal characters. */
+            channelSecret?: string;
+            /** @description 40–1000 characters, no whitespace. */
+            channelAccessToken?: string;
+        };
+        UpdateLineIntegrationResponseDto: {
+            /** @example true */
+            success: boolean;
+            /** @example 2006••••42 */
+            maskedChannelId: string | null;
+        };
+        /** @enum {string} */
+        IntegrationErrorCode: "LINE_UPDATE_EMPTY" | "LINE_NOT_CONFIGURED" | "LINE_UNAVAILABLE";
+        IntegrationCodedErrorDto: {
+            /** @example 503 */
+            statusCode: number;
+            /** @example Service Unavailable */
+            error: string;
+            /** @example ยังไม่ได้ตั้งค่า LINE หรือ Token ไม่ถูกต้อง */
+            message: string;
+            code: components["schemas"]["IntegrationErrorCode"];
+        };
+        LineVerifyResponseDto: {
+            /**
+             * @description Always true on a 200 — a failed check is a 503.
+             * @example true
+             */
+            valid: boolean;
+            botInfo: components["schemas"]["LineBotInfoDto"];
+            quota: components["schemas"]["LineQuotaDto"];
+        };
+        StorageProbeResponseDto: {
+            /** @description `read && write`. */
+            ok: boolean;
+            /**
+             * @description Whole probe, milliseconds. 0 when unconfigured.
+             * @example 48
+             */
+            latencyMs: number;
+            /** @description ListObjectsV2 (one key) succeeded. */
+            read: boolean;
+            /** @description A two-byte PutObject + DeleteObject succeeded. */
+            write: boolean;
         };
     };
     responses: never;
@@ -1139,6 +3511,112 @@ export interface operations {
             };
             /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineRegistrationController_listVenues: {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive substring match on the venue NAME or LOCATION. Normalised with the same Thai sanitiser the venue name is stored with (double SARA E → SARA AE, tone reordering, zero-widths stripped, trimmed), so a search matches what was written; empty/absent → no search filter. */
+                q?: string;
+                /** @description Filter by category id. The reserved tombstone id is accepted here (unlike on create/update), so orphaned venues can be found and re-filed. */
+                venueTypeId?: number;
+                /** @description `open` = เปิดให้จอง · `closed` = ปิดชั่วคราว. Absent → both. */
+                status?: "open" | "closed";
+                /** @description 1-based page number. */
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of non-deleted venues matching the filters. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedLineVenuesResponseDto"];
+                };
+            };
+            /** @description An unknown query parameter, `page`/`limit` out of bounds, an invalid `venueTypeId` or `status`, or a `q` longer than 100 characters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineRegistrationController_getVenue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The venue. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No such venue, or it has been deleted. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1277,16 +3755,145 @@ export interface operations {
             };
         };
     };
+    LineSettingsController_getSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller’s settings, or the defaults when they have none. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserSettingsResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineSettingsController_patchSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLineUserSettingsDto"];
+            };
+        };
+        responses: {
+            /** @description The caller’s settings after the merge. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserSettingsResponseDto"];
+                };
+            };
+            /** @description An unknown key, an unsupported theme, or a non-boolean notification value. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineSettingsController_getVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The running version. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineUserVersionResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
     LineUsersController_list: {
         parameters: {
             query?: {
                 /** @description 1-based page number. */
                 page?: number;
                 limit?: number;
-                /** @description Case-insensitive substring match on `displayName`. Trimmed; empty/absent → no name filter. */
+                /** @description Case-insensitive substring match across the LINE display name, the registered first and last name, the resolved position and department names, and the phone number. A query of three or more digits also matches the phone with its separators removed, so "0812345678" finds "081-234-5678". Trimmed and Thai-normalised (a double SARA E, a NIKHAHIT+SARA AA, a misordered tone mark or a pasted zero-width character all still match); empty/absent → no search filter. */
                 search?: string;
-                /** @description Narrows the list to a single access state. An invalid value is a 400. */
+                /** @description Narrows the list to a single access state. An invalid value is a 400. `UNREGISTERED` is the "ยังไม่ลงทะเบียน" filter — a real state, not the absence of one. */
                 access?: "UNREGISTERED" | "PENDING" | "ALLOWED" | "BLOCKED" | "REJECTED";
+                /** @description Sort order: `new` (newest registration first — the default), `old` (oldest first), or `name` (by registered name, Thai collation). Rows with no registration sort LAST in every mode, including `old`: having no date is not the same as being the oldest. */
+                sort?: "new" | "old" | "name";
             };
             header?: never;
             path?: never;
@@ -1312,7 +3919,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF has no access to this collection. */
+            /** @description The caller must change their password before using the app. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1376,7 +3983,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF; CSRF failure; or an access transition not permitted for ADMIN. */
+            /** @description VIEWER; CSRF failure; or an access transition not permitted for ADMIN. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1449,7 +4056,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or a CSRF failure. */
+            /** @description VIEWER, or a CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1469,6 +4076,496 @@ export interface operations {
             };
             /** @description Session store unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_list: {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive substring match on the venue NAME or LOCATION. Normalised with the same Thai sanitiser the venue name is stored with (double SARA E → SARA AE, tone reordering, zero-widths stripped, trimmed), so a search matches what was written; empty/absent → no search filter. */
+                q?: string;
+                /** @description Filter by category id. The reserved tombstone id is accepted here (unlike on create/update), so orphaned venues can be found and re-filed. */
+                venueTypeId?: number;
+                /** @description `open` = เปิดให้จอง · `closed` = ปิดชั่วคราว. Absent → both. */
+                status?: "open" | "closed";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The venues. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueResponseDto"][];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVenueDto"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueResponseDto"];
+                };
+            };
+            /** @description Validation failed, or the category/an amenity does not exist or is not assignable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active venue with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_upload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description JPEG, PNG or WEBP. Max 5 MB.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenuePhotoUploadResponseDto"];
+                };
+            };
+            /** @description No file, wrong field name, unsupported/mismatched image type, or larger than 5 MB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The object store rejected the upload or was unreachable. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_discardPhoto: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscardVenuePhotoDto"];
+            };
+        };
+        responses: {
+            /** @description Discarded. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a URL in this deployment’s venue photo bucket. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The photo belongs to a venue. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Soft-deleted. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or already-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateVenueDto"];
+            };
+        };
+        responses: {
+            /** @description Updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueResponseDto"];
+                };
+            };
+            /** @description Validation failed (including any attempt to send `isOpen`), or the category/an amenity is not assignable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active venue with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_close: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CloseVenueDto"];
+            };
+        };
+        responses: {
+            /** @description Closed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueResponseDto"];
+                };
+            };
+            /** @description Missing or blank reason. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The venue is already closed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenuesController_reopen: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reopened. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The venue is already open. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1675,7 +4772,7 @@ export interface operations {
                     "application/json": components["schemas"]["SystemUserResponseDto"];
                 };
             };
-            /** @description Empty body, a forbidden key, or a bad value. */
+            /** @description A forbidden key, or a bad value. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1861,6 +4958,12 @@ export interface operations {
                 /** @description 1-based page number. */
                 page?: number;
                 limit?: number;
+                /** @description Case-insensitive substring match on the first name, last name, email or phone number. Trimmed and Thai-normalised (a double SARA E, a NIKHAHIT+SARA AA, a misordered tone mark or a pasted zero-width character all still match); empty/absent → no search filter. The phone match is on the number **as stored**, so it is format-sensitive: `0812345678` does not match a stored `081-234-5678`. */
+                search?: string;
+                /** @description Narrows to a single role. An invalid value is a 400. */
+                role?: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
+                /** @description Derived status filter. `deleted` requires SUPER_ADMIN — any other role asking for it is a 403, because hiding the option on screen is UX and never the boundary. */
+                status?: "active" | "pending" | "suspended" | "deleted";
             };
             header?: never;
             path?: never;
@@ -1886,7 +4989,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF has no access to this collection. */
+            /** @description `status=deleted` asked by a non-SUPER_ADMIN. Every role may read the collection itself. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2006,7 +5109,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF has no access to this collection. */
+            /** @description VIEWER has no access to this collection. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2137,7 +5240,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF; CSRF failure; a self-mutation rule; or a policy denial. */
+            /** @description VIEWER; CSRF failure; a self-mutation rule; or a policy denial. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2331,7 +5434,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF has no access. */
+            /** @description VIEWER has no access. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2384,7 +5487,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2442,7 +5545,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2506,7 +5609,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2571,7 +5674,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF has no access. */
+            /** @description VIEWER has no access. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2624,7 +5727,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2682,7 +5785,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2746,7 +5849,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
-            /** @description STAFF, or CSRF failure. */
+            /** @description VIEWER, or CSRF failure. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2766,6 +5869,2870 @@ export interface operations {
             };
             /** @description An active option with this name already exists. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenueTypesController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueTypeResponseDto"][];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER has no access. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenueTypesController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVenueTypeDto"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueTypeResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenueTypesController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Soft-deleted. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown, already-deleted, or reserved id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    VenueTypesController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateVenueTypeDto"];
+            };
+        };
+        responses: {
+            /** @description Renamed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueTypeResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown, soft-deleted, or reserved id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AmenitiesController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AmenityResponseDto"][];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER has no access. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AmenitiesController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAmenityDto"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AmenityResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AmenitiesController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Soft-deleted; reports how many venues lost the amenity. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteAmenityResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or already-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AmenitiesController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAmenityDto"];
+            };
+        };
+        responses: {
+            /** @description Renamed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AmenityResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description An active option with this name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_list: {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive substring match across the booking `code`, the purpose, and the venue name and location. A leading `#` is stripped, so `#BR-25690903-001` and `BR-25690903-001` find the same row. Trimmed; empty/absent → no search filter. */
+                q?: string;
+                /** @description The screen’s status bucket, decided by the SERVER clock. `pending` = PENDING with a live slot. `approved` = APPROVED with a live slot and some slot (cancelled ones included) ending at or after now. `history` = everything else (done, expired, rejected, cancelled). Absent → all. The three buckets partition the set. */
+                state?: "pending" | "approved" | "history";
+                /** @description Filter by the booking’s venue’s CURRENT category id — the one the card prints. Take the options from `facets.venueTypes`. */
+                venueTypeId?: number;
+                /** @description `created-*` orders by submission date, `event-*` by the date the room is used. Ties break on `code` ascending so the order is total and a re-fetch cannot shuffle two rows past each other. */
+                sort?: "created-desc" | "created-asc" | "event-asc" | "event-desc";
+                /** @description 1-based page number. */
+                page?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedLineBookingsResponseDto"];
+                };
+            };
+            /** @description An unknown query parameter (including the retired `status`), an invalid `state`, `sort` or `venueTypeId`, `page`/`limit` out of bounds, or a `q` longer than 100 characters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLineBookingDto"];
+            };
+        };
+        responses: {
+            /** @description The submitted request, with its human-readable `code`. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingRequestResponseDto"];
+                };
+            };
+            /** @description An unknown extra key, a slot ending before it starts, a slot in the past (`D-C16`), slots that overlap each other, or a missing/blank `purpose` / `attendees`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED (UNREGISTERED / PENDING / REJECTED / BLOCKED — one message for all four). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No such venue, or it has been deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The venue is closed, or a requested time collides with an already-APPROVED slot. The message names neither the holder nor their purpose (`D-C13`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingDetailResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No such booking — or it belongs to somebody else. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The booking as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingDetailResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No such booking — or it belongs to somebody else. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The request is not `PENDING`. Approved bookings are cancelled per slot; rejected and cancelled ones are terminal. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_cancelSlot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                slotId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The booking as it now stands. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingDetailResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No such booking (or it is somebody else’s), or no such slot on it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The booking is not `APPROVED`, the slot is already cancelled, or it starts within the cancellation lead time. 🔴 The lead time is enforced HERE — a hidden button is UX, never an authorisation boundary. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_availability: {
+        parameters: {
+            query?: {
+                /** @description Inclusive start of the window, ISO 8601 (a bare `2026-09-01` is accepted and read as local midnight). Defaults to the first instant of the current month. */
+                from?: string;
+                /** @description Exclusive end of the window, ISO 8601. Defaults to the first instant of next month. Must not be earlier than `from`, and the window may not exceed 366 days. */
+                to?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Occupied spans, `startAt ASC`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenueAvailabilitySlotDto"][];
+                };
+            };
+            /** @description A malformed date, `to` before `from`, or a range wider than 366 days. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No such venue, or it has been deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    LineBookingsController_getMasterSchedule: {
+        parameters: {
+            query?: {
+                /** @description Inclusive start of the window, ISO 8601 (a bare `2026-09-01` is accepted). Defaults to the first instant of the current Bangkok month. */
+                from?: string;
+                /** @description Exclusive end of the window, ISO 8601. Defaults to the first instant of next month. Must not be earlier than `from`, and the window may not exceed 366 days. */
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved activity spans, `startAt ASC`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineScheduleSlotDto"][];
+                };
+            };
+            /** @description An unknown query parameter, a malformed date, `to` before `from`, or a range wider than 366 days. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_createDirect: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDirectBookingDto"];
+            };
+        };
+        responses: {
+            /** @description Created and approved. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApproveBookingResponseDto"];
+                };
+            };
+            /** @description Validation failed, both origin shapes sent at once, a slot ending before it starts / starting in the past / overlapping another slot of the same request, or an unusable `lineUserId` / `departmentId`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted venue. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A requested span overlaps an APPROVED, non-cancelled slot, or two decisions on this venue collided. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_preflight: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingPreflightDto"];
+            };
+        };
+        responses: {
+            /** @description The conflict picture for these spans. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPreflightResponseDto"];
+                };
+            };
+            /** @description Validation failed, or a span ends before it starts / starts in the past / overlaps another span of the same list — the same three refusals `direct` makes. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted venue. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_calendar: {
+        parameters: {
+            query?: {
+                /** @description Inclusive start of the window. `YYYY-MM-DD` or `YYYY-MM-DDTHH:mm[:ss[.sss]]` with `Z` or `±HH:mm` — send an explicit offset, since Bangkok midnight is 17:00Z of the previous day. Defaults to the first instant of the current Bangkok (UTC+7) month. */
+                from?: string;
+                /** @description Exclusive end of the window, same format as `from`. Defaults to the first instant of the next Bangkok month. Earlier than `from` → 400; a window wider than 366 days → 400; equal to `from` → an empty array. */
+                to?: string;
+                /** @description Narrows to one venue (its cuid). An unknown or soft-deleted venue yields `[]`, not a 404. */
+                venueId?: string;
+                /** @description Narrows to one status. Absent → both. Any other value, including `REJECTED`/`CANCELLED`/`EXPIRED`, is a 400. */
+                status?: "APPROVED" | "PENDING";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The slots in the window. Possibly empty. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarBookingSlotDto"][];
+                };
+            };
+            /** @description Invalid query — a malformed `from`/`to`, `to` earlier than `from`, a window wider than 366 days, a `status` other than APPROVED/PENDING, or an unrecognised parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_list: {
+        parameters: {
+            query?: {
+                /** @description 1-based page number. */
+                page?: number;
+                /** @description Rows per page. Exactly 10, 20 or 50 — any other value is a 400 rather than a silent clamp, because the screen computes each row’s ordinal from the value it sent. */
+                limit?: 10 | 20 | 50;
+                /** @description Case-insensitive substring match across the booking `code`, the purpose, the venue name, and the requester’s name — which has TWO sources: `requesterName` on a staff-created booking, or the LINE user’s registered first/last name. A leading `#` is stripped. ⚠️ It cannot match across the space between a first and last name ("สมชาย ใจดี" finds nothing), the same limitation `GET /line-users` documents. Trimmed; empty/absent → no search filter. */
+                search?: string;
+                /** @description Narrows to one venue. An unknown id yields an empty list with `total: 0`, not a 404 — it is a filter, not the addressed resource. */
+                venueId?: string;
+                /** @description Narrows to one stored status; absent means the `ทั้งหมด` tab. `EXPIRED` is stored by the expiry job when a request is still pending at its first slot’s start. */
+                status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
+                /** @description `created-*` orders by submission date, `event-*` by the date the room is used (`firstStartAt`, an indexed scalar — never an aggregate over the slots). Ties break on `code` ascending so the order is total and a re-fetch cannot shuffle two rows past each other. */
+                sort?: "created-desc" | "event-asc" | "created-asc" | "event-desc";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedBookingRequestsResponseDto"];
+                };
+            };
+            /** @description Invalid query — an unknown `sort`, a `limit` outside 10/20/50, or an unrecognised parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The booking request. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBookingRequestDetailDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_approve: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApproveBookingResponseDto"];
+                };
+            };
+            /** @description A body was sent. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Not PENDING, every slot already cancelled, an overlap with an APPROVED slot, or two decisions on this venue collided. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_reject: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectBookingRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Rejected. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBookingRequestDetailDto"];
+                };
+            };
+            /** @description Missing, blank or over-long reason, or an unknown key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The request is not PENDING (an APPROVED one included). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    BookingRequestsController_cancel: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelBookingRequestDto"];
+            };
+        };
+        responses: {
+            /** @description Cancelled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBookingRequestDetailDto"];
+                };
+            };
+            /** @description Missing or blank reason, an empty/duplicated `slotIds`, or a slot id that belongs to another booking (refused, never skipped). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The request is not APPROVED, every slot is already cancelled, or a named slot was cancelled already. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    FeedbackController_uploadPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description JPEG or PNG. Max 5 MB.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackPhotoUploadResponseDto"];
+                };
+            };
+            /** @description No file, wrong field name, a second file, larger than 5 MB, or an unsupported/mismatched image type (a `.jpg`-named PDF lands here). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED (UNREGISTERED / PENDING / REJECTED / BLOCKED — one message for all four). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A deploy defect, never a client error: `LINE_LOGIN_CHANNEL_ID` unset, or R2 not configured on this deployment. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification unreachable, or the object store rejected the upload / was unreachable. Retryable. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    FeedbackController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateFeedbackDto"];
+            };
+        };
+        responses: {
+            /** @description Submitted, with its human-readable reference `code`. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackResponseDto"];
+                };
+            };
+            /** @description An unknown extra key, a missing/blank or over-long `subject` (100) or `description` (500, counted after trimming), more than 3 photos, a venue that does not exist or has been deleted, or a photo URL this deployment did not mint. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing/invalid/expired/wrong-aud LINE ID token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller’s access is not ALLOWED (UNREGISTERED / PENDING / REJECTED / BLOCKED — one message for all four). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description `LINE_LOGIN_CHANNEL_ID` unset — a deploy defect, never a client error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE verification endpoint unreachable (retryable). */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AdminFeedbackController_list: {
+        parameters: {
+            query?: {
+                /** @description 1-based page number. A page beyond the last returns `data: []` with a correct `meta`, not an error. */
+                page?: number;
+                /** @description Rows per page. Exactly 10, 20 or 50 — anything else is a 400, never clamped: the screen computes each row’s ordinal from the value it sent. */
+                limit?: 10 | 20 | 50;
+                /** @description Narrows to one type — the แจ้งปัญหา / ข้อเสนอแนะ tabs. */
+                type?: components["schemas"]["FeedbackType"];
+                /** @description Narrows to one stored status. */
+                status?: components["schemas"]["FeedbackStatus"];
+                /** @description A venue id (exact match; an unknown id yields an empty page, not a 400/404) or the literal `general` (reports with no venue — ปัญหาทั่วไป / ไม่ระบุสถานที่). Absent = all venues. */
+                venueId?: string;
+                /** @description Case-insensitive substring over the reference `code`, the `subject`, the reporter’s registered first/last name and their LINE display name. Trimmed; a leading `#` is stripped; empty → no filter. Does NOT search `description`. ⚠️ It cannot match across the space between a first and last name. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedFeedbackResponseDto"];
+                };
+            };
+            /** @description Invalid query — `limit` outside 10/20/50, `page` < 1, an unknown `type`/`status`, `q` over 100 characters, or an unrecognised parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AdminFeedbackController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFeedbackDetailDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or malformed id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AdminFeedbackController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateFeedbackDto"];
+            };
+        };
+        responses: {
+            /** @description Saved — the detail, already showing the new status and the appended log. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFeedbackDetailDto"];
+                };
+            };
+            /** @description Validation failed (an unknown key such as `authorId`, `status: DISMISSED` or `null`, a note over 500 characters after trimming, a non-string note) — or, as a single string, `Provide a new status or a non-blank note.` (neither was sent) / `No change: the status is unchanged and the note is blank.`. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or CSRF failure. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or malformed id. Nothing is written. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A serialization failure or deadlock on the transaction (practically unreachable under the row lock). Retryable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_list: {
+        parameters: {
+            query?: {
+                /** @description 1-based page number. A page beyond the last returns `data: []` with a correct `meta`, not an error. */
+                page?: number;
+                /** @description Rows per page. Exactly 10, 20 or 50 — anything else is a 400, never clamped. */
+                limit?: 10 | 20 | 50;
+                /** @description `draft` → status DRAFT, `sent` → status SENT, `all` → no status predicate. Lowercase only. */
+                status?: components["schemas"]["AnnouncementStatusFilter"];
+                /** @description Case-insensitive substring over `title` ONLY (never `body`). Trimmed; empty → no filter. `%` and `_` match literally. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAnnouncementsResponseDto"];
+                };
+            };
+            /** @description Invalid query — `limit` outside 10/20/50, `page` < 1, an unknown `status` (the filter is lowercase), `q` over 100 characters, or an unrecognised parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Password change required (`mustChangePassword`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAnnouncementDto"];
+            };
+        };
+        responses: {
+            /** @description Created — status `DRAFT`. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementDto"];
+                };
+            };
+            /** @description Validation failed (blank title, title over 100 or body over 1000 characters after trimming, a bad `format`/`audience`, a non-integer `departmentId`, an unknown key such as `status`) — or, as a single string, an audience/department rule or an invalid department. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure, or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_getLineBotInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The OA. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineBotInfoDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Password change required (`mustChangePassword`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description LINE is unavailable or not configured — `code` is `LINE_NOT_CONFIGURED` or `LINE_BOT_INFO_UNAVAILABLE`. Never a 500, never cached. (A session-store outage is also a 503, with the house body and no `code`.) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The announcement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Password change required (`mustChangePassword`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown, malformed or deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Soft-deleted. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure, or password change required. Nothing is deleted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description `ANNOUNCEMENT_NOT_FOUND`: unknown, malformed or already deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+            /** @description `ANNOUNCEMENT_SEND_IN_PROGRESS`: the row is being sent or edited right now. Nothing is deleted. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAnnouncementDto"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementDto"];
+                };
+            };
+            /** @description Validation failed (blank or `null` title, over-length title/body, bad enum, a non-integer `departmentId`, an unknown key) — or, as a single string, an empty body, an audience/department rule, or an invalid department. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure, or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown, malformed or deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The announcement is `SENT`: sent rows cannot be edited. Also answered when the row stopped being a draft between the read and the conditional write. Nothing is written. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AnnouncementsController_send: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sent — status `SENT`, `sentAt` set, `sentCount` = recipients LINE accepted. `sentCount` 0 when nobody was eligible (no LINE call). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementDto"];
+                };
+            };
+            /** @description `ANNOUNCEMENT_BODY_REQUIRED` or `ANNOUNCEMENT_DEPARTMENT_INVALID`. Nothing is sent or written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (a missing or forged `x-csrf-token`, including with no session), or password change required. Nothing is sent or written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description `ANNOUNCEMENT_NOT_FOUND` — unknown, malformed or deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+            /** @description `ANNOUNCEMENT_ALREADY_SENT` — the row is `SENT` (a partial send included); or `ANNOUNCEMENT_SEND_IN_PROGRESS` — another request is sending or editing this row right now. Nothing is sent. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+            /** @description `ANNOUNCEMENT_PARTIALLY_SENT` (with `acceptedCount`, `targetedCount`) — the row IS `SENT` and final, `sentCount` = `acceptedCount`; or `LINE_SEND_FAILED` — LINE accepted nobody, the row stays DRAFT and a resend within 24 h is safe. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+            /** @description `LINE_NOT_CONFIGURED` (no token, or LINE answered 401/403) or `LINE_RATE_LIMITED` (429 — rate limit or monthly quota). The row stays DRAFT. (A session-store outage is also a 503, with the house body and no `code`.) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementCodedErrorDto"];
+                };
+            };
+        };
+    };
+    CannedRepliesController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The replies. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyDto"][];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Password change required (`mustChangePassword`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    CannedRepliesController_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCannedReplyDto"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyDto"];
+                };
+            };
+            /** @description `CANNED_REPLIES_LIMIT_EXCEEDED` (coded body, Thai `message`). A validation failure — blank or over-length `title`/`text`, a `sortOrder` outside 0–9999 or not an integer (a JSON string included), an unknown key — is the house body with a `string[]` `message` and NO `code`. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (a missing or forged `x-csrf-token`, including with no session), or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    CannedRepliesController_remove: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. Empty body. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (a missing or forged `x-csrf-token`, including with no session), or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description `CANNED_REPLY_NOT_FOUND` — unknown or malformed id (including one already deleted). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyCodedErrorDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    CannedRepliesController_update: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCannedReplyDto"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyDto"];
+                };
+            };
+            /** @description `CANNED_REPLY_UPDATE_EMPTY` (coded body). A validation failure is the house body with a `string[]` `message` and NO `code`. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (a missing or forged `x-csrf-token`, including with no session), or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description `CANNED_REPLY_NOT_FOUND` — unknown or malformed id (including one already deleted). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannedReplyCodedErrorDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SystemController_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Build metadata. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure, or a password change is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_overview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemIntegrationsResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, or password change required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_setSwagger: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSwaggerDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetSwaggerResponseDto"];
+                };
+            };
+            /** @description `enabled` missing or not a JSON boolean, or an unknown key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description ADMIN or VIEWER (SUPER_ADMIN only), CSRF failure (including with no session), or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_updateLine: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLineIntegrationDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateLineIntegrationResponseDto"];
+                };
+            };
+            /** @description `LINE_UPDATE_EMPTY` (coded) for an empty body. A malformed field (Channel ID not 10 digits, secret not 32 hex, token outside 40–1000 characters or containing whitespace, an unknown key) is the house body with a `string[]` `message` and no `code`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description ADMIN or VIEWER (SUPER_ADMIN only), CSRF failure (including with no session), or password change required. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_verifyLine: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineVerifyResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (including with no session — CSRF runs before the guards), or password change required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description `LINE_NOT_CONFIGURED` — no token, or LINE answered 401/403. `LINE_UNAVAILABLE` — a timeout, 5xx, 429 or any other LINE failure. Also the session store being down (no `code`). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationCodedErrorDto"];
+                };
+            };
+        };
+    };
+    IntegrationsController_probeStorage: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageProbeResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description VIEWER, CSRF failure (including with no session — CSRF runs before the guards), or password change required. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
