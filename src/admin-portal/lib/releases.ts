@@ -53,8 +53,18 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
-    v: '0.17.0',
+    v: '0.18.0',
     date: 'อยู่ระหว่างพัฒนา',
+    groups: [
+      {
+        t: 'ใหม่',
+        items: [],
+      },
+    ],
+  },
+  {
+    v: '0.17.0',
+    date: '23 ก.ย. 2569',
     groups: [
       {
         t: 'ใหม่',
