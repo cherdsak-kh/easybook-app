@@ -9,23 +9,27 @@
  *   · entry and ตรวจสอบอีกครั้ง → `GET` (fail-soft: LINE / DB / Redis trouble comes back as null or
  *     `error` fields in a 200, so the page renders exactly when something is down);
  *   · the Swagger switch → `PATCH /swagger`, which the server applies to the next `/docs` request;
- *   · the LINE card's บันทึก → `PATCH /line`, which hot-swaps the live credentials;
  *   · Verify Token → `POST /line/verify` (bot info + quota, nothing sent);
  *   · the R2 probe → `POST /storage/probe` (list one key + write/delete two bytes).
  *
  * ── Roles ──
- * VIEWER never gets here (`VIEWER_DENY`; the server also answers 403). SUPER_ADMIN flips Swagger and
- * edits the LINE card; ADMIN reads everything and runs every probe, with the switch disabled and no
- * edit affordance rendered. The server's `@Roles` is the control.
+ * VIEWER never gets here (`VIEWER_DENY`; the server also answers 403). SUPER_ADMIN flips Swagger;
+ * ADMIN reads everything and runs every probe, with the switch disabled. The server's `@Roles` is the
+ * control.
  *
  * ── Decisions carried from the prototype (22 ก.ย. 2569) ──
  *   · Swagger is OFF unless someone turned it on — the server holds the answer now.
- *   · Editing is PER CARD and only the LINE card edits.
  *   · R2 is READ-ONLY for every role: bucket and base URL are baked into every stored object URL.
  *   · No test push: it would spend the monthly LINE quota to prove what a read proves free.
  *
- * Secrets never reach the browser. Channel ID arrives masked; Secret and Token are write-only, so all
- * three edit inputs start EMPTY and "blank = keep" — the server never sends a value to prefill.
+ * ── The LINE card is a READ-ONLY health card (23 ก.ย. 2569) ──
+ * Its edit form, its masked credential rows and its Webhook / LIFF copy rows are GONE. LINE
+ * credentials are infrastructure config exactly like Cloudflare R2's: managed through `.env` /
+ * Infisical, never hot-swapped from the portal — swapping a live Official Account also means
+ * re-registering the webhook, re-linking LIFF and regenerating rich menus, so a form here only
+ * invites drift between the portal and the actual channel. The card now answers two questions —
+ * which bot is this, and is its token alive — and is IDENTICAL for every role that can see it.
+ * `PATCH /system/integrations/line` still exists on the server; nothing in this app calls it.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -35,41 +39,37 @@ import { Spinner } from '../../components/feedback/Spinner'
 import { PageHeading } from '../../components/shell/PageHeading'
 import { Badge, type BadgeTone } from '../../components/ui/Badge'
 import { Btn } from '../../components/ui/Btn'
-import { FormField } from '../../components/ui/FormField'
 import { chatModeOf } from '../../labels'
 import { useAuth } from '../../lib/auth-context'
 import { thaiDateTime } from '../../lib/thai-date'
 import { useToast } from '../../lib/toast-context'
-import { COPY_SELECT_MESSAGE } from '../../lib/use-copy'
 import type { AdminRoute } from '../../routes'
 import type { WriteFailure } from '../announcements/announcements-api'
 import {
   getIntegrations,
   probeStorage,
   setSwaggerEnabled,
-  updateLineIntegration,
   verifyLine,
-  type LineIntegrationInput,
   type StorageProbeResult,
   type SystemIntegrations,
 } from './integrations-api'
 
 const DESC = 'ตรวจสอบสถานะการเชื่อมต่อบริการภายนอก และควบคุมการเข้าถึงระบบ'
 
-/** Same origin rule as `api-client.ts`: empty in dev ⇒ this origin, set in prod ⇒ the backend's. */
-const API_ORIGIN = import.meta.env.VITE_API_URL || window.location.origin
-const DOCS_URL = `${API_ORIGIN}/docs`
-const WEBHOOK_URL = `${API_ORIGIN}/api/v1/line/webhook`
-const LIFF_ID = import.meta.env.VITE_LIFF_ID as string | undefined
-const LIFF_URL = LIFF_ID ? `https://liff.line.me/${LIFF_ID}` : null
+/*
+ * ⚠️ THE BACKEND'S OWN URL IS NOT DERIVED HERE. `swagger.docsUrl` comes from the GET, because only
+ * the server knows its own origin. This page used to build it from `VITE_API_URL` falling back to
+ * the browser's own origin — which is the right rule for *calling* the API (that is
+ * `api-client.ts`'s job, through the dev proxy) and the wrong one for *displaying* it: in dev and
+ * under ngrok `VITE_API_URL` is empty by design, so it resolved to the FRONTEND origin, and :2200
+ * serves no `/docs`. `line.webhookUrl` arrives in the same response for the same reason and is
+ * deliberately kept in the contract, though this card no longer renders it.
+ */
 
 const MSG = {
   swaggerOn: 'เปิดใช้งาน Swagger UI แล้ว',
   swaggerOff: 'ปิดการเข้าถึง Swagger UI แล้ว',
-  copied: 'คัดลอกลิงก์สำเร็จ',
   line: 'ตรวจสอบการเชื่อมต่อ LINE สำเร็จ: Token ถูกต้องและบอทพร้อมทำงาน',
-  saved: 'บันทึกการตั้งค่า LINE สำเร็จ',
-  noChange: 'ไม่มีค่าที่เปลี่ยนแปลง',
 } as const
 
 /** Heroicons outline paths used on this page. */
@@ -84,11 +84,8 @@ const ICON = {
   warn: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z',
   external:
     'M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25',
-  copy: 'M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75',
   shield:
     'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z',
-  pencil:
-    'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10',
   lock: 'M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z',
 } as const
 
@@ -203,46 +200,6 @@ function ProbeBtn({
   )
 }
 
-function CopyRow({
-  id,
-  label,
-  value,
-  onCopy,
-}: {
-  id: string
-  label: string
-  value: string
-  onCopy: (input: HTMLInputElement | null) => void
-}) {
-  const ref = useRef<HTMLInputElement>(null)
-  return (
-    <div>
-      <label htmlFor={id} className="form-label">
-        {label}
-      </label>
-      <div className="flex min-w-0 items-stretch">
-        <input
-          ref={ref}
-          id={id}
-          type="text"
-          readOnly
-          value={value}
-          className="min-h-11 w-full min-w-0 rounded-l-control rounded-r-none border border-base-300 bg-base-200 px-3.5 font-mono text-[12px] text-base-content/80 outline-offset-[-1px] focus-visible:outline-2 focus-visible:outline-primary"
-        />
-        <button
-          type="button"
-          onClick={() => onCopy(ref.current)}
-          aria-label={`คัดลอก ${label}`}
-          className="btn-ghost2 -ml-px min-w-11 shrink-0 whitespace-nowrap rounded-l-none px-3 text-[13px]"
-        >
-          <Icon d={ICON.copy} />
-          <span className="hidden sm:inline">คัดลอก</span>
-        </button>
-      </div>
-    </div>
-  )
-}
-
 function Service({
   name,
   meta,
@@ -285,12 +242,6 @@ const REDIS_STATUS = {
   down: { tone: 'rose', label: 'ขัดข้อง' },
 } as const satisfies Record<string, { tone: BadgeTone; label: string }>
 
-interface Draft {
-  channelId: string
-  secret: string
-  token: string
-}
-type DraftErrors = Partial<Record<keyof Draft, string>>
 type ProbeKey = 'line' | 'r2' | 'infra'
 
 export function IntegrationsPage({ route }: { route: AdminRoute }) {
@@ -353,14 +304,15 @@ export function IntegrationsPage({ route }: { route: AdminRoute }) {
       say('error', failureMessage(res, 'เปลี่ยนการตั้งค่า Swagger UI ไม่สำเร็จ'))
       return
     }
-    setData((d) => (d ? { ...d, swagger: { enabled: res.value } } : d))
+    // Spread, not a fresh object: the toggle only answers `enabled`, and `docsUrl` (the server's,
+    // rendered by the link below) must survive the update.
+    setData((d) => (d ? { ...d, swagger: { ...d.swagger, enabled: res.value } } : d))
     say(res.value ? 'success' : 'info', res.value ? MSG.swaggerOn : MSG.swaggerOff)
   }
 
   // ── Probes ──
   const [busy, setBusy] = useState<Record<ProbeKey, boolean>>({ line: false, r2: false, infra: false })
   const [allBusy, setAllBusy] = useState(false)
-  const [tokenPending, setTokenPending] = useState(false)
   const [storageProbe, setStorageProbe] = useState<StorageProbeResult | null>(null)
 
   /** Each resolves to `[ok, sentence]` and never throws. */
@@ -382,7 +334,6 @@ export function IntegrationsPage({ route }: { route: AdminRoute }) {
           : failureMessage(res, 'ติดต่อ LINE ไม่ได้ชั่วคราว ลองใหม่อีกครั้ง')
       return [false, msg]
     }
-    setTokenPending(false)
     setData((d) =>
       d ? { ...d, line: { ...d.line, botInfo: res.value.botInfo, quota: res.value.quota } } : d,
     )
@@ -441,125 +392,6 @@ export function IntegrationsPage({ route }: { route: AdminRoute }) {
       : 'ทดสอบครบ 3 บริการ ทุกบริการเชื่อมต่อได้ตามปกติ'
     setLive(msg)
     say(failed.length ? 'error' : 'success', msg)
-  }
-
-  // ── Copy ── the same three tiers as `use-copy.ts` (which reads textContent, not an input value).
-  async function copy(input: HTMLInputElement | null) {
-    if (!input) return
-    try {
-      await navigator.clipboard.writeText(input.value)
-      say('success', MSG.copied)
-      return
-    } catch {
-      // Falls through: existing is not working.
-    }
-    input.select()
-    let ok = false
-    try {
-      ok = document.execCommand('copy')
-    } catch {
-      ok = false
-    }
-    if (ok) say('success', MSG.copied)
-    else say('error', COPY_SELECT_MESSAGE)
-  }
-
-  // ── LINE card edit (SUPER_ADMIN only, this card only) ──
-  const [draft, setDraft] = useState<Draft | null>(null)
-  const [errors, setErrors] = useState<DraftErrors>({})
-  const [saving, setSaving] = useState(false)
-  // Bumped whenever an edit is abandoned, so a save already in flight is not applied to the page.
-  const editSeq = useRef(0)
-  const firstField = useRef<HTMLInputElement>(null)
-  const editBtn = useRef<HTMLButtonElement>(null)
-
-  // Leaving SUPER_ADMIN mid-edit discards the draft at once — adjusted during render, React's
-  // pattern for "state derived from a prop change", so no frame shows inputs to the wrong role.
-  const [wasSuper, setWasSuper] = useState(isSuper)
-  if (wasSuper !== isSuper) {
-    setWasSuper(isSuper)
-    if (!isSuper) {
-      setDraft(null)
-      setErrors({})
-      setSaving(false)
-    }
-  }
-  // …and orphans a save in flight. In an effect: a ref must not be written during render.
-  useEffect(() => {
-    if (!isSuper) editSeq.current += 1
-  }, [isSuper])
-
-  const editing = draft !== null && isSuper
-
-  useEffect(() => {
-    if (editing) firstField.current?.focus()
-  }, [editing])
-
-  function startEdit() {
-    if (!isSuper) return
-    setDraft({ channelId: '', secret: '', token: '' })
-    setErrors({})
-  }
-
-  function cancelEdit() {
-    editSeq.current += 1
-    setDraft(null)
-    setErrors({})
-    setSaving(false)
-    requestAnimationFrame(() => editBtn.current?.focus())
-  }
-
-  function setField(k: keyof Draft, v: string) {
-    setDraft((d) => (d ? { ...d, [k]: v } : d))
-    if (errors[k]) setErrors((e) => ({ ...e, [k]: undefined }))
-  }
-
-  async function saveEdit() {
-    if (!isSuper || !draft || saving) return
-    const id = draft.channelId.trim()
-    const secret = draft.secret.trim()
-    const token = draft.token.trim()
-    // Blank = keep, for all three — the server never sends a value to prefill. The same rules the
-    // server enforces, checked here first so the answer is a field error, not a toast.
-    const next: DraftErrors = {}
-    if (id && !/^\d{10}$/.test(id)) next.channelId = 'Channel ID ต้องเป็นตัวเลข 10 หลัก'
-    if (secret && !/^[0-9a-f]{32}$/i.test(secret))
-      next.secret = 'Channel Secret ต้องเป็นตัวอักษร 0-9 a-f จำนวน 32 ตัว'
-    if (token && (token.length < 40 || /\s/.test(token)))
-      next.token = 'Access Token ต้องยาวอย่างน้อย 40 ตัวอักษรและไม่มีช่องว่าง'
-    setErrors(next)
-    if (Object.keys(next).length) return
-
-    const body: LineIntegrationInput = {}
-    if (id) body.channelId = id
-    if (secret) body.channelSecret = secret
-    if (token) body.channelAccessToken = token
-    if (!Object.keys(body).length) {
-      say('info', MSG.noChange)
-      cancelEdit()
-      return
-    }
-
-    const seq = ++editSeq.current
-    setSaving(true)
-    const res = await updateLineIntegration(body)
-    if (!alive.current || seq !== editSeq.current) return // left, cancelled, or demoted meanwhile
-    setSaving(false)
-    if (!res.ok) {
-      say('error', failureMessage(res, 'บันทึกการตั้งค่า LINE ไม่สำเร็จ'))
-      return
-    }
-    setData((d) => (d ? { ...d, line: { ...d.line, channelId: res.value } } : d))
-    // A new token is unproven until the next verify says otherwise — and `configured` may have
-    // flipped, so the card re-reads the server's view of LINE.
-    if (token) {
-      setTokenPending(true)
-      void load(['line'])
-    }
-    setDraft(null)
-    setLive(MSG.saved)
-    say('success', MSG.saved)
-    requestAnimationFrame(() => editBtn.current?.focus())
   }
 
   // ── Render ──
@@ -632,21 +464,17 @@ export function IntegrationsPage({ route }: { route: AdminRoute }) {
   return (
     <div className="card-shell relative lg:overflow-y-auto">
       {heading(
-        // Hidden while the LINE card edits: it would verify the SAVED credentials while the fields
-        // hold new ones, and read as a verdict on the new ones.
-        !editing && (
-          <Btn
-            variant="primary"
-            className="w-full sm:w-auto"
-            onClick={() => void runAll()}
-            disabled={allBusy}
-            aria-busy={allBusy || undefined}
-            aria-label={allBusy ? 'กำลังทดสอบการเชื่อมต่อทั้งหมด' : undefined}
-          >
-            {allBusy ? <Spinner /> : <Icon d={ICON.refresh} />}
-            ทดสอบการเชื่อมต่อทั้งหมด
-          </Btn>
-        ),
+        <Btn
+          variant="primary"
+          className="w-full sm:w-auto"
+          onClick={() => void runAll()}
+          disabled={allBusy}
+          aria-busy={allBusy || undefined}
+          aria-label={allBusy ? 'กำลังทดสอบการเชื่อมต่อทั้งหมด' : undefined}
+        >
+          {allBusy ? <Spinner /> : <Icon d={ICON.refresh} />}
+          ทดสอบการเชื่อมต่อทั้งหมด
+        </Btn>,
       )}
 
       {/* Always mounted: a live region created with its text is not announced. */}
@@ -715,7 +543,7 @@ export function IntegrationsPage({ route }: { route: AdminRoute }) {
           <div className="mt-auto">
             {/* An <a> has no disabled state: no `href` is what actually stops Enter. */}
             <a
-              href={swaggerOn ? DOCS_URL : undefined}
+              href={swaggerOn ? swagger.docsUrl : undefined}
               target="_blank"
               rel="noopener noreferrer"
               aria-disabled={!swaggerOn || undefined}
@@ -739,24 +567,7 @@ export function IntegrationsPage({ route }: { route: AdminRoute }) {
             iconTone="bg-success/10 text-success"
             title="LINE Developers"
             sub="Messaging API, Webhook และ LIFF ของ LINE Official Account"
-            aside={
-              <>
-                <Badge tone={lineBadge.tone}>{lineBadge.label}</Badge>
-                {isSuper ? (
-                  !editing && (
-                    <Btn ref={editBtn} className={SMALL_BTN} onClick={startEdit}>
-                      <Icon d={ICON.pencil} className="h-4 w-4 shrink-0" />
-                      แก้ไขการตั้งค่า
-                    </Btn>
-                  )
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-base-content/10 px-2 py-0.5 text-[12px] font-medium text-base-content/80">
-                    <Icon d={ICON.lock} className="h-3.5 w-3.5 shrink-0" />
-                    แก้ไขได้เฉพาะ Super Admin
-                  </span>
-                )}
-              </>
-            }
+            aside={<Badge tone={lineBadge.tone}>{lineBadge.label}</Badge>}
           />
 
           {/* Bot profile, from GET /v2/bot/info. */}
@@ -791,132 +602,38 @@ export function IntegrationsPage({ route }: { route: AdminRoute }) {
             )}
           </div>
 
-          {editing && draft ? (
-            <div className="flex flex-col gap-3">
-              <FormField
-                ref={firstField}
-                label="Channel ID"
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder={line.channelId ? `${line.channelId} — เว้นว่างไว้หากไม่เปลี่ยน` : '10 หลัก'}
-                value={draft.channelId}
-                onChange={(e) => setField('channelId', e.target.value)}
-                error={errors.channelId}
-              />
-              <FormField
-                label="Channel Secret"
-                type="password"
-                autoComplete="new-password"
-                placeholder="เว้นว่างไว้หากไม่เปลี่ยน"
-                value={draft.secret}
-                onChange={(e) => setField('secret', e.target.value)}
-                error={errors.secret}
-              />
-              <FormField
-                label="Access Token"
-                type="password"
-                autoComplete="new-password"
-                placeholder="เว้นว่างไว้หากไม่เปลี่ยน"
-                value={draft.token}
-                onChange={(e) => setField('token', e.target.value)}
-                error={errors.token}
-              />
-              {/* Card-local actions, directly under the fields they commit. */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-warning/40 bg-warning/10 px-3.5 py-3">
-                <p className="m-0 flex min-w-0 items-center gap-2 text-[14px] text-base-content">
-                  <span aria-hidden="true" className="status status-warning" />
-                  มีผลกับระบบทันทีเมื่อบันทึก — ค่าอื่นในหน้านี้ไม่เปลี่ยน
-                </p>
-                <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-                  <Btn className="w-full sm:w-auto" onClick={cancelEdit} disabled={saving}>
-                    ยกเลิก
-                  </Btn>
-                  <Btn
-                    variant="primary"
-                    className="w-full sm:w-auto"
-                    onClick={() => void saveEdit()}
-                    disabled={saving}
-                    aria-busy={saving || undefined}
-                    aria-label={saving ? 'กำลังบันทึก' : undefined}
-                  >
-                    {saving && <Spinner />}
-                    บันทึก
-                  </Btn>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <dl className="m-0 grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2.5 text-[14px]">
-              <dt className="text-base-content/70">Channel ID</dt>
-              <dd className="m-0 min-w-0 truncate font-mono text-base-content">
-                {line.channelId ?? <span className="font-sans text-base-content/70">ยังไม่ได้บันทึก</span>}
-              </dd>
-              <dt className="text-base-content/70">Channel Secret</dt>
-              <dd className="m-0 font-mono tracking-wider text-base-content">
-                <span aria-hidden="true">••••••••</span>
-                <span className="sr-only">ซ่อนไว้</span>
-              </dd>
-              <dt className="text-base-content/70">Access Token</dt>
-              <dd className="m-0 flex min-w-0 flex-wrap items-center gap-2">
-                <span aria-hidden="true" className="font-mono tracking-wider text-base-content">
-                  ••••••••
-                </span>
-                <span className="sr-only">ซ่อนไว้</span>
-                {!line.configured ? (
-                  <Badge tone="amber" className={PILL}>
-                    ยังไม่ได้ตั้งค่า
-                  </Badge>
-                ) : tokenPending ? (
-                  <Badge tone="amber" className={PILL}>
-                    รอตรวจสอบ
-                  </Badge>
-                ) : bot ? (
-                  <Badge tone="emerald" className={PILL}>
-                    เชื่อมต่อแล้ว
-                  </Badge>
-                ) : (
-                  <Badge tone="rose" className={PILL}>
-                    ตรวจสอบไม่ผ่าน
-                  </Badge>
-                )}
-              </dd>
-              <dt className="self-start text-base-content/70">ผลการตรวจสอบ</dt>
-              <dd className="m-0 min-w-0">
-                <span className="block font-medium text-base-content">{quotaSentence}</span>
-                {quota && quota.total !== null && (
-                  <span
-                    aria-hidden="true"
-                    className="mt-1.5 block h-1.5 w-full max-w-60 overflow-hidden rounded-full bg-base-content/10"
-                  >
-                    <span className="block h-full rounded-full bg-primary" style={{ width: `${quotaPct}%` }} />
-                  </span>
-                )}
-                <span className="mt-1 block text-[12px] text-base-content/70">
-                  โควต้าข้อความ Push ประจำเดือน · การตรวจสอบนี้ไม่ใช้โควต้า
-                </span>
-              </dd>
-            </dl>
-          )}
-
-          <div className="flex flex-col gap-3">
-            <CopyRow id="ig-webhook-url" label="Webhook URL" value={WEBHOOK_URL} onCopy={(i) => void copy(i)} />
-            {LIFF_URL && (
-              <CopyRow id="ig-liff-url" label="LIFF Endpoint URL" value={LIFF_URL} onCopy={(i) => void copy(i)} />
+          {/* The result of the last quota-free verify. Worded as ONE sentence so a screen reader
+              can read it as-is; the bar is the same fact for the eye, so it is aria-hidden, and it
+              is absent entirely when the plan has no ceiling (`total === null`) — an empty track
+              would read as "0% used of nothing". */}
+          <div className="rounded-control border border-base-300 px-3.5 py-3">
+            <p className="m-0 text-[13px] text-base-content/70">ผลการตรวจสอบ</p>
+            <p className="m-0 mt-0.5 text-[14px] font-medium leading-[1.55] text-base-content">
+              {quotaSentence}
+            </p>
+            {quota && quota.total !== null && (
+              <span
+                aria-hidden="true"
+                className="mt-1.5 block h-1.5 w-full max-w-60 overflow-hidden rounded-full bg-base-content/10"
+              >
+                <span className="block h-full rounded-full bg-primary" style={{ width: `${quotaPct}%` }} />
+              </span>
             )}
+            <p className="m-0 mt-1 text-[12px] leading-[1.55] text-base-content/70">
+              โควต้าข้อความ Push ประจำเดือน · การตรวจสอบนี้ไม่ใช้โควต้า
+            </p>
           </div>
 
           <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
             <Checked at={checked.line} />
-            {!editing && (
-              <ProbeBtn
-                primary
-                busy={busy.line}
-                onClick={() => void runOne('line')}
-                icon={ICON.shield}
-                label="ตรวจสอบสถานะ Token (Verify Token)"
-                busyLabel="กำลังตรวจสอบ Token"
-              />
-            )}
+            <ProbeBtn
+              primary
+              busy={busy.line}
+              onClick={() => void runOne('line')}
+              icon={ICON.shield}
+              label="ตรวจสอบสถานะ Token (Verify Token)"
+              busyLabel="กำลังตรวจสอบ Token"
+            />
           </div>
         </section>
 

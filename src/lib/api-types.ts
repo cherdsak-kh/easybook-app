@@ -3264,6 +3264,11 @@ export interface components {
         SwaggerStatusDto: {
             /** @description Whether /docs and /docs-json are served right now. */
             enabled: boolean;
+            /**
+             * @description Canonical URL for Swagger UI.
+             * @example http://localhost:3300/docs
+             */
+            docsUrl: string;
         };
         LineQuotaDto: {
             /**
@@ -3289,6 +3294,11 @@ export interface components {
             botInfo: components["schemas"]["LineBotInfoDto"] | null;
             /** @description From the two quota reads. null when unconfigured or when LINE did not answer. */
             quota: components["schemas"]["LineQuotaDto"] | null;
+            /**
+             * @description Canonical LINE Webhook URL to register in the LINE Developers console.
+             * @example http://localhost:3300/api/v1/line/webhook
+             */
+            webhookUrl: string;
         };
         StorageIntegrationDto: {
             /** @description All five R2_* variables are set. */

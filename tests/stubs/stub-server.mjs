@@ -1888,15 +1888,24 @@ const quota = () => ({ total: 500, used: INTEG.used });
 const badRequest = (res, message) =>
   res.status(400).json({ statusCode: 400, message, error: 'Bad Request' });
 
+/* The backend's own public URLs, which the real service derives from `API_EXTERNAL_URL` (falling
+ * back to `http://localhost:${PORT}`). They are ALWAYS present — Swagger off, LINE unconfigured,
+ * makes no difference: they say where the endpoint would be, which is what an admin registering a
+ * webhook needs. Built from this stub's own PORT so the page shows :3301 while it is the backend,
+ * and never the frontend origin — the whole point of the fix under test. */
+const DOCS_URL = `http://localhost:${PORT}/docs`;
+const WEBHOOK_URL = `http://localhost:${PORT}/api/v1/line/webhook`;
+
 app.get('/api/v1/system/integrations', denyViewerRead, (_req, res) => {
   const storageConfigured = INTEG.storageMode !== 'unconfigured';
   res.json({
-    swagger: { enabled: INTEG.swagger },
+    swagger: { enabled: INTEG.swagger, docsUrl: DOCS_URL },
     line: {
       configured: INTEG.configured,
       channelId: INTEG.channelId ? maskId(INTEG.channelId) : null,
       botInfo: lineOk() ? BOT : null,
       quota: lineOk() ? quota() : null,
+      webhookUrl: WEBHOOK_URL,
     },
     storage: {
       configured: storageConfigured,

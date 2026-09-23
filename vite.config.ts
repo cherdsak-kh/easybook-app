@@ -88,6 +88,25 @@ export default defineConfig({
         target: 'http://localhost:3300',
         changeOrigin: true,
       },
+      // Swagger is mounted at the ROOT — `/docs`, `/docs-json`, `/docs-yaml` — NOT under the
+      // backend's `/api/v1` global prefix, so the `/api` entry above never sees it and the link
+      // on `การเชื่อมต่อระบบ` would hit the SPA fallback (a blank screen) instead of Swagger UI.
+      // Three explicit entries rather than the one `/docs` prefix they all share, so `gen:api`'s
+      // `/docs-json` and the `/docs-yaml` spec are visible here and not an accident of matching.
+      // Safe as a prefix: no SPA route starts with `/docs` (the back-office lives under
+      // `/backend`, the client portal's paths are all named pages).
+      '/docs': {
+        target: 'http://localhost:3300',
+        changeOrigin: true,
+      },
+      '/docs-json': {
+        target: 'http://localhost:3300',
+        changeOrigin: true,
+      },
+      '/docs-yaml': {
+        target: 'http://localhost:3300',
+        changeOrigin: true,
+      },
       // The Socket.IO engine path is `/socket.io/`, which is NOT under `/api` and NOT under
       // the backend's `/api/v1` global prefix (the gateway attaches to the raw HTTP server),
       // so it needs its own entry or every dev handshake 404s.
