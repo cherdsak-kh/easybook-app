@@ -106,6 +106,17 @@ COPY . .
 ENV VITE_API_URL=__VITE_API_URL_PLACEHOLDER__
 ENV VITE_LIFF_ID=__VITE_LIFF_ID_PLACEHOLDER__
 
+# APP_BUILD: the version screen's build stamp (see vite.config.ts's gitBuild()). .dockerignore
+# excludes .git and this alpine stage has no git CLI, so gitBuild()'s own `git rev-parse` fallback
+# would always throw here and report 'unknown' — CI instead computes the 7-char commit SHA
+# (ci.yml's `Derive the build stamp` step, same value easybook-service stamps into its own
+# /api/v1/system/version) and passes it in as a build-arg. Declared/exported AFTER `COPY . .` /
+# `npm ci` above so a changing stamp only busts this layer and the final `npm run build`, never the
+# expensive dependency-install layer. Empty by default (falls through to 'unknown', same as today)
+# so a plain `docker build` with no build-arg still succeeds.
+ARG APP_BUILD=""
+ENV APP_BUILD=$APP_BUILD
+
 RUN npm run build
 
 # ---------------------------------------------------------------------------

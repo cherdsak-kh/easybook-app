@@ -483,83 +483,7 @@ export function IntegrationsPage({ route }: { route: AdminRoute }) {
       </p>
 
       <div className="grid gap-4 pb-1 xl:grid-cols-2">
-        {/* ══ 1. Swagger UI ══ */}
-        <section className={CARD} aria-labelledby="ig-docs-title">
-          <CardTitle
-            id="ig-docs-title"
-            icon={ICON.code}
-            iconTone="bg-primary/10 text-primary"
-            title="เอกสาร API และ Swagger UI"
-            sub="หน้าทดลองเรียก API และสเปก OpenAPI ที่ easybook-app ใช้สร้าง type อัตโนมัติ"
-          />
-
-          {/* `.sw-toggle` (role="switch", 44×44, measured borders). The knob moves only when the
-              server has answered — this is a live write, not a form value. */}
-          <div
-            className={`flex min-h-11 items-center justify-between gap-4 rounded-control border border-base-300 px-3.5 py-2 ${
-              isSuper ? '' : 'bg-base-200'
-            }`}
-          >
-            <span className="min-w-0">
-              <span id="ig-sw-label" className="block text-[14px] font-medium leading-[1.5] text-base-content">
-                เปิดใช้งาน Swagger UI และ OpenAPI Spec{' '}
-                <span className="font-mono text-[13px] text-base-content/70">(/docs, /docs-json)</span>
-              </span>
-              <span id="ig-sw-state" className="block text-[13px] leading-[1.5] text-base-content/70">
-                {swaggerOn
-                  ? 'เปิดใช้งานแล้ว — ทุกคนที่เข้าถึงเซิร์ฟเวอร์ได้จะเห็นรายการ API ทั้งหมด'
-                  : 'ปิดการเข้าถึงอยู่ (ค่าเริ่มต้นเพื่อความปลอดภัย)'}
-                {!isSuper && ' · เปลี่ยนได้เฉพาะ Super Admin'}
-              </span>
-            </span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={swaggerOn}
-              aria-labelledby="ig-sw-label"
-              aria-describedby="ig-sw-state"
-              aria-busy={swaggerBusy || undefined}
-              disabled={!isSuper || swaggerBusy}
-              onClick={() => void toggleSwagger()}
-              className="sw-toggle disabled:cursor-not-allowed"
-            >
-              <span className="sw-track">
-                <span className="sw-knob" />
-              </span>
-            </button>
-          </div>
-
-          <div
-            role="note"
-            className="flex items-start gap-2.5 rounded-control border border-warning/40 bg-warning/10 px-3.5 py-3 text-[14px] leading-[1.6] text-base-content"
-          >
-            <Icon d={ICON.warn} className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
-            <p className="m-0">
-              ควรปิด Swagger UI บนเซิร์ฟเวอร์ที่เปิดให้บุคคลภายนอกเข้าถึง (Production)
-              เพราะหน้านี้เปิดเผยโครงสร้าง API ทั้งหมด ให้เปิดเฉพาะช่วงพัฒนาหรือทดสอบระบบเท่านั้น
-            </p>
-          </div>
-
-          <div className="mt-auto">
-            {/* An <a> has no disabled state: no `href` is what actually stops Enter. */}
-            <a
-              href={swaggerOn ? swagger.docsUrl : undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-disabled={!swaggerOn || undefined}
-              tabIndex={swaggerOn ? undefined : -1}
-              className={`btn-ghost2 inline-flex ${SMALL_BTN} ${
-                swaggerOn ? '' : 'pointer-events-none opacity-50'
-              }`}
-            >
-              <Icon d={ICON.external} className="h-4 w-4 shrink-0" />
-              เปิดหน้า Swagger UI
-              <span className="sr-only">(เปิดในแท็บใหม่)</span>
-            </a>
-          </div>
-        </section>
-
-        {/* ══ 2. LINE Developers ══ */}
+        {/* ══ 1. LINE Developers ══ */}
         <section className={CARD} aria-labelledby="ig-line-title">
           <CardTitle
             id="ig-line-title"
@@ -637,7 +561,117 @@ export function IntegrationsPage({ route }: { route: AdminRoute }) {
           </div>
         </section>
 
-        {/* ══ 3. Cloudflare R2 — read-only for every role ══ */}
+        {/* ══ 2. Core infrastructure ══ */}
+        <section className={CARD} aria-labelledby="ig-infra-title">
+          <CardTitle
+            id="ig-infra-title"
+            icon={ICON.db}
+            iconTone="bg-base-content/10 text-base-content/80"
+            title="โครงสร้างพื้นฐานหลัก"
+            sub="ฐานข้อมูลและแคชเซสชันที่ระบบต้องใช้ทุกคำขอ"
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Service
+              name="PostgreSQL"
+              meta="Prisma 7.x"
+              status={DB_STATUS[infrastructure.database.status]}
+              latencyMs={infrastructure.database.latencyMs}
+            />
+            <Service
+              name="Redis"
+              meta="Session cache"
+              status={REDIS_STATUS[infrastructure.redis.status]}
+              latencyMs={infrastructure.redis.latencyMs}
+            />
+          </div>
+          <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
+            <Checked at={checked.infra} />
+            <ProbeBtn
+              busy={busy.infra}
+              onClick={() => void runOne('infra')}
+              label="ตรวจสอบอีกครั้ง"
+              busyLabel="กำลังตรวจสอบ PostgreSQL และ Redis"
+            />
+          </div>
+        </section>
+
+        {/* ══ 3. Swagger UI ══ */}
+        <section className={CARD} aria-labelledby="ig-docs-title">
+          <CardTitle
+            id="ig-docs-title"
+            icon={ICON.code}
+            iconTone="bg-primary/10 text-primary"
+            title="เอกสาร API และ Swagger UI"
+            sub="หน้าทดลองเรียก API และสเปก OpenAPI ที่ easybook-app ใช้สร้าง type อัตโนมัติ"
+          />
+
+          {/* `.sw-toggle` (role="switch", 44×44, measured borders). The knob moves only when the
+              server has answered — this is a live write, not a form value. */}
+          <div
+            className={`flex min-h-11 items-center justify-between gap-4 rounded-control border border-base-300 px-3.5 py-2 ${
+              isSuper ? '' : 'bg-base-200'
+            }`}
+          >
+            <span className="min-w-0">
+              <span id="ig-sw-label" className="block text-[14px] font-medium leading-[1.5] text-base-content">
+                เปิดใช้งาน Swagger UI และ OpenAPI Spec{' '}
+                <span className="font-mono text-[13px] text-base-content/70">(/docs, /docs-json)</span>
+              </span>
+              <span id="ig-sw-state" className="block text-[13px] leading-[1.5] text-base-content/70">
+                {swaggerOn
+                  ? 'เปิดใช้งานแล้ว — ทุกคนที่เข้าถึงเซิร์ฟเวอร์ได้จะเห็นรายการ API ทั้งหมด'
+                  : 'ปิดการเข้าถึงอยู่ (ค่าเริ่มต้นเพื่อความปลอดภัย)'}
+                {!isSuper && ' · เปลี่ยนได้เฉพาะ Super Admin'}
+              </span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={swaggerOn}
+              aria-labelledby="ig-sw-label"
+              aria-describedby="ig-sw-state"
+              aria-busy={swaggerBusy || undefined}
+              disabled={!isSuper || swaggerBusy}
+              onClick={() => void toggleSwagger()}
+              className="sw-toggle disabled:cursor-not-allowed"
+            >
+              <span className="sw-track">
+                <span className="sw-knob" />
+              </span>
+            </button>
+          </div>
+
+          <div
+            role="note"
+            className="flex items-start gap-2.5 rounded-control border border-warning/40 bg-warning/10 px-3.5 py-3 text-[14px] leading-[1.6] text-base-content"
+          >
+            <Icon d={ICON.warn} className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+            <p className="m-0">
+              ควรปิด Swagger UI บนเซิร์ฟเวอร์ที่เปิดให้บุคคลภายนอกเข้าถึง (Production)
+              เพราะหน้านี้เปิดเผยโครงสร้าง API ทั้งหมด ให้เปิดเฉพาะช่วงพัฒนาหรือทดสอบระบบเท่านั้น
+            </p>
+          </div>
+
+          <div className="mt-auto">
+            {/* An <a> has no disabled state: no `href` is what actually stops Enter. */}
+            <a
+              href={swaggerOn ? swagger.docsUrl : undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-disabled={!swaggerOn || undefined}
+              tabIndex={swaggerOn ? undefined : -1}
+              className={`btn-ghost2 inline-flex ${SMALL_BTN} ${
+                swaggerOn ? '' : 'pointer-events-none opacity-50'
+              }`}
+            >
+              <Icon d={ICON.external} className="h-4 w-4 shrink-0" />
+              เปิดหน้า Swagger UI
+              <span className="sr-only">(เปิดในแท็บใหม่)</span>
+            </a>
+          </div>
+        </section>
+
+        {/* ══ 4. Cloudflare R2 — read-only for every role ══ */}
         <section className={CARD} aria-labelledby="ig-r2-title">
           <CardTitle
             id="ig-r2-title"
@@ -680,40 +714,6 @@ export function IntegrationsPage({ route }: { route: AdminRoute }) {
               onClick={() => void runOne('r2')}
               label="ทดสอบการเชื่อมต่อ"
               busyLabel="กำลังทดสอบ Cloudflare R2"
-            />
-          </div>
-        </section>
-
-        {/* ══ 4. Core infrastructure ══ */}
-        <section className={CARD} aria-labelledby="ig-infra-title">
-          <CardTitle
-            id="ig-infra-title"
-            icon={ICON.db}
-            iconTone="bg-base-content/10 text-base-content/80"
-            title="โครงสร้างพื้นฐานหลัก"
-            sub="ฐานข้อมูลและแคชเซสชันที่ระบบต้องใช้ทุกคำขอ"
-          />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Service
-              name="PostgreSQL"
-              meta="Prisma 7.x"
-              status={DB_STATUS[infrastructure.database.status]}
-              latencyMs={infrastructure.database.latencyMs}
-            />
-            <Service
-              name="Redis"
-              meta="Session cache"
-              status={REDIS_STATUS[infrastructure.redis.status]}
-              latencyMs={infrastructure.redis.latencyMs}
-            />
-          </div>
-          <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
-            <Checked at={checked.infra} />
-            <ProbeBtn
-              busy={busy.infra}
-              onClick={() => void runOne('infra')}
-              label="ตรวจสอบอีกครั้ง"
-              busyLabel="กำลังตรวจสอบ PostgreSQL และ Redis"
             />
           </div>
         </section>
