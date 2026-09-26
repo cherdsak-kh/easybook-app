@@ -36,8 +36,16 @@ const appVersion = (JSON.parse(readFileSync('./package.json', 'utf8')) as { vers
  * point of the string is that someone can check out that commit and see this behaviour. Anything
  * that fails here — no git, a tarball, a detached worktree — falls back rather than breaking the
  * build, because a version stamp must never be able to stop a deploy.
+ *
+ * `APP_BUILD` (or `VITE_APP_BUILD`) is checked BEFORE git because the Docker build stage has
+ * neither `.git` (`.dockerignore` drops it) nor a git CLI (`node:20-alpine`), so there the git path
+ * always ends in `unknown`. CI passes the stamp in as `APP_BUILD` instead, the same variable
+ * `easybook-service` uses. A blank value, such as the Dockerfile's `ARG APP_BUILD=""` default,
+ * counts as unset and falls through to git.
  */
 function gitBuild(): string {
+  const stamped = process.env.APP_BUILD?.trim() || process.env.VITE_APP_BUILD?.trim()
+  if (stamped) return stamped
   const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim()
   try {
     return git('rev-parse', '--short', 'HEAD') + (git('status', '--porcelain') ? '+dirty' : '')

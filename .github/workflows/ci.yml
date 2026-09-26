@@ -104,12 +104,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # What the running bundle will report on the version screen. `${GITHUB_SHA::7}` matches the
+      # width easybook-service stamps into its own /api/v1/system/version, so the two halves of the
+      # version screen are comparable by eye. Computed here (not read from .git inside the image)
+      # because .dockerignore excludes .git and the build stage's node:20-alpine has no git CLI —
+      # see Dockerfile's ARG APP_BUILD comment.
+      - name: Derive the build stamp
+        id: stamp
+        run: |
+          {
+            echo "build=${GITHUB_SHA::7}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build & push runtime image (nginx-static, secret-free)
         uses: docker/build-push-action@v5
         with:
           context: .
           target: runtime
           push: true
+          build-args: |
+            APP_BUILD=${{ steps.stamp.outputs.build }}
           # Immutable commit-SHA tag only — never `latest`. CD deploys this exact tag, so a
           # redeploy is always reproducible and traceable to a commit.
           tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
