@@ -1,8 +1,9 @@
 /**
  * One row in the notification panel.
  *
- * ⚠️ THE UNREAD COUNT HAS EXACTLY ONE SOURCE — the rows. `unreadCount` and `bellLabel` in
- * `lib/notifications.ts` both derive from the same array; nothing here keeps its own tally.
+ * ⚠️ THE UNREAD COUNT HAS EXACTLY ONE SOURCE — `GET /notifications/unread-count`, held by
+ * `NotificationsProvider` (D-10). The panel shows only the newest five rows, so counting them would
+ * under-report; nothing here keeps its own tally.
  *
  * ⚠️ Opening the panel does NOT mark everything read. Seeing that three things happened is
  * not the same as having dealt with them, and an operator who glances at the bell mid-task

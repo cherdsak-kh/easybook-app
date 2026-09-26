@@ -14,18 +14,51 @@
  * A permanent banner is what you reach for when nothing local can carry the message.
  */
 
-import { useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { NavIcon } from './nav-icons'
+import { NotifGlyph } from './notif-icons'
 import { NotifReadAll, NotifRow } from './NotifRow'
 import { Skeleton } from '../feedback/Skeleton'
 import { usePopupMenu } from '../../lib/use-popup-menu'
-import { bellLabel, unreadCount, type Notification } from '../../lib/notifications'
+import {
+  TONE_KEY,
+  actionTarget,
+  badgeText,
+  bellLabel,
+  relativeTime,
+  type Notification,
+} from '../../lib/notifications'
+import type { AdminNotification } from '../../lib/notifications-api'
+import { useNotifications } from '../../lib/notifications-context'
+import { useToast } from '../../lib/toast-context'
 import type { Acl } from '../../lib/use-acl'
 import type { ThemeChoice } from '../../lib/use-theme'
 import { ADMIN_PORTAL_ROUTES, urlOf, type AdminRouteEntry } from '../../routes'
 
 const ICON = 'h-5 w-5'
+
+/**
+ * A mark-read that failed. The prototype cannot fail this write, so it has no copy for it; this
+ * follows its `deleteNotif` failure line (design deviation 4) — what happened, that nothing changed,
+ * and what to do.
+ */
+const READ_FAIL = 'ทำเครื่องหมายว่าอ่านแล้วไม่สำเร็จ — สถานะการอ่านยังเหมือนเดิม ลองใหม่อีกครั้ง'
+
+/**
+ * DTO → the panel row's view-model. `NotifRow` and `Notification` are unchanged (design A-8), so the
+ * Showcase's static fixture keeps compiling. `body` goes in VERBATIM (D-1): attribution is a data
+ * rule, and the UI neither parses nor decorates it.
+ */
+const toBellItem = (n: AdminNotification): Notification => ({
+  id: n.id,
+  tone: TONE_KEY[n.tone] ?? 'slate',
+  icon: <NotifGlyph name={n.icon} />,
+  title: n.title,
+  detail: n.body,
+  time: relativeTime(n.createdAt),
+  read: n.isRead,
+})
 
 const SunIcon = () => (
   <svg className={ICON} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
@@ -91,28 +124,55 @@ export function Topbar({
   isDark,
   themeChoice,
   onThemeChange,
-  notifications,
-  notifState = 'list',
-  onReadNotification,
-  onReadAll,
 }: {
   acl: Acl
   isDark: boolean
   themeChoice: ThemeChoice
   onThemeChange: (t: ThemeChoice) => void
-  notifications: Notification[]
-  /** The panel has three shapes and they are not interchangeable — see the panel below. */
-  notifState?: 'list' | 'empty' | 'loading'
-  onReadNotification: (id: string) => void
-  onReadAll: () => void
 }) {
   const theme = usePopupMenu()
   const settings = usePopupMenu()
   const notif = usePopupMenu()
   const listRef = useRef<HTMLDivElement>(null)
   const [readAllAnnouncement, setReadAllAnnouncement] = useState('')
+  const navigate = useNavigate()
+  const toast = useToast()
+  const { unread, bell, invalidate, markRead, markManyRead } = useNotifications()
 
-  const unread = unreadCount(notifications)
+  /**
+   * ⚠️ `GET /unread-count`'s total, NEVER a count of `bell` (D-10) — the panel holds only the newest
+   * five, so its rows would under-report the moment a sixth arrived. `null` = not loaded yet: the
+   * badge and chip stay hidden and the name is the bare `การแจ้งเตือน`, rather than a zero nobody
+   * measured.
+   */
+  const unreadTotal = unread?.total ?? null
+
+  /**
+   * The panel has three shapes and they are not interchangeable. `null` is "never loaded", which
+   * keeps the skeleton — including after a failed first fetch, until the next trigger succeeds.
+   * Opening the panel IS a trigger (below), so the reader is never stuck on it for long. The
+   * prototype has no bell error state, and none is invented here.
+   */
+  const notifState: 'list' | 'empty' | 'loading' =
+    bell === null ? 'loading' : bell.length === 0 ? 'empty' : 'list'
+
+  // The operator is about to read the panel, so read the server first (D-9). Opening marks NOTHING
+  // read (AC-17) — seeing that three things happened is not having dealt with them.
+  useEffect(() => {
+    if (notif.open) invalidate()
+  }, [notif.open, invalidate])
+
+  /**
+   * A panel row (D-15): mark it read if it is unread, and go where it points WITHOUT awaiting the
+   * write — SPA navigation does not cancel the request, and the provider revalidates when it
+   * settles. A row with no reachable target (null `actionUrl`, or a screen this role is denied) only
+   * marks read; `data-menu-close` on the row closes the panel either way.
+   */
+  const openFromBell = (n: AdminNotification) => {
+    if (!n.isRead) void markRead(n.id).catch(() => toast('error', READ_FAIL))
+    const to = actionTarget(n.actionUrl, acl.can)
+    if (to) void navigate(to)
+  }
 
   // ⚠️ The SAME rows as the sidebar's การตั้งค่าระบบ group, read from the SAME table. Copying the
   // list is how the two drift and the sidebar quietly grows an eighth item this menu never gets.
@@ -265,7 +325,7 @@ export function Topbar({
           <button
             type="button"
             {...notif.triggerProps}
-            aria-label={bellLabel(unread)}
+            aria-label={bellLabel(unreadTotal)}
             // The tooltip is a NAME, the aria-label is a SENTENCE, and they are different on
             // purpose: a hover bubble reading "การแจ้งเตือน 3 รายการที่ยังไม่อ่าน" repeats a
             // count already painted on the badge two pixels away. `[data-tip]` hides itself
@@ -277,17 +337,15 @@ export function Topbar({
             <NavIcon label="ตั้งค่าการแจ้งเตือน" className={ICON} />
             {/* aria-hidden: the count is already a sentence in the trigger's accessible name.
                 Left readable it announces a bare "3" straight after it. */}
-            {unread > 0 && (
+            {unreadTotal ? (
               <span
                 aria-hidden="true"
                 className="absolute right-1.5 top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-error px-1 text-[12px] font-semibold tabular-nums text-error-content"
               >
-                {/* 9+, not 99+. The badge is an 18px circle beside a bell; three glyphs in it
-                    are unreadable at 12px, and "you have a lot" is the entire message a badge
-                    can carry. The exact number is in the panel, one click away. */}
-                {unread > 9 ? '9+' : unread}
+                {/* 9+, not 99+ — see `badgeText`. The exact number is the panel's chip. */}
+                {badgeText(unreadTotal)}
               </span>
-            )}
+            ) : null}
           </button>
 
           <div
@@ -297,28 +355,32 @@ export function Topbar({
           >
             <div className="flex shrink-0 items-center gap-2 border-b border-base-300 px-3.5 py-2">
               <h2 className="m-0 text-[15px] font-semibold text-base-content">การแจ้งเตือน</h2>
-              {unread > 0 && <span className="nav-count nav-count-alert ml-0">{unread} ใหม่</span>}
+              {unreadTotal ? (
+                <span className="nav-count nav-count-alert ml-0">{unreadTotal} ใหม่</span>
+              ) : null}
               {/* Already in the DOM before it has anything to say — a live region created at the
                   same moment as its text is not announced. `NotifReadAll` fills it. */}
               <span role="status" className="sr-only">
                 {readAllAnnouncement}
               </span>
+              {/* `POST /read-all` with NO body: every visible unread row, not just the five on
+                  screen (AC-14). Its focus-first order and live sentence are `NotifReadAll`'s. */}
               <NotifReadAll
-                count={unread}
-                onReadAll={onReadAll}
+                count={unreadTotal ?? 0}
+                onReadAll={() => void markManyRead().catch(() => toast('error', READ_FAIL))}
                 listRef={listRef}
                 onAnnounce={setReadAllAnnouncement}
               />
             </div>
 
             <div className="nav-scroll min-h-0 flex-1 overflow-y-auto">
-              {notifState === 'list' && (
+              {notifState === 'list' && bell && (
                 <div ref={listRef} className="divide-y divide-base-300/60">
-                  {notifications.map((item, i) => (
+                  {bell.map((n, i) => (
                     <NotifRow
-                      key={item.id}
-                      item={item}
-                      onRead={onReadNotification}
+                      key={n.id}
+                      item={toBellItem(n)}
+                      onRead={() => openFromBell(n)}
                       // The panel's first focusable is otherwise the read-all button, and one
                       // Enter on open would clear every unread marker.
                       preferFocus={i === 0}

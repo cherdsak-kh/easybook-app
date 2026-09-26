@@ -728,7 +728,7 @@ export interface paths {
         post?: never;
         /**
          * Soft-delete a venue type option.
-         * @description Sets `deletedAt`; never a hard delete. Venues filed under it are re-pointed to the reserved tombstone row in the same transaction. A second DELETE on the same id is a 404, as is the reserved row itself. Answers 500 if the tombstone row has never been seeded — run `npm run venue-types:seed`.
+         * @description Sets `deletedAt`; never a hard delete. Venues filed under it are re-pointed to the reserved tombstone row in the same transaction. If that tombstone row does not exist yet (database never seeded), it is created first, so the delete still succeeds. A second DELETE on the same id is a 404, as is the reserved row itself.
          */
         delete: operations["VenueTypesController_remove"];
         options?: never;
@@ -1318,6 +1318,126 @@ export interface paths {
          * @description Any subset of `title`, `text`, `sortOrder` (at least one). An empty body `{}` is a 400 `CANNED_REPLY_UPDATE_EMPTY`; `null` for any field is a 400. `updatedAt` advances. Answers with the updated record.
          */
         patch: operations["CannedRepliesController_update"];
+        trace?: never;
+    };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller’s notifications, newest first.
+         * @description Scoped to the caller: only rows their role may see (`targetRole` is a MINIMUM role — SUPER_ADMIN sees ALL/ADMIN/SUPER_ADMIN, ADMIN sees ALL/ADMIN, VIEWER sees ALL) and that they have not dismissed. Ordered `createdAt DESC, id DESC` (a total order). `category`, `isRead`, `period` and `search` combine with AND. `meta.total` is the FILTERED total; a page past the end is `data: []`. `isRead`/`readAt` on each item are the CALLER’s own state. The topbar bell calls this with `limit=5`.
+         */
+        get: operations["NotificationsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller’s unread counts — the bell badge and the tab pills.
+         * @description Unread (no `readAt` for the caller) and not dismissed, over EVERYTHING the caller can see, per category. Takes no filters: `total` always equals the sum of `byCategory` and the `meta.total` of `GET /notifications?isRead=false`.
+         */
+        get: operations["NotificationsController_unreadCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark every visible unread notification read — or only the given ids.
+         * @description No body (or `{}`) = every notification the caller can see and has not read or dismissed. With `ids` (1–50 unique) = only those. Writes ONLY the caller’s own read state. Ids the caller cannot see, has already read, or has dismissed are skipped silently and not counted — never a 404, so this is not an existence oracle. `updated` is the number of rows whose state actually changed.
+         */
+        post: operations["NotificationsController_markManyRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete notifications FOR THE CALLER (a per-operator dismissal).
+         * @description Exactly one of: `{ ids }` (1–50 unique) — dismiss those; or `{ allRead: true }` — dismiss every READ notification the caller can see, across all categories and pages, ignoring the list filters. Nothing is hard-deleted: the notification stays for every other operator, and there is no undismiss route. Invisible or already-dismissed ids are skipped silently and not counted. The body is REQUIRED on this DELETE.
+         */
+        delete: operations["NotificationsController_dismiss"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Mark one notification read for the caller.
+         * @description Idempotent: on an already-read item it answers 200 and `readAt` does not move. Writes only the caller’s own read state. Answers with the item as the caller now sees it.
+         */
+        patch: operations["NotificationsController_markRead"];
+        trace?: never;
+    };
+    "/api/v1/notifications/{id}/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Mark one notification unread for the caller.
+         * @description Idempotent: on an unread item it answers 200 with the item unchanged. Writes only the caller’s own read state. Answers with the item as the caller now sees it.
+         */
+        patch: operations["NotificationsController_markUnread"];
         trace?: never;
     };
     "/api/v1/system/version": {
@@ -3243,6 +3363,115 @@ export interface components {
             text?: string;
             /** @description Display order, ascending; ties break on `createdAt` then `id`. Duplicates are allowed. A JSON string such as "3" is a 400. `null` → 400. */
             sortOrder?: number;
+        };
+        /** @enum {string} */
+        AdminNotificationCategory: "BOOKING" | "REGISTRATION" | "FEEDBACK" | "SYSTEM";
+        /** @enum {string} */
+        AdminNotificationPeriod: "today" | "7d" | "30d";
+        /** @enum {string} */
+        AdminNotificationTone: "SKY" | "AMBER" | "ROSE" | "EMERALD" | "SLATE";
+        /** @enum {string} */
+        AdminNotificationIcon: "user-plus" | "user-minus" | "arrow-path" | "calendar" | "x-circle" | "clock" | "queue-list" | "check" | "chat-bubble" | "exclamation-triangle" | "link-slash" | "sparkles" | "building-office" | "adjustments-horizontal" | "bug-ant";
+        /**
+         * @description Minimum role that sees this row: ALL ⊂ ADMIN ⊂ SUPER_ADMIN visibility.
+         * @enum {string}
+         */
+        AdminNotificationTargetRole: "ALL" | "ADMIN" | "SUPER_ADMIN";
+        AdminNotificationDto: {
+            /** @example clx0v3n0e0000abcd1234efgh */
+            id: string;
+            category: components["schemas"]["AdminNotificationCategory"];
+            /** @example BR-25690903-001 */
+            code: string | null;
+            /** @example คำขอจองใหม่ 1 รายการ */
+            title: string;
+            /** @example สมชาย ใจดี · ครู · กลุ่มบริหารงานวิชาการ · ห้องประชุม 1 · 3 ก.ย. 2569 09:00–12:00 */
+            body: string;
+            tone: components["schemas"]["AdminNotificationTone"];
+            icon: components["schemas"]["AdminNotificationIcon"];
+            /**
+             * @description Portal-relative. Non-null iff actionLabel is non-null.
+             * @example /backend/bookings/requests
+             */
+            actionUrl: string | null;
+            /** @example ดูคำขอจอง */
+            actionLabel: string | null;
+            /** @description Minimum role that sees this row: ALL ⊂ ADMIN ⊂ SUPER_ADMIN visibility. */
+            targetRole: components["schemas"]["AdminNotificationTargetRole"];
+            /** @description For the CALLER only. true iff the caller has a readAt. */
+            isRead: boolean;
+            /**
+             * Format: date-time
+             * @description For the CALLER only.
+             */
+            readAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Not guaranteed to equal createdAt (Prisma stamps it client-side; a seed re-run moves it). Do not compare the two.
+             */
+            updatedAt: string;
+        };
+        PaginatedAdminNotificationsResponseDto: {
+            data: components["schemas"]["AdminNotificationDto"][];
+            /** @description `total` is the FILTERED total. */
+            meta: components["schemas"]["PaginationMetaDto"];
+        };
+        AdminNotificationUnreadByCategoryDto: {
+            /** @example 2 */
+            BOOKING: number;
+            /** @example 1 */
+            REGISTRATION: number;
+            /** @example 0 */
+            FEEDBACK: number;
+            /** @example 1 */
+            SYSTEM: number;
+        };
+        AdminNotificationUnreadCountDto: {
+            /**
+             * @description Equals the sum of byCategory.
+             * @example 4
+             */
+            total: number;
+            byCategory: components["schemas"]["AdminNotificationUnreadByCategoryDto"];
+        };
+        MarkAdminNotificationsReadDto: {
+            /**
+             * @description Omit to mark EVERY visible unread notification. Otherwise 1–50 unique ids. Invisible ids are skipped silently. null is a 400.
+             * @example [
+             *       "clx0v3n0e0000abcd1234efgh"
+             *     ]
+             */
+            ids?: string[];
+        };
+        AdminNotificationsUpdatedDto: {
+            /**
+             * @description Rows whose state actually changed. Invisible or already-read ids are not counted.
+             * @example 3
+             */
+            updated: number;
+        };
+        DismissAdminNotificationsDto: {
+            /**
+             * @description Dismiss these ids for the caller. Mutually exclusive with allRead. Invisible or already-dismissed ids are skipped silently.
+             * @example [
+             *       "clx0v3n0e0000abcd1234efgh"
+             *     ]
+             */
+            ids?: string[];
+            /**
+             * @description true = dismiss every READ notification the caller can see, across all categories and pages, ignoring the list filters. Mutually exclusive with ids. false is a 400.
+             * @enum {boolean}
+             */
+            allRead?: true;
+        };
+        AdminNotificationsDismissedDto: {
+            /**
+             * @description Rows actually dismissed for the caller. Invisible or already-dismissed ids are not counted.
+             * @example 3
+             */
+            deleted: number;
         };
         VersionResponseDto: {
             /**
@@ -8427,6 +8656,366 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CannedReplyCodedErrorDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_list: {
+        parameters: {
+            query?: {
+                /** @description 1-based page number. A page beyond the last returns `data: []` with a correct `meta`, not an error. */
+                page?: number;
+                /** @description Rows per page, 1–50. The page uses 10/20/50 and the topbar bell uses 5. Outside the range is a 400, never clamped. */
+                limit?: number;
+                /** @description Narrows to one tab. UPPER_CASE only — the prototype keys (`bookings`, `users`, …) are a 400. Absent = all categories. */
+                category?: components["schemas"]["AdminNotificationCategory"];
+                /** @description The CALLER’s own read state: `true` = read, `false` = unread. Exactly the literals `true`/`false`; anything else (`1`, `yes`, empty, a repeated key) is a 400. Absent = both. */
+                isRead?: boolean;
+                /** @description Asia/Bangkok calendar days: `today` = since Bangkok midnight today; `7d` / `30d` = since Bangkok midnight 7 / 30 days before today (so `7d` spans today plus the 7 days before it). Absent = all time. */
+                period?: components["schemas"]["AdminNotificationPeriod"];
+                /** @description Case-insensitive substring over `title`, `body` and `code`. Trimmed and Thai-normalised; one leading `#` is stripped; empty after that = no filter. `%` and `_` are literal characters. At most 100 characters. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAdminNotificationsResponseDto"];
+                };
+            };
+            /** @description Invalid query — `limit` outside 1–50, `page` < 1, an unknown `category`/`period`, `isRead` other than `true`/`false`, `search` over 100 characters, or an unrecognised parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller must change their temporary password first (forced-reset gate). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_unreadCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The counts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminNotificationUnreadCountDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description The caller must change their temporary password first (forced-reset gate). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_markManyRead: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MarkAdminNotificationsReadDto"];
+            };
+        };
+        responses: {
+            /** @description Done. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminNotificationsUpdatedDto"];
+                };
+            };
+            /** @description Invalid body — `ids` empty, over 50, duplicated, `null`, or containing a non-cuid; or an unrecognised key such as `systemUserId`. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure, or the forced-password-change gate. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_dismiss: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DismissAdminNotificationsDto"];
+            };
+        };
+        responses: {
+            /** @description Done. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminNotificationsDismissedDto"];
+                };
+            };
+            /** @description Invalid body — both keys, neither key (or no body), `allRead` other than `true`, `ids` empty/over 50/duplicated/null/non-cuid, or an unrecognised key. The exactly-one refusal is the single string `Provide exactly one of `ids` or `allRead: true`.`. Nothing is written. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure, or the forced-password-change gate. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_markRead: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The item. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminNotificationDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure, or the forced-password-change gate. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown, malformed, role-invisible or already-dismissed id — one indistinguishable 404, never a 403. Nothing is written. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    NotificationsController_markUnread: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The item. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminNotificationDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure, or the forced-password-change gate. Nothing is written. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown, malformed, role-invisible or already-dismissed id — one indistinguishable 404, never a 403. Nothing is written. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
             /** @description Session store unavailable. */

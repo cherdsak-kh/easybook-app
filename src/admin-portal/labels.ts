@@ -234,3 +234,18 @@ export function chatModeOf(mode: string): { label: string; dot: string } {
   const known = (LINE_CHAT_MODE as Record<string, { label: string; dot: string } | undefined>)[mode]
   return known ?? { label: 'ไม่ทราบ', dot: '' }
 }
+
+/** `AdminNotificationCategory` — which part of the product a notification came from. */
+export type NotificationCategory = components['schemas']['AdminNotificationCategory']
+
+/**
+ * One string per category — the tab caption on การแจ้งเตือน AND the row's `.nt-cat` tag (the
+ * prototype's `CATS`). A row filed under คำขอจอง whose tag printed something else would be the tab
+ * and the row disagreeing about which bucket the row is in.
+ */
+export const NOTIF_CATEGORY_LABEL: Record<NotificationCategory, string> = {
+  BOOKING: 'คำขอจอง',
+  REGISTRATION: 'การลงทะเบียน',
+  FEEDBACK: 'ข้อเสนอแนะ',
+  SYSTEM: 'ระบบและการเชื่อมต่อ',
+}

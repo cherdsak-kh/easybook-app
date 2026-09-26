@@ -62,6 +62,17 @@
  *                                             `POST /__control/integrations` { lineMode, storageMode,
  *                                             dbMode, redisMode, swagger, configured }
  *
+ *   - GET notifications, GET notifications/unread-count, POST notifications/read-all,
+ *     DELETE notifications/bulk, PATCH notifications/:id/read, PATCH notifications/:id/unread
+ *                                           — NOTIF-API-1. ALL SIX admit SUPER_ADMIN|ADMIN|VIEWER, the
+ *                                             four writes included (they touch only the caller's own
+ *                                             receipts). CSRF-checked on the four writes, first.
+ *                                             Per-ROLE receipts stand in for per-operator ones, so one
+ *                                             role's read/dismiss never leaks into another's view.
+ *                                             Seeded with the service's 16 rows, ids
+ *                                             `cseednotif000000000000001…016` (visible 16 / 14 / 5).
+ *                                             Driven by `POST /__control/notifications`
+ *
  * What this stub does NOT serve (a 404 here is expected, not a bug):
  *   - Any WRITE on line-users (`PATCH /line-users/:id`, `PATCH /line-users/:id/registration`)
  *   - Any CRUD on personnel-roles / departments / venue-types / amenities (POST/PATCH/DELETE)
@@ -83,8 +94,14 @@
  *   POST /__control/canned-replies { listMode?, createMode?, saveMode?, csrfMode?, delayMs?,
  *                                    mutate?, fill? }        — force the canned-reply card's load,
  *                                                              the write outcomes, the limit
- *   POST /__control/reset                                     — restore the seeds, the version and
- *                                                              every announcement and canned mode
+ *   POST /__control/notifications { mode?, writeMode?, csrfMode?, extras?, fill?, reset? }
+ *                                                            — force the notification page and the
+ *                                                              topbar bell: the reads, the writes,
+ *                                                              the D-14 fixtures, the pager
+ *   POST /__control/reset                                     — restore the seeds, the version,
+ *                                                              every announcement and canned mode,
+ *                                                              and the notifications (rows, every
+ *                                                              role's receipts, every mode)
  *
  * ── How to run this (the full recipe) ─────────────────────────────────────
  *
@@ -225,6 +242,34 @@
  *
  *   # All-or-nothing like the others. The answer echoes every mode plus `count`, and `mutated` /
  *   # `filled` (rows appended) when those were given.
+ *
+ *   # ── การแจ้งเตือน (NOTIF-UI-1). Every switch is STICKY until changed or reset. ──
+ *   # Switch the ROLE to see another operator's view: receipts are per role, so a VIEWER's read or
+ *   # dismiss leaves ADMIN's rows unread and present.
+ *   # mode — the two GETs: list · empty (every role sees nothing) · error (code-less 503) ·
+ *   # network (drops the socket) · slow (1.5 s before all six routes answer)
+ *   curl -s -X POST http://localhost:3301/__control/notifications \
+ *     -H "Content-Type: application/json" -d '{"mode":"empty"}'
+ *   # → {"mode":"empty","writeMode":"ok","csrfMode":"ok","extras":false,"fill":0,"rows":16,
+ *   #    "unread":{"SUPER_ADMIN":0,"ADMIN":0,"VIEWER":0}}
+ *
+ *   # writeMode — ok · error (the four writes answer the code-less 503; nothing is written)
+ *   # csrfMode  — ok · reject (the four writes answer 403 `Invalid CSRF token.`, twice with the retry)
+ *   curl -s -X POST http://localhost:3301/__control/notifications \
+ *     -H "Content-Type: application/json" -d '{"writeMode":"error"}'
+ *
+ *   # extras — three ALL fixtures the seed cannot give: 017 links to a screen a VIEWER is denied
+ *   # (CTA hidden), 018 has no CTA at all, 019 links with `?status=PENDING#top` attached
+ *   curl -s -X POST http://localhost:3301/__control/notifications \
+ *     -H "Content-Type: application/json" -d '{"extras":true}'
+ *
+ *   # fill — N older ALL rows (0–120) for the pager; 100 gives SUPER_ADMIN 116 rows = 12 pages at 10
+ *   curl -s -X POST http://localhost:3301/__control/notifications \
+ *     -H "Content-Type: application/json" -d '{"fill":100}'
+ *
+ *   # reset — the 16 seed rows, every role's read/dismiss state and every mode, back to the start
+ *   curl -s -X POST http://localhost:3301/__control/notifications \
+ *     -H "Content-Type: application/json" -d '{"reset":true}'
  */
 import express from 'express';
 import cors from 'cors';
@@ -1620,6 +1665,492 @@ app.delete('/api/v1/canned-replies/:id', cannedDelay, cannedSaveGate, cannedCsrf
   res.status(204).end();
 });
 
+/* ── notifications (NOTIF-API-1) ────────────────────────────────────────────
+ * Mirrors `easybook-service/src/notifications/` — `notifications.controller.ts`, `.service.ts`,
+ * `.policy.ts`, `.period.ts`, `.constants.ts` and the three DTO files — and nothing else.
+ *
+ * ⚠️ ALL SIX ROUTES ADMIT ALL THREE ROLES (`@Roles(SUPER_ADMIN, ADMIN, VIEWER)`), the four writes
+ * included: they write only the caller's OWN receipts (read state and "delete for me"). There is NO
+ * `requireWrite` and NO `denyViewerRead` below, on purpose — a VIEWER 403 here would be this stub
+ * inventing a refusal the server does not make, and it would fake a FAIL on AC-6.
+ *
+ * ⚠️ PER-ROLE RECEIPTS STAND IN FOR PER-OPERATOR RECEIPTS. `/auth/system/me` always answers `u1`, so
+ * the current `role` IS the identity: one role's read or dismiss never shows in another's view, which
+ * is what "another operator still sees it" looks like on a one-user stub.
+ *
+ * Visibility is `targetRole` as a MINIMUM role (VISIBLE_TARGET_ROLES): VIEWER sees ALL, ADMIN sees
+ * ALL+ADMIN, SUPER_ADMIN sees everything — seed counts 5 / 14 / 16. A dismissed row is invisible to
+ * that role everywhere: the list, the counts, and a 404 on its single-id routes.
+ *
+ * CSRF is checked FIRST on the four writes, as in the real stack (the GETs are exempt by method).
+ * Validation answers the global pipe's shape (`message: string[]`, class-validator wording); the
+ * exactly-one rule on `DELETE /bulk` is the service's single-string 400; a malformed, unknown,
+ * role-invisible or dismissed `:id` is one indistinguishable 404, never a 400 and never a 403.
+ *
+ * NOT mirrored: the server's Thai normalisation of `search` (`sanitizeThaiText`) — the stub trims only.
+ */
+
+/** `VISIBLE_TARGET_ROLES` — `targetRole` is the MINIMUM role that sees a row. */
+const NOTIF_VISIBLE = {
+  SUPER_ADMIN: ['ALL', 'ADMIN', 'SUPER_ADMIN'],
+  ADMIN: ['ALL', 'ADMIN'],
+  VIEWER: ['ALL'],
+};
+/** `NOTIFICATION_ID_PATTERN` — cuid v1. */
+const NOTIF_ID = /^c[a-z0-9]{24}$/;
+const NOTIF_CATEGORIES = ['BOOKING', 'REGISTRATION', 'FEEDBACK', 'SYSTEM'];
+const NOTIF_PERIODS = ['today', '7d', '30d'];
+const NOTIF_LIMIT_MAX = 50;
+const NOTIF_SEARCH_MAX = 100;
+const NOTIF_DAY_MS = 86_400_000;
+/** Asia/Bangkok is UTC+7 with no DST, so whole days back from its midnight are exact. */
+const NOTIF_BKK_OFFSET_MS = 7 * 3_600_000;
+const NOTIF_NOT_FOUND = { statusCode: 404, message: 'Notification not found.', error: 'Not Found' };
+const NOTIF_DISMISS_TARGET = 'Provide exactly one of `ids` or `allRead: true`.';
+
+/** The prototype's `go` screens → portal paths, as `scripts/seed-notifications.ts` spells them. */
+const NOTIF_GO = {
+  registrations: '/backend/line-users',
+  requests: '/backend/bookings/requests',
+  integrations: '/backend/settings/integrations',
+  feedback: '/backend/feedback',
+  venues: '/backend/venues',
+  errorLog: '/backend/reports/error-log',
+  bookingSettings: '/backend/settings/booking',
+  version: '/backend/help/version',
+};
+
+/**
+ * `easybook-service/scripts/seed-notifications.ts`'s 16 rows, field for field and NEWEST FIRST.
+ * `code` is absent where the seed has none (→ `null`, as `normaliseCreateInput` stores it).
+ */
+const NOTIF_SEED_SPECS = [
+  { days: 0, category: 'REGISTRATION', tone: 'AMBER', icon: 'user-plus', targetRole: 'ADMIN',
+    title: 'ผู้ใช้ลงทะเบียนใหม่ 2 ราย รออนุมัติ',
+    body: 'เชิดศักดิ์ คำไล้ · ครูชำนาญการ · กลุ่มสาระการเรียนรู้ภาษาไทย · 089-441-2207 และอีก 1 ราย',
+    actionLabel: 'ตรวจสอบข้อมูล', actionUrl: NOTIF_GO.registrations },
+  { days: 0, category: 'BOOKING', tone: 'SKY', icon: 'calendar', targetRole: 'ADMIN', code: 'RQ-2569-0184',
+    title: 'คำขอจองห้องประชุมใหม่ 1 รายการ',
+    body: 'RQ-2569-0184 · สมชาย ใจดี · ครูชำนาญการ · ฝ่ายวิชาการ · ห้องประชุมใหญ่ · 12 ส.ค. 2569 เวลา 09:00–12:00',
+    actionLabel: 'ดูคำขอจอง', actionUrl: NOTIF_GO.requests },
+  { days: 0, category: 'SYSTEM', tone: 'ROSE', icon: 'link-slash', targetRole: 'ADMIN',
+    title: 'เชื่อมต่อ LINE Messaging API ไม่สำเร็จ',
+    body: 'Channel access token หมดอายุ · ส่งข้อความล้มเหลว 4 ครั้ง ล่าสุด 12 ส.ค. 2569 08:45 · ระบบจะลองใหม่อัตโนมัติภายใน 5 นาที',
+    actionLabel: 'ไปที่หน้าตั้งค่า', actionUrl: NOTIF_GO.integrations },
+  { days: 1, category: 'BOOKING', tone: 'EMERALD', icon: 'check', targetRole: 'ADMIN', code: 'RQ-2569-0180',
+    title: 'อนุมัติคำขอจองสนามกีฬาแล้ว',
+    body: 'RQ-2569-0180 · สนามกีฬากลาง · 15 ส.ค. 2569 เวลา 13:00–16:00 · ดำเนินการโดย สมชาย ใจดี · ครูชำนาญการ · ฝ่ายวิชาการ',
+    actionLabel: 'ดูคำขอจอง', actionUrl: NOTIF_GO.requests },
+  { days: 2, category: 'BOOKING', tone: 'SLATE', icon: 'x-circle', targetRole: 'ALL', code: 'RQ-2569-0171',
+    title: 'ผู้จองยกเลิกคำขอ 1 รายการ',
+    body: 'RQ-2569-0171 · ห้องโสตทัศนศึกษา · 10 ส.ค. 2569 เวลา 13:00–15:00 · เหตุผล: เลื่อนกิจกรรมออกไปก่อน · ช่วงเวลานี้ว่างให้จัดสรรคิวอื่นแล้ว',
+    actionLabel: 'ดูคำขอจอง', actionUrl: NOTIF_GO.requests },
+  { days: 2, category: 'FEEDBACK', tone: 'ROSE', icon: 'exclamation-triangle', targetRole: 'ALL',
+    title: 'แจ้งปัญหาเร่งด่วนระหว่างใช้งานจริง',
+    body: 'ห้องประชุมเล็ก 2 · เครื่องปรับอากาศไม่ทำงาน · แจ้งโดย มานพ เกิดผล · ผู้ช่วยผู้อำนวยการ · ฝ่ายวิชาการ · ติดต่อ 081-445-9920',
+    actionLabel: 'ดูเรื่องที่แจ้ง', actionUrl: NOTIF_GO.feedback },
+  { days: 2, category: 'BOOKING', tone: 'EMERALD', icon: 'check', targetRole: 'ALL', code: 'RQ-2569-0182',
+    title: 'เจ้าหน้าที่บันทึกการจองแทน 1 รายการ',
+    body: 'RQ-2569-0182 · หอประชุม · 18 ส.ค. 2569 เวลา 08:30–12:00 · ทำรายการโดย ศิริพร ทองใบ · เจ้าหน้าที่ · ฝ่ายกิจการนักศึกษา',
+    actionLabel: 'ดูคำขอจอง', actionUrl: NOTIF_GO.requests },
+  { days: 3, category: 'REGISTRATION', tone: 'AMBER', icon: 'arrow-path', targetRole: 'ADMIN',
+    title: 'ผู้ใช้ส่งข้อมูลรอบแก้ไขกลับมาแล้ว',
+    body: 'ธนวัฒน์ ศรีบุญ · เจ้าหน้าที่ · ฝ่ายบริหารงานทั่วไป · แก้ไขตามเหตุผลที่ส่งคืนเมื่อ 7 ส.ค. 2569 (เบอร์ติดต่อไม่ถูกต้อง)',
+    actionLabel: 'ตรวจสอบข้อมูล', actionUrl: NOTIF_GO.registrations },
+  { days: 3, category: 'SYSTEM', tone: 'AMBER', icon: 'building-office', targetRole: 'ALL',
+    title: 'ปิดสถานที่ชั่วคราวฉุกเฉิน',
+    body: 'โรงยิม 1 · เหตุผล: ซ่อมระบบไฟฟ้า ปิดถึง 20 ส.ค. 2569 · ดำเนินการโดย ธนกร แสงจันทร์ · เจ้าหน้าที่ · ฝ่ายอาคารสถานที่',
+    actionLabel: 'ดูสถานที่', actionUrl: NOTIF_GO.venues },
+  { days: 4, category: 'BOOKING', tone: 'ROSE', icon: 'queue-list', targetRole: 'ADMIN', code: 'RQ-2569-0175',
+    title: 'ระบบปฏิเสธคำขอที่เวลาชนกันอัตโนมัติ 3 รายการ',
+    body: 'หลังอนุมัติ RQ-2569-0175 · ปฏิเสธ RQ-2569-0176, RQ-2569-0178, RQ-2569-0179 · ห้องประชุมใหญ่ · 14 ส.ค. 2569 เวลา 09:00–12:00',
+    actionLabel: 'ดูคำขอจอง', actionUrl: NOTIF_GO.requests },
+  { days: 4, category: 'FEEDBACK', tone: 'SKY', icon: 'chat-bubble', targetRole: 'ADMIN',
+    title: 'ได้รับข้อเสนอแนะใหม่ 1 เรื่อง',
+    body: 'อารีย์ สุขใจ · เจ้าหน้าที่ · ฝ่ายวิชาการ · หัวข้อ: อยากให้เปิดจองช่วงเย็นหลัง 16:30 · หมวด: ข้อเสนอแนะการใช้งาน',
+    actionLabel: 'ดูเรื่องที่แจ้ง', actionUrl: NOTIF_GO.feedback },
+  { days: 5, category: 'BOOKING', tone: 'AMBER', icon: 'clock', targetRole: 'ADMIN', code: 'RQ-2569-0166',
+    title: 'คำขอหมดอายุอัตโนมัติ 1 รายการ',
+    body: 'RQ-2569-0166 · สนามกีฬากลาง · เลยเวลาเริ่ม 7 ส.ค. 2569 เวลา 13:00 โดยยังไม่มีการพิจารณา · ตรวจสอบคอขวดในการอนุมัติ',
+    actionLabel: 'ดูคำขอจอง', actionUrl: NOTIF_GO.requests },
+  { days: 5, category: 'SYSTEM', tone: 'ROSE', icon: 'bug-ant', targetRole: 'SUPER_ADMIN', code: 'ERR-500-0142',
+    title: 'พบข้อผิดพลาดร้ายแรงของระบบ',
+    body: 'ERR-500-0142 · BookingService · Database deadlock ขณะยืนยันคำขอจองพร้อมกัน 2 รายการ',
+    actionLabel: 'ดูบันทึกข้อผิดพลาด', actionUrl: NOTIF_GO.errorLog },
+  { days: 6, category: 'REGISTRATION', tone: 'SLATE', icon: 'user-minus', targetRole: 'SUPER_ADMIN',
+    title: 'ผู้ใช้ยกเลิกการติดตาม LINE OA',
+    body: 'สุมาลี พงษ์เจริญ · ครูชำนาญการพิเศษ · กลุ่มสาระการเรียนรู้คณิตศาสตร์ · สิทธิ์เดิม: อนุมัติแล้ว · ยังมีคำขอจองค้างอยู่ 1 รายการ',
+    actionLabel: 'ดูข้อมูลผู้ใช้', actionUrl: NOTIF_GO.registrations },
+  { days: 15, category: 'SYSTEM', tone: 'SLATE', icon: 'adjustments-horizontal', targetRole: 'ADMIN',
+    title: 'แก้ไขการตั้งค่าระบบการจอง',
+    body: 'เกณฑ์เวลายกเลิกการจองล่วงหน้า 30 นาที → 60 นาที · แก้ไขโดย เชิดศักดิ์ คำไล้ · ผู้ดูแลระบบ · ฝ่ายเทคโนโลยีสารสนเทศ',
+    actionLabel: 'ไปที่หน้าตั้งค่า', actionUrl: NOTIF_GO.bookingSettings },
+  { days: 68, category: 'SYSTEM', tone: 'EMERALD', icon: 'sparkles', targetRole: 'ALL',
+    title: 'อัปเดตระบบเป็นเวอร์ชัน v0.7.0',
+    body: 'เพิ่มหน้าจัดการคำขอจองและตัวกรองสถานที่ · แก้ไขการแจ้งเตือนซ้ำเมื่ออนุมัติต่อเนื่อง · รีเฟรชหน้าจอเพื่อใช้งานฟีเจอร์ใหม่',
+    actionLabel: 'ดูรายละเอียดเวอร์ชัน', actionUrl: NOTIF_GO.version },
+];
+
+/**
+ * Three opt-in `ALL` rows (`extras: true`) for what the seed cannot exercise (design §8.5): a CTA
+ * a VIEWER must NOT see (017), a row with no CTA at all (018), and a deep link whose query and hash
+ * must survive to the router while the ACL lookup strips them (019). Neutral QA copy.
+ */
+const NOTIF_EXTRA_SPECS = [
+  { days: 8, category: 'SYSTEM', tone: 'AMBER', icon: 'link-slash', targetRole: 'ALL',
+    title: 'ทดสอบ: ปลายทางที่ผู้ดูข้อมูลเปิดไม่ได้',
+    body: 'รายการทดสอบของ stub · ปุ่มพาไปหน้าการเชื่อมต่อระบบ ซึ่งบทบาทผู้ดูข้อมูลเข้าไม่ได้ ปุ่มจึงต้องถูกซ่อน',
+    actionLabel: 'ไปที่หน้าตั้งค่า', actionUrl: NOTIF_GO.integrations },
+  { days: 9, category: 'SYSTEM', tone: 'SLATE', icon: 'sparkles', targetRole: 'ALL',
+    title: 'ทดสอบ: การแจ้งเตือนที่ไม่มีปุ่มดำเนินการ',
+    body: 'รายการทดสอบของ stub · ไม่มีลิงก์ปลายทาง คลิกจากกระดิ่งแล้วควรทำเครื่องหมายว่าอ่านแล้วเท่านั้น',
+    actionLabel: null, actionUrl: null },
+  { days: 10, category: 'SYSTEM', tone: 'SKY', icon: 'calendar', targetRole: 'ALL',
+    title: 'ทดสอบ: ลิงก์ที่มีตัวกรองและตำแหน่งในหน้า',
+    body: 'รายการทดสอบของ stub · ปลายทางมี ?status=PENDING#top ต่อท้าย ซึ่งต้องส่งต่อไปถึงหน้าคำขอจองครบทั้งหมด',
+    actionLabel: 'ดูคำขอจอง', actionUrl: '/backend/bookings/requests?status=PENDING#top' },
+];
+
+/** A spec → the stored row. `createdAt` = now − days − one minute per position (the seed's tie-break). */
+function notifRow(spec, id, index, now) {
+  const createdAt = new Date(now - spec.days * NOTIF_DAY_MS - index * 60_000).toISOString();
+  return {
+    id,
+    category: spec.category,
+    code: spec.code ?? null,
+    title: spec.title,
+    body: spec.body,
+    tone: spec.tone,
+    icon: spec.icon,
+    actionUrl: spec.actionUrl ?? null,
+    actionLabel: spec.actionLabel ?? null,
+    targetRole: spec.targetRole,
+    createdAt,
+    // Stamped equal here; the real column is not guaranteed to be (the DTO says so — never compare).
+    updatedAt: createdAt,
+  };
+}
+
+/** `cseednotif` + 15 digits = 25 characters, cuid-shaped — the seed script's ids exactly. */
+const notifSeedId = (n) => `cseednotif${String(n).padStart(15, '0')}`;
+
+function notifSeed() {
+  const now = Date.now();
+  return NOTIF_SEED_SPECS.map((s, i) => notifRow(s, notifSeedId(i + 1), i, now));
+}
+
+function notifExtras() {
+  const now = Date.now();
+  return NOTIF_EXTRA_SPECS.map((s, i) => notifRow(s, notifSeedId(17 + i), 16 + i, now));
+}
+
+/**
+ * `fill: N` — N `ALL` rows OLDER than every seed row (`days` 70+), so the bell's newest five do not
+ * move. `cstubfill` + 16 digits = 25 characters, cuid-shaped, so every bulk body id validates.
+ */
+function notifFillRows(count) {
+  const now = Date.now();
+  return Array.from({ length: count }, (_, i) =>
+    notifRow(
+      {
+        days: 70 + i,
+        category: NOTIF_CATEGORIES[i % NOTIF_CATEGORIES.length],
+        tone: 'SLATE',
+        icon: 'check',
+        targetRole: 'ALL',
+        title: `รายการทดสอบการแบ่งหน้า ${i + 1}`,
+        body: `รายการเติมของ stub สำหรับทดสอบการแบ่งหน้า · ลำดับที่ ${i + 1}`,
+        actionLabel: null,
+        actionUrl: null,
+      },
+      `cstubfill${String(i).padStart(16, '0')}`,
+      i,
+      now,
+    ),
+  );
+}
+
+let NOTIF_BASE = notifSeed();
+let NOTIF_EXTRA_ROWS = [];
+let NOTIF_FILL_ROWS = [];
+/** role → Map(id → { readAt, dismissedAt }), ISO strings or null. No row = unread and not dismissed. */
+let NOTIF_RECEIPTS = { SUPER_ADMIN: new Map(), ADMIN: new Map(), VIEWER: new Map() };
+
+/** Reads: list | empty (every role sees nothing) | error (503) | network (dropped socket) | slow (1.5 s). */
+const NOTIF_MODES = ['list', 'empty', 'error', 'network', 'slow'];
+const NOTIF_WRITE_MODES = ['ok', 'error'];
+let notifMode = 'list';
+let notifWriteMode = 'ok';
+let notifCsrfMode = 'ok';
+
+const notifRows = () => [...NOTIF_BASE, ...NOTIF_EXTRA_ROWS, ...NOTIF_FILL_ROWS];
+const notifReceipts = (r) => (NOTIF_RECEIPTS[r] ??= new Map());
+
+/** `visibleTo(caller)`: role-visible AND not dismissed by that role. */
+const notifVisibleTo = (n, r) =>
+  notifMode !== 'empty' &&
+  (NOTIF_VISIBLE[r] ?? []).includes(n.targetRole) &&
+  !notifReceipts(r).get(n.id)?.dismissedAt;
+
+/** `toAdminNotificationDto` — the 14 keys, the CALLER's read state, and never `dismissedAt`. */
+function notifDto(n, r) {
+  const readAt = notifReceipts(r).get(n.id)?.readAt ?? null;
+  return {
+    id: n.id,
+    category: n.category,
+    code: n.code,
+    title: n.title,
+    body: n.body,
+    tone: n.tone,
+    icon: n.icon,
+    actionUrl: n.actionUrl,
+    actionLabel: n.actionLabel,
+    targetRole: n.targetRole,
+    isRead: readAt !== null,
+    readAt,
+    createdAt: n.createdAt,
+    updatedAt: n.updatedAt,
+  };
+}
+
+/** `createdAt DESC, id DESC` — a total order, as the service's `orderBy`. */
+const notifNewestFirst = (a, b) =>
+  a.createdAt === b.createdAt ? (a.id < b.id ? 1 : -1) : a.createdAt < b.createdAt ? 1 : -1;
+
+/** `periodFloor`: Bangkok midnight today, minus 0 / 7 / 30 whole days (UTC ms). */
+function notifPeriodFloor(period, now = Date.now()) {
+  const days = { today: 0, '7d': 7, '30d': 30 }[period];
+  const bkkMidnight = Math.floor((now + NOTIF_BKK_OFFSET_MS) / NOTIF_DAY_MS) * NOTIF_DAY_MS - NOTIF_BKK_OFFSET_MS;
+  return bkkMidnight - days * NOTIF_DAY_MS;
+}
+
+/** `notificationSearchTerm`: trimmed, ONE leading `#` stripped, re-trimmed; '' = no filter. */
+const notifSearchTerm = (s) => String(s ?? '').trim().replace(/^#/, '').trim();
+
+const notifUnreadFor = (r) =>
+  notifRows().filter((n) => notifVisibleTo(n, r) && !notifReceipts(r).get(n.id)?.readAt).length;
+
+/** The global pipe's 400 — `message` is the class-validator array. */
+const notifBad = (message) => ({ statusCode: 400, message, error: 'Bad Request' });
+
+/**
+ * `ListAdminNotificationsQueryDto` under `forbidNonWhitelisted` + `transform`. Returns `{ errors }` or
+ * `{ query }` with the defaults applied. `@Type(() => Number)` then `@IsInt/@Min/@Max`; `isRead` goes
+ * through `toBool` (only the literals `true`/`false` become booleans — a repeated key is an ARRAY and
+ * fails `@IsBoolean`); `search` is trimmed before `@MaxLength` counts it.
+ */
+function notifListQuery(q) {
+  const errors = [];
+  const allowed = ['page', 'limit', 'category', 'isRead', 'period', 'search'];
+  for (const k of Object.keys(q)) if (!allowed.includes(k)) errors.push(`property ${k} should not exist`);
+  const int = (key, dflt, min, max) => {
+    if (q[key] === undefined) return dflt;
+    const v = Number(q[key]);
+    if (!Number.isInteger(v)) errors.push(`${key} must be an integer number`);
+    if (!(v >= min)) errors.push(`${key} must not be less than ${min}`);
+    if (max !== undefined && !(v <= max)) errors.push(`${key} must not be greater than ${max}`);
+    return v;
+  };
+  const page = int('page', 1, 1);
+  const limit = int('limit', 10, 1, NOTIF_LIMIT_MAX);
+  if (q.category !== undefined && !NOTIF_CATEGORIES.includes(q.category)) {
+    errors.push(`category must be one of the following values: ${NOTIF_CATEGORIES.join(', ')}`);
+  }
+  let isRead;
+  if (q.isRead !== undefined) {
+    isRead = q.isRead === 'true' ? true : q.isRead === 'false' ? false : q.isRead;
+    if (typeof isRead !== 'boolean') errors.push('isRead must be a boolean value');
+  }
+  if (q.period !== undefined && !NOTIF_PERIODS.includes(q.period)) {
+    errors.push(`period must be one of the following values: ${NOTIF_PERIODS.join(', ')}`);
+  }
+  let search;
+  if (q.search !== undefined) {
+    search = typeof q.search === 'string' ? q.search.trim() : q.search;
+    if (typeof search !== 'string') errors.push('search must be a string');
+    else if (search.length > NOTIF_SEARCH_MAX) {
+      errors.push(`search must be shorter than or equal to ${NOTIF_SEARCH_MAX} characters`);
+    }
+  }
+  if (errors.length) return { errors };
+  return { query: { page, limit, category: q.category, isRead, period: q.period, search } };
+}
+
+/**
+ * `MarkAdminNotificationsReadDto` / `DismissAdminNotificationsDto`: unknown keys, then `ids`
+ * (`@ValidateIf(v !== undefined)` — `null` IS validated, and fails) and `allRead` (`@Equals(true)`).
+ */
+function notifBodyErrors(body, allowed) {
+  const errors = [];
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return ['an unknown value was passed to the validate function'];
+  }
+  for (const k of Object.keys(body)) if (!allowed.includes(k)) errors.push(`property ${k} should not exist`);
+  if ('ids' in body && body.ids !== undefined) {
+    const ids = body.ids;
+    if (!Array.isArray(ids)) {
+      errors.push('ids must be an array');
+      errors.push('ids must contain at least 1 elements');
+    } else {
+      if (ids.length < 1) errors.push('ids must contain at least 1 elements');
+      if (ids.length > NOTIF_LIMIT_MAX) errors.push(`ids must contain no more than ${NOTIF_LIMIT_MAX} elements`);
+      if (new Set(ids).size !== ids.length) errors.push("All ids's elements must be unique");
+      if (ids.some((v) => typeof v !== 'string')) errors.push('each value in ids must be a string');
+      if (ids.some((v) => typeof v !== 'string' || !NOTIF_ID.test(v))) {
+        errors.push('each value in ids must match /^c[a-z0-9]{24}$/ regular expression');
+      }
+    }
+  }
+  if (allowed.includes('allRead') && 'allRead' in body && body.allRead !== undefined && body.allRead !== true) {
+    errors.push('allRead must be equal to true');
+  }
+  return errors;
+}
+
+/** The single-id 404 gate (`assertVisible`): a non-cuid path id is the same 404, without a lookup. */
+const notifFindVisible = (id, r) => {
+  if (!NOTIF_ID.test(id)) return null;
+  const n = notifRows().find((x) => x.id === id);
+  return n && notifVisibleTo(n, r) ? n : null;
+};
+
+const notifDelay = async (_req, _res, next) => {
+  if (notifMode === 'slow') await sleep(1500);
+  next();
+};
+const notifReadGate = (req, res, next) => {
+  if (notifMode === 'error') return res.status(503).json(SESSION_STORE_DOWN);
+  if (notifMode === 'network') return req.socket.destroy();
+  next();
+};
+const notifCsrf = csrfCheck(() => notifCsrfMode);
+const notifWriteGate = (_req, res, next) => {
+  if (notifWriteMode === 'error') return res.status(503).json(SESSION_STORE_DOWN);
+  next();
+};
+
+// ── Literal routes FIRST, `:id` routes after — the controller's order. ──
+
+app.get('/api/v1/notifications', notifDelay, notifReadGate, (req, res) => {
+  const parsed = notifListQuery(req.query);
+  if (parsed.errors) return res.status(400).json(notifBad(parsed.errors));
+  const { page, limit, category, isRead, period, search } = parsed.query;
+  const floor = period ? notifPeriodFloor(period) : null;
+  const term = notifSearchTerm(search).toLowerCase();
+  const receipts = notifReceipts(role);
+  const hits = notifRows()
+    .filter((n) => notifVisibleTo(n, role))
+    .filter((n) => category === undefined || n.category === category)
+    .filter((n) => isRead === undefined || Boolean(receipts.get(n.id)?.readAt) === isRead)
+    .filter((n) => floor === null || Date.parse(n.createdAt) >= floor)
+    // A LITERAL, case-insensitive substring — `%` and `_` are characters, not wildcards.
+    .filter((n) => !term || [n.title, n.body, n.code ?? ''].some((f) => f.toLowerCase().includes(term)))
+    .sort(notifNewestFirst);
+  const total = hits.length;
+  res.json({
+    data: hits.slice((page - 1) * limit, page * limit).map((n) => notifDto(n, role)),
+    meta: { page, limit, total, totalPages: total === 0 ? 0 : Math.ceil(total / limit) },
+  });
+});
+
+app.get('/api/v1/notifications/unread-count', notifDelay, notifReadGate, (_req, res) => {
+  const byCategory = { BOOKING: 0, REGISTRATION: 0, FEEDBACK: 0, SYSTEM: 0 };
+  const receipts = notifReceipts(role);
+  for (const n of notifRows()) {
+    if (notifVisibleTo(n, role) && !receipts.get(n.id)?.readAt) byCategory[n.category] += 1;
+  }
+  res.json({ total: Object.values(byCategory).reduce((a, b) => a + b, 0), byCategory });
+});
+
+// `@HttpCode(200)` on the real route — never 201, it creates nothing.
+app.post('/api/v1/notifications/read-all', notifDelay, notifCsrf, notifWriteGate, (req, res) => {
+  const body = req.body ?? {}; // no body (or `{}`) = every visible unread row
+  const errors = notifBodyErrors(body, ['ids']);
+  if (errors.length) return res.status(400).json(notifBad(errors));
+  const ids = body.ids;
+  const receipts = notifReceipts(role);
+  const now = new Date().toISOString();
+  let updated = 0;
+  for (const n of notifRows()) {
+    if (!notifVisibleTo(n, role)) continue; // invisible and dismissed rows: skipped, not counted
+    if (ids && !ids.includes(n.id)) continue;
+    const r = receipts.get(n.id);
+    if (r?.readAt) continue; // already read: `readAt` never moves, and it is not counted
+    if (r) r.readAt = now;
+    else receipts.set(n.id, { readAt: now, dismissedAt: null });
+    updated += 1;
+  }
+  res.status(200).json({ updated });
+});
+
+app.delete('/api/v1/notifications/bulk', notifDelay, notifCsrf, notifWriteGate, (req, res) => {
+  const body = req.body ?? {};
+  const errors = notifBodyErrors(body, ['ids', 'allRead']);
+  if (errors.length) return res.status(400).json(notifBad(errors));
+  // The exactly-one rule is the SERVICE's, after the DTO passed — a single string, not an array.
+  if ((body.ids === undefined) === (body.allRead === undefined)) {
+    return res.status(400).json({ statusCode: 400, message: NOTIF_DISMISS_TARGET, error: 'Bad Request' });
+  }
+  const receipts = notifReceipts(role);
+  const now = new Date().toISOString();
+  let deleted = 0;
+  for (const n of notifRows()) {
+    if (!notifVisibleTo(n, role)) continue;
+    const r = receipts.get(n.id);
+    if (body.allRead === true) {
+      // Every READ row the caller can see — every category and page; the list filters are ignored.
+      if (!r?.readAt) continue;
+      r.dismissedAt = now;
+    } else {
+      if (!body.ids.includes(n.id)) continue;
+      if (r) r.dismissedAt = now;
+      else receipts.set(n.id, { readAt: null, dismissedAt: now });
+    }
+    deleted += 1;
+  }
+  res.status(200).json({ deleted });
+});
+
+app.patch('/api/v1/notifications/:id/read', notifDelay, notifCsrf, notifWriteGate, (req, res) => {
+  const n = notifFindVisible(req.params.id, role);
+  if (!n) return res.status(404).json(NOTIF_NOT_FOUND);
+  const receipts = notifReceipts(role);
+  const r = receipts.get(n.id);
+  if (!r) receipts.set(n.id, { readAt: new Date().toISOString(), dismissedAt: null });
+  else if (!r.readAt) r.readAt = new Date().toISOString(); // idempotent: `readAt` never moves
+  res.json(notifDto(n, role));
+});
+
+app.patch('/api/v1/notifications/:id/unread', notifDelay, notifCsrf, notifWriteGate, (req, res) => {
+  const n = notifFindVisible(req.params.id, role);
+  if (!n) return res.status(404).json(NOTIF_NOT_FOUND);
+  // Clears an EXISTING receipt's `readAt` only — never creates one (no row already means unread).
+  const r = notifReceipts(role).get(n.id);
+  if (r?.readAt) r.readAt = null;
+  res.json(notifDto(n, role));
+});
+
+/** Everything back to the seed: rows, all three roles' receipts, every mode. */
+function notifReset() {
+  NOTIF_BASE = notifSeed();
+  NOTIF_EXTRA_ROWS = [];
+  NOTIF_FILL_ROWS = [];
+  NOTIF_RECEIPTS = { SUPER_ADMIN: new Map(), ADMIN: new Map(), VIEWER: new Map() };
+  notifMode = 'list';
+  notifWriteMode = 'ok';
+  notifCsrfMode = 'ok';
+}
+
+const notifControlState = () => ({
+  mode: notifMode,
+  writeMode: notifWriteMode,
+  csrfMode: notifCsrfMode,
+  extras: NOTIF_EXTRA_ROWS.length > 0,
+  fill: NOTIF_FILL_ROWS.length,
+  rows: notifRows().length,
+  unread: { SUPER_ADMIN: notifUnreadFor('SUPER_ADMIN'), ADMIN: notifUnreadFor('ADMIN'), VIEWER: notifUnreadFor('VIEWER') },
+});
+
 /* ── control plane ─────────────────────────────────────────────────────── */
 
 app.post('/__control/role', (req, res) => {
@@ -2023,6 +2554,61 @@ app.post('/__control/integrations', (req, res) => {
   res.json({ ...INTEG });
 });
 
+/**
+ * Force การแจ้งเตือน (the page AND the topbar bell) into a state — any subset of:
+ *   · `mode`      list | empty | error | network | slow — the two GETs (empty = every role sees nothing)
+ *   · `writeMode` ok | error — the four writes answer the code-less 503 before touching anything
+ *   · `csrfMode`  ok | reject — the four writes answer 403 `Invalid CSRF token.` (the app's one retry
+ *                 shows as two requests); independent of the announcement and canned `csrfMode`s
+ *   · `extras`    true | false — add / remove the three `ALL` fixtures 017–019 (see `NOTIF_EXTRA_SPECS`)
+ *   · `fill`      integer 0–120 — replace the filler set with N older `ALL` rows (pagination)
+ *   · `reset`     true — rows, all three roles' receipts and every mode back to the seed; applied
+ *                 FIRST, so `{ "reset": true, "fill": 100 }` is a clean slate plus filler
+ *
+ * ⚠️ ALL-OR-NOTHING like `/__control/announcements`: an unknown key, a bad value or an empty body is a
+ * 400 `{ error }` and changes NOTHING.
+ */
+const NOTIF_CONTROL_KEYS = ['mode', 'writeMode', 'csrfMode', 'extras', 'fill', 'reset'];
+const NOTIF_FILL_MAX = 120;
+
+app.post('/__control/notifications', (req, res) => {
+  const body = req.body ?? {};
+  const keys = Object.keys(body);
+  const unknown = keys.filter((k) => !NOTIF_CONTROL_KEYS.includes(k));
+  if (unknown.length) {
+    return res.status(400).json({ error: `unknown key(s): ${unknown.join(', ')}` });
+  }
+  if (!keys.length) {
+    return res.status(400).json({ error: `give at least one of: ${NOTIF_CONTROL_KEYS.join(', ')}` });
+  }
+  const oneOf = (key, allowed) =>
+    body[key] !== undefined && !allowed.includes(body[key])
+      ? `\`${key}\` must be one of: ${allowed.join(', ')}`
+      : null;
+  const bad =
+    oneOf('mode', NOTIF_MODES) ??
+    oneOf('writeMode', NOTIF_WRITE_MODES) ??
+    oneOf('csrfMode', CSRF_MODES) ??
+    oneOf('extras', [true, false]) ??
+    oneOf('reset', [true]);
+  if (bad) return res.status(400).json({ error: bad });
+  if (
+    body.fill !== undefined &&
+    !(Number.isInteger(body.fill) && body.fill >= 0 && body.fill <= NOTIF_FILL_MAX)
+  ) {
+    return res.status(400).json({ error: `\`fill\` must be an integer from 0 to ${NOTIF_FILL_MAX}` });
+  }
+
+  // Everything is valid — apply it all, `reset` first.
+  if (body.reset) notifReset();
+  if (body.mode !== undefined) notifMode = body.mode;
+  if (body.writeMode !== undefined) notifWriteMode = body.writeMode;
+  if (body.csrfMode !== undefined) notifCsrfMode = body.csrfMode;
+  if (body.extras !== undefined) NOTIF_EXTRA_ROWS = body.extras ? notifExtras() : [];
+  if (body.fill !== undefined) NOTIF_FILL_ROWS = notifFillRows(body.fill);
+  res.json(notifControlState());
+});
+
 app.post('/__control/reset', (_req, res) => {
   ROWS = seed();
   // The version is state too, so it comes back with the seed — otherwise a downgrade driven for
@@ -2049,6 +2635,8 @@ app.post('/__control/reset', (_req, res) => {
   cannedDelayMs = 0;
   // …and การเชื่อมต่อระบบ: Swagger back OFF, LINE / R2 / DB / Redis back to healthy.
   INTEG = INTEG_DEFAULTS();
+  // …and การแจ้งเตือน: a forced `error` or a VIEWER's dismissals must not leak into the next check.
+  notifReset();
   res.json({
     ok: true,
     rows: ROWS.length,
@@ -2062,6 +2650,7 @@ app.post('/__control/reset', (_req, res) => {
     deleteMode,
     csrfMode,
     cannedReplies: CANNED.length,
+    notifications: notifRows().length,
   });
 });
 app.post('/__control/emit', (req, res) => {
@@ -2097,6 +2686,6 @@ function emit(event, payload) {
 
 server.listen(PORT, () =>
   console.log(
-    `[stub] :${PORT} — role=${role}, ${ROWS.length} booking rows, ${ANNOUNCEMENTS.length} announcements, ${CANNED.length} canned replies, version=${systemVersion.version} (from package.json)`,
+    `[stub] :${PORT} — role=${role}, ${ROWS.length} booking rows, ${ANNOUNCEMENTS.length} announcements, ${CANNED.length} canned replies, ${notifRows().length} notifications, version=${systemVersion.version} (from package.json)`,
   ),
 );

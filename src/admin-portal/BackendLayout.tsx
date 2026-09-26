@@ -14,18 +14,17 @@
  * surface can repaint the other.
  */
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { NotifGlyph } from './components/shell/notif-icons'
 import { ToastProvider } from './components/feedback/Toast'
 import { Sidebar, type SidebarUser } from './components/shell/Sidebar'
 import { Topbar } from './components/shell/Topbar'
+import { NotificationsProvider } from './lib/NotificationsProvider'
 import { RealtimeProvider } from './lib/RealtimeProvider'
 import { useAcl, type Acl } from './lib/use-acl'
 import { usePendingBookings } from './lib/use-pending-bookings'
 import { usePendingRegistrations } from './lib/use-pending-registrations'
 import { useTheme, type ThemeChoice } from './lib/use-theme'
-import type { Notification as NotificationItem } from './lib/notifications'
 import { useAuth } from './lib/auth-context'
 import type { SystemUser } from '@/lib/api-client'
 import { ADMIN_PORTAL_ROUTES, HOME_PATH, urlOf } from './routes'
@@ -49,70 +48,11 @@ const toSidebarUser = (u: SystemUser): SidebarUser => ({
   avatarUrl: u.profilePictureUrl ?? null,
 })
 
-/**
- * ⚠️ PLACEHOLDER — P4 replaces this with the realtime feed the gateway already broadcasts.
- *
- * Held in layout state rather than as a constant so read/read-all actually mutate something:
- * a panel whose rows cannot change is a panel whose focus and count behaviour cannot be
- * verified, and those are the two parts of it that have already been wrong once.
- */
-const PLACEHOLDER_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 'n1',
-    tone: 'amber',
-    icon: <NotifGlyph name="user-plus" />,
-    title: 'ผู้ใช้ลงทะเบียนใหม่ 2 ราย รออนุมัติ',
-    detail: 'เชิดศักดิ์ คำไล้ และอีก 1 ราย',
-    time: '5 นาทีที่แล้ว',
-    read: false,
-  },
-  {
-    id: 'n2',
-    tone: 'sky',
-    icon: <NotifGlyph name="calendar" />,
-    title: 'คำขอจองห้องประชุมใหม่ 1 รายการ',
-    detail: 'ฝ่ายวิชาการ · 12 ส.ค. 2569 เวลา 09:00–12:00',
-    time: '18 นาทีที่แล้ว',
-    read: false,
-  },
-  {
-    id: 'n3',
-    tone: 'rose',
-    icon: <NotifGlyph name="warning" />,
-    title: 'เชื่อมต่อ LINE Messaging API ไม่สำเร็จ',
-    detail: 'ระบบจะลองใหม่อัตโนมัติภายใน 5 นาที',
-    time: '1 ชั่วโมงที่แล้ว',
-    read: false,
-  },
-  {
-    id: 'n4',
-    tone: 'emerald',
-    icon: <NotifGlyph name="check" />,
-    title: 'อนุมัติคำขอจองสนามกีฬาแล้ว',
-    detail: 'ดำเนินการโดย สมชาย ใจดี',
-    time: 'เมื่อวาน 16:40',
-    read: true,
-  },
-  // ⚠️ FIVE, not four, and the fifth is what makes the panel SCROLL. Its `max-h-[30rem]` and the
-  // list's overflow are only exercised past four rows, so a four-row fixture reviews a panel
-  // whose scrolling nobody has ever seen.
-  {
-    id: 'n5',
-    tone: 'slate',
-    icon: <NotifGlyph name="cancel" />,
-    title: 'ผู้จองยกเลิกคำขอ 1 รายการ',
-    detail: 'ห้องโสตทัศนศึกษา · 10 ส.ค. 2569',
-    time: '2 วันที่แล้ว',
-    read: true,
-  },
-]
-
 export function BackendLayout() {
   const { resolved, choice, setTheme, isDark } = useTheme()
   const { pathname } = useLocation()
   const { user, signOut } = useAuth()
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [notifications, setNotifications] = useState(PLACEHOLDER_NOTIFICATIONS)
   // Non-null by construction: `BackendGate` renders this only while authenticated. Asserting it
   // here rather than threading an optional user through the whole shell keeps every component
   // below from having to render a "signed out" variant that can never appear.
@@ -186,8 +126,6 @@ export function BackendLayout() {
             isDark={isDark}
             themeChoice={choice}
             onThemeChange={setTheme}
-            notifications={notifications}
-            setNotifications={setNotifications}
           />
         </RealtimeProvider>
       </ToastProvider>
@@ -209,8 +147,6 @@ function ShellBody({
   isDark,
   themeChoice,
   onThemeChange,
-  notifications,
-  setNotifications,
 }: {
   me: SidebarUser
   acl: Acl
@@ -220,8 +156,6 @@ function ShellBody({
   isDark: boolean
   themeChoice: ThemeChoice
   onThemeChange: (next: ThemeChoice) => void
-  notifications: NotificationItem[]
-  setNotifications: Dispatch<SetStateAction<NotificationItem[]>>
 }) {
   /**
    * ⚠️ TWO REAL COUNTS NOW, AND ปฏิทินการจอง'S IS STILL GONE RATHER THAN LEFT AS DECORATION.
@@ -237,33 +171,34 @@ function ShellBody({
   const pendingRegistrations = usePendingRegistrations()
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar
-        me={me}
-        acl={acl}
-        counts={{ 'คำขอจองสถานที่': pendingBookings, 'การลงทะเบียน': pendingRegistrations }}
-        drawerOpen={drawerOpen}
-        onDrawerChange={onDrawerChange}
-        onLogout={onLogout}
-      />
-
-      <div className="flex min-w-0 flex-1 flex-col p-3 lg:py-4 lg:pl-0 lg:pr-4">
-        <Topbar
+    /* ⚠️ THE NOTIFICATION SOURCE WRAPS BOTH THE BELL AND THE PAGE (D-9). The topbar and the
+       `<Outlet/>` read the same three server answers from it, and every write on either surface
+       revalidates both — which is what keeps the badge and the page's pills in agreement without a
+       second counter. It sits inside `ToastProvider` and the router, both of which it needs. */
+    <NotificationsProvider>
+      <div className="flex h-screen overflow-hidden">
+        <Sidebar
+          me={me}
           acl={acl}
-          isDark={isDark}
-          themeChoice={themeChoice}
-          onThemeChange={onThemeChange}
-          notifications={notifications}
-          onReadNotification={(id) =>
-            setNotifications((xs) => xs.map((x) => (x.id === id ? { ...x, read: true } : x)))
-          }
-          onReadAll={() => setNotifications((xs) => xs.map((x) => ({ ...x, read: true })))}
+          counts={{ 'คำขอจองสถานที่': pendingBookings, 'การลงทะเบียน': pendingRegistrations }}
+          drawerOpen={drawerOpen}
+          onDrawerChange={onDrawerChange}
+          onLogout={onLogout}
         />
 
-        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <Outlet />
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col p-3 lg:py-4 lg:pl-0 lg:pr-4">
+          <Topbar
+            acl={acl}
+            isDark={isDark}
+            themeChoice={themeChoice}
+            onThemeChange={onThemeChange}
+          />
+
+          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
+    </NotificationsProvider>
   )
 }

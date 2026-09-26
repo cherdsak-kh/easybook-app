@@ -408,6 +408,130 @@
   .notif-sub          { @apply m-0 mt-0.5 text-[13px] leading-[1.45] text-base-content/70; }
   .notif-time         { @apply m-0 mt-1 text-[12px] text-base-content/70 tabular-nums; }
 
+  /* ── หน้าการแจ้งเตือนทั้งหมด (/backend/notifications) ────────────────────
+     THE SAME VOCABULARY AS THE DROPDOWN, ONE SIZE UP. The bell panel is a
+     peek — 36px tile, three stacked lines, no controls. This page is the
+     record: the same row has to carry a selection box, a category badge, an
+     exact timestamp and two controls, and it has to do that at 375px as well
+     as at 1280px. So the tone classes, the title/sub classes and the "unread
+     is marked three ways" rule are REUSED verbatim (`.notif-tone-*`,
+     `.notif-title*`, `.notif-sub`), and only the things that genuinely differ
+     get a new name here. Two vocabularies for one idea is how the peek and
+     the page end up disagreeing about what "unread" looks like. */
+  /* 40×40 rather than the panel's 36. The row is taller here (two text lines
+     plus a meta line plus a 44px control), and a 36px tile in it reads as an
+     icon that lost its box. */
+  .notif-ico-lg   { @apply h-10 w-10; }
+  .notif-glyph-lg { @apply h-5 w-5; }
+
+  /* ⚠️ `flex-wrap`, and it is the whole responsive story. At desktop widths the
+     five parts sit on one line; below that the content block's `basis-56`
+     cannot be satisfied alongside the action cluster, so the actions wrap to
+     their own full-width line UNDER the row rather than crushing the text to
+     ~90px. No breakpoint, no second copy of the buttons in the DOM — the one
+     place a duplicated action block would have had to be kept in step is the
+     one place this file cannot afford to (each row is built from a template). */
+  .nt-row {
+    @apply relative flex flex-wrap items-start gap-2 px-2.5 py-3.5 transition-colors
+           hover:bg-base-content/5 sm:gap-3 sm:px-4 lg:px-5;
+  }
+  /* Same 5%, same reason as `.notif-row-unread`: at /10 a run of unread rows
+     reads as a broken multi-select — and on THIS page a multi-select is a real
+     control sitting in the same row, so the collision is not hypothetical. */
+  .nt-row-unread  { @apply bg-primary/5; }
+  /* The row the operator is ABOUT to act on in bulk. Deliberately not the
+     unread wash again: "selected" and "unread" are different facts and a row
+     can be both, so the selected one is the stronger tint and it wins while it
+     lasts — a selection is a thing you are holding, an unread mark is a thing
+     you have not got to yet. */
+  .nt-row-picked  { @apply bg-primary/10; }
+
+  /* The unread dot, as a LEADING rail rather than the panel's trailing dot.
+     The panel's row ends in empty space; this one ends in two controls, so a
+     dot there would sit beside a button and read as part of it. `invisible`
+     rather than removed on a read row — the 8px column has to stay, or every
+     title on the page shifts sideways depending on whether it has been read. */
+  .nt-dot         { @apply mt-[13px] h-2 w-2 shrink-0 rounded-full bg-primary; }
+  .nt-dot-read    { @apply invisible; }
+
+  /* A 44px-tall target in a 36px column: the box is drawn by `.chk-box` (the
+     same tick the amenity list uses) and the LABEL carries the hit area.
+     Reusing `.chk-box` rather than drawing a second checkbox means one answer
+     to "what does a ticked box look like" across the product. */
+  .nt-pick        { @apply -my-1 flex h-11 w-9 shrink-0 cursor-pointer items-center justify-center rounded-control transition-colors hover:bg-base-content/10; }
+  .nt-pick input:checked ~ .chk-box { @apply border-primary bg-primary text-primary-content; }
+  .nt-pick:has(input:focus-visible) { @apply outline-2 outline-offset-2 outline-primary; }
+  /* ── The third state, and it is not decoration ──────────────────────
+     Only the select-all box can be INDETERMINATE (some of the page ticked,
+     not all). Drawn, not merely set as a property: an indeterminate checkbox
+     that renders as EMPTY tells the operator nothing is selected while three
+     rows below it sit highlighted — and the click they then make selects
+     everything instead of the "clear" a half-filled box promises. The tick
+     swaps for a dash because a tick would claim "all", which is the state
+     next door. */
+  .nt-pick input:indeterminate ~ .chk-box { @apply border-primary bg-primary text-primary-content; }
+  .nt-pick input:indeterminate ~ .chk-box [data-chk-tick] { @apply hidden; }
+  .nt-pick [data-chk-dash] { @apply hidden; }
+  .nt-pick input:indeterminate ~ .chk-box [data-chk-dash] { @apply block; }
+
+  /* Relative time, exact time and category on one wrapping line. 12px and
+     `/70`: this is the line you read only when the title has already told you
+     something happened, so it must not compete with the title above it. */
+  .nt-meta        { @apply m-0 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-[1.5] text-base-content/70; }
+  /* The "·" between the relative time and the exact one. `/50`, measured: at
+     `/40` it read 2.53:1 in light and looked like a rendering artifact rather
+     than punctuation; at `/70` — the weight of the text either side of it — it
+     stops being a separator and becomes a third item in the row. `/50`
+     measures 3.40:1 light / 4.32:1 dark on the unread row's ground, which is
+     the compromise on purpose.
+     It is BELOW 4.5:1 in light and that is deliberate and allowed: the glyph is
+     `aria-hidden`, carries no information, and deleting it would lose nothing —
+     WCAG's incidental-text exemption is written for exactly this. Recorded so
+     that a later contrast sweep does not "fix" it to /70 and flatten the one
+     piece of hierarchy this line has. */
+  .nt-meta-sep    { @apply text-base-content/50; }
+  /* NOT `.badge`: a badge in this file means STATUS (one per row, five hues
+     that map to five states). A category is not a state — it is which part of
+     the product the event came from — so it stays neutral and takes the shape
+     of `.tag`, which is exactly what that class already means. */
+  .nt-cat         { @apply inline-flex items-center rounded-control bg-base-200 px-2 py-0.5 text-[12px] leading-[1.35] text-base-content/80; }
+
+  /* `w-full sm:w-auto` is the other half of the wrap: once the cluster is on
+     its own line it spans it, so the two controls sit under the text they
+     belong to instead of floating mid-row. `ml-auto` pushes it to the right
+     edge on the one-line layout. */
+  .nt-actions     { @apply mt-1 flex w-full shrink-0 items-center gap-1.5 sm:ml-auto sm:mt-0 sm:w-auto; }
+  /* The quick-navigate button. Ghost, not primary: every row has one, and a
+     column of filled buttons would make ten equally urgent claims on the eye. */
+  .nt-cta         { @apply flex min-h-11 items-center gap-1 rounded-control border border-base-content/20 bg-base-100 px-3 text-[13px] font-medium text-base-content/80 transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  .nt-kebab       { @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-base-content/70 transition-colors hover:bg-base-content/10 hover:text-base-content aria-expanded:bg-base-content/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+
+  /* The per-row ⋯ menu. ONE element for the whole list, positioned against
+     whichever row's ⋯ was clicked — ten rows would otherwise mean ten menus in
+     the DOM, ten ids to keep unique, and ten copies of the outside-click
+     handler.
+     ⚠️ `fixed`, NOT `absolute`, and that is not a style preference. The rows
+     live inside `.card-scroll`, which is `overflow-x-auto` (#ISSUE-05) — and
+     any non-visible overflow CLIPS in both axes, so an absolutely positioned
+     menu hanging off the bottom row would be cut at the card's lower edge,
+     on the row an operator reaches last and clicks most. Fixed takes it out
+     of every scroller; the script sets left/top from the button's rect and
+     closes the menu on scroll (the content region's, now that the card no
+     longer scrolls itself), because a fixed box cannot follow its row. */
+  .nt-menu        { @apply fixed z-50 w-60 overflow-hidden rounded-card border border-base-300 bg-base-100 py-1 shadow-e2; }
+  .nt-menu-item   { @apply flex min-h-11 w-full items-center gap-2.5 px-3 text-left text-[14px] leading-[1.45] text-base-content/80 transition-colors hover:bg-base-content/5 hover:text-base-content focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary; }
+  .nt-menu-danger { @apply text-error hover:bg-error/10 hover:text-error; }
+  .nt-menu-ico    { @apply h-4.5 w-4.5 shrink-0; }
+
+  /* ── The selection bar ────────────────────────────────────────────────
+     ONE bar, TWO states, and that is deliberate. "เลือกทั้งหมดในหน้านี้" has to
+     be reachable BEFORE anything is selected, so a bar that only appears once
+     a box is ticked would have nowhere to put it. The bar is therefore always
+     present and carries the select-all box plus a caption; what appears is the
+     pair of bulk buttons, and the tint is how the bar says it is armed. */
+  .nt-selbar      { @apply flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-base-300 px-2.5 py-2 transition-colors sm:px-4 lg:px-5; }
+  .nt-selbar-on   { @apply bg-primary/5; }
+
   /* ── ปฏิทินการจอง ───────────────────────────────────────────────────
      Every class the calendar module sets AT RUNTIME is defined here, because
      the day cells and agenda cards are built by script and Tailwind's scanner

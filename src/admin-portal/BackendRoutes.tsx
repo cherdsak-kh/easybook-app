@@ -34,6 +34,7 @@ import { IntegrationsPage } from './pages/settings/IntegrationsPage'
 import { ForcePasswordChangePage } from './pages/password/ForcePasswordChangePage'
 import { LineUsersPage } from './pages/line-users/LineUsersPage'
 import { LoginPage } from './pages/login/LoginPage'
+import { NotificationsPage } from './pages/notifications/NotificationsPage'
 import { ChangePasswordPage } from './pages/password/ChangePasswordPage'
 import { OptionsPage } from './pages/options/OptionsPage'
 import { ProfilePage } from './pages/profile/ProfilePage'
@@ -84,6 +85,9 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   // SUPER_ADMIN and ADMIN only — in `VIEWER_DENY`, so `BackendLayout` refuses it for a VIEWER.
   // Simulated end to end until the integration endpoints exist; see the page's header.
   'การเชื่อมต่อระบบ': (route) => <IntegrationsPage route={route} />,
+  // Reachable by all three roles (not in `VIEWER_DENY`); VIEWER's writes here touch only its own
+  // receipts — read state and "delete for me" (Phase 1 D-3).
+  'ดูการแจ้งเตือนทั้งหมด': (route) => <NotificationsPage route={route} />,
 }
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */
