@@ -72,6 +72,9 @@
  *                                             Seeded with the service's 16 rows, ids
  *                                             `cseednotif000000000000001…016` (visible 16 / 14 / 5).
  *                                             Driven by `POST /__control/notifications`
+ *   - `/admin` socket: adminNotification.created — NOTIF-RT-1. Pushed by `POST /__control/emit
+ *     { event: 'adminNotification.created', targetRole?, category?, count?, force? }`, which mirrors
+ *     the real gateway's audience rule (SUPER_ADMIN → role room only, VIEWER → no socket)
  *
  * What this stub does NOT serve (a 404 here is expected, not a bug):
  *   - Any WRITE on line-users (`PATCH /line-users/:id`, `PATCH /line-users/:id/registration`)
@@ -84,7 +87,8 @@
  *
  * Control plane (not part of the real contract, prefixed `__`):
  *   POST /__control/role      { role }                       — switch the signed-in role
- *   POST /__control/emit      { event, id, status, actor }   — push a realtime event
+ *   POST /__control/emit      { event, id, status, actor } | { event: 'adminNotification.created',
+ *                               targetRole?, category?, count?, force? } — push a realtime event
  *   POST /__control/version   { version, build?, releasedAt? } — set what GET system/version reports
  *   POST /__control/announcements { botMode?, listMode?, sendMode?, sendDelayMs?, saveMode?,
  *                                   deleteMode?, csrfMode?, mutate? }
@@ -270,6 +274,27 @@
  *   # reset — the 16 seed rows, every role's read/dismiss state and every mode, back to the start
  *   curl -s -X POST http://localhost:3301/__control/notifications \
  *     -H "Content-Type: application/json" -d '{"reset":true}'
+ *
+ *   # ── NOTIF-RT-1 — realtime push. Inserts `count` real rows (visible over REST like any other row,
+ *   # subject to `notifVisibleTo`), then emits one `adminNotification.created` per row IF the CURRENT
+ *   # role would really receive one (mirrors the server's audience rule: SUPER_ADMIN → the role room
+ *   # only, VIEWER → no socket at all). `heldBack:true` is the stub's proof it did NOT fake a pass. ──
+ *
+ *   # push a notification pulse (inserts real rows, then emits one event per row)
+ *   curl -s -X POST http://localhost:3301/__control/emit -H "Content-Type: application/json" \
+ *     -d '{"event":"adminNotification.created","targetRole":"ALL"}'
+ *
+ *   # AC-4 burst: ten back-to-back → the app must make ONE unread-count GET
+ *   curl -s -X POST http://localhost:3301/__control/emit -H "Content-Type: application/json" \
+ *     -d '{"event":"adminNotification.created","targetRole":"ADMIN","count":10}'
+ *
+ *   # AC-2: as ADMIN a SUPER_ADMIN pulse is HELD BACK (heldBack:true, emitted:0) — the server's rule;
+ *   # force:true sends it anyway to prove the CLIENT filter (expect zero notification GETs from it)
+ *   curl -s -X POST http://localhost:3301/__control/emit -H "Content-Type: application/json" \
+ *     -d '{"event":"adminNotification.created","targetRole":"SUPER_ADMIN","force":true}'
+ *
+ *   # Note for QA: after `POST /__control/role`, RELOAD the app. The app reads its role from `/me`
+ *   # and opens its socket at load, and this stub has no revalidation sweep like the real gateway.
  */
 import express from 'express';
 import cors from 'cors';
@@ -1873,6 +1898,13 @@ function notifFillRows(count) {
 let NOTIF_BASE = notifSeed();
 let NOTIF_EXTRA_ROWS = [];
 let NOTIF_FILL_ROWS = [];
+/**
+ * NOTIF-RT-1 (`POST /__control/emit { event: 'adminNotification.created', … }`) — real rows the
+ * push handler inserts, newest last (see `notifRow`'s `createdAt = now + i` below). Cleared by
+ * `notifReset()` and `POST /__control/reset`, exactly like the other three row sets.
+ */
+let NOTIF_PUSH_ROWS = [];
+let notifPushSeq = 0;
 /** role → Map(id → { readAt, dismissedAt }), ISO strings or null. No row = unread and not dismissed. */
 let NOTIF_RECEIPTS = { SUPER_ADMIN: new Map(), ADMIN: new Map(), VIEWER: new Map() };
 
@@ -1883,7 +1915,7 @@ let notifMode = 'list';
 let notifWriteMode = 'ok';
 let notifCsrfMode = 'ok';
 
-const notifRows = () => [...NOTIF_BASE, ...NOTIF_EXTRA_ROWS, ...NOTIF_FILL_ROWS];
+const notifRows = () => [...NOTIF_PUSH_ROWS, ...NOTIF_BASE, ...NOTIF_EXTRA_ROWS, ...NOTIF_FILL_ROWS];
 const notifReceipts = (r) => (NOTIF_RECEIPTS[r] ??= new Map());
 
 /** `visibleTo(caller)`: role-visible AND not dismissed by that role. */
@@ -2135,6 +2167,7 @@ function notifReset() {
   NOTIF_BASE = notifSeed();
   NOTIF_EXTRA_ROWS = [];
   NOTIF_FILL_ROWS = [];
+  NOTIF_PUSH_ROWS = [];
   NOTIF_RECEIPTS = { SUPER_ADMIN: new Map(), ADMIN: new Map(), VIEWER: new Map() };
   notifMode = 'list';
   notifWriteMode = 'ok';
@@ -2653,7 +2686,81 @@ app.post('/__control/reset', (_req, res) => {
     notifications: notifRows().length,
   });
 });
+/**
+ * NOTIF-RT-1 (D-9 + X-5) — would the REAL `/admin` gateway transmit a `targetRole` pulse to a
+ * socket whose role is `r`? Mirrors `audienceFor` (SUPER_ADMIN → the role room only) PLUS
+ * `isRealtimeEligible` (VIEWER holds no `/admin` socket at all). Evaluated against the CURRENT
+ * `role` at emit time — this stub has no sweep, so a socket opened as SUPER_ADMIN survives a
+ * `/__control/role` switch, and keying on the live role reproduces the real server's post-sweep
+ * state rather than the stale one at connect.
+ */
+const pushReaches = (targetRole, r) =>
+  r !== 'VIEWER' && (targetRole !== 'SUPER_ADMIN' || r === 'SUPER_ADMIN');
+
+const NOTIF_PUSH_TARGET_ROLES = ['ALL', 'ADMIN', 'SUPER_ADMIN'];
+const NOTIF_PUSH_ALLOWED_KEYS = ['event', 'targetRole', 'category', 'count', 'force'];
+
+/**
+ * `POST /__control/emit { event: 'adminNotification.created', targetRole?, category?, count?,
+ * force? }` — ALL-OR-NOTHING, like `/__control/notifications`. Always inserts `count` real rows
+ * (so a refetch shows them); emits one event per row, back-to-back, ONLY when the current role
+ * would really receive one (`pushReaches`) or `force` is set. `force` exists ONLY to exercise the
+ * client-side D-5 filter: the inserted rows stay invisible to a lower role over REST either way
+ * (`notifVisibleTo`), exactly as the real server withholds them.
+ */
+function emitAdminNotification(req, res) {
+  const body = req.body ?? {};
+  const unknown = Object.keys(body).filter((k) => !NOTIF_PUSH_ALLOWED_KEYS.includes(k));
+  if (unknown.length) return res.status(400).json({ error: `unknown key(s): ${unknown.join(', ')}` });
+
+  const targetRole = body.targetRole ?? 'ALL';
+  if (!NOTIF_PUSH_TARGET_ROLES.includes(targetRole)) {
+    return res.status(400).json({ error: `\`targetRole\` must be one of: ${NOTIF_PUSH_TARGET_ROLES.join(', ')}` });
+  }
+  const category = body.category ?? 'SYSTEM';
+  if (!NOTIF_CATEGORIES.includes(category)) {
+    return res.status(400).json({ error: `\`category\` must be one of: ${NOTIF_CATEGORIES.join(', ')}` });
+  }
+  const count = body.count ?? 1;
+  if (!(Number.isInteger(count) && count >= 1 && count <= 50)) {
+    return res.status(400).json({ error: '`count` must be an integer from 1 to 50' });
+  }
+  const force = body.force ?? false;
+  if (typeof force !== 'boolean') return res.status(400).json({ error: '`force` must be a boolean' });
+
+  const now = Date.now();
+  const rows = Array.from({ length: count }, (_, i) => {
+    const createdAt = new Date(now + i).toISOString();
+    return {
+      id: `cstubpush${String(++notifPushSeq).padStart(16, '0')}`,
+      category,
+      code: null,
+      title: `การแจ้งเตือนทดสอบแบบเรียลไทม์ ${notifPushSeq}`,
+      body: `รายการทดสอบ NOTIF-RT-1 · targetRole=${targetRole} · ลำดับที่ ${i + 1}`,
+      tone: 'SKY',
+      icon: 'clock',
+      actionUrl: null,
+      actionLabel: null,
+      targetRole,
+      createdAt,
+      updatedAt: createdAt,
+    };
+  });
+  NOTIF_PUSH_ROWS.push(...rows);
+
+  const willEmit = force || pushReaches(targetRole, role);
+  let emitted = 0;
+  if (willEmit) {
+    for (const r of rows) {
+      admin.emit('adminNotification.created', { id: r.id, targetRole: r.targetRole, createdAt: r.createdAt });
+      emitted += 1;
+    }
+  }
+  res.json({ ok: true, inserted: rows.length, emitted, heldBack: !willEmit, ids: rows.map((r) => r.id) });
+}
+
 app.post('/__control/emit', (req, res) => {
+  if (req.body?.event === 'adminNotification.created') return emitAdminNotification(req, res);
   const { event, id, status } = req.body;
   const row = id ? ROWS.find((r) => r.id === id) : ROWS[0];
   if (row && status) row.status = status;

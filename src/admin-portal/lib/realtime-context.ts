@@ -24,6 +24,7 @@
 
 import { createContext, useContext, useEffect, useRef, type RefObject } from 'react'
 import type { BookingRequestListItem, LineUser } from '@/lib/api-client'
+import type { AdminNotificationEventPayload } from './realtime'
 
 /**
  * What a connection indicator may render.
@@ -68,6 +69,12 @@ export interface RealtimeHandlers {
    * than visibly stale.
    */
   onResync?: () => void
+  /**
+   * `adminNotification.created` (NOTIF-RT-1) — a notification this socket's role MAY see was
+   * committed. A PULSE: refetch over REST; the payload carries no content. The whole payload is
+   * passed (there is no envelope to unwrap, unlike `onBookingCreated`/`onBookingUpdated`).
+   */
+  onAdminNotificationCreated?: (payload: AdminNotificationEventPayload) => void
 }
 
 export type Subscriber = RefObject<RealtimeHandlers>

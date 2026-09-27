@@ -10,8 +10,9 @@
  */
 
 import type { ReactNode } from 'react'
+import type { SystemRole } from '@/lib/api-client'
 import { ADMIN_PORTAL_ROUTES, BACKEND_BASE, type AdminRouteLabel } from '../routes'
-import type { NotificationTone } from './notifications-api'
+import type { AdminNotification, NotificationTone } from './notifications-api'
 import { NO_VALUE, dayNumber, thaiTime } from './thai-date'
 
 export type NotifTone = 'emerald' | 'amber' | 'sky' | 'rose' | 'slate'
@@ -124,4 +125,28 @@ export function actionTarget(
   const route = ADMIN_PORTAL_ROUTES.find((r) => r.path === slug)
   if (route && !can(route.label)) return null
   return `${path}${resolved.search}${resolved.hash}`
+}
+
+/**
+ * The server's `VISIBLE_TARGET_ROLES`, mirrored for a DEFENCE-IN-DEPTH check on push pulses only
+ * (NOTIF-RT-1). The server already withholds SUPER_ADMIN pulses from ADMIN sockets by room (D-1),
+ * and REST decides what is actually shown — this decides only whether a pulse is worth a refetch.
+ * A `Record` over `SystemRole`, so a new role fails the BUILD here.
+ */
+const VISIBLE_TARGET_ROLES: Record<SystemRole, readonly AdminNotification['targetRole'][]> = {
+  SUPER_ADMIN: ['ALL', 'ADMIN', 'SUPER_ADMIN'],
+  ADMIN: ['ALL', 'ADMIN'],
+  VIEWER: ['ALL'],
+}
+
+/**
+ * Is a push pulse targeting `targetRole` worth a refetch for `role`? Fails CLOSED: an unknown
+ * target or a missing role is `false`, never a broadcast-by-default `true`.
+ */
+export function isNotificationVisibleToRole(
+  targetRole: AdminNotification['targetRole'] | undefined,
+  role: SystemRole | null | undefined,
+): boolean {
+  if (!role || !targetRole) return false
+  return (VISIBLE_TARGET_ROLES[role] ?? []).includes(targetRole)
 }

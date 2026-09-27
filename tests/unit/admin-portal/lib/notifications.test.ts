@@ -2,6 +2,7 @@ import {
   actionTarget,
   badgeText,
   bellLabel,
+  isNotificationVisibleToRole,
   relativeTime,
 } from '@/admin-portal/lib/notifications'
 import { VIEWER_DENY } from '@/admin-portal/lib/use-acl'
@@ -139,5 +140,29 @@ describe('bellLabel', () => {
     [10, 'การแจ้งเตือน 10 รายการที่ยังไม่อ่าน'],
   ])('%i → the exact sentence', (n, want) => {
     expect(bellLabel(n)).toBe(want)
+  })
+})
+
+describe('isNotificationVisibleToRole (NOTIF-RT-1, mirrors VISIBLE_TARGET_ROLES)', () => {
+  it.each([
+    ['SUPER_ADMIN', 'ALL', true],
+    ['SUPER_ADMIN', 'ADMIN', true],
+    ['SUPER_ADMIN', 'SUPER_ADMIN', true],
+    ['ADMIN', 'ALL', true],
+    ['ADMIN', 'ADMIN', true],
+    ['ADMIN', 'SUPER_ADMIN', false],
+    ['VIEWER', 'ALL', true],
+    ['VIEWER', 'ADMIN', false],
+    ['VIEWER', 'SUPER_ADMIN', false],
+  ] as const)('%s × %s → %s', (role, target, want) => {
+    expect(isNotificationVisibleToRole(target, role)).toBe(want)
+  })
+
+  it('fails closed on a missing role', () => {
+    expect(isNotificationVisibleToRole('ALL', null)).toBe(false)
+  })
+
+  it('fails closed on an unknown target', () => {
+    expect(isNotificationVisibleToRole('BOGUS' as never, 'SUPER_ADMIN')).toBe(false)
   })
 })

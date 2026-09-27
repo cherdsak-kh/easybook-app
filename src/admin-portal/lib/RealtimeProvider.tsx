@@ -12,6 +12,7 @@ import {
   TERMINAL_CONNECT_ERRORS,
   createRealtimeSocket,
   isRealtimeEnabled,
+  type AdminNotificationEventPayload,
   type BookingRequestEventPayload,
   type LineUserDeletedPayload,
   type LineUserEventPayload,
@@ -166,6 +167,14 @@ export function RealtimeProvider({
       if (payload?.booking) fanOut('onBookingUpdated', payload.booking)
     }
 
+    /**
+     * NOTIF-RT-1 — the SAME `payload?.id` fail-soft guard as its siblings: the gateway is fail-soft,
+     * so a half-built payload reaching the wire must not put `undefined.id` inside a subscriber.
+     */
+    const onAdminNotificationCreated = (payload: AdminNotificationEventPayload) => {
+      if (payload?.id) fanOut('onAdminNotificationCreated', payload)
+    }
+
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('connect_error', onConnectError)
@@ -175,6 +184,7 @@ export function RealtimeProvider({
     socket.on(REALTIME_EVENTS.bookingRequestCreated, onBookingCreated)
     socket.on(REALTIME_EVENTS.bookingRequestUpdated, onBookingUpdated)
     socket.on(REALTIME_EVENTS.sessionClosed, onSessionClosed)
+    socket.on(REALTIME_EVENTS.adminNotificationCreated, onAdminNotificationCreated)
 
     socket.connect()
 
