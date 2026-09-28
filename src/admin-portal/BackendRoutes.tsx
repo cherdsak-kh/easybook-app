@@ -29,6 +29,7 @@ import { BookingCalendarPage } from './pages/bookings/BookingCalendarPage'
 import { BookingRequestsPage } from './pages/bookings/BookingRequestsPage'
 import { BootScreen } from './pages/login/BootScreen'
 import { ComingSoonPage } from './pages/ComingSoonPage'
+import { DashboardPage } from './pages/dashboard/DashboardPage'
 import { FeedbackPage } from './pages/feedback/FeedbackPage'
 import { IntegrationsPage } from './pages/settings/IntegrationsPage'
 import { ForcePasswordChangePage } from './pages/password/ForcePasswordChangePage'
@@ -38,6 +39,7 @@ import { NotificationsPage } from './pages/notifications/NotificationsPage'
 import { ChangePasswordPage } from './pages/password/ChangePasswordPage'
 import { OptionsPage } from './pages/options/OptionsPage'
 import { ProfilePage } from './pages/profile/ProfilePage'
+import { ReportsOverviewPage } from './pages/reports/ReportsOverviewPage'
 import { StaffPage } from './pages/staff/StaffPage'
 import { VenuesPage } from './pages/venues/VenuesPage'
 import { VersionPage } from './pages/version/VersionPage'
@@ -59,6 +61,13 @@ import {
  * so "which of the 30 are built?" is answerable by reading a single object.
  */
 const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElement>> = {
+  // `Q1`'s `HOME_PATH` — where every sign-in lands. Reports & dashboard phase 1 (feature
+  // `20260928_1535_reports_and_dashboard_phase1`): four vital cards, the room occupancy grid,
+  // the pending queue (reusing คำขอจองสถานที่'s own dialogs) and the role-shaped system strip.
+  ภาพรวมระบบ: (route) => <DashboardPage route={route} />,
+  // Hub 1 — range-filtered KPIs, the volume trend and the top-5 venues. Same feature folder;
+  // จุดคอขวด / ข้อสังเกตสำคัญ / สรุปรายการ and ส่งออกรายงาน are Phase 1 exclusions (D-11/D-12).
+  ภาพรวมสถิติ: (route) => <ReportsOverviewPage route={route} />,
   ข้อมูลเวอร์ชันระบบ: (route) => <VersionPage route={route} />,
   โปรไฟล์: (route) => <ProfilePage route={route} />,
   เปลี่ยนรหัสผ่าน: (route) => <ChangePasswordPage route={route} />,

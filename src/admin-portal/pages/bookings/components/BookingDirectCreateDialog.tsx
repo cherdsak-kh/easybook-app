@@ -274,6 +274,7 @@ export function BookingDirectCreateDialog({
   onSubmit,
   onCreateDepartment,
   onOpenDepartments,
+  initialVenueId,
 }: {
   open: boolean
   onClose: () => void
@@ -300,6 +301,14 @@ export function BookingDirectCreateDialog({
   onCreateDepartment?: (name: string) => Promise<Department>
   /** The department dropdown opened — the caller revalidates the list. */
   onOpenDepartments?: () => void
+  /**
+   * ภาพรวมระบบ's "จองห้องนี้ทันที" entry point (AC-D8): the venue this open should start on,
+   * re-applied by the same per-open reset every other field gets. `undefined` (the queue's own
+   * "สร้างคำจองสถานที่" button) keeps the empty-string default that makes the picker say
+   * "เลือกสถานที่" — this never OVERRIDES a value the operator typed, because it only runs on
+   * the edge of `open`.
+   */
+  initialVenueId?: string
 }) {
   /* ── ผู้ขอจอง ── */
   const [mode, setMode] = useState<'line' | 'manual'>('line')
@@ -347,7 +356,7 @@ export function BookingDirectCreateDialog({
     setName('')
     setPhone('')
     setDepartmentId(0)
-    setVenueId('')
+    setVenueId(initialVenueId ?? '')
     setPurpose('')
     setPeople('')
     setDmode('span')
@@ -367,7 +376,7 @@ export function BookingDirectCreateDialog({
     // inside it has a scroll box and the assignment is silently dropped. `Modal`'s `showModal()`
     // effect is a child's, and children's effects run first.
     if (open && bodyRef.current) bodyRef.current.scrollTop = 0
-  }, [open])
+  }, [open, initialVenueId])
 
   /* ── Derived: the venue, its capacity, and the head count ─────────────────────────────────────
      Read LIVE from the list on every render. Never captured on selection — see the header. */

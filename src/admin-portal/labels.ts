@@ -249,3 +249,16 @@ export const NOTIF_CATEGORY_LABEL: Record<NotificationCategory, string> = {
   FEEDBACK: 'ข้อเสนอแนะ',
   SYSTEM: 'ระบบและการเชื่อมต่อ',
 }
+
+/** `HealthServiceStatus` — the four system-strip chips (ภาพรวมระบบ, D-8). */
+export type HealthServiceStatus = components['schemas']['HealthServiceStatus']
+
+/**
+ * ADMIN's one-word-per-service strip (AC-D17) AND `ยังไม่ได้ตั้งค่า` for a service Phase 1 has no
+ * credentials for (D-8) — never a degradation, just a fact about configuration.
+ */
+export const HEALTH_STATUS_LABEL: Record<HealthServiceStatus, string> = {
+  UP: 'ปกติ',
+  DOWN: 'ขัดข้อง',
+  NOT_CONFIGURED: 'ยังไม่ได้ตั้งค่า',
+}
