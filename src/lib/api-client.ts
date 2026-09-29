@@ -1383,3 +1383,121 @@ export async function createDirectBooking(
   if (!data) throw new ApiError(response.status, messageFrom(error, response))
   return data
 }
+
+// ---------------------------------------------------------------------------
+// Hub 7 (ภาพรวมระบบ) + Hub 1 (ภาพรวมสถิติ) — reports & dashboard phase 1.
+//
+// ⚠️ FOUR ENDPOINTS, NOT ONE `dashboard/summary` — the design log split the plan's single summary
+// into `vitals` (cards 1–2, the pending queue) and `venues-live` (card 3, the room grid, the tab
+// counts), because card 3's "กำลังใช้งานอยู่ N ห้อง" MUST equal the กำลังใช้งาน tab count, and the
+// only way to guarantee that is computing both in the same pass. `system/health` and
+// `reports/overview` are their own controllers too (design §2.0, DV-1/DV-2).
+// ---------------------------------------------------------------------------
+
+export type DashboardVitals = components['schemas']['DashboardVitalsResponseDto']
+export type DashboardPendingItem = components['schemas']['DashboardPendingItemDto']
+export type DashboardVenuesLive = components['schemas']['DashboardVenuesLiveResponseDto']
+export type DashboardVenue = components['schemas']['DashboardVenueDto']
+export type DashboardCurrentSlot = components['schemas']['DashboardCurrentSlotDto']
+export type DashboardNextSlotDto = components['schemas']['DashboardNextSlotDto']
+export type DashboardVenueState = components['schemas']['DashboardVenueState']
+export type DashboardFreeWindow = components['schemas']['DashboardFreeWindow']
+export type SystemHealth = components['schemas']['SystemHealthResponseDto']
+export type HealthServiceStatus = components['schemas']['HealthServiceStatus']
+export type ReportsOverview = components['schemas']['ReportsOverviewResponseDto']
+export type ReportTrendBucket = components['schemas']['TrendBucketDto']
+export type ReportTrendGrain = components['schemas']['TrendGrain']
+export type ReportVenueUsage = components['schemas']['VenueUsageDto']
+/** `ReportCodedErrorDto.code` — surfaced on `ApiError` via `reportErrorCode()` below. */
+export type ReportErrorCode = components['schemas']['ReportErrorCode']
+
+/** `GET /dashboard/vitals` (AC-D1, AC-D2, AC-D12) — cards 1–2 and the pending queue, top 4. */
+export async function getDashboardVitals(): Promise<DashboardVitals> {
+  const { data, error, response } = await api.GET('/api/v1/dashboard/vitals')
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * `GET /dashboard/venues-live` (AC-D3, AC-D6–AC-D11) — every non-deleted venue's BUSY/FREE/OFF
+ * state at `serverTime`, the tab counts, and card 3's `todayBookings`/`inUseNow`.
+ */
+export async function getDashboardVenuesLive(): Promise<DashboardVenuesLive> {
+  const { data, error, response } = await api.GET('/api/v1/dashboard/venues-live')
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * `GET /system/health`, role-shaped (D-8, AC-D16/AC-D17): SUPER_ADMIN gets `telemetry`, ADMIN and
+ * VIEWER get `telemetry: null` — the server never builds those numbers for them.
+ *
+ * ⚠️ `apiLatencyMs` IS MEASURED HERE, CLIENT-SIDE, and is not a field the server sends: D-8 defines
+ * "Core API" as the round-trip time of THIS request, because a server-side handler timing would
+ * read ≈0ms and tell nobody anything.
+ */
+export async function getSystemHealth(): Promise<SystemHealth & { apiLatencyMs: number }> {
+  const start = performance.now()
+  const { data, error, response } = await api.GET('/api/v1/system/health')
+  const apiLatencyMs = Math.round(performance.now() - start)
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return { ...data, apiLatencyMs }
+}
+
+export interface GetReportsOverviewParams {
+  /** Bangkok calendar date, `YYYY-MM-DD`, inclusive. */
+  startDate: string
+  /** Bangkok calendar date, `YYYY-MM-DD`, inclusive. Inclusive span ≤ 366 days (D-14). */
+  endDate: string
+  /** Venue cuid. Unknown → 400 `REPORT_VENUE_INVALID`. Phase 1's filter bar never sends this. */
+  venueId?: string
+  /** Department id (an integer, NOT a cuid). Unknown/reserved-for-non-SUPER_ADMIN → 400. */
+  departmentId?: number
+}
+
+/**
+ * `GET /reports/overview` (Hub 1, AC-R4–AC-R17). Stateless: the client computes every preset and
+ * the previous-period range and sends plain `startDate`/`endDate` — no term/month concept crosses
+ * the wire (AC-R4).
+ *
+ * ⚠️ A CODED 400 (`REPORT_DATE_INVALID`, `REPORT_RANGE_INVERTED`, `REPORT_RANGE_TOO_WIDE`,
+ * `REPORT_VENUE_INVALID`, `REPORT_DEPARTMENT_INVALID`) throws an `ApiError` whose `message` is
+ * already the server's Thai-safe sentence — callers needing the CODE (rather than the message) use
+ * `reportErrorCode()` below, since `ApiError` itself only carries `status` and `message`.
+ */
+export async function getReportsOverview(
+  params: GetReportsOverviewParams,
+): Promise<ReportsOverview> {
+  const query: NonNullable<paths['/api/v1/reports/overview']['get']['parameters']['query']> = {
+    startDate: params.startDate,
+    endDate: params.endDate,
+  }
+  if (params.venueId) query.venueId = params.venueId
+  if (params.departmentId != null) query.departmentId = params.departmentId
+
+  const { data, error, response } = await api.GET('/api/v1/reports/overview', {
+    params: { query },
+  })
+  if (!data) {
+    const err = new ApiError(response.status, messageFrom(error, response))
+    // Stashed for `reportErrorCode()` — `error` here is the raw `ReportCodedErrorDto` body when the
+    // pipe's uncoded `message: string[]` shape was not what came back (see that helper).
+    ;(err as ApiError & { body?: unknown }).body = error
+    throw err
+  }
+  return data
+}
+
+/**
+ * Pulls the `REPORT_*` code off a `getReportsOverview` failure, for callers that branch on it
+ * (AC-R2's client-side echo of the server's own validation). `undefined` for the pipe's uncoded
+ * 400 (`forbidNonWhitelisted`, a missing param) or for a non-400 failure.
+ */
+export function reportErrorCode(err: unknown): ReportErrorCode | undefined {
+  if (!(err instanceof ApiError)) return undefined
+  const body = (err as ApiError & { body?: unknown }).body
+  if (body && typeof body === 'object' && 'code' in body) {
+    return (body as { code?: ReportErrorCode }).code
+  }
+  return undefined
+}

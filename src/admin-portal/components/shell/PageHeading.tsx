@@ -14,11 +14,33 @@
  * promises a page that does not exist.
  */
 
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import type { AdminRoute } from '../../routes'
+
+/** One crumb of a page-written trail. With `to` it is a real link; the last one is the current page. */
+export interface Crumb {
+  label: string
+  to?: string
+}
+
+const CHEVRON = (
+  <svg
+    aria-hidden="true"
+    className="h-3.5 w-3.5 shrink-0 text-base-content/60"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    viewBox="0 0 24 24"
+  >
+    <path strokeLinecap="round" d="M9 5l7 7-7 7" />
+  </svg>
+)
 
 export function PageHeading({
   route,
+  title,
+  trail,
   desc,
   // ⚠️ NO `= false` DEFAULT. A default here would fire before the `??` below and collapse three
   // states into two — "not asked" and "explicitly no" must stay distinguishable, because the first
@@ -29,6 +51,19 @@ export function PageHeading({
   toolbar = false,
 }: {
   route: AdminRoute
+  /**
+   * The `<h1>`'s text, replacing `route.label` there ONLY. การแจ้งเตือน's menu row is
+   * `ดูการแจ้งเตือนทั้งหมด` — a verb phrase that reads as a link in a menu and as a command on a
+   * heading — while the prototype titles the page `การแจ้งเตือน`. Absent = the label, as before.
+   */
+  title?: string
+  /**
+   * A page-written breadcrumb, replacing the default `group › label` pair. The prototype gives
+   * การแจ้งเตือน THREE crumbs (`หน้าแรก › การแจ้งเตือน › รายการแจ้งเตือนทั้งหมด`) and flags that as a PO
+   * call (OPEN-3); built as shown. A crumb with `to` is a real link, the last is `aria-current`.
+   * Absent = the default rendering, byte-identical to before.
+   */
+  trail?: Crumb[]
   /**
    * The page's OWN subtitle, replacing the route table's.
    *
@@ -102,7 +137,38 @@ export function PageHeading({
       }
     >
       <div className={toolbar ? 'min-w-0 flex-1 basis-72' : 'min-w-0'}>
-        {route.group && (
+        {trail ? (
+          <nav
+            aria-label="เส้นทางปัจจุบัน"
+            className="mb-3 hidden items-center gap-1 text-[13px] sm:flex"
+          >
+            {trail.map((c, i) => {
+              const last = i === trail.length - 1
+              return (
+                <Fragment key={c.label}>
+                  {i > 0 && CHEVRON}
+                  {last ? (
+                    <span
+                      aria-current="page"
+                      className="px-1.5 py-1 font-medium text-base-content/90"
+                    >
+                      {c.label}
+                    </span>
+                  ) : c.to ? (
+                    <Link
+                      to={c.to}
+                      className="-ml-1.5 rounded-control px-1.5 py-1 text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    >
+                      {c.label}
+                    </Link>
+                  ) : (
+                    <span className="px-1.5 py-1 text-base-content/70">{c.label}</span>
+                  )}
+                </Fragment>
+              )
+            })}
+          </nav>
+        ) : route.group && (
           <nav
             aria-label="เส้นทางปัจจุบัน"
             className="mb-3 hidden items-center gap-1 text-[13px] sm:flex"
@@ -125,7 +191,7 @@ export function PageHeading({
         )}
 
         <h1 className="text-[18px] font-semibold text-base-content th-tight sm:text-[22px]">
-          {route.label}
+          {title ?? route.label}
           {titleExtra}
         </h1>
 

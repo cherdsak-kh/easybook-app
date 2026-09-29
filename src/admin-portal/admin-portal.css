@@ -408,6 +408,130 @@
   .notif-sub          { @apply m-0 mt-0.5 text-[13px] leading-[1.45] text-base-content/70; }
   .notif-time         { @apply m-0 mt-1 text-[12px] text-base-content/70 tabular-nums; }
 
+  /* ── หน้าการแจ้งเตือนทั้งหมด (/backend/notifications) ────────────────────
+     THE SAME VOCABULARY AS THE DROPDOWN, ONE SIZE UP. The bell panel is a
+     peek — 36px tile, three stacked lines, no controls. This page is the
+     record: the same row has to carry a selection box, a category badge, an
+     exact timestamp and two controls, and it has to do that at 375px as well
+     as at 1280px. So the tone classes, the title/sub classes and the "unread
+     is marked three ways" rule are REUSED verbatim (`.notif-tone-*`,
+     `.notif-title*`, `.notif-sub`), and only the things that genuinely differ
+     get a new name here. Two vocabularies for one idea is how the peek and
+     the page end up disagreeing about what "unread" looks like. */
+  /* 40×40 rather than the panel's 36. The row is taller here (two text lines
+     plus a meta line plus a 44px control), and a 36px tile in it reads as an
+     icon that lost its box. */
+  .notif-ico-lg   { @apply h-10 w-10; }
+  .notif-glyph-lg { @apply h-5 w-5; }
+
+  /* ⚠️ `flex-wrap`, and it is the whole responsive story. At desktop widths the
+     five parts sit on one line; below that the content block's `basis-56`
+     cannot be satisfied alongside the action cluster, so the actions wrap to
+     their own full-width line UNDER the row rather than crushing the text to
+     ~90px. No breakpoint, no second copy of the buttons in the DOM — the one
+     place a duplicated action block would have had to be kept in step is the
+     one place this file cannot afford to (each row is built from a template). */
+  .nt-row {
+    @apply relative flex flex-wrap items-start gap-2 px-2.5 py-3.5 transition-colors
+           hover:bg-base-content/5 sm:gap-3 sm:px-4 lg:px-5;
+  }
+  /* Same 5%, same reason as `.notif-row-unread`: at /10 a run of unread rows
+     reads as a broken multi-select — and on THIS page a multi-select is a real
+     control sitting in the same row, so the collision is not hypothetical. */
+  .nt-row-unread  { @apply bg-primary/5; }
+  /* The row the operator is ABOUT to act on in bulk. Deliberately not the
+     unread wash again: "selected" and "unread" are different facts and a row
+     can be both, so the selected one is the stronger tint and it wins while it
+     lasts — a selection is a thing you are holding, an unread mark is a thing
+     you have not got to yet. */
+  .nt-row-picked  { @apply bg-primary/10; }
+
+  /* The unread dot, as a LEADING rail rather than the panel's trailing dot.
+     The panel's row ends in empty space; this one ends in two controls, so a
+     dot there would sit beside a button and read as part of it. `invisible`
+     rather than removed on a read row — the 8px column has to stay, or every
+     title on the page shifts sideways depending on whether it has been read. */
+  .nt-dot         { @apply mt-[13px] h-2 w-2 shrink-0 rounded-full bg-primary; }
+  .nt-dot-read    { @apply invisible; }
+
+  /* A 44px-tall target in a 36px column: the box is drawn by `.chk-box` (the
+     same tick the amenity list uses) and the LABEL carries the hit area.
+     Reusing `.chk-box` rather than drawing a second checkbox means one answer
+     to "what does a ticked box look like" across the product. */
+  .nt-pick        { @apply -my-1 flex h-11 w-9 shrink-0 cursor-pointer items-center justify-center rounded-control transition-colors hover:bg-base-content/10; }
+  .nt-pick input:checked ~ .chk-box { @apply border-primary bg-primary text-primary-content; }
+  .nt-pick:has(input:focus-visible) { @apply outline-2 outline-offset-2 outline-primary; }
+  /* ── The third state, and it is not decoration ──────────────────────
+     Only the select-all box can be INDETERMINATE (some of the page ticked,
+     not all). Drawn, not merely set as a property: an indeterminate checkbox
+     that renders as EMPTY tells the operator nothing is selected while three
+     rows below it sit highlighted — and the click they then make selects
+     everything instead of the "clear" a half-filled box promises. The tick
+     swaps for a dash because a tick would claim "all", which is the state
+     next door. */
+  .nt-pick input:indeterminate ~ .chk-box { @apply border-primary bg-primary text-primary-content; }
+  .nt-pick input:indeterminate ~ .chk-box [data-chk-tick] { @apply hidden; }
+  .nt-pick [data-chk-dash] { @apply hidden; }
+  .nt-pick input:indeterminate ~ .chk-box [data-chk-dash] { @apply block; }
+
+  /* Relative time, exact time and category on one wrapping line. 12px and
+     `/70`: this is the line you read only when the title has already told you
+     something happened, so it must not compete with the title above it. */
+  .nt-meta        { @apply m-0 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-[1.5] text-base-content/70; }
+  /* The "·" between the relative time and the exact one. `/50`, measured: at
+     `/40` it read 2.53:1 in light and looked like a rendering artifact rather
+     than punctuation; at `/70` — the weight of the text either side of it — it
+     stops being a separator and becomes a third item in the row. `/50`
+     measures 3.40:1 light / 4.32:1 dark on the unread row's ground, which is
+     the compromise on purpose.
+     It is BELOW 4.5:1 in light and that is deliberate and allowed: the glyph is
+     `aria-hidden`, carries no information, and deleting it would lose nothing —
+     WCAG's incidental-text exemption is written for exactly this. Recorded so
+     that a later contrast sweep does not "fix" it to /70 and flatten the one
+     piece of hierarchy this line has. */
+  .nt-meta-sep    { @apply text-base-content/50; }
+  /* NOT `.badge`: a badge in this file means STATUS (one per row, five hues
+     that map to five states). A category is not a state — it is which part of
+     the product the event came from — so it stays neutral and takes the shape
+     of `.tag`, which is exactly what that class already means. */
+  .nt-cat         { @apply inline-flex items-center rounded-control bg-base-200 px-2 py-0.5 text-[12px] leading-[1.35] text-base-content/80; }
+
+  /* `w-full sm:w-auto` is the other half of the wrap: once the cluster is on
+     its own line it spans it, so the two controls sit under the text they
+     belong to instead of floating mid-row. `ml-auto` pushes it to the right
+     edge on the one-line layout. */
+  .nt-actions     { @apply mt-1 flex w-full shrink-0 items-center gap-1.5 sm:ml-auto sm:mt-0 sm:w-auto; }
+  /* The quick-navigate button. Ghost, not primary: every row has one, and a
+     column of filled buttons would make ten equally urgent claims on the eye. */
+  .nt-cta         { @apply flex min-h-11 items-center gap-1 rounded-control border border-base-content/20 bg-base-100 px-3 text-[13px] font-medium text-base-content/80 transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  .nt-kebab       { @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-base-content/70 transition-colors hover:bg-base-content/10 hover:text-base-content aria-expanded:bg-base-content/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+
+  /* The per-row ⋯ menu. ONE element for the whole list, positioned against
+     whichever row's ⋯ was clicked — ten rows would otherwise mean ten menus in
+     the DOM, ten ids to keep unique, and ten copies of the outside-click
+     handler.
+     ⚠️ `fixed`, NOT `absolute`, and that is not a style preference. The rows
+     live inside `.card-scroll`, which is `overflow-x-auto` (#ISSUE-05) — and
+     any non-visible overflow CLIPS in both axes, so an absolutely positioned
+     menu hanging off the bottom row would be cut at the card's lower edge,
+     on the row an operator reaches last and clicks most. Fixed takes it out
+     of every scroller; the script sets left/top from the button's rect and
+     closes the menu on scroll (the content region's, now that the card no
+     longer scrolls itself), because a fixed box cannot follow its row. */
+  .nt-menu        { @apply fixed z-50 w-60 overflow-hidden rounded-card border border-base-300 bg-base-100 py-1 shadow-e2; }
+  .nt-menu-item   { @apply flex min-h-11 w-full items-center gap-2.5 px-3 text-left text-[14px] leading-[1.45] text-base-content/80 transition-colors hover:bg-base-content/5 hover:text-base-content focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary; }
+  .nt-menu-danger { @apply text-error hover:bg-error/10 hover:text-error; }
+  .nt-menu-ico    { @apply h-4.5 w-4.5 shrink-0; }
+
+  /* ── The selection bar ────────────────────────────────────────────────
+     ONE bar, TWO states, and that is deliberate. "เลือกทั้งหมดในหน้านี้" has to
+     be reachable BEFORE anything is selected, so a bar that only appears once
+     a box is ticked would have nowhere to put it. The bar is therefore always
+     present and carries the select-all box plus a caption; what appears is the
+     pair of bulk buttons, and the tint is how the bar says it is armed. */
+  .nt-selbar      { @apply flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-base-300 px-2.5 py-2 transition-colors sm:px-4 lg:px-5; }
+  .nt-selbar-on   { @apply bg-primary/5; }
+
   /* ── ปฏิทินการจอง ───────────────────────────────────────────────────
      Every class the calendar module sets AT RUNTIME is defined here, because
      the day cells and agenda cards are built by script and Tailwind's scanner
@@ -1179,6 +1303,72 @@
   .fb-sec-form { @apply border-primary/30 shadow-[inset_3px_0_0_var(--color-primary)]; }
   .fb-sec-h    { @apply m-0 mb-3 flex items-center gap-2 text-[14px] font-semibold text-base-content; }
   .fb-sec-ico  { @apply h-4.5 w-4.5 shrink-0 text-base-content/60; }
+
+  /* ── ภาพรวมระบบ (Hub 7) — reports/dashboard phase 1 ──────────────────
+     Ported from the prototype's `.rp-scope` block (`master_layout_prototype_v2.html`
+     ~L1967–1990). Real daisyUI is loaded here (unlike the prototype's standalone CDN
+     build), so `tabs`/`badge`/`progress` need no shim — only these genuinely CUSTOM
+     pieces (a room card, the KPI-link hover, the chip strip) are ported here. Plain
+     `color-mix(in oklab, …)` washes, not `@apply` with an alpha step below /10 — the
+     CDN gotcha that dropped those rules in the prototype does not apply here, but the
+     port keeps the same value so a theme swap needs no retuning.
+     ⚠️ `stats`/`stat*` and `.label` are NOT shimmed in this block — they are ALSO
+     daisyUI 5 component names, so unlike `tabs`/`badge`/`progress` their daisyUI
+     defaults actively CONFLICT with the prototype's values (`overflow-x:auto` +
+     content-sized `.stat`, an unstyled 32px `.stat-value`/`.stat-unit`, an
+     `inline-flex` `.label`) rather than merely lacking a shim. Fixed below, in the
+     UNLAYERED section — the same hazard `.badge` already hit, and `@layer
+     components` cannot win that fight regardless of selector compounding (see that
+     rule's own note). The `.db-kpi` phone rules that touch `.stat`/`.stat-figure`/
+     `.stat-value` moved down there with them for the same reason; `.db-tabs > .tab`
+     stayed here because nothing it sets collides with daisyUI's `.tab`. */
+  .db-kpi { @apply transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  a.db-kpi[href]:hover { border-color: color-mix(in oklab, var(--color-primary) 50%, transparent); }
+  a.db-kpi:not([href]) { cursor: default; }
+  .db-room { @apply flex min-w-0 flex-col border p-3.5; border-radius: var(--radius-box); }
+  .db-room-busy { border-color: color-mix(in oklab, var(--color-warning) 40%, transparent); background-color: color-mix(in oklab, var(--color-warning) 5%, var(--color-base-100)); }
+  .db-room-free { border-color: color-mix(in oklab, var(--color-success) 30%, transparent); background-color: color-mix(in oklab, var(--color-success) 5%, var(--color-base-100)); }
+  .db-room-off  { border-color: var(--color-base-300); background-color: var(--color-base-200); }
+  .db-room-free .btn { @apply mt-auto; }
+  .db-link { @apply inline-flex min-h-11 items-center rounded-control text-[13px] font-medium whitespace-nowrap text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
+  .db-chip { @apply inline-flex min-w-0 items-center gap-2 rounded-full border border-base-300 px-3 py-1.5 text-[13px] text-base-content/80; }
+  .db-chip b { @apply font-semibold text-base-content; }
+  .db-dot  { @apply h-2 w-2 shrink-0 rounded-full bg-success; }
+  /* Phone: two KPIs a row leaves ~150px a card, so the three filter tabs share the
+     row evenly — prototype's own `< 40rem` rule. (The icon-tile-hides-below-40rem
+     and stat padding/value-size rules moved to the unlayered section below.) */
+  @media (width < 40rem) {
+    .db-tabs { @apply flex w-full; }
+    .db-tabs > .tab { @apply flex-1 justify-center px-1.5 text-[13px] whitespace-nowrap; }
+  }
+
+  /* ── ภาพรวมสถิติ (Hub 1) — the trend chart, custom by necessity (daisyUI has none) ──
+     Ported verbatim from the prototype's `.rp-chart`/`.rp-col`/`.rp-bar` rules
+     (~L1879–1905). A column is a ≥44px <button> (tap = select; hover = daisyUI
+     tooltip); the plot's gridlines are a background on the SAME element the bars
+     sit in, so they can never drift from what they measure. */
+  .rp-chart      { @apply relative flex items-stretch gap-1.5 sm:gap-2; }
+  .rp-chart-plot {
+    @apply pointer-events-none absolute inset-x-0 top-0 h-56 border-b border-base-300;
+    background-image: linear-gradient(to bottom, color-mix(in oklab, var(--color-base-content) 8%, transparent) 1px, transparent 1px);
+    background-size: 100% 25%;
+  }
+  .rp-col       { @apply flex min-w-11 flex-1 flex-col items-stretch; }
+  .rp-col.tooltip { display: flex; }
+  .rp-col-hit {
+    @apply relative flex h-56 cursor-pointer flex-col justify-end rounded-t-[6px] px-1 outline-none
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary;
+  }
+  .rp-col-hit:hover, .rp-col-hit[aria-pressed="true"] { @apply bg-base-content/5; }
+  .rp-bar       { @apply mx-auto flex w-full max-w-10 shrink-0 flex-col overflow-hidden rounded-t-[4px]; }
+  .rp-seg-ok    { @apply bg-success; }
+  .rp-seg-no    { @apply bg-error; }
+  .rp-seg-cx    { @apply bg-base-content/25; }
+  .rp-col-n     { @apply mb-1 shrink-0 text-center text-[12px] font-semibold text-base-content/80 tabular-nums; }
+  .rp-col-label { @apply mt-1.5 whitespace-nowrap text-center text-[12px] text-base-content/70; }
+  .rp-col-occ   { @apply text-center text-[12px] font-semibold text-primary tabular-nums; }
+  .rp-col-future .rp-col-label, .rp-col-future .rp-col-occ { @apply text-base-content/40; }
+  .rp-col-hit[aria-pressed="true"] + .rp-col-label { @apply font-semibold text-base-content; }
 }
 
 /* Plain CSS: only things Tailwind has no utility for (scrollbar, mask, marker). */
@@ -1727,6 +1917,59 @@
 [data-theme^="easybook-admin"] .badge-sky     { @apply bg-info/10 text-info; }            /* REJECTED     */
 [data-theme^="easybook-admin"] .badge-rose    { @apply bg-error/10 text-error; }          /* BLOCKED      */
 [data-theme^="easybook-admin"] .badge-slate   { @apply bg-base-content/10 text-base-content/80; } /* UNREGISTERED */
+
+/* ═══ `stats`/`stat*` and `.label` — UNLAYERED **and** SCOPED, the SAME hazard as `.badge` above ═══
+   (QA visual review, fix round 1 — `feature/20260928_1535_reports_and_dashboard_phase1`.)
+
+   Both are ALSO daisyUI 5 component class names, and unlike `tabs`/`progress`/`card` (which needed
+   no shim at all — nothing they set collided) these two actively fight daisyUI's own defaults on the
+   SAME properties, so the fix is the `.badge` pattern again: move out of `@layer components`
+   entirely — no compound selector inside that layer can win, regardless of specificity, because this
+   is a LAYER-ORDER loss, not a specificity one (see the `.badge` block above) — and re-declare
+   unlayered, scoped to `[data-theme^="easybook-admin"]` so the rule cannot leak into the LIFF client
+   portal `index.css` also serves globally.
+
+   Measured broken before this fix, at 1280×900 and 390×844 (all three roles): daisyUI 5's `.stats`
+   is `overflow-x: auto` and `.stat` is content-sized rather than `grid w-full`, so ภาพรวมสถิติ's KPI
+   cards at 1280px scrolled sideways INSIDE each card (`.stats` clientWidth 221 vs scrollWidth 419 on
+   card 2; 229/248 on cards 3/4), clipping `.stat-desc` text ("…จ.–ศ. 08:30 16:…") and the card-4 icon
+   tile past the right edge; ภาพรวมระบบ's vital cards at 390px did the same (`.stat` extending to
+   x=442 inside a ~176px card, "DB & LINE เชื่อ…" clipped). daisyUI's `.stat-value` computes 32px
+   `display: block` with no gap, and `.stat-unit` computes 32px UNSTYLED (daisyUI expects unit text
+   inside `.stat-value` itself, which this markup — ported from the prototype — does not do), so
+   "0รายการ" rendered as one glued, oversized run instead of "0" + a smaller "รายการ" beside it.
+   daisyUI's `.label` is `inline-flex`, so ภาพรวมสถิติ's "รูปแบบช่วงเวลา" caption sat INLINE beside its
+   `join` of radios on the same row instead of stacked above it.
+
+   Ported from the prototype's `.rp-scope .stats`/`.stat*`/`.label`
+   (`master_layout_prototype_v2.html` ~L1841–1856 for `stat*`, ~L1835 for `.label`) — unchanged
+   values, since those were the ones already measured correct. `.stats`/`.stat` are used ONLY by
+   ภาพรวมระบบ/ภาพรวมสถิติ today (`grep -rl` confirms no other admin-portal page renders them), so this
+   scope costs nothing anywhere else; `.label` is likewise unique to ภาพรวมสถิติ's filter bar. The
+   `.db-kpi`-scoped phone rules (icon tile hidden below 40rem, tighter padding, 24px value) moved
+   down here too, alongside the base rules, for the identical reason — they set properties on `.stat`/
+   `.stat-figure`/`.stat-value` that daisyUI's own layer would otherwise still win. */
+[data-theme^="easybook-admin"] .label {
+  @apply mb-1 flex items-baseline justify-between gap-2 text-[13px] font-medium text-base-content/80;
+}
+[data-theme^="easybook-admin"] .stats { @apply flex min-w-0 rounded-card; }
+[data-theme^="easybook-admin"] .stat {
+  @apply grid w-full min-w-0 grid-cols-[1fr_auto] content-start gap-x-3 px-5 py-4;
+}
+[data-theme^="easybook-admin"] .stat-figure  { @apply col-start-2 row-span-3 row-start-1 flex h-10 w-10 items-center justify-center self-start rounded-control; }
+[data-theme^="easybook-admin"] .stat-title   { @apply col-start-1 text-[14px] font-medium text-base-content/70; }
+[data-theme^="easybook-admin"] .stat-value   { @apply col-start-1 mt-1 flex items-baseline gap-1.5 text-[28px] font-semibold leading-tight text-base-content tabular-nums; }
+[data-theme^="easybook-admin"] .stat-unit    { @apply text-[14px] font-medium text-base-content/70; }
+[data-theme^="easybook-admin"] .stat-desc    { @apply col-span-2 col-start-1 mt-2 whitespace-normal text-[13px] leading-[1.55] text-base-content/70; }
+[data-theme^="easybook-admin"] .stat-actions { @apply col-span-2 col-start-1 mt-1; }
+/* Phone: two KPIs a row leaves ~150px a card, so the icon tile goes — prototype's own `< 40rem`
+   rule, moved here from `@layer components` (was losing to daisyUI's `.stat-figure`/`.stat`/
+   `.stat-value` the same way the base rules above were). */
+@media (width < 40rem) {
+  [data-theme^="easybook-admin"] .db-kpi .stat { @apply px-3.5 py-3; }
+  [data-theme^="easybook-admin"] .db-kpi .stat-figure { display: none; }
+  [data-theme^="easybook-admin"] .db-kpi .stat-value { @apply text-[24px]; }
+}
 
 /* Scoped for the same reason as `dialog` above — a bare element selector in an app
    that also serves the LIFF client. */

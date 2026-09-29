@@ -16,7 +16,7 @@
  *  · `withCredentials: true` — the handshake authenticates from the EXISTING `eb.sid` httpOnly
  *    session cookie. There is no token to pass, none to store, and none to log.
  *
- * Strictly server → client: it subscribes to six events and sends none. That is also why no CSRF
+ * Strictly server → client: it subscribes to seven events and sends none. That is also why no CSRF
  * token is involved — the handshake is a GET that changes nothing, and the socket-shaped threat
  * (CSWSH) is answered server-side by `Origin` validation.
  *
@@ -31,8 +31,13 @@
 
 import { io, type Socket } from 'socket.io-client'
 import type { BookingRequestListItem, LineUser } from '@/lib/api-client'
+import type { AdminNotification } from './notifications-api'
 
-/** The admin fan-out namespace. Membership IS the authorization boundary — there are no rooms. */
+/**
+ * The admin fan-out namespace. Membership is the authorization boundary for every event EXCEPT one:
+ * the server sends a SUPER_ADMIN-targeted `adminNotification.created` to a role room only, so an
+ * ADMIN socket never receives it (NOTIF-RT-1, D-1). Every other event stays namespace-wide.
+ */
 export const REALTIME_NAMESPACE = '/admin'
 
 /** engine.io path. Must match the server default and the dev-proxy location. */
@@ -53,6 +58,8 @@ export const REALTIME_EVENTS = {
   bookingRequestCreated: 'bookingRequest.created',
   bookingRequestUpdated: 'bookingRequest.updated',
   sessionClosed: 'session.closed',
+  /** NOTIF-RT-1: a notification row was committed. Payload: `AdminNotificationEventPayload`. */
+  adminNotificationCreated: 'adminNotification.created',
 } as const
 
 /**
@@ -126,6 +133,22 @@ export interface BookingRequestEventPayload {
   actor: RealtimeActor | null
 }
 
+/**
+ * `adminNotification.created` (NOTIF-RT-1) — a "refetch" pulse, NOT the notification itself.
+ *
+ * 🔴 NO title, body, code, tone, category, actionUrl or name. Ever. Titles and bodies carry names
+ * and phone numbers (PDPA); the REST feed (`notifications-api.ts`) is the only source of content,
+ * visibility and read state. `targetRole` exists solely for `isNotificationVisibleToRole`, the
+ * DEFENCE-IN-DEPTH check in `notifications.ts` — the server already withholds SUPER_ADMIN pulses
+ * from ADMIN sockets by room (D-1).
+ */
+export interface AdminNotificationEventPayload {
+  id: string
+  targetRole: AdminNotification['targetRole']
+  /** ISO-8601, `row.createdAt.toISOString()`. */
+  createdAt: string
+}
+
 export interface RealtimeServerEvents {
   [REALTIME_EVENTS.lineUserCreated]: (payload: LineUserEventPayload) => void
   [REALTIME_EVENTS.lineUserUpdated]: (payload: LineUserEventPayload) => void
@@ -133,6 +156,7 @@ export interface RealtimeServerEvents {
   [REALTIME_EVENTS.bookingRequestCreated]: (payload: BookingRequestEventPayload) => void
   [REALTIME_EVENTS.bookingRequestUpdated]: (payload: BookingRequestEventPayload) => void
   [REALTIME_EVENTS.sessionClosed]: (payload: SessionClosedPayload) => void
+  [REALTIME_EVENTS.adminNotificationCreated]: (payload: AdminNotificationEventPayload) => void
 }
 
 /** Client → server: NOTHING. The gateway exposes zero message handlers. */
