@@ -1411,6 +1411,21 @@ export type ReportVenueUsage = components['schemas']['VenueUsageDto']
 /** `ReportCodedErrorDto.code` — surfaced on `ApiError` via `reportErrorCode()` below. */
 export type ReportErrorCode = components['schemas']['ReportErrorCode']
 
+// ── Hub 2 (การใช้สถานที่และช่วงเวลา) + Hub 3 (สถิติตามฝ่ายและการดำเนินงาน) — reports phase 2 ──
+export type ReportsVenues = components['schemas']['ReportsVenuesResponseDto']
+export type ReportVenueRow = components['schemas']['ReportVenueRowDto']
+export type ReportHeatCell = components['schemas']['ReportHeatCellDto']
+export type ReportVenueClash = components['schemas']['ReportVenueClashDto']
+export type ReportsOperations = components['schemas']['ReportsOperationsResponseDto']
+export type ReportDepartmentRow = components['schemas']['ReportDepartmentRowDto']
+export type ReportPurposeRow = components['schemas']['ReportPurposeRowDto']
+export type ReportPurposeCategory = components['schemas']['ReportPurposeCategory']
+export type ReportSla = components['schemas']['ReportSlaDto']
+export type ReportSlaBucketRow = components['schemas']['ReportSlaBucketRowDto']
+export type ReportSlaBucket = components['schemas']['ReportSlaBucket']
+export type ReportLateCancellation = components['schemas']['ReportLateCancellationDto']
+export type ReportCancellerKind = components['schemas']['ReportCancellerKind']
+
 /** `GET /dashboard/vitals` (AC-D1, AC-D2, AC-D12) — cards 1–2 and the pending queue, top 4. */
 export async function getDashboardVitals(): Promise<DashboardVitals> {
   const { data, error, response } = await api.GET('/api/v1/dashboard/vitals')
@@ -1500,4 +1515,51 @@ export function reportErrorCode(err: unknown): ReportErrorCode | undefined {
     return (body as { code?: ReportErrorCode }).code
   }
   return undefined
+}
+
+export interface GetReportsRangeParams {
+  /** Bangkok calendar date, `YYYY-MM-DD`, inclusive. */
+  startDate: string
+  /** Bangkok calendar date, `YYYY-MM-DD`, inclusive. Inclusive span ≤ 366 days. */
+  endDate: string
+}
+
+/**
+ * `GET /reports/venues` (Hub 2, AC-V1–AC-V14). `startDate`/`endDate` ONLY (D-10) — no
+ * `venueId`/`departmentId`, unlike Hub 1: neither prototype filter bar has a picker for either,
+ * and an unknown query key is a pipe 400. `occupancy.occupancyPercent` is strictly equal (`===`)
+ * to `getReportsOverview`'s for the same unfiltered range, by construction (design §2.1.4).
+ *
+ * Same coded-400 shape as `getReportsOverview` — `reportErrorCode()` works unchanged on a
+ * failure from this call too.
+ */
+export async function getReportsVenues(params: GetReportsRangeParams): Promise<ReportsVenues> {
+  const { data, error, response } = await api.GET('/api/v1/reports/venues', {
+    params: { query: { startDate: params.startDate, endDate: params.endDate } },
+  })
+  if (!data) {
+    const err = new ApiError(response.status, messageFrom(error, response))
+    ;(err as ApiError & { body?: unknown }).body = error
+    throw err
+  }
+  return data
+}
+
+/**
+ * `GET /reports/operations` (Hub 3, AC-O1–AC-O14). Same query contract and coded-400 shape as
+ * {@link getReportsVenues}. The D-20 reserved-department fold and the D-26 PDPA exclusions
+ * (no requester name/phone/LINE id) are enforced server-side before this response is built.
+ */
+export async function getReportsOperations(
+  params: GetReportsRangeParams,
+): Promise<ReportsOperations> {
+  const { data, error, response } = await api.GET('/api/v1/reports/operations', {
+    params: { query: { startDate: params.startDate, endDate: params.endDate } },
+  })
+  if (!data) {
+    const err = new ApiError(response.status, messageFrom(error, response))
+    ;(err as ApiError & { body?: unknown }).body = error
+    throw err
+  }
+  return data
 }

@@ -327,7 +327,7 @@ export function DashboardPage({ route }: { route: AdminRoute }) {
   const serverTime = vitals?.serverTime ?? venuesLive?.serverTime ?? null
 
   return (
-    <div className="card-shell relative lg:overflow-y-auto">
+    <div className="card-shell rp-page relative lg:overflow-y-auto">
       <PageHeading
         route={route}
         desc="สรุปคำขอจอง การใช้งานสถานที่ และสถานะของระบบในหน้าเดียว"

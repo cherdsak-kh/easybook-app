@@ -1992,3 +1992,58 @@ details[open] .chev { transform: rotate(180deg); }
      mid-opacity rather than left wherever the paused frame happened to land. */
   .sk, .sk-soft, .sk-box { animation: none !important; opacity: .85; }
 }
+
+/* ═══ Reports phase 2 — Hub 2 (การใช้สถานที่และช่วงเวลา) + Hub 3 (สถิติตามฝ่ายและการดำเนินงาน) ═══
+   Three rule groups, ported from the prototype (`master_layout_prototype_v2.html`: `.rv-heat*`
+   ~L1907–1919, the daisyUI `table` shim ~L1870–1875) and adapted per the design log §3.5. */
+
+/* C-1 — the density heatmap. Custom because daisyUI has no heatmap; custom NAMES, so they collide
+   with nothing and `@layer components` is the right home. The tier colour is NOT here: it is
+   utilities on each cell (`HEAT_LEVEL_CLASSES` in `report-venues-view.ts`).
+   ⚠️ ONE CHANGE FROM THE PROTOTYPE: the base rule carries NO `outline-none`. In Tailwind v4 that
+   sets the outline-style variable to none and silently blanks a later `outline-2` ring, so the
+   focus ring is its own rule with the style forced to solid. */
+@layer components {
+  .rv-heat      { @apply grid min-w-[18rem] gap-1 sm:gap-1.5; grid-template-columns: auto repeat(5, minmax(0, 1fr)); }
+  .rv-heat-day  { @apply pb-0.5 text-center text-[12px] font-medium text-base-content/70 sm:text-[13px]; }
+  .rv-heat-time { @apply flex items-center justify-end whitespace-nowrap pr-1 text-[12px] text-base-content/70 tabular-nums; }
+  .rv-heat-cell { @apply flex min-h-11 min-w-0 cursor-pointer items-center justify-center rounded-[6px] text-[12px] tabular-nums sm:text-[13px]; }
+  .rv-heat-cell:focus-visible { @apply outline-2 outline-offset-2 outline-primary; outline-style: solid; }
+  .rv-heat-cell[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--color-base-content); }
+}
+
+/* C-2 — `table rp-table`. UNLAYERED + SCOPED, the same hazard as `.badge`/`.stats` above: daisyUI's
+   `.table` sets font-size, th/td padding, thead colour and row-border colour on the same
+   properties, and a `@layer components` rule loses that fight on layer order alone. Values are the
+   prototype shim's. ⚠️ NO text-align, td font-size, white-space or display on th/td here: an
+   unlayered rule would beat the `text-right` / `hidden sm:table-cell` / `whitespace-nowrap`
+   utilities the markup relies on. */
+[data-theme^="easybook-admin"] .rp-table { @apply w-full border-collapse text-left text-[14px] text-base-content; }
+[data-theme^="easybook-admin"] .rp-table :where(th) { @apply bg-base-100 px-3 py-3 text-[13px] font-semibold text-base-content/70 sm:px-5; }
+[data-theme^="easybook-admin"] .rp-table :where(td) { @apply px-3 py-3 align-middle sm:px-5; }
+[data-theme^="easybook-admin"] .rp-table :where(thead tr, tbody tr:not(:last-child)) { @apply border-b border-base-300; }
+[data-theme^="easybook-admin"] .rp-table :where(tbody tr) { @apply transition-colors hover:bg-base-content/5; }
+
+/* C-3 — the name KPIs (top venue 20px, top department / purpose 18px). The unlayered `.stat-value`
+   rule above sets 28px + leading-tight and would beat the prototype's `text-[20px] leading-snug`
+   utilities, so the two sizes are modifier classes declared right after it, equally unlayered. A
+   venue or department NAME must wrap, never truncate. */
+[data-theme^="easybook-admin"] .stat-value.stat-value-name    { @apply min-w-0 whitespace-normal leading-snug; font-size: 20px; }
+[data-theme^="easybook-admin"] .stat-value.stat-value-name-sm { @apply min-w-0 whitespace-normal leading-snug; font-size: 18px; }
+
+/* C-5 — SOFT badge tones on the report + dashboard pages (visual review, fix round 1). daisyUI's
+   semantic `badge-success/error/warning/info/neutral/primary` render SOLID fills; the prototype's
+   `.rp-scope` shim re-creates them as 10 % tints (~L1813–1819), the same look `badge-emerald` and
+   friends already have above. UNLAYERED (a layered rule loses to daisyUI's layer) and scoped TWICE:
+   to the admin theme, and to `.rp-page`, a class carried ONLY by the three report pages and
+   ภาพรวมระบบ. That second scope is the point: other admin screens and the LIFF client rely on solid
+   daisyUI badges, so this must never become a global `.badge-*` rule. The `.badge-sm` size rule is
+   here for the same reason as C-4's note: the unlayered `.badge` above forces 13px and px-2.5 over it. */
+[data-theme^="easybook-admin"] .rp-page .badge-success { @apply bg-success/10 text-success; }
+[data-theme^="easybook-admin"] .rp-page .badge-error   { @apply bg-error/10 text-error; }
+[data-theme^="easybook-admin"] .rp-page .badge-warning { @apply bg-warning/10 text-warning; }
+[data-theme^="easybook-admin"] .rp-page .badge-info    { @apply bg-info/10 text-info; }
+[data-theme^="easybook-admin"] .rp-page .badge-primary { @apply bg-primary/10 text-primary; }
+[data-theme^="easybook-admin"] .rp-page .badge-neutral { @apply bg-base-content/10 text-base-content/80; }
+[data-theme^="easybook-admin"] .rp-page .badge-ghost   { @apply bg-base-200 text-base-content/80; }
+[data-theme^="easybook-admin"] .rp-page .badge-sm      { @apply px-2 py-0.5 text-[12px]; }

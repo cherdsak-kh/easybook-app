@@ -18,9 +18,12 @@
  * while staying reachable. `AdminRouteLabel` below turns that from a convention into a compile
  * error.
  *
- * 30 destinations since 22 ก.ย. 2569, when เทมเพลตข้อความ was retired (quick replies live in
- * ประกาศและข่าวสาร now). Which of them have a design is `DESIGNED` in `BackendRoutes.tsx` — the
- * rest render the coming-soon stand-in, so it is impossible to walk this file and come away
+ * 29 destinations since 28 ก.ย. 2569, when the reporting Phase 2 sidebar cleanup retired the five
+ * legacy one-table-per-report rows the รายงานและสถิติ section used to list and replaced them with
+ * the spec's 4-hub + divider + 2-log structure — a net loss of one row (30 → 29). The old rows'
+ * exact wording is history now; see `claude_planning/feature/20260928_2040_reports_phase2_venues_and_operations/`
+ * if it is ever needed. Which of the current 29 have a design is `DESIGNED` in `BackendRoutes.tsx`
+ * — the rest render the coming-soon stand-in, so it is impossible to walk this file and come away
  * thinking a screen exists when it does not.
  */
 
@@ -125,40 +128,47 @@ export const ADMIN_PORTAL_ROUTES = [
     desc: 'สรุปสถิติการใช้งานระบบในภาพรวม',
   },
   {
-    label: 'รายงานคำขอจอง',
-    path: 'reports/bookings',
+    // Consolidates the two legacy booking/venue report rows (Phase 2, D-1/D-6, see
+    // `LEGACY_REPORT_REDIRECTS` in `BackendRoutes.tsx`). Which rooms are full and which sit
+    // empty, which hours of the school week are the crush, and where ADR-001 turned requests
+    // away.
+    label: 'การใช้สถานที่และช่วงเวลา',
+    path: 'reports/venues',
     group: 'รายงานและสถิติ',
-    desc: 'รายงานคำขอจองแยกตามช่วงเวลา สถานะ และสถานที่',
+    desc: 'อัตราการใช้ของแต่ละสถานที่ ช่วงเวลาที่มีความต้องการสูง และคำขอที่ถูกปฏิเสธเพราะเวลาชน',
   },
   {
-    label: 'รายงานการใช้สถานที่',
-    path: 'reports/venue-usage',
+    // Consolidates the two legacy registration/feedback-analytics report rows (Phase 2,
+    // D-1/D-6, see `LEGACY_REPORT_REDIRECTS` in `BackendRoutes.tsx`). Is space shared fairly
+    // between กลุ่มสาระ/ฝ่าย, how fast staff rule on requests, and who cancels late.
+    label: 'สถิติตามฝ่ายและการดำเนินงาน',
+    path: 'reports/operations',
     group: 'รายงานและสถิติ',
-    desc: 'รายงานความถี่และช่วงเวลาที่แต่ละสถานที่ถูกใช้งาน',
+    desc: 'การใช้สถานที่แยกตามกลุ่ม/ฝ่ายและวัตถุประสงค์ ระยะเวลาการพิจารณา และวินัยการใช้งาน',
   },
   {
-    label: 'รายงานการลงทะเบียน',
-    path: 'reports/registrations',
+    // NEW (Phase 2, D-2). Renders the coming-soon stand-in for every role that may reach it
+    // (SUPER_ADMIN/ADMIN, D-4) until the export engine ships.
+    label: 'ส่งออกรายงานราชการ',
+    path: 'reports/export',
     group: 'รายงานและสถิติ',
-    desc: 'รายงานจำนวนผู้ลงทะเบียนและสถานะการอนุมัติ',
+    desc: 'จัดทำรายงานประจำเดือนและประจำภาคเรียนสำหรับเสนอเทศบาล ส่งออกเป็น Excel หรือพิมพ์ขนาด A4',
   },
   {
-    label: 'รายงานข้อเสนอแนะ',
-    path: 'reports/feedback',
-    group: 'รายงานและสถิติ',
-    desc: 'รายงานเรื่องที่แจ้งเข้ามา แยกตามประเภทและสถานะ',
-  },
-  {
-    label: 'รายงานการใช้งานระบบ',
+    // Same path as before, RENAMED from its legacy label (Phase 2, D-1: no redirect needed — this
+    // path never changed, only the row's label and ACL did). ACL reverses: VIEWER loses this row
+    // (D-4, spec §3.6), because it is now grouped with the other operational logs rather than the
+    // hubs every role may read.
+    label: 'ประวัติการทำรายการ',
     path: 'reports/activity',
     group: 'รายงานและสถิติ',
-    desc: 'ประวัติการทำรายการของเจ้าหน้าที่ในระบบ',
+    desc: 'บันทึกว่าเจ้าหน้าที่คนใดอนุมัติ ปฏิเสธ หรือแก้ไขรายการใด เมื่อใด',
   },
   {
     label: 'บันทึกข้อผิดพลาด',
     path: 'reports/error-log',
     group: 'รายงานและสถิติ',
-    desc: 'บันทึกข้อผิดพลาดของระบบสำหรับตรวจสอบปัญหา',
+    desc: 'บันทึกข้อผิดพลาดทางเทคนิคของระบบ เช่น การเชื่อมต่อ LINE ขัดข้อง สำหรับตรวจสอบปัญหา',
   },
 
   {
@@ -276,7 +286,7 @@ export const ADMIN_PORTAL_ROUTES = [
 ] as const satisfies readonly AdminRoute[]
 
 /**
- * The 30 labels as a union type.
+ * The 29 labels as a union type.
  *
  * This is what makes `VIEWER_DENY` in `lib/use-acl.ts` impossible to typo. The prototype could
  * only warn about it in a comment — "a typo here is a menu row that never hides rather than a

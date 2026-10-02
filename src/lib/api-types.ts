@@ -1640,6 +1640,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/venues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 2 — venue occupancy, 40-cell weekday heatmap, per-venue table, ADR-001 clashes.
+         * @description startDate/endDate only (D-10, no venueId/departmentId filter). Occupancy/heldHours/requests are computed by the SAME shared fold as /reports/overview, so occupancy.occupancyPercent is strictly equal (===) to Hub 1's unfiltered value for the same range (AC-V4). The heatmap is 8 rows (08:30…15:30) × 5 columns (Mon…Fri) = 40 cells; index i = (isoWeekday − 1) × 8 + j.
+         */
+        get: operations["ReportsController_getVenues"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 3 — per-department allocation, purpose mix, decision SLA, late-cancellation registry.
+         * @description startDate/endDate only (D-10). Department rows apply the D-20 reserved-department fold: a system-reserved department is its own row for SUPER_ADMIN only, folded into ไม่ระบุกลุ่ม/ฝ่าย for ADMIN/VIEWER — never present in the raw JSON for them (AC-O7). The registry carries no requester name, phone or LINE id for any role (D-26, AC-O13).
+         */
+        get: operations["ReportsController_getOperations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4042,6 +4082,191 @@ export interface components {
             /** @example Invalid email or password. */
             message: string;
             code: components["schemas"]["ReportErrorCode"];
+        };
+        ReportHeatCellDto: {
+            /** @description Held hours inside this 1-hour cell summed over every school day of this weekday in range (unrounded). Σ over the 40 cells of `heatmap` = occupancy.heldHours. */
+            heldHours: number;
+            /** @description Number of held slot-day segments overlapping this cell ("มีการใช้งาน N รายการ"). */
+            segments: number;
+        };
+        ReportVenueClashDto: {
+            /** @description ISO weekday of the auto-rejected request's first slot, Bangkok (1 = Monday … 7 = Sunday). */
+            isoWeekday: number;
+            /**
+             * @description First slot start, Bangkok HH:MM.
+             * @example 09:30
+             */
+            startTime: string;
+            /**
+             * @description First slot end, Bangkok HH:MM.
+             * @example 11:30
+             */
+            endTime: string;
+            /** @description Auto-rejected requests sharing this (weekday, start, end). */
+            count: number;
+        };
+        ReportVenueRowDto: {
+            venueId: string;
+            /** @description History name (no deletedAt filter). Client appends "(ลบแล้ว)" / "(ปิดให้จอง)". */
+            name: string;
+            /** @description VenueType.name, resolved as history (may be the tombstone ไม่พบประเภทสถานที่). */
+            typeName: string;
+            /** @description Venue.capacity ("จุ N คน"). */
+            capacity: number;
+            /** @description Current open state (closed → tier ปิดให้จอง). */
+            isOpen: boolean;
+            /** @description Soft-deleted; present only when it has hours or requests in range (D-17). */
+            isDeleted: boolean;
+            /** @description Held hours, same clipping as OccupancyDto, unrounded. Equals this venue's heldHours in /reports/overview venues[]. */
+            heldHours: number;
+            /** @description 0–100 unrounded: heldHours ÷ (schoolDays × 8) × 100. null when schoolDays = 0. */
+            occupancyPercent: number | null;
+            /** @description Attributed requests whose BookingRequest.venueId is this venue, all statuses. */
+            requests: number;
+            /** @description Of requests: status = APPROVED. */
+            approved: number;
+            /** @description Of requests: rejectReason === AUTO_REJECTED_REASON (ADR-001). */
+            autoRejected: number;
+            /** @description 100 × autoRejected / requests, unrounded; null when requests = 0. */
+            autoRejectedPercent: number | null;
+            /** @description This venue's 40 cells (k = 1 on the client). */
+            cells: components["schemas"]["ReportHeatCellDto"][];
+            /** @description Most frequent auto-reject (weekday, first-slot start, end); null when autoRejected = 0. */
+            topClash: components["schemas"]["ReportVenueClashDto"] | null;
+        };
+        ReportsVenuesResponseDto: {
+            /** Format: date-time */
+            serverTime: string;
+            range: components["schemas"]["ReportRangeDto"];
+            /** @description Identical to /reports/overview requests for the same range. */
+            requests: components["schemas"]["RequestBreakdownDto"];
+            /** @description Identical (===) to /reports/overview occupancy for the same range, unfiltered. venueCount is the open-venue count k. */
+            occupancy: components["schemas"]["OccupancyDto"];
+            /** @description 100 × requests.autoRejected / requests.total, unrounded; null when total = 0 (อัตราคำขอชนเวลา). */
+            clashPercent: number | null;
+            /** @description School days per weekday Mon…Fri within [startDate, effectiveEndDate]; Σ = range.schoolDays. */
+            weekdaySchoolDays: number[];
+            /** @description All-venue cells (scope "ทุกสถานที่"). Σ heldHours = occupancy.heldHours. */
+            heatmap: components["schemas"]["ReportHeatCellDto"][];
+            /** @description Every non-deleted venue + deleted venues with activity; sorted occupancy desc, requests desc, name. Unpaginated. */
+            venues: components["schemas"]["ReportVenueRowDto"][];
+        };
+        ReportDepartmentRowDto: {
+            /** @description Department.id; null = the ไม่ระบุกลุ่ม/ฝ่าย bucket (no resolvable department, or — for ADMIN/VIEWER — a system-reserved one, D-20). */
+            departmentId: number | null;
+            /** @description History name; null for the unassigned bucket. */
+            name: string | null;
+            /** @description Soft-deleted; such rows appear only with activity. Client appends "(ลบแล้ว)". */
+            isDeleted: boolean;
+            requests: number;
+            /** @description status = APPROVED. */
+            approved: number;
+            /** @description 100 × approved / requests, unrounded; null when requests = 0. */
+            approvalPercent: number | null;
+            /** @description Held hours of slots whose parent resolves to this bucket, unrounded. */
+            heldHours: number;
+            /** @description 100 × heldHours / total heldHours, unrounded; 0 when total = 0. Share of USE, not capacity (D-21). */
+            sharePercent: number;
+            /** @description D-11 late cancellations attributed to this bucket. */
+            lateCancellations: number;
+        };
+        /** @enum {string} */
+        ReportPurposeCategory: "TEACHING" | "MEETING" | "TRAINING" | "STUDENT_ACTIVITY" | "OTHER";
+        ReportPurposeRowDto: {
+            category: components["schemas"]["ReportPurposeCategory"];
+            requests: number;
+            heldHours: number;
+            /** @description 100 × heldHours / total heldHours, unrounded; 0 when total = 0. */
+            sharePercent: number;
+        };
+        /** @enum {string} */
+        ReportSlaBucket: "UNDER_2H" | "FROM_2H_TO_12H" | "FROM_12H_TO_24H" | "OVER_24H";
+        ReportSlaBucketRowDto: {
+            bucket: components["schemas"]["ReportSlaBucket"];
+            count: number;
+            /** @description 100 × count / decided, unrounded; 0 when decided = 0. */
+            percent: number;
+        };
+        ReportSlaExclusionsDto: {
+            /** @description ADR-001 auto-rejections (= requests.autoRejected). */
+            autoRejected: number;
+            /** @description CANCELLED with approvedAt = null (withdrawn before any decision). */
+            withdrawn: number;
+            /** @description createdById ≠ null (direct and on-behalf staff bookings). */
+            staffCreated: number;
+            /** @description EXPIRED before any decision (หมดอายุก่อนพิจารณา). */
+            expired: number;
+            /** @description Still PENDING. */
+            pending: number;
+        };
+        ReportSlaDto: {
+            /** @example 24 */
+            slaHours: number;
+            /** @description n: LIFF requests a person ruled on. n + Σ excluded = requests.total. */
+            decided: number;
+            decidedApproved: number;
+            /** @description Manual rejections; turnaround is the updatedAt proxy (approximate). */
+            decidedRejected: number;
+            /** @description Mean turnaround, wall-clock hours, unrounded; null when decided = 0. */
+            averageHours: number | null;
+            /** @description Lower median, hours; null when decided = 0. */
+            medianHours: number | null;
+            /** @description Turnaround ≤ 24 h 0 m (exactly 24 h is within). */
+            withinSla: number;
+            /** @description 100 × withinSla / decided, unrounded; null when decided = 0. */
+            withinSlaPercent: number | null;
+            /** @description Fixed order UNDER_2H, FROM_2H_TO_12H, FROM_12H_TO_24H (12 ≤ t ≤ 24), OVER_24H; Σ count = decided. */
+            buckets: components["schemas"]["ReportSlaBucketRowDto"][];
+            excluded: components["schemas"]["ReportSlaExclusionsDto"];
+        };
+        /**
+         * @description LINE_USER → REQUESTER; SUPER_ADMIN/ADMIN → STAFF; else UNKNOWN. Shown, never counted differently (OQ-4).
+         * @enum {string}
+         */
+        ReportCancellerKind: "REQUESTER" | "STAFF" | "UNKNOWN";
+        ReportLateCancellationDto: {
+            /** @example BR-25690902-001 */
+            code: string;
+            /**
+             * Format: date-time
+             * @description Start of the EARLIEST late-cancelled slot.
+             */
+            slotStartAt: string;
+            /** Format: date-time */
+            slotEndAt: string;
+            /** @description Late-cancelled slots of this request; the client shows "(+N ช่วง)" for N = lateSlotCount − 1 > 0. */
+            lateSlotCount: number;
+            /** @description cancelledAt ≥ startAt ("หลังเริ่ม N นาที"). */
+            cancelledAfterStart: boolean;
+            /** @description ⌊|startAt − cancelledAt| / 1 min⌋. */
+            minutes: number;
+            venueName: string;
+            venueIsDeleted: boolean;
+            /** @description Effective department after D-20 folding; null → ไม่ระบุกลุ่ม/ฝ่าย. */
+            departmentName: string | null;
+            departmentIsDeleted: boolean;
+            /** @description LINE_USER → REQUESTER; SUPER_ADMIN/ADMIN → STAFF; else UNKNOWN. Shown, never counted differently (OQ-4). */
+            canceller: components["schemas"]["ReportCancellerKind"];
+            /** @description Free text; may name a person — already visible to all three roles on the request detail (no new exposure). */
+            cancelReason: string | null;
+        };
+        ReportsOperationsResponseDto: {
+            /** Format: date-time */
+            serverTime: string;
+            range: components["schemas"]["ReportRangeDto"];
+            /** @description Identical to /reports/overview requests for the same range. */
+            requests: components["schemas"]["RequestBreakdownDto"];
+            /** @description Total held hours in range (= /reports/overview occupancy.heldHours). */
+            heldHours: number;
+            /** @description Identical to /reports/overview discipline (noShows always null). */
+            discipline: components["schemas"]["DisciplineDto"];
+            /** @description D-20 row set; sorted hours desc, requests desc, name; the null row last. */
+            departments: components["schemas"]["ReportDepartmentRowDto"][];
+            /** @description Four categories by hours desc, OTHER always last (D-22). */
+            purposes: components["schemas"]["ReportPurposeRowDto"][];
+            sla: components["schemas"]["ReportSlaDto"];
+            /** @description One row per late-cancelled request; length = discipline.lateCancellations. Unpaginated. */
+            registry: components["schemas"]["ReportLateCancellationDto"][];
         };
     };
     responses: never;
@@ -9942,6 +10167,126 @@ export interface operations {
                 };
             };
             /** @description CSRF failure (n/a on GET), or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    ReportsController_getVenues: {
+        parameters: {
+            query: {
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. */
+                startDate: string;
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. Inclusive span ≤ 366 days. */
+                endDate: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportsVenuesResponseDto"];
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE (coded), or an unknown query key including venueId/departmentId (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    ReportsController_getOperations: {
+        parameters: {
+            query: {
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. */
+                startDate: string;
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. Inclusive span ≤ 366 days. */
+                endDate: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportsOperationsResponseDto"];
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE (coded), or an unknown query key (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A forced password change is pending. */
             403: {
                 headers: {
                     [name: string]: unknown;

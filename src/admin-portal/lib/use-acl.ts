@@ -26,7 +26,7 @@ import type { AdminRouteLabel } from '../routes'
  * ⚠️ TYPED AS `AdminRouteLabel`, not `string`, and that is the whole guard. The prototype could
  * only warn in a comment that "a typo here is a menu row that never hides rather than a silent
  * half-grant" — and a half-grant is the failure nobody reports, because the row keeps working
- * for the role that was supposed to lose it. Now a label that is not one of the 30 fails the
+ * for the role that was supposed to lose it. Now a label that is not one of the 29 fails the
  * build, and a label RENAMED in the route table fails it too.
  *
  * การตั้งค่าระบบ (all of it): configuration is an ACTION surface. There is no read-only value
@@ -34,9 +34,15 @@ import type { AdminRouteLabel } from '../routes'
  *   not have.
  * บันทึกข้อผิดพลาด: a debugging tool, not data. It leaks internal structure and invites
  *   "ทำไมระบบ error" to someone who cannot act on the answer.
+ * ส่งออกรายงานราชการ / ประวัติการทำรายการ (Phase 2, D-4, spec §3.4–§3.6): the export studio is an
+ *   ACTION surface (it produces a document for the เทศบาล), and the activity log is an audit
+ *   trail of what STAFF did — both belong to the two roles that act, not to a read-only viewer.
+ *   ประวัติการทำรายการ sits on the same path a VIEWER COULD reach under its old label before this
+ *   phase (spec §3.6 reverses that — R-5).
  *
  * Everything else IS visible — including เจ้าหน้าที่ระบบ (a supervisor may see who holds an
- * account) and รายงานการใช้งานระบบ (who did what, which is the whole point of the role).
+ * account) and the two hubs every role may read (การใช้สถานที่และช่วงเวลา,
+ * สถิติตามฝ่ายและการดำเนินงาน).
  */
 export const VIEWER_DENY: readonly AdminRouteLabel[] = [
   'ระบบการจอง',
@@ -46,7 +52,31 @@ export const VIEWER_DENY: readonly AdminRouteLabel[] = [
   'ตำแหน่งบุคลากร',
   'การเชื่อมต่อระบบ',
   'บันทึกข้อผิดพลาด',
+  'ส่งออกรายงานราชการ',
+  'ประวัติการทำรายการ',
 ]
+
+/**
+ * ADMIN's one denial (Phase 2, D-4, spec §3.7, PO-approved): technical telemetry — the record of
+ * the system's OWN internal errors (LINE connection failures, deadlocks) rather than staff
+ * activity — is SUPER_ADMIN's alone. This is the first ADMIN-level denial the portal has; every
+ * other row an ADMIN could reach before this phase, it still can.
+ */
+export const ADMIN_DENY: readonly AdminRouteLabel[] = ['บันทึกข้อผิดพลาด']
+
+const DENY: Record<SystemRole, readonly AdminRouteLabel[]> = {
+  SUPER_ADMIN: [],
+  ADMIN: ADMIN_DENY,
+  VIEWER: VIEWER_DENY,
+}
+
+/**
+ * The pure `(role, label) → boolean` `useAcl().can` delegates to — a `Record` over `SystemRole`,
+ * so a new role fails the BUILD rather than silently falling through to "allowed everywhere".
+ */
+export function canReach(role: SystemRole, label: AdminRouteLabel): boolean {
+  return !DENY[role].includes(label)
+}
 
 /**
  * `SystemRole` → the value stamped on `data-acl`.
@@ -93,12 +123,11 @@ export interface Acl {
 export function useAcl(role: SystemRole): Acl {
   return useMemo(() => {
     const write = role !== 'VIEWER'
-    const denied = role === 'VIEWER' ? new Set(VIEWER_DENY) : null
     return {
       role,
       attr: ACL_ATTR[role],
       write,
-      can: (label: AdminRouteLabel) => !denied?.has(label),
+      can: (label: AdminRouteLabel) => canReach(role, label),
       actionsColumnLabel: write ? 'จัดการ' : 'ดูข้อมูล',
     }
   }, [role])

@@ -250,6 +250,45 @@ export const NOTIF_CATEGORY_LABEL: Record<NotificationCategory, string> = {
   SYSTEM: 'ระบบและการเชื่อมต่อ',
 }
 
+/** `ReportPurposeCategory` — Hub 3's D-22 keyword-classifier output for a booking's free-text purpose. */
+export type ReportPurposeCategory = components['schemas']['ReportPurposeCategory']
+
+/**
+ * The four real categories plus the fallback (D-22). `OTHER`'s label carries its own caveat
+ * inline ("จัดหมวดไม่ได้") rather than relying on the card's footnote alone, since a bar can be
+ * read on its own out of context.
+ */
+export const PURPOSE_CATEGORY_LABEL: Record<ReportPurposeCategory, string> = {
+  TRAINING: 'การอบรมสัมมนาและพัฒนาบุคลากร',
+  MEETING: 'การประชุมฝ่ายและงานบริหาร',
+  STUDENT_ACTIVITY: 'กิจกรรมนักเรียน ชมรม และกีฬา',
+  TEACHING: 'การเรียนการสอนและกิจกรรมเสริมหลักสูตร',
+  OTHER: 'อื่น ๆ / จัดหมวดไม่ได้',
+}
+
+/** `ReportSlaBucket` — Hub 3's four decision-turnaround buckets (D-24). */
+export type ReportSlaBucket = components['schemas']['ReportSlaBucket']
+
+export const SLA_BUCKET_LABEL: Record<ReportSlaBucket, string> = {
+  UNDER_2H: '< 2 ชม. (รวดเร็วมาก)',
+  FROM_2H_TO_12H: '2–12 ชม. (มาตรฐาน)',
+  FROM_12H_TO_24H: '12–24 ชม. (ภายใน 1 วันทำการ)',
+  OVER_24H: '> 24 ชม. (เกินเกณฑ์)',
+}
+
+/**
+ * `ReportCancellerKind` — who cancelled a slot in Hub 3's late-cancellation registry, already
+ * collapsed server-side from `cancelledByRole` (D-25, DV-8): `LINE_USER` → `REQUESTER`,
+ * `SUPER_ADMIN`/`ADMIN` → `STAFF`, anything else → `UNKNOWN`.
+ */
+export type ReportCancellerKind = components['schemas']['ReportCancellerKind']
+
+export const CANCELLER_LABEL: Record<ReportCancellerKind, string> = {
+  REQUESTER: 'ผู้ขอยกเลิก',
+  STAFF: 'เจ้าหน้าที่ยกเลิก',
+  UNKNOWN: '—',
+}
+
 /** `HealthServiceStatus` — the four system-strip chips (ภาพรวมระบบ, D-8). */
 export type HealthServiceStatus = components['schemas']['HealthServiceStatus']
 
