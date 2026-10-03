@@ -1,7 +1,7 @@
 name: CI
 run-name: CI - ${{ github.ref_name }} staging (by @${{ github.actor }}) -- ${{ github.event.head_commit.message }}
 
-# Lint/test/build gate a build-artifact upload. src/lib/api-types.ts is committed (generated from
+# Audit/lint/test/build gate the image build+push below. src/lib/api-types.ts is committed (generated from
 # the backend's OpenAPI spec via `npm run gen:api`, requires a live backend on :3300) so a cold
 # checkout builds fine without the backend running — CI never regenerates it. See
 # claude_planning/20260713_1735_frontend_cicd/01_plan_log.md §3 (Option B) for the deploy-target
@@ -11,6 +11,10 @@ run-name: CI - ${{ github.ref_name }} staging (by @${{ github.actor }}) -- ${{ g
 on:
   push:
     branches: [master]
+    # Docs/planning-only pushes skip CI entirely — and therefore CD too (it fires on CI's
+    # `workflow_run`), so a README edit no longer redeploys byte-identical code to staging.
+    # push only, not pull_request: a filtered PR would leave required status checks pending.
+    paths-ignore: ['**/*.md', 'docs/**', 'claude_planning/**', '.vscode/**']
   pull_request:
     branches: [master]
 
@@ -32,18 +36,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm test
-
-      - name: Build
-        # tsc -b && vite build — this is also the typecheck gate; there is no separate
-        # `typecheck` script in package.json. Needs src/lib/api-types.ts, which is committed
-        # (not generated here) — see 01_plan_log.md §1.
-        run: npm run build
 
       - name: npm audit (fails the build — never auto-fixed here)
         # High/critical vulnerabilities fail CI outright. Do NOT change this to `audit fix
@@ -74,15 +66,20 @@ jobs:
         #     static nginx container — this app has no server, no actions and no RSC.
         # REVISIT when react-router 8.3.0 ships: upgrade, then DELETE this allowlist entry.
         # Any NEW high-severity advisory still fails the build.
+        # Runs right after `npm ci` so a real advisory fails in seconds, not after the build.
         run: npx audit-ci --config .audit-ci.json
 
-      - name: Upload build artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-${{ github.sha }}
-          path: dist/
-          retention-days: 7
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        # tsc -b && vite build — this is also the typecheck gate; there is no separate
+        # `typecheck` script in package.json. Needs src/lib/api-types.ts, which is committed
+        # (not generated here) — see 01_plan_log.md §1.
+        run: npm run build
 
   build-and-push:
     name: Build & push image to GHCR (SHA tag)
