@@ -4,8 +4,9 @@
  * `GET /reports/overview` (`02_design_log.md` §2.5).
  *
  * ⚠️ PHASE 1 OMITS THREE PANELS ENTIRELY (D-11, no placeholders): จุดคอขวด, ข้อสังเกตสำคัญ, and the
- * สรุปรายการ table. They are Hub 2/3 analytics and ship with those phases. `ส่งออกรายงาน` (D-12,
- * this task's PO ruling 4) is likewise never rendered, for any role.
+ * สรุปรายการ table. They are Hub 2/3 analytics and ship with those phases. `ส่งออกรายงาน` was absent
+ * for every role in Phase 1 (D-12); Phase 3 adds it for SUPER_ADMIN and ADMIN only (VIEWER: absent
+ * from the DOM), opening Hub 4 แบบ 1 on this hub's current range — see `ExportReportButton`.
  *
  * ⚠️ THE API IS STATELESS AND DATE-ONLY (D-13/AC-R4): every preset here (`report-presets.ts`) is
  * client-side sugar that resolves to a plain `{ startDate, endDate }` before the request is sent —
@@ -24,10 +25,12 @@ import { LoadError, type LoadErrorKind } from '../../components/feedback/LoadErr
 import { Skeleton, SkeletonRegion } from '../../components/feedback/Skeleton'
 import { PageHeading } from '../../components/shell/PageHeading'
 import type { AdminRoute } from '../../routes'
+import { ExportReportButton } from './components/ExportReportButton'
 import { ReportFilterBar } from './components/ReportFilterBar'
 import { ReportKpiCards } from './components/ReportKpiCards'
 import { ReportTopVenues } from './components/ReportTopVenues'
 import { ReportTrendChart } from './components/ReportTrendChart'
+import { HUB_EXPORT_TEMPLATE } from './export-params'
 import {
   occupancyTrend,
   previousRangeOf,
@@ -128,13 +131,23 @@ export function ReportsOverviewPage({ route }: { route: AdminRoute }) {
         desc="สรุปการใช้สถานที่ คำขอจอง และจุดคอขวดของโรงเรียนในช่วงเวลาที่เลือก สำหรับผู้บริหารและผู้กำกับดูแล"
         descAtEveryWidth
         actions={
-          <button
-            type="button"
-            onClick={() => void load(from, to, activePreset, mode)}
-            className="btn flex-1 sm:flex-none"
-          >
-            รีเฟรช
-          </button>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <button
+              type="button"
+              onClick={() => void load(from, to, activePreset, mode)}
+              className="btn flex-1 sm:flex-none"
+            >
+              รีเฟรช
+            </button>
+            <ExportReportButton
+              template={HUB_EXPORT_TEMPLATE.overview}
+              mode={mode}
+              presetId={presetId}
+              from={from}
+              to={to}
+              disabled={validationError !== null}
+            />
+          </div>
         }
       />
 

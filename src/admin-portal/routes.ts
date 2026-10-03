@@ -1,3 +1,5 @@
+import { matchRoutes } from 'react-router-dom'
+
 /**
  * THE route table — every destination in the back-office, ported from the prototype's `ROUTES`.
  *
@@ -147,8 +149,8 @@ export const ADMIN_PORTAL_ROUTES = [
     desc: 'การใช้สถานที่แยกตามกลุ่ม/ฝ่ายและวัตถุประสงค์ ระยะเวลาการพิจารณา และวินัยการใช้งาน',
   },
   {
-    // NEW (Phase 2, D-2). Renders the coming-soon stand-in for every role that may reach it
-    // (SUPER_ADMIN/ADMIN, D-4) until the export engine ships.
+    // NEW (Phase 2, D-2); a designed screen since Phase 3 (Hub 4, the export studio). Reachable by
+    // SUPER_ADMIN/ADMIN only (D-4).
     label: 'ส่งออกรายงานราชการ',
     path: 'reports/export',
     group: 'รายงานและสถิติ',
@@ -329,6 +331,60 @@ export const urlOf = (route: AdminRoute): string =>
 /** Lookup by label. `undefined` for anything not in the table — callers decide what that means. */
 export const routeOf = (label: string): AdminRoute | undefined =>
   ADMIN_PORTAL_ROUTES.find((r) => r.label === label)
+
+/**
+ * THE ACL KEY OF A URL: which table row would React Router render for `pathname`? (LOW-3)
+ *
+ * ⚠️ AN EXACT STRING COMPARE (`urlOf(r) === pathname`) WAS A SECURITY HOLE, not a style choice. React
+ * Router matches a `path` case-insensitively, tolerates any number of trailing slashes and decodes
+ * percent-escapes per segment, so `/backend/reports/error-log/`, `…/ERROR-LOG`, `…/error%2Dlog` and
+ * `/BACKEND/reports/error-log` all RENDER the page, while the compare found no row, `here` was
+ * `undefined`, and the ACL check that guards the page was skipped. The frontend ACL is UX and not the
+ * control (`@Roles` is), but a denied role must never SEE a page or a stand-in flash.
+ *
+ * The fix asks the router's OWN matcher on the SAME table, so the ACL key is by construction the row
+ * that renders and no spelling the router accepts can slip past. Do not hand-roll a normaliser
+ * (lower-case, strip slashes, decode) beside it: a second opinion on "what does the router do" is
+ * exactly the divergence that opened the hole.
+ *
+ * `null` = the router would not render a row either (it falls through to the in-shell 404, or to a
+ * legacy redirect), so there is nothing to gate. `/backend//reports/error-log` is the instance of that
+ * the plan pins: a doubled slash INSIDE the path matches no child route in the router.
+ */
+const MATCH_TABLE = ADMIN_PORTAL_ROUTES.map((r) => ({ path: urlOf(r) }))
+
+export function resolveAdminRoute(pathname: string): AdminRouteEntry | null {
+  const matches = matchRoutes(MATCH_TABLE, pathname)
+  if (!matches) return null
+  const matched = matches[matches.length - 1].route.path
+  return ADMIN_PORTAL_ROUTES.find((r) => urlOf(r) === matched) ?? null
+}
+
+/**
+ * What `BackendLayout` does with a URL for a given role: the decision, as a pure function so the
+ * LOW-3 matrix can be pinned without rendering anything.
+ *
+ *   `none`      no row (404 or a legacy redirect): render the outlet as the router decides
+ *   `home`      a row this role may not reach: `Navigate` to `HOME_PATH`, BEFORE the page mounts
+ *   `canonical` a row it may reach, under a non-canonical spelling: `Navigate` (replace) to `to`
+ *   `page`      a row it may reach, spelled canonically: render
+ */
+export type AdminRouteDecision =
+  | { kind: 'none' }
+  | { kind: 'home'; route: AdminRouteEntry }
+  | { kind: 'canonical'; route: AdminRouteEntry; to: string }
+  | { kind: 'page'; route: AdminRouteEntry }
+
+export function decideAdminRoute(
+  pathname: string,
+  can: (label: AdminRouteLabel) => boolean,
+): AdminRouteDecision {
+  const route = resolveAdminRoute(pathname)
+  if (!route) return { kind: 'none' }
+  if (!can(route.label)) return { kind: 'home', route }
+  const to = urlOf(route)
+  return pathname === to ? { kind: 'page', route } : { kind: 'canonical', route, to }
+}
 
 /**
  * Section headings, in sidebar order, with their rows.

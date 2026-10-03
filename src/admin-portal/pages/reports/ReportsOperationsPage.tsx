@@ -6,7 +6,9 @@
  * Three governance questions: is space shared fairly between กลุ่มสาระ/ฝ่าย, how fast do staff rule on
  * requests, and who cancels late.
  *
- * ⚠️ NO `ส่งออกรายงาน` BUTTON FOR ANY ROLE (D-3), NO NO-SHOW DATA (D-12), NO REQUESTER NAMES (D-26).
+ * ⚠️ `ส่งออกรายงาน` (Phase 3): SUPER_ADMIN and ADMIN only, ABSENT FROM THE DOM for a VIEWER, opening Hub 4
+ * แบบ 1 on this hub's current range (see `ExportReportButton`). NO NO-SHOW DATA (D-12), NO REQUESTER NAMES
+ * (D-26).
  * ⚠️ Same fetch discipline as Hub 2: an invalid range makes no request; a range change clears the
  * data; รีเฟรช keeps it on screen behind a spinner and toasts on success.
  */
@@ -23,8 +25,10 @@ import { DepartmentTable } from './components/DepartmentTable'
 import { LateCancellationRegistry } from './components/LateCancellationRegistry'
 import { OperationsKpiCards } from './components/OperationsKpiCards'
 import { PurposeBars } from './components/PurposeBars'
+import { ExportReportButton } from './components/ExportReportButton'
 import { ReportFilterBar } from './components/ReportFilterBar'
 import { SlaCard } from './components/SlaCard'
+import { HUB_EXPORT_TEMPLATE } from './export-params'
 import { isOperationsEmpty } from './report-operations-view'
 import { rangeEcho, thaiDateOf } from './report-presets'
 import { useReportRange } from './use-report-range'
@@ -125,6 +129,14 @@ export function ReportsOperationsPage({ route }: { route: AdminRoute }) {
               )}
               รีเฟรช
             </button>
+            <ExportReportButton
+              template={HUB_EXPORT_TEMPLATE.operations}
+              mode={mode}
+              presetId={presetId}
+              from={from}
+              to={to}
+              disabled={validationError !== null}
+            />
           </div>
         }
       />

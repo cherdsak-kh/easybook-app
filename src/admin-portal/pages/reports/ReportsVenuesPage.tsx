@@ -6,8 +6,8 @@
  * Three questions a director asks about space: which rooms are full and which sit empty, which hours
  * of the school week are the crush, and where ADR-001 turned requests away.
  *
- * ⚠️ NO `ส่งออกรายงาน` BUTTON FOR ANY ROLE (D-3): Hub 4 does not exist yet, and a primary button that
- * lands on a coming-soon page reads as a broken feature.
+ * ⚠️ `ส่งออกรายงาน` (Phase 3): SUPER_ADMIN and ADMIN only, ABSENT FROM THE DOM for a VIEWER. It opens
+ * Hub 4 แบบ 3 (สถิติรายสถานที่) on this hub's current range — see `ExportReportButton`.
  *
  * ⚠️ AN INVALID RANGE MAKES NO REQUEST (AC-V2), and a range CHANGE clears the data so the skeleton
  * shows rather than the previous range under the new echo line. รีเฟรช keeps the data on screen.
@@ -24,12 +24,14 @@ import { Skeleton, SkeletonRegion } from '../../components/feedback/Skeleton'
 import { PageHeading } from '../../components/shell/PageHeading'
 import { useToast } from '../../lib/toast-context'
 import type { AdminRoute } from '../../routes'
+import { ExportReportButton } from './components/ExportReportButton'
 import { ReportFilterBar } from './components/ReportFilterBar'
 import { VenueClashByType } from './components/VenueClashByType'
 import { VenueHeatmap } from './components/VenueHeatmap'
 import { VenueRecommendations } from './components/VenueRecommendations'
 import { VenueUsageTable } from './components/VenueUsageTable'
 import { VenuesKpiCards } from './components/VenuesKpiCards'
+import { HUB_EXPORT_TEMPLATE } from './export-params'
 import { rangeEcho, thaiDateOf } from './report-presets'
 import { ALL_SCOPE, isVenuesEmpty, pct1 } from './report-venues-view'
 import { useReportRange } from './use-report-range'
@@ -136,6 +138,14 @@ export function ReportsVenuesPage({ route }: { route: AdminRoute }) {
               )}
               รีเฟรช
             </button>
+            <ExportReportButton
+              template={HUB_EXPORT_TEMPLATE.venues}
+              mode={mode}
+              presetId={presetId}
+              from={from}
+              to={to}
+              disabled={validationError !== null}
+            />
           </div>
         }
       />

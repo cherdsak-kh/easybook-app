@@ -44,6 +44,9 @@ import { NotificationsPage } from './pages/notifications/NotificationsPage'
 import { ChangePasswordPage } from './pages/password/ChangePasswordPage'
 import { OptionsPage } from './pages/options/OptionsPage'
 import { ProfilePage } from './pages/profile/ProfilePage'
+import { ActivityLogPage } from './pages/reports/ActivityLogPage'
+import { ErrorLogPage } from './pages/reports/ErrorLogPage'
+import { ExportPage } from './pages/reports/ExportPage'
 import { ReportsOverviewPage } from './pages/reports/ReportsOverviewPage'
 import { ReportsVenuesPage } from './pages/reports/ReportsVenuesPage'
 import { ReportsOperationsPage } from './pages/reports/ReportsOperationsPage'
@@ -81,9 +84,15 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   // the 40-cell weekday heatmap, the per-venue table and ADR-001 clash analysis.
   'การใช้สถานที่และช่วงเวลา': (route) => <ReportsVenuesPage route={route} />,
   // Hub 3, same feature — department allocation, the purpose mix, the approval SLA and the
-  // late-cancellation registry. Hubs 4–6 (ส่งออกรายงานราชการ, ประวัติการทำรายการ,
-  // บันทึกข้อผิดพลาด) are NOT here yet — they stay on the coming-soon stand-in (D-2).
+  // late-cancellation registry.
   'สถิติตามฝ่ายและการดำเนินงาน': (route) => <ReportsOperationsPage route={route} />,
+  // Hubs 4–6 (reporting Phase 3, feature `20261003_0600_reports_phase3_export_activity_and_error_log`).
+  // Each is gated by `BackendLayout` BEFORE it mounts (LOW-3: `decideAdminRoute`), so none of them fires
+  // a request for a role that may not reach it: Hub 4 and Hub 5 are SUPER_ADMIN/ADMIN, Hub 6 is
+  // SUPER_ADMIN only. Nothing here lists a role.
+  ส่งออกรายงานราชการ: (route) => <ExportPage route={route} />,
+  ประวัติการทำรายการ: (route) => <ActivityLogPage route={route} />,
+  บันทึกข้อผิดพลาด: (route) => <ErrorLogPage route={route} />,
   ข้อมูลเวอร์ชันระบบ: (route) => <VersionPage route={route} />,
   โปรไฟล์: (route) => <ProfilePage route={route} />,
   เปลี่ยนรหัสผ่าน: (route) => <ChangePasswordPage route={route} />,

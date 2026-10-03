@@ -19,7 +19,7 @@ import {
 } from './report-presets'
 
 /** Bangkok-assumed local date, `YYYY-MM-DD` — the same convention `thai-date.ts` runs on. */
-function todayIsoLocal(): string {
+export function todayIsoLocal(): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -45,15 +45,27 @@ export interface ReportRangeState {
   resetToCurrentTerm: () => void
 }
 
-export function useReportRange(): ReportRangeState {
+/**
+ * Where a hub opens, when it is not the current term. ONLY Hub 4 passes one (a deep link from Hubs 1–3
+ * or a bookmark, already validated by `parseExportParams`); Hubs 1–3 call the hook with no argument and
+ * behave exactly as before.
+ */
+export interface ReportRangeInitial {
+  mode: ReportMode
+  presetId: string
+  from: string
+  to: string
+}
+
+export function useReportRange(initial?: ReportRangeInitial): ReportRangeState {
   const today = useMemo(() => todayIsoLocal(), [])
   const terms = useMemo(() => termPresets(today), [today])
   const months = useMemo(() => monthPresets(today, terms[terms.length - 1].from), [today, terms])
 
-  const [mode, setMode] = useState<ReportMode>('term')
-  const [presetId, setPresetId] = useState(terms[0].id)
-  const [from, setFrom] = useState(terms[0].from)
-  const [to, setTo] = useState(terms[0].to)
+  const [mode, setMode] = useState<ReportMode>(initial?.mode ?? 'term')
+  const [presetId, setPresetId] = useState(initial?.presetId ?? terms[0].id)
+  const [from, setFrom] = useState(initial?.from ?? terms[0].from)
+  const [to, setTo] = useState(initial?.to ?? terms[0].to)
 
   const presets: RangePreset[] = mode === 'month' ? months : terms
   const activePreset = presets.find((p) => p.id === presetId) ?? null

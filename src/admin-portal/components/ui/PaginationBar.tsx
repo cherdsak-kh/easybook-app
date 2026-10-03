@@ -48,6 +48,12 @@ export interface PaginationBarProps {
   className?: string
   /** Appended inside the summary line, after the unit — e.g. ` · รอพิจารณา 3 รายการ`. */
   extraSummary?: ReactNode
+  /**
+   * The page-size `select`'s classes. The default is the 32px `select-sm` every list here chose on 21 ก.ย.
+   * 2569 (see the note on the element); a page whose touch targets are measured against 44px (Hub 5 and
+   * Hub 6) passes `min-h-11` on top. Additive: absent = exactly what it always was.
+   */
+  sizeSelectClassName?: string
 }
 
 const DEFAULT_PAGE_SIZES: readonly number[] = [10, 20, 50]
@@ -65,6 +71,7 @@ export function PaginationBar({
   ariaLabel,
   className = '',
   extraSummary,
+  sizeSelectClassName = 'select select-sm w-20 tabular-nums',
 }: PaginationBarProps) {
   const pages = Math.max(1, Math.ceil(total / pageSize))
   const current = Math.min(Math.max(1, page), pages)
@@ -109,7 +116,7 @@ export function PaginationBar({
           aria-label="จำนวนแถวต่อหน้า"
           value={pageSize}
           onChange={(e) => onPageSizeChange(Number(e.target.value))}
-          className="select select-sm w-20 tabular-nums"
+          className={sizeSelectClassName}
         >
           {sizes.map((n) => (
             <option key={n} value={n}>

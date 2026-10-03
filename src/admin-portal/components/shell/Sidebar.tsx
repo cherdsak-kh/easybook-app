@@ -26,6 +26,7 @@ import { usePopupMenu } from '../../lib/use-popup-menu'
 import type { Acl } from '../../lib/use-acl'
 import {
   ADMIN_PORTAL_ROUTES,
+  resolveAdminRoute,
   urlOf,
   type AdminRouteEntry,
   type AdminRouteLabel,
@@ -125,7 +126,10 @@ export function Sidebar({
   const { pathname } = useLocation()
   const account = usePopupMenu()
 
-  const isActive = (route: AdminRouteEntry) => pathname === urlOf(route)
+  // LOW-3: the row the ROUTER would render, not `pathname === urlOf(route)`, which loses the
+  // highlight for every spelling the router still accepts (trailing slash, case, `%2D`).
+  const current = resolveAdminRoute(pathname)
+  const isActive = (route: AdminRouteEntry) => route === current
   const closeDrawer = () => onDrawerChange(false)
 
   const row = (route: AdminRouteEntry, sub = false) => (

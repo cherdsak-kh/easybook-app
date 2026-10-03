@@ -2047,3 +2047,141 @@ details[open] .chev { transform: rotate(180deg); }
 [data-theme^="easybook-admin"] .rp-page .badge-neutral { @apply bg-base-content/10 text-base-content/80; }
 [data-theme^="easybook-admin"] .rp-page .badge-ghost   { @apply bg-base-200 text-base-content/80; }
 [data-theme^="easybook-admin"] .rp-page .badge-sm      { @apply px-2 py-0.5 text-[12px]; }
+
+/* ═══ Reports phase 3 — Hub 4 (ส่งออกรายงานราชการ), Hub 5 (ประวัติการทำรายการ), Hub 6 (บันทึกข้อผิดพลาด) ═══
+   Ported selector by selector from the prototype (`master_layout_prototype_v2.html` L1920–1996 and
+   `master_custom.css` L537–620) and diffed against it afterwards, because a port drops rules silently.
+   Every comment below is checked for a stray close-comment sequence, which swallows the rules after it.
+
+   C-2  TH Sarabun PSK. UNLAYERED (an at-rule has no layer to lose), four faces. The files ship in
+        `public/fonts/TH SarabunPSK/`, served from the site root, so the prototype's `../../../` climb to
+        the repo root becomes an absolute path. `local()` first, as the prototype has it: a machine that
+        has the font installed uses its own copy. `font-display: swap` is the design's one addition. */
+@font-face {
+  font-family: 'TH Sarabun PSK';
+  src: local('TH Sarabun PSK'), local('THSarabunPSK'),
+       url('/fonts/TH%20SarabunPSK/THSarabun.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'TH Sarabun PSK';
+  src: local('TH Sarabun PSK Bold'), local('THSarabunPSK-Bold'),
+       url('/fonts/TH%20SarabunPSK/THSarabun%20Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'TH Sarabun PSK';
+  src: local('TH Sarabun PSK Italic'), local('THSarabunPSK-Italic'),
+       url('/fonts/TH%20SarabunPSK/THSarabun%20Italic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'TH Sarabun PSK';
+  src: local('TH Sarabun PSK Bold Italic'), local('THSarabunPSK-BoldItalic'),
+       url('/fonts/TH%20SarabunPSK/THSarabun%20BoldItalic.ttf') format('truetype');
+  font-weight: bold;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* C-1 + C-5 — the A4 document, the outlined action chip and the before/after rows. Custom NAMES that
+   collide with no daisyUI component, so `@layer components` is the right home. The sheet is typeset,
+   not a component: bare `table` / `th` / `td` written by `ReportSheet`, never daisyUI's `.table`. */
+@layer components {
+  .rpe-doc           { @apply text-[14px] leading-[1.65]; }
+  .rpe-doc-title     { @apply m-0 text-[17px] font-bold leading-snug sm:text-[19px]; }
+  .rpe-doc h3        { @apply m-0 mb-2 mt-6 text-[15px] font-semibold; }
+  .rpe-scroll        { @apply overflow-x-auto; }
+  .rpe-doc table     { @apply w-full border-collapse text-[13px]; }
+  .rpe-doc th,
+  .rpe-doc td        { @apply border border-base-content/30 px-2 py-1.5 text-left align-top; }
+  .rpe-doc th        { @apply bg-base-200 font-semibold; }
+  .rpe-doc .num      { @apply whitespace-nowrap text-right tabular-nums; }
+  .rpe-doc .c        { @apply text-center tabular-nums; }
+  .rpe-doc .nowrap   { @apply whitespace-nowrap tabular-nums; }
+  .rpe-doc .mono     { @apply whitespace-nowrap font-mono text-[12px]; }
+  .rpe-sign-line     { @apply m-0 mt-8 flex items-end gap-1; }
+  .rpe-sign-line + .rpe-sign-line { @apply mt-3; }
+  .rpe-dots          { @apply min-w-0 flex-1 border-b border-dotted border-base-content/60; }
+
+  /* `.act-chip`: the OUTLINED neutral chip for the three administrative changes (สถานที่, บัญชีผู้ใช้,
+     ประกาศ) and for Hub 6's component, beside the FILLED badges of the four booking decisions. Shape,
+     not an invented purple, separates them. `.act-diff-*`: the before/after table in Hub 5's dialog. */
+  .act-chip { @apply inline-flex items-center rounded-full border border-base-content/30 px-2.5 py-1 text-[13px] font-medium whitespace-nowrap text-base-content/80; }
+  .act-diff-row { @apply border-b border-base-300 align-top last:border-b-0; }
+  .act-diff-k   { @apply py-2 pr-3 font-medium text-base-content/80; }
+  .act-diff-old { @apply py-2 pr-3 text-base-content/70; }
+  .act-diff-new { @apply py-2 text-base-content; }
+  .act-diff-on .act-diff-old { @apply line-through decoration-base-content/40; }
+  .act-diff-on .act-diff-new { @apply font-semibold; }
+}
+
+/* C-3 — the sheet's typography. UNLAYERED: it has to beat the `.rpe-doc` pixel sizes above and the
+   `text-[12px]` and `text-[13px]` utilities on the scope and footer lines. The face is forced with
+   `!important` on every descendant because the sheet carries Tailwind utilities (`font-mono` on a
+   request code) that would otherwise put a second face on the page. Sizes are in pt and apply on
+   SCREEN too: 15pt is 20px at 96dpi, the physical size the printer uses, so the preview is the page.
+   The `data-rpe-*` attributes these select are carried by `ReportSheet`. */
+[data-rpe-sheet],
+[data-rpe-sheet] * { font-family: 'TH Sarabun PSK', 'TH Sarabun New', sans-serif !important; }
+[data-rpe-sheet] { font-size: 15pt; line-height: 1.35; }
+[data-rpe-sheet] table { font-size: 13.5pt; font-family: inherit; }
+[data-rpe-sheet] .rpe-doc-title { font-size: 20pt; font-weight: bold; line-height: 1.2; }
+[data-rpe-sheet] h3 { font-size: 16pt; font-weight: bold; }
+[data-rpe-sheet] [data-rpe-date-range],
+[data-rpe-sheet] [data-rpe-scope] { font-size: 14pt; }
+[data-rpe-sheet] [data-rpe-meta] { font-size: 13pt; }
+
+/* C-4 — print. Only the A4 sheet reaches paper, and only while a sheet is on screen (Hub 4 alone
+   renders one, so Ctrl+P on any other route prints as before). Two rules do it:
+     · anything that neither CONTAINS the sheet nor IS, or is INSIDE, it is removed (sidebar, topbar,
+       the studio card, toasts, dialogs);
+     · everything that contains it is flattened to a plain block, because the shell's `h-screen`,
+       grid and `overflow` would otherwise clip page two onward.
+   ⚠️ THE GUARD CHANGED FROM THE PROTOTYPE, deliberately: its `[data-route="reports-export"]` test
+   (route not hidden) became `[data-rpe-sheet]`, because the React route is mounted only while it is
+   the route, and the sheet exists only on Hub 4. Paper is always the light theme: the sheet carries
+   its own `data-theme="easybook-admin"`, so no attribute is swapped behind React's back. */
+@page { size: A4; margin: 15mm 15mm 18mm; }
+@media print {
+  html, body { background: #fff !important; height: auto !important; overflow: visible !important; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  body:has([data-rpe-sheet]) :not(:has([data-rpe-sheet])):not([data-rpe-sheet]):not([data-rpe-sheet] *) {
+    display: none !important;
+  }
+  body:has([data-rpe-sheet]) :has([data-rpe-sheet]) {
+    display: block !important; position: static !important; inset: auto !important;
+    width: auto !important; min-width: 0 !important; max-width: none !important;
+    height: auto !important; min-height: 0 !important; max-height: none !important;
+    overflow: visible !important; margin: 0 !important; padding: 0 !important;
+    border: 0 !important; border-radius: 0 !important; background: none !important;
+    box-shadow: none !important; transform: none !important;
+  }
+  [data-rpe-sheet] { background: #fff !important; font-size: 15pt; }
+  [data-rpe-sheet] .rpe-scroll { overflow: visible !important; }
+  [data-rpe-sheet] table { font-size: 13.5pt; }
+  [data-rpe-sheet] thead { display: table-header-group; }
+  [data-rpe-sheet] tr, [data-rpe-sheet] .rpe-sign { break-inside: avoid; }
+  [data-rpe-sheet] h3 { break-after: avoid; }
+}
+
+/* C-6 — `table rp-table act-table`: Hub 5 and Hub 6's tables. UNLAYERED + SCOPED like C-2, and one
+   compound deeper so it beats C-2's `px-3 sm:px-5` (a specificity win, not a layer one). 12px cells
+   instead of daisyUI's 20px, so the columns fit the 1280px content area; and daisyUI's `.table` makes
+   headers nowrap, which turned the header labels into the columns' minimum widths. */
+[data-theme^="easybook-admin"] .rp-table.act-table :where(th, td) { @apply px-3 align-top; }
+[data-theme^="easybook-admin"] .rp-table.act-table :where(th) { @apply align-middle whitespace-normal; }
+
+/* C-7 — five presets are 407px of joined strip in a 317px card on a 375px phone. Below `sm` the group
+   wraps into separate buttons (two rows); from `sm` up it is the joined strip. Scoped to the admin
+   theme, as a bare `.join` rule would reach the LIFF client. */
+@media (width < 40rem) {
+  [data-theme^="easybook-admin"] .join.act-range { @apply flex-wrap gap-1.5; }
+  [data-theme^="easybook-admin"] .join.act-range > .join-item { @apply ml-0 rounded-control; }
+}

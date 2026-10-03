@@ -1563,3 +1563,342 @@ export async function getReportsOperations(
   }
   return data
 }
+
+// ---------------------------------------------------------------------------
+// Reports phase 3: Hub 4 (ส่งออกรายงานราชการ), Hub 5 (ประวัติการทำรายการ), Hub 6 (บันทึกข้อผิดพลาด)
+// ---------------------------------------------------------------------------
+
+// ── Hub 4 ──
+export type ReportDocument = components['schemas']['ReportDocumentDto']
+export type ReportDocHeader = components['schemas']['ReportDocHeaderDto']
+export type ReportDocSection = components['schemas']['ReportDocSectionDto']
+export type ReportDocColumn = components['schemas']['ReportDocColumnDto']
+export type ReportDocRow = components['schemas']['ReportDocRowDto']
+export type ReportDocCell = components['schemas']['ReportDocCellDto']
+export type ReportDocAlign = components['schemas']['ReportDocAlign']
+export type ReportTemplate = components['schemas']['ReportTemplate']
+export type ReportPeriod = components['schemas']['ReportPeriod']
+export type ReportScopeOptions = components['schemas']['ReportScopeOptionsDto']
+export type ReportScopeVenue = components['schemas']['ReportScopeVenueDto']
+export type ReportScopeDepartment = components['schemas']['ReportScopeDepartmentDto']
+/** `ReportExportCodedErrorDto.code`, surfaced on `ApiError` via `reportExportErrorCode()` below. */
+export type ReportExportErrorCode = components['schemas']['ReportExportErrorCode']
+
+// ── Hub 5 ──
+export type AuditPage = components['schemas']['AuditPageDto']
+export type AuditEvent = components['schemas']['AuditEventDto']
+export type AuditActor = components['schemas']['AuditActorDto']
+export type AuditTarget = components['schemas']['AuditTargetDto']
+export type AuditChange = components['schemas']['AuditChangeDto']
+export type AuditAction = components['schemas']['AuditAction']
+export type AuditActorState = components['schemas']['AuditActorState']
+export type AuditTargetKind = components['schemas']['AuditTargetKind']
+export type AuditCapabilities = components['schemas']['AuditCapabilitiesDto']
+export type AuditKpis = components['schemas']['AuditKpisDto']
+export type AuditKpisResponse = components['schemas']['AuditKpisResponseDto']
+export type AuditActorOption = components['schemas']['AuditActorOptionDto']
+export type AuditActorsResponse = components['schemas']['AuditActorsResponseDto']
+
+// ── Hub 6 ──
+export type IncidentPage = components['schemas']['IncidentPageDto']
+export type IncidentSummary = components['schemas']['IncidentSummaryDto']
+export type IncidentDetail = components['schemas']['IncidentDetailDto']
+export type IncidentSeverity = components['schemas']['IncidentSeverity']
+export type IncidentComponent = components['schemas']['IncidentComponent']
+export type IncidentKpis = components['schemas']['IncidentKpisDto']
+export type IncidentKpisResponse = components['schemas']['IncidentKpisResponseDto']
+
+/** Everything Hub 4's three read routes take: `template`, `period`, a range and an optional scope. */
+export interface ExportApiParams {
+  template: ReportTemplate
+  period: ReportPeriod
+  /** Bangkok calendar date, `YYYY-MM-DD`, inclusive. TERM / MONTH must be that period's exact bounds. */
+  startDate: string
+  endDate: string
+  /** Venue cuid. Soft-deleted venues are allowed. */
+  venueId?: string
+  /** Department id (an integer). Unknown, or reserved for a non-SUPER_ADMIN, is a 400. */
+  departmentId?: number
+}
+
+/** The coded-400 body stash `reportErrorCode()` / `reportExportErrorCode()` read, as every report call does. */
+function reportFailure(response: Response, error: unknown): ApiError {
+  const err = new ApiError(response.status, messageFrom(error, response))
+  ;(err as ApiError & { body?: unknown }).body = error
+  return err
+}
+
+/**
+ * `GET /reports/export` (Hub 4): the document MODEL, painted by the page into an A4 sheet. A CODED 400
+ * (`REPORT_*`, including `REPORT_PERIOD_MISMATCH` and `REPORT_DOCUMENT_TOO_LARGE`) throws an
+ * `ApiError`; `reportExportErrorCode()` reads the code. `signal` aborts a superseded request.
+ */
+export async function getReportDocument(
+  params: ExportApiParams,
+  signal?: AbortSignal,
+): Promise<ReportDocument> {
+  const query: NonNullable<paths['/api/v1/reports/export']['get']['parameters']['query']> = {
+    template: params.template,
+    period: params.period,
+    startDate: params.startDate,
+    endDate: params.endDate,
+  }
+  if (params.venueId) query.venueId = params.venueId
+  if (params.departmentId != null) query.departmentId = params.departmentId
+  const { data, error, response } = await api.GET('/api/v1/reports/export', {
+    params: { query },
+    signal,
+  })
+  if (!data) throw reportFailure(response, error)
+  return data
+}
+
+/** The code of a coded Hub 4 400, or `undefined` for the pipe's uncoded 400 or a non-400 failure. */
+export function reportExportErrorCode(err: unknown): ReportExportErrorCode | undefined {
+  return reportErrorCode(err) as ReportExportErrorCode | undefined
+}
+
+/** `GET /reports/export/scope-options`: the venue and department choices (reserved department omitted for ADMIN). */
+export async function getReportScopeOptions(signal?: AbortSignal): Promise<ReportScopeOptions> {
+  const { data, error, response } = await api.GET('/api/v1/reports/export/scope-options', {
+    signal,
+  })
+  if (!data) throw reportFailure(response, error)
+  return data
+}
+
+/**
+ * The URL of `GET /reports/export/xlsx`: a plain, cookie-authenticated GET that answers with
+ * `Content-Disposition: attachment`. ⚠️ A URL, never a blob: it is what a webview that cannot open a
+ * blob URL can still navigate to.
+ */
+export function reportXlsxUrl(params: ExportApiParams): string {
+  const qs = new URLSearchParams({
+    template: params.template,
+    period: params.period,
+    startDate: params.startDate,
+    endDate: params.endDate,
+  })
+  if (params.venueId) qs.set('venueId', params.venueId)
+  if (params.departmentId != null) qs.set('departmentId', String(params.departmentId))
+  return `${API_ORIGIN}/api/v1/reports/export/xlsx?${qs.toString()}`
+}
+
+export interface LogRangeQuery {
+  /** Bangkok calendar date, `YYYY-MM-DD`, inclusive. Today is included. */
+  startDate: string
+  endDate: string
+}
+
+export interface ActivityFilter extends LogRangeQuery {
+  action?: AuditAction
+  actorId?: string
+  q?: string
+}
+
+export interface ActivityQuery extends ActivityFilter {
+  page?: number
+  limit?: 10 | 20 | 50
+}
+
+/** Drops empty filter values so an unset toolbar sends nothing (an empty `q=` is not "no filter" to every pipe). */
+function compact<T extends object>(o: T): Record<string, string | number> {
+  const out: Record<string, string | number> = {}
+  for (const [k, v] of Object.entries(o)) {
+    if (v === undefined || v === null || v === '') continue
+    out[k] = v as string | number
+  }
+  return out
+}
+
+/** `GET /reports/activity` (Hub 5): one server-paginated page of staff events, newest first. */
+export async function getActivity(q: ActivityQuery, signal?: AbortSignal): Promise<AuditPage> {
+  const { data, error, response } = await api.GET('/api/v1/reports/activity', {
+    params: {
+      query: compact(q) as NonNullable<
+        paths['/api/v1/reports/activity']['get']['parameters']['query']
+      >,
+    },
+    signal,
+  })
+  if (!data) throw reportFailure(response, error)
+  return data
+}
+
+/** `GET /reports/activity/kpis`: the four KPIs. Dates ONLY: a toolbar key here is a 400. */
+export async function getActivityKpis(
+  q: LogRangeQuery,
+  signal?: AbortSignal,
+): Promise<AuditKpisResponse> {
+  const { data, error, response } = await api.GET('/api/v1/reports/activity/kpis', {
+    params: { query: { startDate: q.startDate, endDate: q.endDate } },
+    signal,
+  })
+  if (!data) throw reportFailure(response, error)
+  return data
+}
+
+/** `GET /reports/activity/actors`: the staff choices for the actor select. Dates only. */
+export async function getActivityActors(
+  q: LogRangeQuery,
+  signal?: AbortSignal,
+): Promise<AuditActorsResponse> {
+  const { data, error, response } = await api.GET('/api/v1/reports/activity/actors', {
+    params: { query: { startDate: q.startDate, endDate: q.endDate } },
+    signal,
+  })
+  if (!data) throw reportFailure(response, error)
+  return data
+}
+
+/** The URL of `GET /reports/activity/csv`: EVERY filtered row, not the page. */
+export function activityCsvUrl(f: ActivityFilter): string {
+  const qs = new URLSearchParams(
+    Object.entries(compact(f)).map(([k, v]) => [k, String(v)] as [string, string]),
+  )
+  return `${API_ORIGIN}/api/v1/reports/activity/csv?${qs.toString()}`
+}
+
+export interface IncidentFilter extends LogRangeQuery {
+  severity?: IncidentSeverity
+  component?: IncidentComponent
+  q?: string
+}
+
+export interface IncidentQuery extends IncidentFilter {
+  page?: number
+  limit?: 10 | 20 | 50
+}
+
+/** `GET /reports/error-log` (Hub 6, SUPER_ADMIN only): one server-paginated page, newest first. */
+export async function getErrorLog(q: IncidentQuery, signal?: AbortSignal): Promise<IncidentPage> {
+  const { data, error, response } = await api.GET('/api/v1/reports/error-log', {
+    params: {
+      query: compact(q) as NonNullable<
+        paths['/api/v1/reports/error-log']['get']['parameters']['query']
+      >,
+    },
+    signal,
+  })
+  if (!data) throw reportFailure(response, error)
+  return data
+}
+
+/** `GET /reports/error-log/kpis`: range only (plus the rolling 24 h count). A toolbar key is a 400. */
+export async function getErrorLogKpis(
+  q: LogRangeQuery,
+  signal?: AbortSignal,
+): Promise<IncidentKpisResponse> {
+  const { data, error, response } = await api.GET('/api/v1/reports/error-log/kpis', {
+    params: { query: { startDate: q.startDate, endDate: q.endDate } },
+    signal,
+  })
+  if (!data) throw reportFailure(response, error)
+  return data
+}
+
+/**
+ * `GET /reports/error-log/detail/:id`: one incident with its stack and whitelisted context. A 404
+ * (`INCIDENT_NOT_FOUND`: unknown, malformed or already evicted) throws an `ApiError` with `status` 404.
+ */
+export async function getIncident(id: string, signal?: AbortSignal): Promise<IncidentDetail> {
+  const { data, error, response } = await api.GET('/api/v1/reports/error-log/detail/{id}', {
+    params: { path: { id } },
+    signal,
+  })
+  if (!data) throw reportFailure(response, error)
+  return data
+}
+
+/** The URL of `GET /reports/error-log/csv`: every filtered row, no stack and no context. */
+export function errorLogCsvUrl(f: IncidentFilter): string {
+  const qs = new URLSearchParams(
+    Object.entries(compact(f)).map(([k, v]) => [k, String(v)] as [string, string]),
+  )
+  return `${API_ORIGIN}/api/v1/reports/error-log/csv?${qs.toString()}`
+}
+
+/**
+ * `DELETE /reports/error-log`: purge incidents older than the 30 วันล่าสุด window. SUPER_ADMIN only,
+ * `204`, idempotent. The CSRF middleware attaches `x-csrf-token` like every unsafe verb, and a stale
+ * token is retried once (`withCsrfRetry`).
+ */
+export async function purgeStaleIncidents(): Promise<void> {
+  const { error, response } = await withCsrfRetry(() => api.DELETE('/api/v1/reports/error-log'))
+  if (!response.ok) throw new ApiError(response.status, messageFrom(error, response))
+}
+
+/**
+ * LINE's in-app browser. The same `Line/x.y.z` User-Agent rule `App.tsx` uses to tell a LINE user
+ * from a desktop one, because `isInLineClient()` (the LIFF SDK) answers `false` until `bootLiff()`
+ * has run, and a file is downloaded long after.
+ */
+export function isLineInAppBrowser(): boolean {
+  return typeof navigator !== 'undefined' && /Line\/[0-9.]+/i.test(navigator.userAgent)
+}
+
+/** The `filename` of a `Content-Disposition: attachment; filename="…"` header, or `null`. */
+export function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header)
+  if (!m) return null
+  try {
+    return decodeURIComponent(m[1])
+  } catch {
+    return m[1]
+  }
+}
+
+/**
+ * Download a server file (`.xlsx` or `.csv`) and resolve to how it was delivered.
+ *
+ * ⚠️ TWO PATHS, because a blob URL is not reliable in every webview:
+ *  - In LINE's in-app browser the URL itself is handed to the browser (`location.assign`): the server
+ *    answers `Content-Disposition: attachment`, so the page stays put and the file downloads, and no
+ *    blob is ever made. The cost is that a failure (an expired session, a 403) cannot be caught here:
+ *    the webview shows whatever the server answered. Resolves to `'navigated'`.
+ *  - Everywhere else it is a `fetch` with the session cookie, so a 401/403/400 becomes an `ApiError`
+ *    the caller can toast (never a silent no-op) and a success is an `<a download>` click on an object
+ *    URL. Resolves to `'downloaded'`.
+ */
+export async function downloadFile(
+  url: string,
+  fallbackName: string,
+): Promise<'downloaded' | 'navigated'> {
+  if (isLineInAppBrowser()) {
+    window.location.assign(url)
+    return 'navigated'
+  }
+  let response: Response
+  try {
+    response = await fetch(url, {
+      credentials: 'include',
+      headers: { 'ngrok-skip-browser-warning': 'true' },
+    })
+  } catch {
+    throw new ApiError(0, 'Network error.')
+  }
+  if (!response.ok) {
+    let body: unknown = null
+    try {
+      body = await response.json()
+    } catch {
+      // A non-JSON body (a proxy page): the status alone is the message.
+    }
+    const err = new ApiError(response.status, messageFrom(body, response))
+    ;(err as ApiError & { body?: unknown }).body = body
+    throw err
+  }
+  const blob = await response.blob()
+  const name = filenameFromDisposition(response.headers.get('content-disposition')) ?? fallbackName
+  const href = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = href
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  // Revoked on the next task, not synchronously: some browsers read the blob after `click()` returns.
+  setTimeout(() => URL.revokeObjectURL(href), 1000)
+  return 'downloaded'
+}
