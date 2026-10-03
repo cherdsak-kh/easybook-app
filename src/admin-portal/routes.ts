@@ -1,3 +1,5 @@
+import { matchRoutes } from 'react-router-dom'
+
 /**
  * THE route table — every destination in the back-office, ported from the prototype's `ROUTES`.
  *
@@ -18,9 +20,12 @@
  * while staying reachable. `AdminRouteLabel` below turns that from a convention into a compile
  * error.
  *
- * 30 destinations since 22 ก.ย. 2569, when เทมเพลตข้อความ was retired (quick replies live in
- * ประกาศและข่าวสาร now). Which of them have a design is `DESIGNED` in `BackendRoutes.tsx` — the
- * rest render the coming-soon stand-in, so it is impossible to walk this file and come away
+ * 29 destinations since 28 ก.ย. 2569, when the reporting Phase 2 sidebar cleanup retired the five
+ * legacy one-table-per-report rows the รายงานและสถิติ section used to list and replaced them with
+ * the spec's 4-hub + divider + 2-log structure — a net loss of one row (30 → 29). The old rows'
+ * exact wording is history now; see `claude_planning/feature/20260928_2040_reports_phase2_venues_and_operations/`
+ * if it is ever needed. Which of the current 29 have a design is `DESIGNED` in `BackendRoutes.tsx`
+ * — the rest render the coming-soon stand-in, so it is impossible to walk this file and come away
  * thinking a screen exists when it does not.
  */
 
@@ -125,40 +130,47 @@ export const ADMIN_PORTAL_ROUTES = [
     desc: 'สรุปสถิติการใช้งานระบบในภาพรวม',
   },
   {
-    label: 'รายงานคำขอจอง',
-    path: 'reports/bookings',
+    // Consolidates the two legacy booking/venue report rows (Phase 2, D-1/D-6, see
+    // `LEGACY_REPORT_REDIRECTS` in `BackendRoutes.tsx`). Which rooms are full and which sit
+    // empty, which hours of the school week are the crush, and where ADR-001 turned requests
+    // away.
+    label: 'การใช้สถานที่และช่วงเวลา',
+    path: 'reports/venues',
     group: 'รายงานและสถิติ',
-    desc: 'รายงานคำขอจองแยกตามช่วงเวลา สถานะ และสถานที่',
+    desc: 'อัตราการใช้ของแต่ละสถานที่ ช่วงเวลาที่มีความต้องการสูง และคำขอที่ถูกปฏิเสธเพราะเวลาชน',
   },
   {
-    label: 'รายงานการใช้สถานที่',
-    path: 'reports/venue-usage',
+    // Consolidates the two legacy registration/feedback-analytics report rows (Phase 2,
+    // D-1/D-6, see `LEGACY_REPORT_REDIRECTS` in `BackendRoutes.tsx`). Is space shared fairly
+    // between กลุ่มสาระ/ฝ่าย, how fast staff rule on requests, and who cancels late.
+    label: 'สถิติตามฝ่ายและการดำเนินงาน',
+    path: 'reports/operations',
     group: 'รายงานและสถิติ',
-    desc: 'รายงานความถี่และช่วงเวลาที่แต่ละสถานที่ถูกใช้งาน',
+    desc: 'การใช้สถานที่แยกตามกลุ่ม/ฝ่ายและวัตถุประสงค์ ระยะเวลาการพิจารณา และวินัยการใช้งาน',
   },
   {
-    label: 'รายงานการลงทะเบียน',
-    path: 'reports/registrations',
+    // NEW (Phase 2, D-2); a designed screen since Phase 3 (Hub 4, the export studio). Reachable by
+    // SUPER_ADMIN/ADMIN only (D-4).
+    label: 'ส่งออกรายงานราชการ',
+    path: 'reports/export',
     group: 'รายงานและสถิติ',
-    desc: 'รายงานจำนวนผู้ลงทะเบียนและสถานะการอนุมัติ',
+    desc: 'จัดทำรายงานประจำเดือนและประจำภาคเรียนสำหรับเสนอเทศบาล ส่งออกเป็น Excel หรือพิมพ์ขนาด A4',
   },
   {
-    label: 'รายงานข้อเสนอแนะ',
-    path: 'reports/feedback',
-    group: 'รายงานและสถิติ',
-    desc: 'รายงานเรื่องที่แจ้งเข้ามา แยกตามประเภทและสถานะ',
-  },
-  {
-    label: 'รายงานการใช้งานระบบ',
+    // Same path as before, RENAMED from its legacy label (Phase 2, D-1: no redirect needed — this
+    // path never changed, only the row's label and ACL did). ACL reverses: VIEWER loses this row
+    // (D-4, spec §3.6), because it is now grouped with the other operational logs rather than the
+    // hubs every role may read.
+    label: 'ประวัติการทำรายการ',
     path: 'reports/activity',
     group: 'รายงานและสถิติ',
-    desc: 'ประวัติการทำรายการของเจ้าหน้าที่ในระบบ',
+    desc: 'บันทึกว่าเจ้าหน้าที่คนใดอนุมัติ ปฏิเสธ หรือแก้ไขรายการใด เมื่อใด',
   },
   {
     label: 'บันทึกข้อผิดพลาด',
     path: 'reports/error-log',
     group: 'รายงานและสถิติ',
-    desc: 'บันทึกข้อผิดพลาดของระบบสำหรับตรวจสอบปัญหา',
+    desc: 'บันทึกข้อผิดพลาดทางเทคนิคของระบบ เช่น การเชื่อมต่อ LINE ขัดข้อง สำหรับตรวจสอบปัญหา',
   },
 
   {
@@ -276,7 +288,7 @@ export const ADMIN_PORTAL_ROUTES = [
 ] as const satisfies readonly AdminRoute[]
 
 /**
- * The 30 labels as a union type.
+ * The 29 labels as a union type.
  *
  * This is what makes `VIEWER_DENY` in `lib/use-acl.ts` impossible to typo. The prototype could
  * only warn about it in a comment — "a typo here is a menu row that never hides rather than a
@@ -319,6 +331,60 @@ export const urlOf = (route: AdminRoute): string =>
 /** Lookup by label. `undefined` for anything not in the table — callers decide what that means. */
 export const routeOf = (label: string): AdminRoute | undefined =>
   ADMIN_PORTAL_ROUTES.find((r) => r.label === label)
+
+/**
+ * THE ACL KEY OF A URL: which table row would React Router render for `pathname`? (LOW-3)
+ *
+ * ⚠️ AN EXACT STRING COMPARE (`urlOf(r) === pathname`) WAS A SECURITY HOLE, not a style choice. React
+ * Router matches a `path` case-insensitively, tolerates any number of trailing slashes and decodes
+ * percent-escapes per segment, so `/backend/reports/error-log/`, `…/ERROR-LOG`, `…/error%2Dlog` and
+ * `/BACKEND/reports/error-log` all RENDER the page, while the compare found no row, `here` was
+ * `undefined`, and the ACL check that guards the page was skipped. The frontend ACL is UX and not the
+ * control (`@Roles` is), but a denied role must never SEE a page or a stand-in flash.
+ *
+ * The fix asks the router's OWN matcher on the SAME table, so the ACL key is by construction the row
+ * that renders and no spelling the router accepts can slip past. Do not hand-roll a normaliser
+ * (lower-case, strip slashes, decode) beside it: a second opinion on "what does the router do" is
+ * exactly the divergence that opened the hole.
+ *
+ * `null` = the router would not render a row either (it falls through to the in-shell 404, or to a
+ * legacy redirect), so there is nothing to gate. `/backend//reports/error-log` is the instance of that
+ * the plan pins: a doubled slash INSIDE the path matches no child route in the router.
+ */
+const MATCH_TABLE = ADMIN_PORTAL_ROUTES.map((r) => ({ path: urlOf(r) }))
+
+export function resolveAdminRoute(pathname: string): AdminRouteEntry | null {
+  const matches = matchRoutes(MATCH_TABLE, pathname)
+  if (!matches) return null
+  const matched = matches[matches.length - 1].route.path
+  return ADMIN_PORTAL_ROUTES.find((r) => urlOf(r) === matched) ?? null
+}
+
+/**
+ * What `BackendLayout` does with a URL for a given role: the decision, as a pure function so the
+ * LOW-3 matrix can be pinned without rendering anything.
+ *
+ *   `none`      no row (404 or a legacy redirect): render the outlet as the router decides
+ *   `home`      a row this role may not reach: `Navigate` to `HOME_PATH`, BEFORE the page mounts
+ *   `canonical` a row it may reach, under a non-canonical spelling: `Navigate` (replace) to `to`
+ *   `page`      a row it may reach, spelled canonically: render
+ */
+export type AdminRouteDecision =
+  | { kind: 'none' }
+  | { kind: 'home'; route: AdminRouteEntry }
+  | { kind: 'canonical'; route: AdminRouteEntry; to: string }
+  | { kind: 'page'; route: AdminRouteEntry }
+
+export function decideAdminRoute(
+  pathname: string,
+  can: (label: AdminRouteLabel) => boolean,
+): AdminRouteDecision {
+  const route = resolveAdminRoute(pathname)
+  if (!route) return { kind: 'none' }
+  if (!can(route.label)) return { kind: 'home', route }
+  const to = urlOf(route)
+  return pathname === to ? { kind: 'page', route } : { kind: 'canonical', route, to }
+}
 
 /**
  * Section headings, in sidebar order, with their rows.

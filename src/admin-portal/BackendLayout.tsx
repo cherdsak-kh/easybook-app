@@ -27,7 +27,7 @@ import { usePendingRegistrations } from './lib/use-pending-registrations'
 import { useTheme, type ThemeChoice } from './lib/use-theme'
 import { useAuth } from './lib/auth-context'
 import type { SystemUser } from '@/lib/api-client'
-import { ADMIN_PORTAL_ROUTES, HOME_PATH, urlOf } from './routes'
+import { HOME_PATH, decideAdminRoute } from './routes'
 
 /**
  * The identity card's view of `/auth/system/me`.
@@ -50,7 +50,7 @@ const toSidebarUser = (u: SystemUser): SidebarUser => ({
 
 export function BackendLayout() {
   const { resolved, choice, setTheme, isDark } = useTheme()
-  const { pathname } = useLocation()
+  const { pathname, search, hash } = useLocation()
   const { user, signOut } = useAuth()
   const [drawerOpen, setDrawerOpen] = useState(false)
   // Non-null by construction: `BackendGate` renders this only while authenticated. Asserting it
@@ -79,9 +79,18 @@ export function BackendLayout() {
    * `replace`, never a push: the denied URL must not stay in history, or Back returns to it,
    * bounces again, and the Back button is dead for as long as the operator keeps pressing it.
    */
-  const here = ADMIN_PORTAL_ROUTES.find((r) => urlOf(r) === pathname)
-  if (here && !acl.can(here.label)) {
+  // ⚠️ LOW-3: `decideAdminRoute` asks the ROUTER'S OWN matcher which row this URL renders (see
+  // `resolveAdminRoute`), so `/error-log/`, `/ERROR-LOG`, `/error%2Dlog` and `/BACKEND/…` are gated
+  // exactly like the canonical spelling. The denied branch returns INSTEAD of the shell, so the page
+  // never mounts, fires no request and no stand-in flashes. An allowed role on a non-canonical
+  // spelling is canonicalised (replace; search and hash kept), which also repairs the sidebar's
+  // active row without editing it.
+  const decision = decideAdminRoute(pathname, acl.can)
+  if (decision.kind === 'home') {
     return <Navigate to={HOME_PATH} replace />
+  }
+  if (decision.kind === 'canonical') {
+    return <Navigate to={{ pathname: decision.to, search, hash }} replace />
   }
 
   return (

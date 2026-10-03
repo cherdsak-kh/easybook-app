@@ -1,7 +1,7 @@
 /**
  * The `/backend` branch, generated from `ADMIN_PORTAL_ROUTES`.
  *
- * ⚠️ THE 30 `<Route>`s ARE MAPPED, NEVER LISTED. A hand-written list is a second copy of the
+ * ⚠️ THE 29 `<Route>`s ARE MAPPED, NEVER LISTED. A hand-written list is a second copy of the
  * route table, and the failure it produces is a menu row that 404s — or worse, a URL that works
  * while the menu says it does not exist. Adding a destination means adding a row to the table
  * and nothing else.
@@ -16,6 +16,11 @@
  * As designed screens land in P3/P4 they replace their `ComingSoonPage` element one row at a
  * time — the prototype's `DESIGNED` map is that same idea, and the 24 undesigned destinations
  * keep rendering the stand-in until each is actually built.
+ *
+ * ⚠️ `LEGACY_REPORT_REDIRECTS` below (Phase 2, D-6) is a SEPARATE list, deliberately not rows in
+ * `ADMIN_PORTAL_ROUTES` — a row there becomes a menu item and an ACL key, and these four URLs are
+ * neither: they are old addresses for the two consolidated hubs, kept alive only so nothing
+ * bookmarked before 28 ก.ย. 2569 breaks.
  */
 
 import type { ReactElement } from 'react'
@@ -39,7 +44,12 @@ import { NotificationsPage } from './pages/notifications/NotificationsPage'
 import { ChangePasswordPage } from './pages/password/ChangePasswordPage'
 import { OptionsPage } from './pages/options/OptionsPage'
 import { ProfilePage } from './pages/profile/ProfilePage'
+import { ActivityLogPage } from './pages/reports/ActivityLogPage'
+import { ErrorLogPage } from './pages/reports/ErrorLogPage'
+import { ExportPage } from './pages/reports/ExportPage'
 import { ReportsOverviewPage } from './pages/reports/ReportsOverviewPage'
+import { ReportsVenuesPage } from './pages/reports/ReportsVenuesPage'
+import { ReportsOperationsPage } from './pages/reports/ReportsOperationsPage'
 import { StaffPage } from './pages/staff/StaffPage'
 import { VenuesPage } from './pages/venues/VenuesPage'
 import { VersionPage } from './pages/version/VersionPage'
@@ -49,6 +59,8 @@ import {
   BACKEND_BASE,
   HOME_PATH,
   LOGIN_PATH,
+  routeOf,
+  urlOf,
   type AdminRoute,
   type AdminRouteLabel,
 } from './routes'
@@ -68,6 +80,19 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   // Hub 1 — range-filtered KPIs, the volume trend and the top-5 venues. Same feature folder;
   // จุดคอขวด / ข้อสังเกตสำคัญ / สรุปรายการ and ส่งออกรายงาน are Phase 1 exclusions (D-11/D-12).
   ภาพรวมสถิติ: (route) => <ReportsOverviewPage route={route} />,
+  // Hub 2 (Phase 2, feature `20260928_2040_reports_phase2_venues_and_operations`) — occupancy,
+  // the 40-cell weekday heatmap, the per-venue table and ADR-001 clash analysis.
+  'การใช้สถานที่และช่วงเวลา': (route) => <ReportsVenuesPage route={route} />,
+  // Hub 3, same feature — department allocation, the purpose mix, the approval SLA and the
+  // late-cancellation registry.
+  'สถิติตามฝ่ายและการดำเนินงาน': (route) => <ReportsOperationsPage route={route} />,
+  // Hubs 4–6 (reporting Phase 3, feature `20261003_0600_reports_phase3_export_activity_and_error_log`).
+  // Each is gated by `BackendLayout` BEFORE it mounts (LOW-3: `decideAdminRoute`), so none of them fires
+  // a request for a role that may not reach it: Hub 4 and Hub 5 are SUPER_ADMIN/ADMIN, Hub 6 is
+  // SUPER_ADMIN only. Nothing here lists a role.
+  ส่งออกรายงานราชการ: (route) => <ExportPage route={route} />,
+  ประวัติการทำรายการ: (route) => <ActivityLogPage route={route} />,
+  บันทึกข้อผิดพลาด: (route) => <ErrorLogPage route={route} />,
   ข้อมูลเวอร์ชันระบบ: (route) => <VersionPage route={route} />,
   โปรไฟล์: (route) => <ProfilePage route={route} />,
   เปลี่ยนรหัสผ่าน: (route) => <ChangePasswordPage route={route} />,
@@ -98,6 +123,22 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   // receipts — read state and "delete for me" (Phase 1 D-3).
   'ดูการแจ้งเตือนทั้งหมด': (route) => <NotificationsPage route={route} />,
 }
+
+/**
+ * D-6: the retired report URLs, redirected to the hub that absorbed them. THE ONLY place these
+ * four paths may appear (AC-M1) — everywhere else in `src/`/`tests/` they were deleted with the
+ * legacy route rows. Query and hash are DROPPED: the old pages were coming-soon stand-ins with no
+ * query semantics, so there is nothing on the old URL worth carrying forward.
+ *
+ * `reports/activity` gets NO entry here — it is the SAME path, only renamed (ประวัติการทำรายการ,
+ * ACL per `use-acl.ts`'s `VIEWER_DENY`), so the existing route row already serves it.
+ */
+const LEGACY_REPORT_REDIRECTS: readonly { from: string; to: AdminRouteLabel }[] = [
+  { from: 'reports/bookings', to: 'การใช้สถานที่และช่วงเวลา' },
+  { from: 'reports/venue-usage', to: 'การใช้สถานที่และช่วงเวลา' },
+  { from: 'reports/registrations', to: 'สถิติตามฝ่ายและการดำเนินงาน' },
+  { from: 'reports/feedback', to: 'สถิติตามฝ่ายและการดำเนินงาน' },
+]
 
 /** The in-shell 404: a signed-in operator who followed a stale link. */
 function ShellNotFound() {
@@ -236,6 +277,17 @@ function ShellRoutes() {
                 <ComingSoonPage route={route} />
               )
             }
+          />
+        ))}
+
+        {/* D-6: legacy report URLs → the hub that absorbed them, AFTER the table's own routes
+            (so a live path always wins) and BEFORE `*` (so a stale bookmark redirects rather than
+            404ing). Not a table row — see `LEGACY_REPORT_REDIRECTS`'s own comment. */}
+        {LEGACY_REPORT_REDIRECTS.map((r) => (
+          <Route
+            key={r.from}
+            path={r.from}
+            element={<Navigate to={urlOf(routeOf(r.to)!)} replace />}
           />
         ))}
 

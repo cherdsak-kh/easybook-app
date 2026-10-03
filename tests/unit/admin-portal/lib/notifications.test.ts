@@ -5,7 +5,7 @@ import {
   isNotificationVisibleToRole,
   relativeTime,
 } from '@/admin-portal/lib/notifications'
-import { VIEWER_DENY } from '@/admin-portal/lib/use-acl'
+import { canReach, VIEWER_DENY } from '@/admin-portal/lib/use-acl'
 import type { AdminRouteLabel } from '@/admin-portal/routes'
 
 /**
@@ -57,7 +57,13 @@ describe('relativeTime', () => {
 describe('actionTarget', () => {
   /** The real VIEWER rule: everything except `VIEWER_DENY`. */
   const viewer = (label: AdminRouteLabel) => !VIEWER_DENY.includes(label)
-  const admin = () => true
+  /**
+   * The real ADMIN rule (Phase 2, `ADMIN_DENY`), not a blanket allow — since Phase 2 ADMIN denies
+   * exactly บันทึกข้อผิดพลาด (`/backend/reports/error-log`), so a stale `() => true` here would
+   * hide a regression on that one route.
+   */
+  const admin = (label: AdminRouteLabel) => canReach('ADMIN', label)
+  const superAdmin = (label: AdminRouteLabel) => canReach('SUPER_ADMIN', label)
 
   it.each([
     ['null', null, admin, null],
@@ -72,6 +78,9 @@ describe('actionTarget', () => {
       viewer,
       '/backend/bookings/requests?status=PENDING#top',
     ],
+    // ── Phase 2, AC-M7: บันทึกข้อผิดพลาด is now denied to ADMIN too, SUPER_ADMIN only ──
+    ['error-log is denied for ADMIN too (Phase 2 ADMIN_DENY)', '/backend/reports/error-log', admin, null],
+    ['error-log stays reachable for SUPER_ADMIN', '/backend/reports/error-log', superAdmin, '/backend/reports/error-log'],
     ['a trailing slash still resolves the route (denied)', '/backend/settings/booking/', viewer, null],
     ['an unknown path passes through for the router to 404', '/backend/no-such-page', viewer, '/backend/no-such-page'],
     ['another origin', 'https://evil.example/backend/x', admin, null],

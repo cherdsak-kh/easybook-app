@@ -1,7 +1,7 @@
 /**
  * The sidebar: brand, menu, and the identity card that doubles as the account menu.
  *
- * ⚠️ THE MENU HOLDS 24 OF THE 30 DESTINATIONS, AND THAT IS THE DESIGN, not an omission.
+ * ⚠️ THE MENU HOLDS 23 OF THE 29 DESTINATIONS, AND THAT IS THE DESIGN, not an omission.
  *  · `บัญชีผู้ใช้งาน`'s five leaves live in the account menu at the bottom of this column.
  *    They are the only screens scoped to *the signed-in person* rather than to the system, so
  *    they belong to the identity control and not to the site nav.
@@ -26,6 +26,7 @@ import { usePopupMenu } from '../../lib/use-popup-menu'
 import type { Acl } from '../../lib/use-acl'
 import {
   ADMIN_PORTAL_ROUTES,
+  resolveAdminRoute,
   urlOf,
   type AdminRouteEntry,
   type AdminRouteLabel,
@@ -67,6 +68,20 @@ const ALERT_COUNT_LABELS: readonly AdminRouteLabel[] = [
   'คำขอจองสถานที่',
   'การลงทะเบียน',
 ]
+
+/**
+ * `รายงานและสถิติ`'s divider (Phase 2, D-7): the two operational logs sit apart from the 4 hubs,
+ * a `role="separator"` before the first row named here (prototype L2226–2229). This is
+ * PRESENTATION ONLY — the route table (`routes.ts`) stays a flat list, and `Sidebar` is the one
+ * place that knows where the line goes.
+ *
+ * It renders only when at least one visible row sits before it AND at least one sits after it in
+ * the section (below): shown for SUPER_ADMIN (4 + divider + 2) and ADMIN (4 + divider + 1,
+ * บันทึกข้อผิดพลาด denied), absent from the DOM entirely for VIEWER (3 rows, neither log
+ * reachable) — matching the prototype's `gateMenus` rule that a rule over nothing is worse than
+ * no rule.
+ */
+const DIVIDER_BEFORE: AdminRouteLabel = 'ประวัติการทำรายการ'
 
 /** The five personal destinations, in the order the prototype lists them. */
 const ACCOUNT_LABELS: readonly AdminRouteLabel[] = [
@@ -111,7 +126,10 @@ export function Sidebar({
   const { pathname } = useLocation()
   const account = usePopupMenu()
 
-  const isActive = (route: AdminRouteEntry) => pathname === urlOf(route)
+  // LOW-3: the row the ROUTER would render, not `pathname === urlOf(route)`, which loses the
+  // highlight for every spelling the router still accepts (trailing slash, case, `%2D`).
+  const current = resolveAdminRoute(pathname)
+  const isActive = (route: AdminRouteEntry) => route === current
   const closeDrawer = () => onDrawerChange(false)
 
   const row = (route: AdminRouteEntry, sub = false) => (
@@ -254,7 +272,21 @@ export function Sidebar({
                     {visible.map((r) => row(r, true))}
                   </NavGroup>
                 ) : (
-                  visible.map((r) => row(r))
+                  (() => {
+                    const cut = visible.findIndex((r) => r.label === DIVIDER_BEFORE)
+                    if (cut < 0) return visible.map((r) => row(r))
+                    const before = visible.slice(0, cut)
+                    const after = visible.slice(cut)
+                    return (
+                      <>
+                        {before.map((r) => row(r))}
+                        {before.length > 0 && after.length > 0 && (
+                          <div role="separator" className="mx-3 my-2 border-t border-base-300" />
+                        )}
+                        {after.map((r) => row(r))}
+                      </>
+                    )
+                  })()
                 )}
               </div>
             )

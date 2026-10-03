@@ -94,11 +94,14 @@ const DEFAULT_PAGE_SIZE = 20
  * reading as a lost feature.
  *
  * ⚠️ Built from the route TABLE, not written out as a string: `AdminRouteLabel` fails the build if
- * that destination is ever renamed, where a hand-written `/backend/reports/registrations` would
- * quietly become a 404. The screen behind it does not exist yet, so today it lands on the coming-soon
- * stand-in the router already renders — which is the honest destination, not a dead button.
+ * that destination is ever renamed, where a hand-written `/backend/reports/operations` would
+ * quietly become a 404.
+ *
+ * ⚠️ REPOINTED (Phase 2, D-8, PO ruling on OQ-3/OQ-A7): the registration-specific report row this
+ * used to target was retired and folded into Hub 3 สถิติตามฝ่ายและการดำเนินงาน, which has a real
+ * screen and is reachable by all three roles, the same as การลงทะเบียน itself.
  */
-const REPORT_LABEL: AdminRouteLabel = 'รายงานการลงทะเบียน'
+const REPORT_LABEL: AdminRouteLabel = 'สถิติตามฝ่ายและการดำเนินงาน'
 const REPORT_URL = urlOf(ADMIN_PORTAL_ROUTES.find((r) => r.label === REPORT_LABEL)!)
 
 /** `''` is "no filter", which is not a value the query may carry. */
@@ -873,15 +876,14 @@ export function LineUsersPage({ route }: { route: AdminRoute }) {
                 happens per row, and a solid green button up here pulls the eye away from the job.
                 Same chrome as รีเฟรช because both are secondary and sit side by side — what tells
                 them apart is the trailing →, which says this one NAVIGATES.
-                ⚠️ NOT A `<Link>`: รายงานการลงทะเบียน has no screen yet, so this points at the
-                coming-soon stand-in the router already renders for it. */}
+                ⚠️ Copy is `ดูรายงานสถิติ` (Phase 2, PO ruling on OQ-3/OQ-A7), targeting Hub 3
+                สถิติตามฝ่ายและการดำเนินงาน — a real screen now, not a coming-soon stand-in. */}
             <Link
               to={REPORT_URL}
               className="flex min-h-11 items-center gap-2 rounded-control border border-base-content/20 bg-base-100 px-4 text-[14px] font-medium text-base-content/80 transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <Glyph d={ICON.report} />
-              <span className="sm:hidden">รายงาน</span>
-              <span className="hidden sm:inline">รายงานและส่งออกข้อมูล</span>
+              ดูรายงานสถิติ
               <Glyph d={ICON.chevron} className="h-4 w-4 shrink-0" />
             </Link>
           </div>

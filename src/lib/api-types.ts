@@ -24,6 +24,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/error-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 6 — the incident rows, newest first, server-paginated.
+         * @description Ranges include today (Bangkok days, <= 366 days). Search `q` is matched in memory over incident id, trace id, "<status> <method> <path>", message and component, so % and _ are literal. A page past the end is clamped. `purgeable` says how many incidents DELETE /reports/error-log would remove, and `retention` is the cap (the log is bounded, not permanent). The list holds no stack and no context.
+         */
+        get: operations["IncidentsController_list"];
+        put?: never;
+        post?: never;
+        /**
+         * Hub 6 — purge incidents older than 30 days.
+         * @description Removes incidents older than the first Bangkok day of the 30 วันล่าสุด window. Idempotent: a second call removes nothing and still answers 204. Requires the x-csrf-token header like every unsafe verb. Automatic retention (5,000 entries / 90 days) is separate and still applies.
+         */
+        delete: operations["IncidentsController_purge"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/error-log/kpis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 6 — the four KPIs (range only, except the rolling 24 h count).
+         * @description availability.percent = 100 x (1 - 5xx / requests) over the range days from per-day counters (null when no request was counted); last24h is a rolling now - 24 h count independent of the range; the toolbar never changes any of them.
+         */
+        get: operations["IncidentsController_kpis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/error-log/csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 6 — every matching incident as a CSV download.
+         * @description The list filters minus paging. UTF-8 BOM, CRLF, RFC 4180, formula-neutralised. NO stack and NO context. File name `easybook-error-log_<startDate>_<endDate>.csv`.
+         */
+        get: operations["IncidentsController_csv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/error-log/detail/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 6 — one incident with its stack trace and whitelisted context.
+         * @description The stack is frames only (<= 50 lines / 8 KB) and the context carries only whitelisted keys. 404 (INCIDENT_NOT_FOUND) for an unknown, malformed or evicted id alike.
+         */
+        get: operations["IncidentsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -1640,6 +1724,186 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/venues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 2 — venue occupancy, 40-cell weekday heatmap, per-venue table, ADR-001 clashes.
+         * @description startDate/endDate only (D-10, no venueId/departmentId filter). Occupancy/heldHours/requests are computed by the SAME shared fold as /reports/overview, so occupancy.occupancyPercent is strictly equal (===) to Hub 1's unfiltered value for the same range (AC-V4). The heatmap is 8 rows (08:30…15:30) × 5 columns (Mon…Fri) = 40 cells; index i = (isoWeekday − 1) × 8 + j.
+         */
+        get: operations["ReportsController_getVenues"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 3 — per-department allocation, purpose mix, decision SLA, late-cancellation registry.
+         * @description startDate/endDate only (D-10). Department rows apply the D-20 reserved-department fold: a system-reserved department is its own row for SUPER_ADMIN only, folded into ไม่ระบุกลุ่ม/ฝ่าย for ADMIN/VIEWER — never present in the raw JSON for them (AC-O7). The registry carries no requester name, phone or LINE id for any role (D-26, AC-O13).
+         */
+        get: operations["ReportsController_getOperations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 4 — the official report as a document model (JSON).
+         * @description template (SUMMARY | LEDGER | VENUES), period (TERM | MONTH | CUSTOM) and startDate/endDate are required; venueId/departmentId narrow the scope. Figures come from the same fold as Hubs 1 to 3, so an unscoped SUMMARY quotes /reports/overview and /reports/operations exactly. Dates are Buddhist-era `วว ด.ด. ปปปป`, times `HH.MM น.`. No requester name, phone, e-mail or LINE id appears anywhere (AC-E7). Data stops at yesterday (P1 D-10).
+         */
+        get: operations["ReportsExportController_getDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/export/xlsx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 4 — the same document as an .xlsx workbook (download).
+         * @description Numbers are numeric cells; every other cell is a STRING cell, never a formula, so a purpose such as `=HYPERLINK(...)` stays inert text. `Content-Disposition: attachment; filename="easybook-report-<template>_<startDate>_<endDate>.xlsx"`.
+         */
+        get: operations["ReportsExportController_getXlsx"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/export/scope-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 4 — the venue and department choices for the scope selects.
+         * @description Every venue (soft-deleted included, flagged) and every department. The system-reserved department is OMITTED for ADMIN (P2 D-20). No counts and no PII.
+         */
+        get: operations["ReportsExportController_getScopeOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 5 — the staff activity rows, newest first, server-paginated.
+         * @description startDate/endDate are Bangkok dates, inclusive, TODAY INCLUDED, span <= 366 days. Events are filtered by their own timestamp. `action`, `actorId` and `q` narrow the rows only. `limit` is 10, 20 or 50; a page past the end is clamped (the response echoes the page used). `at` is exact except for REJECT (`atIsApproximate`: the reject writes no time of its own). `actor` is null where the source records none. Actor and target departments of a system-reserved department fold to null for ADMIN (P2 D-20).
+         */
+        get: operations["ReportsActivityController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/activity/kpis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 5 — the four KPIs of the range (range only).
+         * @description Dates only: the KPIs follow the range and never the toolbar. `resourceChanges` is null while the source records no venue changes. `topActor` considers named actors only.
+         */
+        get: operations["ReportsActivityController_kpis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/activity/actors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 5 — the staff choices for the actor select.
+         * @description Staff with at least one named event in the range, Thai-sorted, soft-deleted flagged. Dates only.
+         */
+        get: operations["ReportsActivityController_actors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/activity/csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Hub 5 — every matching row as a CSV download.
+         * @description The same filters as the list, minus paging: EVERY filtered row, not the page. UTF-8 BOM, CRLF, RFC 4180 quoting; a cell beginning with = + - @ (or a tab/CR) is prefixed with an apostrophe. File name `easybook-audit_<startDate>_<endDate>.csv`.
+         */
+        get: operations["ReportsActivityController_csv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1660,6 +1924,187 @@ export interface components {
              * @example 2026-07-13T14:45:22.815Z
              */
             timestamp: string;
+        };
+        /** @enum {string} */
+        IncidentSeverity: "CRITICAL" | "ERROR" | "WARNING";
+        /** @enum {string} */
+        IncidentComponent: "LINE_OA" | "PRISMA_DB" | "CLOUDFLARE_R2" | "REDIS" | "AUTH" | "API";
+        IncidentRangeDto: {
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            days: number;
+        };
+        IncidentRetentionDto: {
+            /** @example 5000 */
+            maxEntries: number;
+            /** @example 90 */
+            maxDays: number;
+        };
+        IncidentPurgeableDto: {
+            /** @description Incidents older than cutoffDate, which DELETE /reports/error-log would remove. */
+            count: number;
+            /**
+             * Format: date
+             * @description First Bangkok day of the 30 วันล่าสุด window. Older incidents are purgeable.
+             */
+            cutoffDate: string;
+        };
+        /** @enum {string} */
+        IncidentCallerKind: "STAFF" | "LINE_USER" | "LINE_PLATFORM" | "ANONYMOUS" | "SYSTEM";
+        IncidentCallerDto: {
+            kind: components["schemas"]["IncidentCallerKind"];
+            /**
+             * @description staff:<id> (<ROLE>), line-user:<masked id>, LINE Platform (webhook), anonymous, or system (<component> <operation>). Never a name, never a full LINE id.
+             * @example staff:cm1abc (ADMIN)
+             */
+            label: string;
+        };
+        IncidentSummaryDto: {
+            /** @example ERR-500-0142 */
+            id: string;
+            /** @description Equals the X-Request-Id header of the failing response. */
+            traceId: string;
+            /** Format: date-time */
+            at: string;
+            severity: components["schemas"]["IncidentSeverity"];
+            component: components["schemas"]["IncidentComponent"];
+            status: number | null;
+            method: string | null;
+            /** @description The route template with path parameters substituted. Never a query value. */
+            path: string | null;
+            routeTemplate: string | null;
+            /** @description Scrubbed and truncated to 500 characters. */
+            message: string;
+            caller: components["schemas"]["IncidentCallerDto"];
+            ip: string | null;
+        };
+        IncidentPageDto: {
+            /** Format: date-time */
+            serverTime: string;
+            range: components["schemas"]["IncidentRangeDto"];
+            retention: components["schemas"]["IncidentRetentionDto"];
+            purgeable: components["schemas"]["IncidentPurgeableDto"];
+            items: components["schemas"]["IncidentSummaryDto"][];
+            page: number;
+            /** @enum {number} */
+            limit: 10 | 20 | 50;
+            /** @description Filtered count. */
+            total: number;
+            totalPages: number;
+        };
+        /** @enum {string} */
+        ReportErrorCode: "REPORT_DATE_INVALID" | "REPORT_RANGE_INVERTED" | "REPORT_RANGE_TOO_WIDE" | "REPORT_VENUE_INVALID" | "REPORT_DEPARTMENT_INVALID";
+        ReportCodedErrorDto: {
+            /** @example 401 */
+            statusCode: number;
+            /** @example Unauthorized */
+            error: string;
+            /** @example Invalid email or password. */
+            message: string;
+            code: components["schemas"]["ReportErrorCode"];
+        };
+        ErrorResponseDto: {
+            /** @example 401 */
+            statusCode: number;
+            /** @example Unauthorized */
+            error: string;
+            /** @example Invalid email or password. */
+            message: string;
+        };
+        IncidentAvailabilityDto: {
+            /** @description 100 x (1 - failed / requests) over the range days, unrounded. Null when no request was counted. */
+            percent: number | null;
+            /** @description Sum of 5xx responses over the range days. */
+            failed: number;
+            /** @description Sum of requests served over the range days. */
+            requests: number;
+            /** @description Range days with no counter data. */
+            daysWithoutData: number;
+            /** @example 99.5 */
+            targetPercent: number;
+        };
+        IncidentCriticalDto: {
+            count: number;
+            /** Format: date-time */
+            latestAt: string | null;
+        };
+        IncidentExternalDto: {
+            lineOa: number;
+            cloudflareR2: number;
+            redis: number;
+        };
+        IncidentKpisDto: {
+            availability: components["schemas"]["IncidentAvailabilityDto"];
+            /** @description Rolling now - 24 h, independent of the range. */
+            last24h: number;
+            /** @description Incidents inside the selected range. */
+            inRange: number;
+            critical: components["schemas"]["IncidentCriticalDto"];
+            external: components["schemas"]["IncidentExternalDto"];
+        };
+        IncidentKpisResponseDto: {
+            /** Format: date-time */
+            serverTime: string;
+            range: components["schemas"]["IncidentRangeDto"];
+            kpis: components["schemas"]["IncidentKpisDto"];
+        };
+        IncidentContextDto: {
+            operation?: string;
+            attempt?: number;
+            attempts?: number;
+            latencyMs?: number;
+            budgetMs?: number;
+            upstreamStatus?: number;
+            lineErrorKind?: string;
+            prismaCode?: string;
+            sqlState?: string;
+            prismaTarget?: string;
+            bucket?: string;
+            keyPrefix?: string;
+            suppressedCount?: number;
+            /** @description Path parameters (scrubbed, <= 64 chars each). */
+            params?: {
+                [key: string]: string;
+            };
+        };
+        IncidentDetailDto: {
+            /** @example ERR-500-0142 */
+            id: string;
+            /** @description Equals the X-Request-Id header of the failing response. */
+            traceId: string;
+            /** Format: date-time */
+            at: string;
+            severity: components["schemas"]["IncidentSeverity"];
+            component: components["schemas"]["IncidentComponent"];
+            status: number | null;
+            method: string | null;
+            /** @description The route template with path parameters substituted. Never a query value. */
+            path: string | null;
+            routeTemplate: string | null;
+            /** @description Scrubbed and truncated to 500 characters. */
+            message: string;
+            caller: components["schemas"]["IncidentCallerDto"];
+            ip: string | null;
+            userAgent: string | null;
+            errorCode: string | null;
+            /** @description Query KEYS only, never values. */
+            queryKeys: string[];
+            /** @description At most 50 lines / 8 KB, frames only. Null when the detail was evicted but the ring entry remains. */
+            stack: string | null;
+            context: components["schemas"]["IncidentContextDto"];
+        };
+        /** @enum {string} */
+        IncidentErrorCode: "INCIDENT_NOT_FOUND";
+        IncidentCodedErrorDto: {
+            /** @example 401 */
+            statusCode: number;
+            /** @example Unauthorized */
+            error: string;
+            /** @example Invalid email or password. */
+            message: string;
+            code: components["schemas"]["IncidentErrorCode"];
         };
         HealthResponseDto: {
             /**
@@ -1737,14 +2182,6 @@ export interface components {
              * @example เบอร์โทรศัพท์ไม่ถูกต้อง กรุณากรอกใหม่
              */
             rejectionReason: string | null;
-        };
-        ErrorResponseDto: {
-            /** @example 401 */
-            statusCode: number;
-            /** @example Unauthorized */
-            error: string;
-            /** @example Invalid email or password. */
-            message: string;
         };
         OptionDto: {
             /**
@@ -4032,16 +4469,407 @@ export interface components {
             /** @description EVERY venue with heldHours > 0, ranked by heldHours desc then name. The client shows the first 5; Σ heldHours = occupancy.heldHours when unfiltered (AC-R11). */
             venues: components["schemas"]["VenueUsageDto"][];
         };
+        ReportHeatCellDto: {
+            /** @description Held hours inside this 1-hour cell summed over every school day of this weekday in range (unrounded). Σ over the 40 cells of `heatmap` = occupancy.heldHours. */
+            heldHours: number;
+            /** @description Number of held slot-day segments overlapping this cell ("มีการใช้งาน N รายการ"). */
+            segments: number;
+        };
+        ReportVenueClashDto: {
+            /** @description ISO weekday of the auto-rejected request's first slot, Bangkok (1 = Monday … 7 = Sunday). */
+            isoWeekday: number;
+            /**
+             * @description First slot start, Bangkok HH:MM.
+             * @example 09:30
+             */
+            startTime: string;
+            /**
+             * @description First slot end, Bangkok HH:MM.
+             * @example 11:30
+             */
+            endTime: string;
+            /** @description Auto-rejected requests sharing this (weekday, start, end). */
+            count: number;
+        };
+        ReportVenueRowDto: {
+            venueId: string;
+            /** @description History name (no deletedAt filter). Client appends "(ลบแล้ว)" / "(ปิดให้จอง)". */
+            name: string;
+            /** @description VenueType.name, resolved as history (may be the tombstone ไม่พบประเภทสถานที่). */
+            typeName: string;
+            /** @description Venue.capacity ("จุ N คน"). */
+            capacity: number;
+            /** @description Current open state (closed → tier ปิดให้จอง). */
+            isOpen: boolean;
+            /** @description Soft-deleted; present only when it has hours or requests in range (D-17). */
+            isDeleted: boolean;
+            /** @description Held hours, same clipping as OccupancyDto, unrounded. Equals this venue's heldHours in /reports/overview venues[]. */
+            heldHours: number;
+            /** @description 0–100 unrounded: heldHours ÷ (schoolDays × 8) × 100. null when schoolDays = 0. */
+            occupancyPercent: number | null;
+            /** @description Attributed requests whose BookingRequest.venueId is this venue, all statuses. */
+            requests: number;
+            /** @description Of requests: status = APPROVED. */
+            approved: number;
+            /** @description Of requests: rejectReason === AUTO_REJECTED_REASON (ADR-001). */
+            autoRejected: number;
+            /** @description 100 × autoRejected / requests, unrounded; null when requests = 0. */
+            autoRejectedPercent: number | null;
+            /** @description This venue's 40 cells (k = 1 on the client). */
+            cells: components["schemas"]["ReportHeatCellDto"][];
+            /** @description Most frequent auto-reject (weekday, first-slot start, end); null when autoRejected = 0. */
+            topClash: components["schemas"]["ReportVenueClashDto"] | null;
+        };
+        ReportsVenuesResponseDto: {
+            /** Format: date-time */
+            serverTime: string;
+            range: components["schemas"]["ReportRangeDto"];
+            /** @description Identical to /reports/overview requests for the same range. */
+            requests: components["schemas"]["RequestBreakdownDto"];
+            /** @description Identical (===) to /reports/overview occupancy for the same range, unfiltered. venueCount is the open-venue count k. */
+            occupancy: components["schemas"]["OccupancyDto"];
+            /** @description 100 × requests.autoRejected / requests.total, unrounded; null when total = 0 (อัตราคำขอชนเวลา). */
+            clashPercent: number | null;
+            /** @description School days per weekday Mon…Fri within [startDate, effectiveEndDate]; Σ = range.schoolDays. */
+            weekdaySchoolDays: number[];
+            /** @description All-venue cells (scope "ทุกสถานที่"). Σ heldHours = occupancy.heldHours. */
+            heatmap: components["schemas"]["ReportHeatCellDto"][];
+            /** @description Every non-deleted venue + deleted venues with activity; sorted occupancy desc, requests desc, name. Unpaginated. */
+            venues: components["schemas"]["ReportVenueRowDto"][];
+        };
+        ReportDepartmentRowDto: {
+            /** @description Department.id; null = the ไม่ระบุกลุ่ม/ฝ่าย bucket (no resolvable department, or — for ADMIN/VIEWER — a system-reserved one, D-20). */
+            departmentId: number | null;
+            /** @description History name; null for the unassigned bucket. */
+            name: string | null;
+            /** @description Soft-deleted; such rows appear only with activity. Client appends "(ลบแล้ว)". */
+            isDeleted: boolean;
+            requests: number;
+            /** @description status = APPROVED. */
+            approved: number;
+            /** @description 100 × approved / requests, unrounded; null when requests = 0. */
+            approvalPercent: number | null;
+            /** @description Held hours of slots whose parent resolves to this bucket, unrounded. */
+            heldHours: number;
+            /** @description 100 × heldHours / total heldHours, unrounded; 0 when total = 0. Share of USE, not capacity (D-21). */
+            sharePercent: number;
+            /** @description D-11 late cancellations attributed to this bucket. */
+            lateCancellations: number;
+        };
         /** @enum {string} */
-        ReportErrorCode: "REPORT_DATE_INVALID" | "REPORT_RANGE_INVERTED" | "REPORT_RANGE_TOO_WIDE" | "REPORT_VENUE_INVALID" | "REPORT_DEPARTMENT_INVALID";
-        ReportCodedErrorDto: {
+        ReportPurposeCategory: "TEACHING" | "MEETING" | "TRAINING" | "STUDENT_ACTIVITY" | "OTHER";
+        ReportPurposeRowDto: {
+            category: components["schemas"]["ReportPurposeCategory"];
+            requests: number;
+            heldHours: number;
+            /** @description 100 × heldHours / total heldHours, unrounded; 0 when total = 0. */
+            sharePercent: number;
+        };
+        /** @enum {string} */
+        ReportSlaBucket: "UNDER_2H" | "FROM_2H_TO_12H" | "FROM_12H_TO_24H" | "OVER_24H";
+        ReportSlaBucketRowDto: {
+            bucket: components["schemas"]["ReportSlaBucket"];
+            count: number;
+            /** @description 100 × count / decided, unrounded; 0 when decided = 0. */
+            percent: number;
+        };
+        ReportSlaExclusionsDto: {
+            /** @description ADR-001 auto-rejections (= requests.autoRejected). */
+            autoRejected: number;
+            /** @description CANCELLED with approvedAt = null (withdrawn before any decision). */
+            withdrawn: number;
+            /** @description createdById ≠ null (direct and on-behalf staff bookings). */
+            staffCreated: number;
+            /** @description EXPIRED before any decision (หมดอายุก่อนพิจารณา). */
+            expired: number;
+            /** @description Still PENDING. */
+            pending: number;
+        };
+        ReportSlaDto: {
+            /** @example 24 */
+            slaHours: number;
+            /** @description n: LIFF requests a person ruled on. n + Σ excluded = requests.total. */
+            decided: number;
+            decidedApproved: number;
+            /** @description Manual rejections; turnaround is the updatedAt proxy (approximate). */
+            decidedRejected: number;
+            /** @description Mean turnaround, wall-clock hours, unrounded; null when decided = 0. */
+            averageHours: number | null;
+            /** @description Lower median, hours; null when decided = 0. */
+            medianHours: number | null;
+            /** @description Turnaround ≤ 24 h 0 m (exactly 24 h is within). */
+            withinSla: number;
+            /** @description 100 × withinSla / decided, unrounded; null when decided = 0. */
+            withinSlaPercent: number | null;
+            /** @description Fixed order UNDER_2H, FROM_2H_TO_12H, FROM_12H_TO_24H (12 ≤ t ≤ 24), OVER_24H; Σ count = decided. */
+            buckets: components["schemas"]["ReportSlaBucketRowDto"][];
+            excluded: components["schemas"]["ReportSlaExclusionsDto"];
+        };
+        /**
+         * @description LINE_USER → REQUESTER; SUPER_ADMIN/ADMIN → STAFF; else UNKNOWN. Shown, never counted differently (OQ-4).
+         * @enum {string}
+         */
+        ReportCancellerKind: "REQUESTER" | "STAFF" | "UNKNOWN";
+        ReportLateCancellationDto: {
+            /** @example BR-25690902-001 */
+            code: string;
+            /**
+             * Format: date-time
+             * @description Start of the EARLIEST late-cancelled slot.
+             */
+            slotStartAt: string;
+            /** Format: date-time */
+            slotEndAt: string;
+            /** @description Late-cancelled slots of this request; the client shows "(+N ช่วง)" for N = lateSlotCount − 1 > 0. */
+            lateSlotCount: number;
+            /** @description cancelledAt ≥ startAt ("หลังเริ่ม N นาที"). */
+            cancelledAfterStart: boolean;
+            /** @description ⌊|startAt − cancelledAt| / 1 min⌋. */
+            minutes: number;
+            venueName: string;
+            venueIsDeleted: boolean;
+            /** @description Effective department after D-20 folding; null → ไม่ระบุกลุ่ม/ฝ่าย. */
+            departmentName: string | null;
+            departmentIsDeleted: boolean;
+            /** @description LINE_USER → REQUESTER; SUPER_ADMIN/ADMIN → STAFF; else UNKNOWN. Shown, never counted differently (OQ-4). */
+            canceller: components["schemas"]["ReportCancellerKind"];
+            /** @description Free text; may name a person — already visible to all three roles on the request detail (no new exposure). */
+            cancelReason: string | null;
+        };
+        ReportsOperationsResponseDto: {
+            /** Format: date-time */
+            serverTime: string;
+            range: components["schemas"]["ReportRangeDto"];
+            /** @description Identical to /reports/overview requests for the same range. */
+            requests: components["schemas"]["RequestBreakdownDto"];
+            /** @description Total held hours in range (= /reports/overview occupancy.heldHours). */
+            heldHours: number;
+            /** @description Identical to /reports/overview discipline (noShows always null). */
+            discipline: components["schemas"]["DisciplineDto"];
+            /** @description D-20 row set; sorted hours desc, requests desc, name; the null row last. */
+            departments: components["schemas"]["ReportDepartmentRowDto"][];
+            /** @description Four categories by hours desc, OTHER always last (D-22). */
+            purposes: components["schemas"]["ReportPurposeRowDto"][];
+            sla: components["schemas"]["ReportSlaDto"];
+            /** @description One row per late-cancelled request; length = discipline.lateCancellations. Unpaginated. */
+            registry: components["schemas"]["ReportLateCancellationDto"][];
+        };
+        /** @enum {string} */
+        ReportTemplate: "SUMMARY" | "LEDGER" | "VENUES";
+        /** @enum {string} */
+        ReportPeriod: "TERM" | "MONTH" | "CUSTOM";
+        ReportDocHeaderDto: {
+            title: string;
+            /** @example โรงเรียนเทศบาลท่าโขลง 1 สังกัดเทศบาลเมืองท่าโขลง จังหวัดปทุมธานี */
+            school: string;
+            /** @example ประจำภาคเรียนที่ 1 ปีการศึกษา 2569 */
+            period: string;
+            /** @example (แบบ 1 สรุปภาพรวม) */
+            kind: string;
+            /** @example ข้อมูลระหว่างวันที่ 16 พ.ค. 2569 ถึงวันที่ 30 ก.ย. 2569 */
+            dateRange: string;
+            /** @example สำหรับขอบเขตข้อมูลสถานที่ทั้งหมด และกลุ่มสาระและฝ่ายงานทั้งหมด */
+            scope: string;
+        };
+        /** @enum {string} */
+        ReportDocAlign: "TEXT" | "NUM" | "CENTER" | "MONO" | "NOWRAP";
+        ReportDocColumnDto: {
+            label: string;
+            align: components["schemas"]["ReportDocAlign"];
+        };
+        ReportDocCellDto: {
+            text: string;
+            value: number | null;
+            /** @example #,##0" รายการ" */
+            numFmt: string | null;
+        };
+        ReportDocRowDto: {
+            cells: components["schemas"]["ReportDocCellDto"][];
+        };
+        ReportDocSectionDto: {
+            /**
+             * @description Printed as "<n>. <title>".
+             * @example ตัวชี้วัดหลัก
+             */
+            title: string;
+            columns: components["schemas"]["ReportDocColumnDto"][];
+            rows: components["schemas"]["ReportDocRowDto"][];
+            /** @example ไม่มีรายการในช่วงเวลาและขอบเขตที่เลือก */
+            emptyText: string;
+        };
+        ReportDocumentDto: {
+            /** Format: date-time */
+            serverTime: string;
+            range: components["schemas"]["ReportRangeDto"];
+            template: components["schemas"]["ReportTemplate"];
+            period: components["schemas"]["ReportPeriod"];
+            /** @description True when the range and scope hold 0 requests and 0 held hours (D-12). */
+            isEmpty: boolean;
+            header: components["schemas"]["ReportDocHeaderDto"];
+            sections: components["schemas"]["ReportDocSectionDto"][];
+            /** @example ข้อมูล ณ วันที่ 3 ต.ค. 2569 เอกสารออกโดยระบบ EasyBook */
+            footer: string;
+            /** @example easybook-report-summary_2026-05-16_2026-10-31.xlsx */
+            fileName: string;
+        };
+        /** @enum {string} */
+        ReportExportErrorCode: "REPORT_DATE_INVALID" | "REPORT_RANGE_INVERTED" | "REPORT_RANGE_TOO_WIDE" | "REPORT_PERIOD_MISMATCH" | "REPORT_VENUE_INVALID" | "REPORT_DEPARTMENT_INVALID" | "REPORT_DOCUMENT_TOO_LARGE";
+        ReportExportCodedErrorDto: {
             /** @example 401 */
             statusCode: number;
             /** @example Unauthorized */
             error: string;
             /** @example Invalid email or password. */
             message: string;
-            code: components["schemas"]["ReportErrorCode"];
+            code: components["schemas"]["ReportExportErrorCode"];
+        };
+        ReportScopeVenueDto: {
+            id: string;
+            name: string;
+            isDeleted: boolean;
+            isOpen: boolean;
+        };
+        ReportScopeDepartmentDto: {
+            id: number;
+            name: string;
+            isDeleted: boolean;
+        };
+        ReportScopeOptionsDto: {
+            /** @description Every venue, deleted ones included, sorted by Thai name. */
+            venues: components["schemas"]["ReportScopeVenueDto"][];
+            /** @description Every department, deleted included. The reserved department is OMITTED for a non-SUPER_ADMIN. */
+            departments: components["schemas"]["ReportScopeDepartmentDto"][];
+        };
+        /** @enum {string} */
+        AuditAction: "APPROVE" | "REJECT" | "CANCEL" | "DIRECT_BOOKING" | "VENUE_UPDATE" | "ACCOUNT" | "BROADCAST";
+        AuditRangeDto: {
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+            days: number;
+        };
+        /** @enum {string} */
+        AuditSource: "SYNTHESIZED" | "RECORDED";
+        AuditCapabilitiesDto: {
+            source: components["schemas"]["AuditSource"];
+            /** @description The action types this source can produce, in prototype order. */
+            actions: components["schemas"]["AuditAction"][];
+            /** @description False: hide the IP column, IP search and the IP/UA dialog rows. */
+            recordsIp: boolean;
+            /** @description False: KPI 3 (การปรับปรุงทรัพยากร) shows —. */
+            recordsResourceChanges: boolean;
+        };
+        /** @enum {string} */
+        AuditActorState: "ACTIVE" | "SOFT_DELETED" | "HARD_DELETED";
+        AuditActorDto: {
+            /** @description Null when the actor row was hard-deleted and its FK nulled. */
+            id: string | null;
+            name: string | null;
+            /**
+             * @description The actor's CURRENT role, except for CANCEL events, which carry the role AT THE TIME (`cancelledByRole`).
+             * @enum {string|null}
+             */
+            role: "SUPER_ADMIN" | "ADMIN" | "VIEWER" | null;
+            /** @description Job title (PersonnelRole.name). Null for a system-reserved title when the caller is not SUPER_ADMIN. */
+            position: string | null;
+            /** @description Null = ไม่ระบุกลุ่ม/ฝ่าย (also what a system-reserved department folds to for a non-SUPER_ADMIN, P2 D-20). */
+            department: string | null;
+            state: components["schemas"]["AuditActorState"];
+        };
+        /** @enum {string} */
+        AuditTargetKind: "BOOKING_REQUEST" | "VENUE" | "LINE_USER" | "STAFF_ACCOUNT" | "ANNOUNCEMENT";
+        AuditTargetDto: {
+            kind: components["schemas"]["AuditTargetKind"];
+            /** @description The target row id (booking request cuid, staff cuid, announcement cuid). */
+            id: string | null;
+            /** @description Booking code, staff full name or announcement title. */
+            label: string;
+            detail: string | null;
+            /** @description Soft-deleted staff account / announcement / venue. */
+            isDeleted: boolean;
+        };
+        AuditChangeDto: {
+            field: string;
+            before: string;
+            after: string;
+        };
+        AuditEventDto: {
+            /**
+             * @description Deterministic from the source row and never renumbered: APV-/DIR-/REJ-<code>, CAN-<code>-<instant base36>, ACC-<staff id>, ANN-<announcement id>.
+             * @example APV-BR-25690928-001
+             */
+            id: string;
+            /**
+             * Format: date-time
+             * @description ISO 8601 with milliseconds.
+             */
+            at: string;
+            /** @description True for REJECT: the reject writes no timestamp of its own, so `updatedAt` stands in (P2 D-23). */
+            atIsApproximate: boolean;
+            action: components["schemas"]["AuditAction"];
+            /** @description Null = the source records no actor (REJECT, BROADCAST). */
+            actor: components["schemas"]["AuditActorDto"] | null;
+            target: components["schemas"]["AuditTargetDto"];
+            summary: string;
+            /** @description Null = the source has no before/after (ACCOUNT). */
+            changes: components["schemas"]["AuditChangeDto"][] | null;
+            note: string | null;
+            /** @description Always null while the source is SYNTHESIZED. */
+            ip: string | null;
+            /** @description Always null while the source is SYNTHESIZED. */
+            userAgent: string | null;
+        };
+        AuditPageDto: {
+            /** Format: date-time */
+            serverTime: string;
+            range: components["schemas"]["AuditRangeDto"];
+            capabilities: components["schemas"]["AuditCapabilitiesDto"];
+            items: components["schemas"]["AuditEventDto"][];
+            page: number;
+            /** @enum {number} */
+            limit: 10 | 20 | 50;
+            /** @description Filtered count. */
+            total: number;
+            totalPages: number;
+        };
+        AuditTopActorDto: {
+            actor: components["schemas"]["AuditActorDto"];
+            count: number;
+            /** @description 100 x count / total events in the range. */
+            percent: number;
+        };
+        AuditKpisDto: {
+            total: number;
+            /** @description Inclusive days of the range. */
+            days: number;
+            approve: number;
+            reject: number;
+            cancel: number;
+            directBooking: number;
+            /** @description Null while the source records no venue changes (rendered —). */
+            resourceChanges: number | null;
+            /** @description Only named actors qualify; ties go to the earlier name in Thai collation. */
+            topActor: components["schemas"]["AuditTopActorDto"] | null;
+        };
+        AuditKpisResponseDto: {
+            /** Format: date-time */
+            serverTime: string;
+            range: components["schemas"]["AuditRangeDto"];
+            /** @description RANGE ONLY: the toolbar never changes it. */
+            kpis: components["schemas"]["AuditKpisDto"];
+        };
+        AuditActorOptionDto: {
+            id: string;
+            name: string;
+            isDeleted: boolean;
+        };
+        AuditActorsResponseDto: {
+            /** Format: date-time */
+            serverTime: string;
+            range: components["schemas"]["AuditRangeDto"];
+            /** @description Staff with at least one named event in the range, Thai-sorted. */
+            actors: components["schemas"]["AuditActorOptionDto"][];
         };
     };
     responses: never;
@@ -4068,6 +4896,299 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppInfoResponseDto"];
+                };
+            };
+        };
+    };
+    IncidentsController_list: {
+        parameters: {
+            query: {
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. TODAY IS INCLUDED (an error log is about what just happened). */
+                startDate: string;
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. Span <= 366 days. */
+                endDate: string;
+                severity?: components["schemas"]["IncidentSeverity"];
+                component?: components["schemas"]["IncidentComponent"];
+                /** @description Case-insensitive substring over incident id, trace id, "<status> <method> <path>", message and component label. Matched in memory, so % and _ are literal. */
+                q?: string;
+                page?: number;
+                limit?: 10 | 20 | 50;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentPageDto"];
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE (coded), or an unknown or malformed query key (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description ADMIN or VIEWER, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IncidentsController_purge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Purged (or nothing to purge). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description ADMIN or VIEWER, a missing or invalid CSRF token, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IncidentsController_kpis: {
+        parameters: {
+            query: {
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. TODAY IS INCLUDED (an error log is about what just happened). */
+                startDate: string;
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. Span <= 366 days. */
+                endDate: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentKpisResponseDto"];
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE (coded), or an unknown or malformed query key (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description ADMIN or VIEWER, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IncidentsController_csv: {
+        parameters: {
+            query: {
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. TODAY IS INCLUDED (an error log is about what just happened). */
+                startDate: string;
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. Span <= 366 days. */
+                endDate: string;
+                severity?: components["schemas"]["IncidentSeverity"];
+                component?: components["schemas"]["IncidentComponent"];
+                /** @description Case-insensitive substring over incident id, trace id, "<status> <method> <path>", message and component label. Matched in memory, so % and _ are literal. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The CSV. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE (coded), or an unknown or malformed query key (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": components["schemas"]["ReportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description ADMIN or VIEWER, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    IncidentsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentDetailDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description ADMIN or VIEWER, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown, malformed or no longer retained. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentCodedErrorDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
                 };
             };
         };
@@ -9957,6 +11078,553 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    ReportsController_getVenues: {
+        parameters: {
+            query: {
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. */
+                startDate: string;
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. Inclusive span ≤ 366 days. */
+                endDate: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportsVenuesResponseDto"];
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE (coded), or an unknown query key including venueId/departmentId (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    ReportsController_getOperations: {
+        parameters: {
+            query: {
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. */
+                startDate: string;
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. Inclusive span ≤ 366 days. */
+                endDate: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportsOperationsResponseDto"];
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE (coded), or an unknown query key (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    ReportsExportController_getDocument: {
+        parameters: {
+            query: {
+                template: components["schemas"]["ReportTemplate"];
+                /** @description TERM and MONTH require startDate/endDate to be that period's exact bounds (REPORT_PERIOD_MISMATCH otherwise); CUSTOM is any valid range. */
+                period: components["schemas"]["ReportPeriod"];
+                startDate: string;
+                endDate: string;
+                /** @description Venue cuid. Unknown -> 400 REPORT_VENUE_INVALID; soft-deleted allowed. */
+                venueId?: string;
+                /** @description Department id. Unknown, or reserved for a non-SUPER_ADMIN -> 400 REPORT_DEPARTMENT_INVALID (same body for both). */
+                departmentId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDocumentDto"];
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE / REPORT_PERIOD_MISMATCH / REPORT_VENUE_INVALID / REPORT_DEPARTMENT_INVALID / REPORT_DOCUMENT_TOO_LARGE (coded), or a missing or unknown query key (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportExportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A VIEWER, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    ReportsExportController_getXlsx: {
+        parameters: {
+            query: {
+                template: components["schemas"]["ReportTemplate"];
+                /** @description TERM and MONTH require startDate/endDate to be that period's exact bounds (REPORT_PERIOD_MISMATCH otherwise); CUSTOM is any valid range. */
+                period: components["schemas"]["ReportPeriod"];
+                startDate: string;
+                endDate: string;
+                /** @description Venue cuid. Unknown -> 400 REPORT_VENUE_INVALID; soft-deleted allowed. */
+                venueId?: string;
+                /** @description Department id. Unknown, or reserved for a non-SUPER_ADMIN -> 400 REPORT_DEPARTMENT_INVALID (same body for both). */
+                departmentId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The workbook. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            /** @description As GET /reports/export (a JSON body: errors are raised before any byte is written). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": components["schemas"]["ReportExportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A VIEWER, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    ReportsExportController_getScopeOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScopeOptionsDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A VIEWER, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    ReportsActivityController_list: {
+        parameters: {
+            query: {
+                startDate: string;
+                endDate: string;
+                action?: components["schemas"]["AuditAction"];
+                /** @description Staff id. An unknown id yields an empty result, never a 400. */
+                actorId?: string;
+                /** @description Case-insensitive substring over event id, target label/detail, summary, note, actor name/department and the action label. Matched in memory, so % and _ are literal. */
+                q?: string;
+                /** @description A page past the end is clamped to the last page. */
+                page?: number;
+                limit?: 10 | 20 | 50;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPageDto"];
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE (coded), or an unknown or malformed query key (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A VIEWER, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    ReportsActivityController_kpis: {
+        parameters: {
+            query: {
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. */
+                startDate: string;
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. Inclusive span ≤ 366 days. */
+                endDate: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditKpisResponseDto"];
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE (coded), or an unknown or malformed query key (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A VIEWER, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    ReportsActivityController_actors: {
+        parameters: {
+            query: {
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. */
+                startDate: string;
+                /** @description Bangkok calendar date, YYYY-MM-DD, inclusive. Inclusive span ≤ 366 days. */
+                endDate: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditActorsResponseDto"];
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE (coded), or an unknown or malformed query key (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A VIEWER, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    ReportsActivityController_csv: {
+        parameters: {
+            query: {
+                startDate: string;
+                endDate: string;
+                action?: components["schemas"]["AuditAction"];
+                /** @description Staff id. An unknown id yields an empty result, never a 400. */
+                actorId?: string;
+                /** @description Case-insensitive substring over event id, target label/detail, summary, note, actor name/department and the action label. Matched in memory, so % and _ are literal. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The CSV. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description REPORT_DATE_INVALID / REPORT_RANGE_INVERTED / REPORT_RANGE_TOO_WIDE (coded), or an unknown or malformed query key (uncoded pipe body). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": components["schemas"]["ReportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A VIEWER, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": components["schemas"]["ErrorResponseDto"];
                 };
             };
         };

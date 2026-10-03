@@ -9,6 +9,16 @@ dist-ssr
 
 .git
 .github
+.husky
+.claude
+
+# Docs / planning / lint-and-audit config — none of it feeds `vite build`, so keeping it out
+# stops a docs-only change from invalidating `COPY . .` and forcing a full rebuild.
+docs/
+claude_planning/
+**/*.md
+.audit-ci.json
+.oxlintrc.json
 
 .vscode
 .idea

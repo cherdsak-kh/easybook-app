@@ -4,8 +4,9 @@
  * `GET /reports/overview` (`02_design_log.md` §2.5).
  *
  * ⚠️ PHASE 1 OMITS THREE PANELS ENTIRELY (D-11, no placeholders): จุดคอขวด, ข้อสังเกตสำคัญ, and the
- * สรุปรายการ table. They are Hub 2/3 analytics and ship with those phases. `ส่งออกรายงาน` (D-12,
- * this task's PO ruling 4) is likewise never rendered, for any role.
+ * สรุปรายการ table. They are Hub 2/3 analytics and ship with those phases. `ส่งออกรายงาน` was absent
+ * for every role in Phase 1 (D-12); Phase 3 adds it for SUPER_ADMIN and ADMIN only (VIEWER: absent
+ * from the DOM), opening Hub 4 แบบ 1 on this hub's current range — see `ExportReportButton`.
  *
  * ⚠️ THE API IS STATELESS AND DATE-ONLY (D-13/AC-R4): every preset here (`report-presets.ts`) is
  * client-side sugar that resolves to a plain `{ startDate, endDate }` before the request is sent —
@@ -17,34 +18,27 @@
  * to the badge's own neutral "ไม่มีข้อมูลช่วงก่อนหน้าให้เทียบ" copy rather than erroring the page.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, getReportsOverview, type ReportsOverview } from '@/lib/api-client'
 import { EmptyState } from '../../components/feedback/EmptyState'
 import { LoadError, type LoadErrorKind } from '../../components/feedback/LoadError'
 import { Skeleton, SkeletonRegion } from '../../components/feedback/Skeleton'
 import { PageHeading } from '../../components/shell/PageHeading'
 import type { AdminRoute } from '../../routes'
+import { ExportReportButton } from './components/ExportReportButton'
 import { ReportFilterBar } from './components/ReportFilterBar'
 import { ReportKpiCards } from './components/ReportKpiCards'
 import { ReportTopVenues } from './components/ReportTopVenues'
 import { ReportTrendChart } from './components/ReportTrendChart'
+import { HUB_EXPORT_TEMPLATE } from './export-params'
 import {
-  monthPresets,
   occupancyTrend,
   previousRangeOf,
   rangeEcho,
-  termPresets,
-  validateRange,
   type RangePreset,
   type ReportMode,
 } from './report-presets'
-
-/** Bangkok-assumed local date, `YYYY-MM-DD` — the same convention `thai-date.ts` runs on. */
-function todayIsoLocal(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
+import { useReportRange } from './use-report-range'
 
 const kindOf = (err: unknown): LoadErrorKind => {
   const status = err instanceof ApiError ? err.status : 0
@@ -54,18 +48,20 @@ const kindOf = (err: unknown): LoadErrorKind => {
 }
 
 export function ReportsOverviewPage({ route }: { route: AdminRoute }) {
-  const today = useMemo(() => todayIsoLocal(), [])
-  const terms = useMemo(() => termPresets(today), [today])
-  const months = useMemo(() => monthPresets(today, terms[terms.length - 1].from), [today, terms])
-
-  const [mode, setMode] = useState<ReportMode>('term')
-  const [presetId, setPresetId] = useState(terms[0].id)
-  const [from, setFrom] = useState(terms[0].from)
-  const [to, setTo] = useState(terms[0].to)
-
-  const presets: RangePreset[] = mode === 'month' ? months : terms
-  const activePreset = presets.find((p) => p.id === presetId) ?? null
-  const validationError = validateRange(from, to)
+  const {
+    mode,
+    presetId,
+    from,
+    to,
+    presets,
+    activePreset,
+    validationError,
+    selectPreset,
+    selectMode,
+    editFrom,
+    editTo,
+    resetToCurrentTerm,
+  } = useReportRange()
 
   const [data, setData] = useState<ReportsOverview | null>(null)
   const [error, setError] = useState<LoadErrorKind | null>(null)
@@ -113,41 +109,6 @@ export function ReportsOverviewPage({ route }: { route: AdminRoute }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `activePreset`'s identity is derived from presetId/mode/presets each render; re-running on it too would double-fetch
   }, [from, to, mode, presetId, validationError, load])
 
-  const selectPreset = (id: string) => {
-    const p = presets.find((x) => x.id === id)
-    if (!p) return
-    setPresetId(id)
-    setFrom(p.from)
-    setTo(p.to)
-  }
-
-  const selectMode = (m: ReportMode) => {
-    setMode(m)
-    if (m !== 'custom') {
-      const list = m === 'month' ? months : terms
-      setPresetId(list[0].id)
-      setFrom(list[0].from)
-      setTo(list[0].to)
-    }
-  }
-
-  // §4.1 Custom Override — editing either date means the preset no longer describes the range.
-  const editFrom = (v: string) => {
-    setMode('custom')
-    setFrom(v)
-  }
-  const editTo = (v: string) => {
-    setMode('custom')
-    setTo(v)
-  }
-
-  const resetToCurrentTerm = () => {
-    setMode('term')
-    setPresetId(terms[0].id)
-    setFrom(terms[0].from)
-    setTo(terms[0].to)
-  }
-
   const echo = data
     ? rangeEcho({ from, to, dataUntilDate: data.range.dataUntilDate, schoolDays: data.range.schoolDays })
     : ''
@@ -163,20 +124,30 @@ export function ReportsOverviewPage({ route }: { route: AdminRoute }) {
     : null
 
   return (
-    <div className="card-shell lg:overflow-y-auto">
+    <div className="card-shell rp-page lg:overflow-y-auto">
       <PageHeading
         route={route}
         title="ภาพรวมสถิติเชิงบริหาร"
         desc="สรุปการใช้สถานที่ คำขอจอง และจุดคอขวดของโรงเรียนในช่วงเวลาที่เลือก สำหรับผู้บริหารและผู้กำกับดูแล"
         descAtEveryWidth
         actions={
-          <button
-            type="button"
-            onClick={() => void load(from, to, activePreset, mode)}
-            className="btn flex-1 sm:flex-none"
-          >
-            รีเฟรช
-          </button>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <button
+              type="button"
+              onClick={() => void load(from, to, activePreset, mode)}
+              className="btn flex-1 sm:flex-none"
+            >
+              รีเฟรช
+            </button>
+            <ExportReportButton
+              template={HUB_EXPORT_TEMPLATE.overview}
+              mode={mode}
+              presetId={presetId}
+              from={from}
+              to={to}
+              disabled={validationError !== null}
+            />
+          </div>
         }
       />
 

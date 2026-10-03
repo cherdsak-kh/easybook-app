@@ -13,6 +13,7 @@
 
 import type { components } from '@/lib/api-types'
 import type { BadgeTone } from './components/ui/Badge'
+import type { AdminRouteLabel } from './routes'
 
 /** `SystemRole` as the contract spells it — the only thing that grants privilege. */
 export type SystemRole = components['schemas']['SystemUserResponseDto']['role']
@@ -250,6 +251,45 @@ export const NOTIF_CATEGORY_LABEL: Record<NotificationCategory, string> = {
   SYSTEM: 'ระบบและการเชื่อมต่อ',
 }
 
+/** `ReportPurposeCategory` — Hub 3's D-22 keyword-classifier output for a booking's free-text purpose. */
+export type ReportPurposeCategory = components['schemas']['ReportPurposeCategory']
+
+/**
+ * The four real categories plus the fallback (D-22). `OTHER`'s label carries its own caveat
+ * inline ("จัดหมวดไม่ได้") rather than relying on the card's footnote alone, since a bar can be
+ * read on its own out of context.
+ */
+export const PURPOSE_CATEGORY_LABEL: Record<ReportPurposeCategory, string> = {
+  TRAINING: 'การอบรมสัมมนาและพัฒนาบุคลากร',
+  MEETING: 'การประชุมฝ่ายและงานบริหาร',
+  STUDENT_ACTIVITY: 'กิจกรรมนักเรียน ชมรม และกีฬา',
+  TEACHING: 'การเรียนการสอนและกิจกรรมเสริมหลักสูตร',
+  OTHER: 'อื่น ๆ / จัดหมวดไม่ได้',
+}
+
+/** `ReportSlaBucket` — Hub 3's four decision-turnaround buckets (D-24). */
+export type ReportSlaBucket = components['schemas']['ReportSlaBucket']
+
+export const SLA_BUCKET_LABEL: Record<ReportSlaBucket, string> = {
+  UNDER_2H: '< 2 ชม. (รวดเร็วมาก)',
+  FROM_2H_TO_12H: '2–12 ชม. (มาตรฐาน)',
+  FROM_12H_TO_24H: '12–24 ชม. (ภายใน 1 วันทำการ)',
+  OVER_24H: '> 24 ชม. (เกินเกณฑ์)',
+}
+
+/**
+ * `ReportCancellerKind` — who cancelled a slot in Hub 3's late-cancellation registry, already
+ * collapsed server-side from `cancelledByRole` (D-25, DV-8): `LINE_USER` → `REQUESTER`,
+ * `SUPER_ADMIN`/`ADMIN` → `STAFF`, anything else → `UNKNOWN`.
+ */
+export type ReportCancellerKind = components['schemas']['ReportCancellerKind']
+
+export const CANCELLER_LABEL: Record<ReportCancellerKind, string> = {
+  REQUESTER: 'ผู้ขอยกเลิก',
+  STAFF: 'เจ้าหน้าที่ยกเลิก',
+  UNKNOWN: '—',
+}
+
 /** `HealthServiceStatus` — the four system-strip chips (ภาพรวมระบบ, D-8). */
 export type HealthServiceStatus = components['schemas']['HealthServiceStatus']
 
@@ -262,3 +302,125 @@ export const HEALTH_STATUS_LABEL: Record<HealthServiceStatus, string> = {
   DOWN: 'ขัดข้อง',
   NOT_CONFIGURED: 'ยังไม่ได้ตั้งค่า',
 }
+
+// ── Reports phase 3: Hub 4 (ส่งออกรายงานราชการ), Hub 5 (ประวัติการทำรายการ), Hub 6 (บันทึกข้อผิดพลาด) ──
+
+/** `ReportTemplate` — Hub 4's three document forms. The PO's names (Phase 3 ruling), not the prototype's. */
+export type ReportTemplate = components['schemas']['ReportTemplate']
+
+export const REPORT_TEMPLATE_LABEL: Record<ReportTemplate, string> = {
+  SUMMARY: 'แบบ 1 สรุปภาพรวม',
+  LEDGER: 'แบบ 2 บัญชีคำขอจอง',
+  VENUES: 'แบบ 3 สถิติรายสถานที่',
+}
+
+/** `AuditAction` — Hub 5's action vocabulary, in the prototype's order (`TYPE_ORDER`). */
+export type AuditAction = components['schemas']['AuditAction']
+
+/**
+ * Hub 5's action badge. The four booking DECISIONS are filled-tint `Badge`s in the hues คำขอจองสถานที่
+ * already gives those outcomes; the three administrative changes are the outlined neutral `.act-chip`,
+ * so SHAPE (not an invented palette) separates "a decision about a booking" from "a change to the
+ * system". `d` is the heroicons outline path, ported from the prototype's `ICO`.
+ */
+export const AUDIT_ACTION: Record<
+  AuditAction,
+  { label: string; tone: BadgeTone | 'chip'; d: string }
+> = {
+  APPROVE: {
+    label: 'อนุมัติคำขอจอง',
+    tone: 'emerald',
+    d: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  },
+  REJECT: {
+    label: 'ปฏิเสธคำขอจอง',
+    tone: 'rose',
+    d: 'M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  },
+  CANCEL: {
+    label: 'ยกเลิกคำขอจอง',
+    tone: 'amber',
+    d: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636',
+  },
+  DIRECT_BOOKING: {
+    label: 'สร้างการจองแทน',
+    tone: 'sky',
+    d: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5M12 12.75v4.5m2.25-2.25h-4.5',
+  },
+  VENUE_UPDATE: {
+    label: 'แก้ไขข้อมูลสถานที่',
+    tone: 'chip',
+    d: 'M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21',
+  },
+  ACCOUNT: {
+    label: 'จัดการบัญชีผู้ใช้',
+    tone: 'chip',
+    d: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z',
+  },
+  BROADCAST: {
+    label: 'ส่งประกาศข่าวสาร',
+    tone: 'chip',
+    d: 'M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46',
+  },
+}
+
+/** The order the action `select` offers, filtered to what `capabilities.actions` says the source can produce. */
+export const AUDIT_ACTION_ORDER: readonly AuditAction[] = [
+  'APPROVE',
+  'REJECT',
+  'CANCEL',
+  'DIRECT_BOOKING',
+  'VENUE_UPDATE',
+  'ACCOUNT',
+  'BROADCAST',
+]
+
+/** The three decisions KPI 2 counts (`การตัดสินใจคำขอจอง`). */
+export const AUDIT_DECISIONS: readonly AuditAction[] = ['APPROVE', 'REJECT', 'CANCEL']
+
+/** `AuditTargetKind` — what an event's target IS, and which menu row owns it (the dialog's `ไปที่หน้า…`). */
+export type AuditTargetKind = components['schemas']['AuditTargetKind']
+
+export const AUDIT_TARGET_KIND: Record<AuditTargetKind, { label: string; owner: AdminRouteLabel }> = {
+  BOOKING_REQUEST: { label: 'คำขอจองสถานที่', owner: 'คำขอจองสถานที่' },
+  VENUE: { label: 'สถานที่', owner: 'สถานที่จัดกิจกรรม' },
+  LINE_USER: { label: 'ผู้ใช้ LINE', owner: 'การลงทะเบียน' },
+  STAFF_ACCOUNT: { label: 'บัญชีเจ้าหน้าที่', owner: 'เจ้าหน้าที่ระบบ' },
+  ANNOUNCEMENT: { label: 'ประกาศ', owner: 'ประกาศและข่าวสาร' },
+}
+
+/** `IncidentSeverity` — Hub 6, in the file's status hues: CRITICAL red, ERROR amber, WARNING sky. */
+export type IncidentSeverity = components['schemas']['IncidentSeverity']
+
+export const INCIDENT_SEVERITY: Record<IncidentSeverity, { badge: string }> = {
+  CRITICAL: { badge: 'badge-error' },
+  ERROR: { badge: 'badge-warning' },
+  WARNING: { badge: 'badge-info' },
+}
+
+export const INCIDENT_SEVERITY_ORDER: readonly IncidentSeverity[] = ['CRITICAL', 'ERROR', 'WARNING']
+
+/**
+ * `IncidentComponent` — where an incident came from. The label is English on purpose: these are the
+ * names of the services an engineer greps for (`LINE OA`, `Cloudflare R2`), the prototype's own `COMPS`.
+ * `API` is the one bucket the prototype lacks: an unattributed 500 had nowhere to go (plan D-19).
+ */
+export type IncidentComponent = components['schemas']['IncidentComponent']
+
+export const INCIDENT_COMPONENT_LABEL: Record<IncidentComponent, string> = {
+  LINE_OA: 'LINE OA',
+  PRISMA_DB: 'Prisma / DB',
+  CLOUDFLARE_R2: 'Cloudflare R2',
+  REDIS: 'Redis',
+  AUTH: 'Auth',
+  API: 'API',
+}
+
+export const INCIDENT_COMPONENT_ORDER: readonly IncidentComponent[] = [
+  'LINE_OA',
+  'PRISMA_DB',
+  'CLOUDFLARE_R2',
+  'REDIS',
+  'AUTH',
+  'API',
+]

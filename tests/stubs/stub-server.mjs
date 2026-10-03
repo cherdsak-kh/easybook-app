@@ -76,6 +76,10 @@
  *     { event: 'adminNotification.created', targetRole?, category?, count?, force? }`, which mirrors
  *     the real gateway's audience rule (SUPER_ADMIN → role room only, VIEWER → no socket)
  *
+ * Reporting Phase 3 (Hubs 4–6: `/reports/export*`, `/reports/activity*`, `/reports/error-log*`) is served by
+ * `reports-phase3-stub.mjs`, which documents its own controls (`POST /__control/p3`, request log at
+ * `GET /__control/p3/log`). `/reports/overview|venues|operations` are still NOT served here.
+ *
  * What this stub does NOT serve (a 404 here is expected, not a bug):
  *   - Any WRITE on line-users (`PATCH /line-users/:id`, `PATCH /line-users/:id/registration`)
  *   - Any CRUD on personnel-roles / departments / venue-types / amenities (POST/PATCH/DELETE)
@@ -297,6 +301,7 @@
  *   # and opens its socket at load, and this stub has no revalidation sweep like the real gateway.
  */
 import express from 'express';
+import { registerReportsPhase3 } from './reports-phase3-stub.mjs';
 import cors from 'cors';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -2183,6 +2188,9 @@ const notifControlState = () => ({
   rows: notifRows().length,
   unread: { SUPER_ADMIN: notifUnreadFor('SUPER_ADMIN'), ADMIN: notifUnreadFor('ADMIN'), VIEWER: notifUnreadFor('VIEWER') },
 });
+
+/* ── reporting phase 3 (Hubs 4–6): mirrors `@Roles` and the DTO shapes; see the module header ── */
+registerReportsPhase3(app, { getRole: () => role, csrfToken: CSRF_TOKEN });
 
 /* ── control plane ─────────────────────────────────────────────────────── */
 
