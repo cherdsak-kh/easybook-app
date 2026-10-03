@@ -54,12 +54,14 @@ export interface Release {
 /** Newest first. `VersionPage` relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
-    v: '0.18.0',
-    date: 'อยู่ระหว่างพัฒนา',
+    v: '1.0.0',
+    date: '25 ก.ย. 2569',
     groups: [
       {
         t: 'ใหม่',
-        items: [],
+        items: [
+          'เปิดให้บริการระบบ EasyBook อย่างเป็นทางการสำหรับสถานศึกษา (Official School Production Release) — บุคลากรครูและเจ้าหน้าที่สามารถค้นหาและตรวจสอบความพร้อมของสถานที่ ยื่นคำขอจอง ตรวจสอบสถานะการอนุมัติแบบเรียลไทม์ และรับการแจ้งเตือนความคืบหน้าผ่าน LINE Official Account ได้อย่างเต็มรูปแบบ',
+        ],
       },
     ],
   },
