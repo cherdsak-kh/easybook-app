@@ -53,6 +53,18 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '1.0.1',
+    date: '4 ต.ค. 2569',
+    groups: [
+      {
+        t: 'ปรับปรุง',
+        items: [
+          'ปรับโครงสร้างเมนูบัญชีผู้ใช้งาน (Clean Account Settings Architecture) — ตัดเมนูและปลายทาง "ความเป็นส่วนตัว" (/backend/profile/privacy) ออกจากเมนูบัญชีและหน้าโปรไฟล์ของระบบหลังบ้าน เนื่องจากข้อมูลการปฏิบัติงานและบันทึกประวัติ (Audit Trail) ของเจ้าหน้าที่อยู่ภายใต้ระเบียบราชการและ พ.ร.บ. คอมพิวเตอร์ฯ ซึ่งไม่สามารถตั้งค่ายกเลิกความยินยอมได้ เพื่อลดความซ้ำซ้อนและป้องกันเมนูที่ไม่ก่อให้เกิดผลการทำงานจริง',
+        ],
+      },
+    ],
+  },
+  {
     v: '1.0.0',
     date: '25 ก.ย. 2569',
     groups: [
