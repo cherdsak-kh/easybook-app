@@ -83,11 +83,10 @@ const ALERT_COUNT_LABELS: readonly AdminRouteLabel[] = [
  */
 const DIVIDER_BEFORE: AdminRouteLabel = 'ประวัติการทำรายการ'
 
-/** The four personal destinations, in the order the prototype lists them. */
+/** The three personal destinations, in the order the prototype lists them. */
 const ACCOUNT_LABELS: readonly AdminRouteLabel[] = [
   'โปรไฟล์',
   'เปลี่ยนรหัสผ่าน',
-  'ตั้งค่าการแจ้งเตือน',
   'ประวัติการเข้าสู่ระบบ',
 ]
 

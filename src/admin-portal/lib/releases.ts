@@ -53,6 +53,18 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '1.0.2',
+    date: '4 ต.ค. 2569',
+    groups: [
+      {
+        t: 'ปรับปรุง',
+        items: [
+          'ปรับโครงสร้างเมนูบัญชีผู้ใช้งาน (Clean Account Settings Architecture) — ตัดเมนูและปลายทาง "ตั้งค่าการแจ้งเตือน" (/backend/profile/notifications) ออกจากเมนูบัญชีและหน้าโปรไฟล์ของระบบหลังบ้าน เนื่องจากระบบส่งแจ้งเตือนตามสิทธิ์ไปยังศูนย์แจ้งเตือนกระดิ่งโดยตรง ไม่มีการตั้งค่าเปิด/ปิดแจ้งเตือนรายบุคคล พร้อมปรับปรุงการเชื่อมโยงไอคอนกระดิ่งบนแถบด้านบน (Topbar) ให้ทำงานแยกส่วนอย่างอิสระ',
+        ],
+      },
+    ],
+  },
+  {
     v: '1.0.1',
     date: '4 ต.ค. 2569',
     groups: [

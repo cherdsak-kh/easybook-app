@@ -334,7 +334,7 @@ export function Topbar({
             data-tip-pos="bottom"
             className="relative flex h-11 w-11 items-center justify-center rounded-control text-base-content/70 transition-colors hover:bg-base-content/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary aria-expanded:bg-primary/10 aria-expanded:text-primary"
           >
-            <NavIcon label="ตั้งค่าการแจ้งเตือน" className={ICON} />
+            <NavIcon label="การแจ้งเตือน" className={ICON} />
             {/* aria-hidden: the count is already a sentence in the trigger's accessible name.
                 Left readable it announces a bare "3" straight after it. */}
             {unreadTotal ? (
