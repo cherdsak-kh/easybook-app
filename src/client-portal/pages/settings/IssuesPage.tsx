@@ -52,7 +52,7 @@ import { getProfile } from '@/lib/liff'
  * appears as a key into that table and nowhere else. A third type is one new row.
  *
  * ── ⚠️ THE `<section>` CARRIES NO `pad-nav`, AND THE PROTOTYPE'S DOES ──
- * Deliberate, and the same correction `SettingsSubScreen` documents: `LiffShell` is the SINGLE
+ * Deliberate, and the same correction `ManualPage` documents: `LiffShell` is the SINGLE
  * AUTHORITY for dock clearance (`fix/20260909_1715`) and applies `.pad-nav` on the very condition
  * it draws the dock on. A copy here measures 0 px today — `min-h-dvh` plus border-box absorbs the
  * section's own padding while content is short — and starts costing 112–146 px the moment this

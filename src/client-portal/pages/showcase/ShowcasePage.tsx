@@ -454,7 +454,7 @@ function ShowcaseBody() {
         </Section>
 
         {/* ── UnderConstruction ─────────────────────────────────────────────── */}
-        <Section title="UnderConstruction · #/issues, #/manual, #/rules">
+        <Section title="UnderConstruction · the ComingSoonScreen placeholder card">
           <UnderConstruction />
         </Section>
 

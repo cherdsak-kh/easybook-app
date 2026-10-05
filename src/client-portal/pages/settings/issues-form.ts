@@ -292,7 +292,7 @@ function emptyDraft(): IssueDraft {
  * `AC-32` / the prototype: *"ฟอร์มไม่ถูกล้างตอนเข้าจอ — กดไปอ่านระเบียบแล้วย้อนกลับมาต้องได้สิ่งที่
  * พิมพ์ไว้คืน"*. The prototype gets that for free because its screens are `hidden` sections that
  * never leave the DOM; a router UNMOUNTS `IssuesPage`, so component state would be destroyed by
- * the very navigation the rule is about — walking out to read `#/rules` and back.
+ * the very navigation the rule is about — walking out to read `#/manual` and back.
  *
  * ⚠️ IT ALSO OUTLIVES THE COMPONENT ON PURPOSE FOR THE UPLOADS. A photo picked and then navigated
  * away from finishes uploading into this object (`AC-23`), so coming back shows it attached rather
