@@ -44,6 +44,7 @@ import { NotificationsPage } from './pages/notifications/NotificationsPage'
 import { ChangePasswordPage } from './pages/password/ChangePasswordPage'
 import { OptionsPage } from './pages/options/OptionsPage'
 import { ProfilePage } from './pages/profile/ProfilePage'
+import { SessionsPage } from './pages/profile/SessionsPage'
 import { ActivityLogPage } from './pages/reports/ActivityLogPage'
 import { ErrorLogPage } from './pages/reports/ErrorLogPage'
 import { ExportPage } from './pages/reports/ExportPage'
@@ -96,6 +97,10 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   ข้อมูลเวอร์ชันระบบ: (route) => <VersionPage route={route} />,
   โปรไฟล์: (route) => <ProfilePage route={route} />,
   เปลี่ยนรหัสผ่าน: (route) => <ChangePasswordPage route={route} />,
+  // Reachable by all three roles (not in `VIEWER_DENY`) — a personal security view of the caller's OWN
+  // sessions and login history (feature `20261004_2055_login_sessions_and_revocation`). Its two writes
+  // are on the caller's own other devices, so nothing here is write-gated by role.
+  ประวัติการเข้าสู่ระบบ: (route) => <SessionsPage route={route} />,
   // FOUR labels, ONE component — see `OptionsPage`'s header and the comment in `routes.ts`.
   // The two venue vocabularies joined on 25 ส.ค. 2569; everything that differs between the four is
   // a string (or a null) in `option-model.ts`, never a branch in the page.

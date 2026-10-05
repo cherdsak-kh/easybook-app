@@ -588,6 +588,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/system/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List your own live sessions.
+         * @description The current session plus every OTHER live session of the caller (`others`, most recently active first). Each carries an opaque `handle` for revocation — never the session id. Sessions created before LOGIN-SESSIONS-1 shipped are not listed until their holder signs in again (within 24 h); the current session always renders, with a null IP and an `unknown` device if it predates the feature.
+         */
+        get: operations["AuthSessionsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/system/sessions/others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sign out every other device.
+         * @description Ends every live session of the caller EXCEPT the current one, which stays signed in. Idempotent: with nothing else live it is a 200 with `revoked: 0`. Each revoked device gets a 401 on its next request and its realtime socket is closed within one revalidation sweep.
+         */
+        delete: operations["AuthSessionsController_revokeOthers"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/system/sessions/{handle}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sign out one other device.
+         * @description Ends the caller's own session identified by `handle` (from `GET /auth/system/sessions`). A malformed handle, an unknown one, another user's, and one already revoked are ONE indistinguishable 404. The caller's own current handle is a 400: use logout for that.
+         */
+        delete: operations["AuthSessionsController_revokeOne"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/system/login-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Your own sign-in history, last 90 days.
+         * @description Newest first. Records successful sign-ins, rejected sign-ins for YOUR account (a wrong password, or a suspended/deleted account — deliberately indistinguishable), and forced sign-outs by an administrator (without naming who). `limit` must be exactly 10, 20 or 50. A page beyond the last is a 200 with an empty `data`. Rows older than 90 days are never returned, even before the purge has run.
+         */
+        get: operations["AuthSessionsController_loginHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system-users": {
         parameters: {
             query?: never;
@@ -674,6 +754,46 @@ export interface paths {
          * @description Generates a new temporary password, stores only its argon2id digest, and sets `mustChangePassword` — confining the target to the password-change screen until they set their own. The plaintext is returned EXACTLY ONCE as `temporaryPassword`; deliver it out-of-band. You cannot reset your OWN password (use POST /auth/system/password). A SUSPENDED user is a valid target — the flags are orthogonal — though they still cannot log in.
          */
         post: operations["SystemUsersController_resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system-users/{id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A user's live-session count and last sign-in (SUPER_ADMIN).
+         * @description Returns the number of live sessions (always 0 for a suspended account, which makes no Redis call), the last successful sign-in (device · time · IP, from the 90-day login history, falling back to `lastLoginAt` alone) and the time of the latest forced sign-out. The actor of a forced sign-out is never returned. Reading your own row is allowed. A soft-deleted id is a 404 identical to one that never existed.
+         */
+        get: operations["SystemUsersController_sessionSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system-users/{id}/revoke-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Force sign-out of every one of a user's devices (SUPER_ADMIN).
+         * @description Ends EVERY live session of the target, including the one it is using now. It is NOT a suspension: `isActive` is untouched and the target can sign in again with the same password. Idempotent: with no live session it is a 200 with `revoked: 0` and writes nothing. When at least one session was ended, exactly one FORCE_REVOKED row is written to the target's login history (the actor is stored, never exposed to the target). You cannot force sign-out your own account (400): use `DELETE /auth/system/sessions/others`. A SUPER_ADMIN may force a peer SUPER_ADMIN, or their own creator. A suspended target is a valid target.
+         */
+        post: operations["SystemUsersController_revokeSessions"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2656,6 +2776,85 @@ export interface components {
             /** Format: password */
             newPassword: string;
         };
+        /** @enum {string} */
+        DeviceType: "desktop" | "tablet" | "phone" | "unknown";
+        /** @enum {string} */
+        UaOs: "Windows" | "macOS" | "iOS" | "iPadOS" | "Android" | "ChromeOS" | "Linux";
+        /** @enum {string} */
+        UaBrowser: "LINE" | "Edge" | "Opera" | "Samsung Internet" | "Firefox" | "Chrome" | "Safari";
+        DeviceInfoDto: {
+            /** @example desktop */
+            deviceType: components["schemas"]["DeviceType"];
+            /** @example Windows */
+            os: components["schemas"]["UaOs"] | null;
+            /**
+             * @description Major version only. NULL when the UA cannot tell (Windows 10 vs 11, macOS, Chrome-reduced Android).
+             * @example 17
+             */
+            osVersion: string | null;
+            /** @example Chrome */
+            browser: components["schemas"]["UaBrowser"] | null;
+            /**
+             * @description Major version only.
+             * @example 128
+             */
+            browserVersion: string | null;
+        };
+        SessionItemDto: {
+            /**
+             * @description Opaque handle for DELETE /auth/system/sessions/{handle}. NOT the session id and not usable as a cookie.
+             * @example kZ3v0Qx9yJb2Lw8Hn4Tq1A
+             */
+            handle: string;
+            /** @description True only on `current`. */
+            isCurrent: boolean;
+            device: components["schemas"]["DeviceInfoDto"];
+            /**
+             * @description IP at sign-in. NULL for a session created before this feature shipped.
+             * @example 203.0.113.7
+             */
+            ipAddress: string | null;
+            /**
+             * Format: date-time
+             * @description Sign-in instant (session.createdAt).
+             */
+            loginAt: string;
+            /**
+             * Format: date-time
+             * @description Last request made with this session (derived from the idle TTL, ±1 s). `now` for the current session.
+             */
+            lastActiveAt: string;
+        };
+        SessionListResponseDto: {
+            current: components["schemas"]["SessionItemDto"];
+            /** @description Other live sessions, lastActiveAt DESC. May be empty. */
+            others: components["schemas"]["SessionItemDto"][];
+        };
+        RevokeSessionsResponseDto: {
+            /**
+             * @description Live sessions ended by this call.
+             * @example 2
+             */
+            revoked: number;
+        };
+        /** @enum {string} */
+        LoginEventStatus: "SUCCESS" | "FAILED_BAD_PASSWORD" | "FORCE_REVOKED";
+        LoginHistoryItemDto: {
+            id: string;
+            status: components["schemas"]["LoginEventStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** @description NULL for FORCE_REVOKED. */
+            device: components["schemas"]["DeviceInfoDto"] | null;
+            /** @description NULL for FORCE_REVOKED. */
+            ipAddress: string | null;
+            /** @description TRUE on the SUCCESS row that created the caller's current session ("· อุปกรณ์นี้"). */
+            isCurrentSession: boolean;
+        };
+        LoginHistoryPageDto: {
+            data: components["schemas"]["LoginHistoryItemDto"][];
+            meta: components["schemas"]["PaginationMetaDto"];
+        };
         CreateSystemUserDto: {
             /** @example ada@easybook.local */
             email: string;
@@ -2761,6 +2960,27 @@ export interface components {
             role?: "SUPER_ADMIN" | "ADMIN" | "VIEWER";
             /** @example false */
             isActive?: boolean;
+        };
+        LastLoginDto: {
+            /** Format: date-time */
+            at: string;
+            /** @description NULL when the login predates the 90-day history (time comes from SystemUser.lastLoginAt). */
+            device: components["schemas"]["DeviceInfoDto"] | null;
+            ipAddress: string | null;
+        };
+        StaffSessionSummaryDto: {
+            /**
+             * @description Live sessions. Always 0 for a suspended account.
+             * @example 2
+             */
+            activeSessionCount: number;
+            /** @description NULL = never signed in (ยังไม่เคยเข้าสู่ระบบ). */
+            lastLogin: components["schemas"]["LastLoginDto"] | null;
+            /**
+             * Format: date-time
+             * @description Latest FORCE_REVOKED within 90 days. The actor is never returned.
+             */
+            lastForceRevokedAt: string | null;
         };
         /** @enum {string} */
         AdminNotificationCategory: "BOOKING" | "REGISTRATION" | "FEEDBACK" | "SYSTEM";
@@ -6721,6 +6941,232 @@ export interface operations {
             };
         };
     };
+    AuthSessionsController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current and other live sessions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionListResponseDto"];
+                };
+            };
+            /** @description No or expired session, or the account is gone. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A password change is required first. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AuthSessionsController_revokeOthers: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many sessions were ended. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokeSessionsResponseDto"];
+                };
+            };
+            /** @description No or expired session, or the account is gone. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure, or a password change is required first. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. Nothing was revoked. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AuthSessionsController_revokeOne: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ended. `revoked` is 1. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokeSessionsResponseDto"];
+                };
+            };
+            /** @description The handle is the caller's own current session. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No or expired session, or the account is gone. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description CSRF failure, or a password change is required first. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Malformed, unknown, foreign, expired or already-revoked handle (one body). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. Nothing was revoked. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    AuthSessionsController_loginHistory: {
+        parameters: {
+            query?: {
+                /** @description 1-based. A page beyond the last returns `data: []` with a correct `meta`. */
+                page?: number;
+                /** @description Exactly 10, 20 or 50 — anything else is a 400, never clamped. */
+                limit?: 10 | 20 | 50;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of the caller's login history. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginHistoryPageDto"];
+                };
+            };
+            /** @description `page` < 1 or not an integer; `limit` not 10, 20 or 50. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No or expired session, or the account is gone. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description A password change is required first. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
     SystemUsersController_list: {
         parameters: {
             query?: {
@@ -7166,6 +7612,133 @@ export interface operations {
                 };
             };
             /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SystemUsersController_sessionSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The session summary. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionSummaryDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Not a SUPER_ADMIN, or a password change is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SystemUsersController_revokeSessions: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many live sessions were ended. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokeSessionsResponseDto"];
+                };
+            };
+            /** @description The target is the caller. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Not a SUPER_ADMIN; CSRF failure; or a password change is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Unknown or soft-deleted id. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Session store unavailable. Nothing was revoked. */
             503: {
                 headers: {
                     [name: string]: unknown;

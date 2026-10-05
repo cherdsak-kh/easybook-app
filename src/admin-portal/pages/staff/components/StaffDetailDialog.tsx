@@ -18,15 +18,40 @@
  * what the account can do.
  */
 
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import type { StaffSessionSummary } from '@/lib/api-client'
+import { Skeleton } from '../../../components/feedback/Skeleton'
 import { Badge } from '../../../components/ui/Badge'
 import { Btn } from '../../../components/ui/Btn'
 import { FieldRow } from '../../../components/ui/FieldRow'
 import { Modal } from '../../../components/ui/Modal'
 import { Avatar } from '../../../components/ui/Avatar'
+import { ipLabel, lastLoginLine } from '../../../lib/session-labels'
 import { thaiDate, thaiDateTime, NO_VALUE } from '../../../lib/thai-date'
 import { fullName, stateOf, STAFF_STATE, type StaffRecord } from '../staff-record'
 import { RoleChip } from './RoleChip'
+
+/**
+ * What the caller knows about THIS row's sessions — `GET /system-users/:id/sessions`, fetched by the
+ * page (this dialog stays props-only). `undefined` on the prop means "do not render the section".
+ */
+export type StaffSessionsView =
+  | { status: 'loading' }
+  | { status: 'error'; onRetry: () => void }
+  | { status: 'ok'; data: StaffSessionSummary }
+
+/**
+ * `0 เครื่อง · ถูกบังคับออกจากระบบแล้ว` only when the force is the NEWER fact. An account that was
+ * force-signed-out last week and has signed in since has a latest login that is newer, and printing
+ * the old force beside a fresh login would be stating something that stopped being true.
+ */
+function sessionCount(s: StaffSessionSummary): string {
+  if (s.activeSessionCount > 0) return `${s.activeSessionCount} เครื่อง`
+  const forced =
+    s.lastForceRevokedAt !== null &&
+    (s.lastLogin === null || new Date(s.lastForceRevokedAt) > new Date(s.lastLogin.at))
+  return forced ? '0 เครื่อง · ถูกบังคับออกจากระบบแล้ว' : '0 เครื่อง'
+}
 
 /**
  * ONE line, and only one — whichever fact about this row is most consequential.
@@ -65,6 +90,10 @@ export function StaffDetailDialog({
   onManage,
   onRestore,
   onGoToProfile,
+  sessions,
+  alert,
+  onForceRevoke,
+  onGoToSessions,
 }: {
   open: boolean
   onClose: () => void
@@ -81,7 +110,25 @@ export function StaffDetailDialog({
   onManage?: () => void
   onRestore?: () => void
   onGoToProfile?: () => void
+  /**
+   * เซสชันและความปลอดภัย. Rendered only when this is given AND `canManage` AND the row is not
+   * deleted — so for an ADMIN or a VIEWER the section is absent from the DOM, and the page that
+   * owns the fetch never makes the request (it would 403).
+   */
+  sessions?: StaffSessionsView
+  /** A failure line from a write launched in this dialog. Takes the notice slot — see `msg` below. */
+  alert?: string
+  onForceRevoke?: () => void
+  onGoToSessions?: () => void
 }) {
+  // The notice sits ABOVE the sessions section, and the force button that raises it is below the fold on a
+  // phone: without this the failure line is written where nobody is looking. `nearest` moves nothing when
+  // it is already visible, and the browser's own reduced-motion setting governs any animation.
+  const noticeRef = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    if (alert) noticeRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [alert])
+
   if (!record) {
     return (
       <Modal open={false} onClose={onClose} title="ข้อมูลบัญชีเจ้าหน้าที่">
@@ -91,7 +138,10 @@ export function StaffDetailDialog({
   }
 
   const state = STAFF_STATE[stateOf(record)]
-  const msg = notice(record, { self, canManage, myCreator })
+  // ⚠️ A write failure REPLACES the standing notice rather than stacking on it: the dialog answers one
+  // question in one line, and a toast over a modal is unclickable (prototype L22826–22845).
+  const msg = alert || notice(record, { self, canManage, myCreator })
+  const showSessions = canManage && !record.deleted && sessions !== undefined
 
   /*
    * The footer is built per row and is ABSENT when it would be empty — an ADMIN reading somebody
@@ -181,12 +231,119 @@ export function StaffDetailDialog({
 
       {/* Amber, not rose — none of the five is an error. Always in the DOM, hidden when empty. */}
       <p
+        ref={noticeRef}
         className={`mt-4 rounded-control bg-warning/10 px-4 py-3 text-[14px] leading-[1.55] text-warning ${
           msg ? '' : 'hidden'
         }`.trim()}
       >
         {msg}
       </p>
+
+      {/* ── เซสชันและความปลอดภัย ── SUPER_ADMIN only (`canManage`, the question the pencils ask —
+          not VIEWER logic: an ADMIN reads this table with a VIEWER's capabilities, and would otherwise
+          be shown a colleague's IP address). Absent from the DOM otherwise. `hidden` sits on plain
+          wrappers, never on an element carrying a `flex`/`grid` utility. NOT the audit log:
+          force-revoking is a security action on the account, filed nowhere in ประวัติการทำรายการ. */}
+      {showSessions && (
+        <section className="fb-sec mt-4" aria-labelledby="sd-sess-h">
+          <h3 id="sd-sess-h" className="fb-sec-h">
+            <svg
+              aria-hidden="true"
+              className="fb-sec-ico"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
+              />
+            </svg>
+            เซสชันและความปลอดภัย
+          </h3>
+
+          {sessions.status === 'ok' ? (
+            <dl className="m-0">
+              <div className="field-row">
+                <dt className="field-label">เซสชันที่ใช้งานอยู่</dt>
+                <dd className="field-value m-0">{sessionCount(sessions.data)}</dd>
+              </div>
+              <div className="field-row">
+                <dt className="field-label">เข้าสู่ระบบล่าสุดจาก</dt>
+                <dd className="field-value m-0">
+                  {sessions.data.lastLogin
+                    ? lastLoginLine(sessions.data.lastLogin)
+                    : 'ยังไม่เคยเข้าสู่ระบบ'}
+                </dd>
+              </div>
+              <div className="field-row">
+                <dt className="field-label">หมายเลข IP</dt>
+                <dd className="field-value m-0 font-mono tabular-nums">
+                  {ipLabel(sessions.data.lastLogin?.ipAddress)}
+                </dd>
+              </div>
+            </dl>
+          ) : sessions.status === 'error' ? (
+            <div role="alert" className="py-1">
+              <p className="m-0 text-[14px] text-base-content/70">
+                โหลดข้อมูลเซสชันของบัญชีนี้ไม่สำเร็จ
+              </p>
+              <Btn variant="ghost" className="mt-2 w-full sm:w-auto" onClick={sessions.onRetry}>
+                ลองใหม่อีกครั้ง
+              </Btn>
+            </div>
+          ) : (
+            /* The three rows' height, so the dialog does not grow when the answer arrives. */
+            <div aria-busy="true">
+              <span className="sr-only" role="status">
+                กำลังโหลดข้อมูลเซสชัน
+              </span>
+              <div aria-hidden="true">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="field-row">
+                    <Skeleton variant="soft" className="h-3.5" width="8rem" />
+                    <Skeleton className="h-4" width="11rem" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* The emergency button needs something to end and somebody else's account. */}
+          {!self && sessions.status === 'ok' && sessions.data.activeSessionCount > 0 && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={onForceRevoke}
+                className="btn btn-error btn-sm min-h-11 w-full sm:w-auto"
+              >
+                บังคับออกจากระบบทุกอุปกรณ์
+              </button>
+              <p className="m-0 mt-2 text-[13px] leading-[1.5] text-base-content/70">
+                ใช้เมื่อสงสัยว่าบัญชีถูกบุกรุก หรือเจ้าหน้าที่พ้นหน้าที่ ·
+                ทุกอุปกรณ์จะถูกออกจากระบบทันที และเจ้าของบัญชียังเข้าสู่ระบบใหม่ได้ตามปกติ
+              </p>
+            </div>
+          )}
+          {self && (
+            <div className="mt-3">
+              <p className="m-0 mb-2 text-[13px] leading-[1.5] text-base-content/70">
+                นี่คือบัญชีของคุณเอง จึงไม่มีปุ่มบังคับออกจากระบบ เพราะจะตัดเซสชันที่คุณกำลังใช้อยู่ ·
+                จัดการอุปกรณ์อื่นได้ที่หน้าประวัติการเข้าสู่ระบบ
+              </p>
+              <button
+                type="button"
+                onClick={onGoToSessions}
+                className="btn btn-outline btn-sm min-h-11 w-full sm:w-auto"
+              >
+                ไปที่ประวัติการเข้าสู่ระบบ
+              </button>
+            </div>
+          )}
+        </section>
+      )}
     </Modal>
   )
 }

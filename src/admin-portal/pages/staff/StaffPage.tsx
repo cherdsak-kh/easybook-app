@@ -45,6 +45,7 @@ import {
   ApiError,
   createSystemUser,
   deleteSystemUser,
+  forceRevokeStaffSessions,
   listSystemUsers,
   resetSystemUserPassword,
   restoreSystemUser,
@@ -71,11 +72,12 @@ import {
 } from '../../routes'
 import { AccountEditor } from './components/AccountEditor'
 import { RoleChip } from './components/RoleChip'
-import { StaffDetailDialog } from './components/StaffDetailDialog'
+import { StaffDetailDialog, type StaffSessionsView } from './components/StaffDetailDialog'
 import { StaffFormDialog, type StaffFormValues } from './components/StaffFormDialog'
 import { TempPasswordDialog } from './components/TempPasswordDialog'
 import { fullName, stateOf, STAFF_STATE, type StaffRecord, type StaffState } from './staff-record'
 import { useStaffOptions } from './use-staff-options'
+import { useStaffSessions } from './use-staff-sessions'
 
 /**
  * `แถวต่อหน้า` (#ISSUE-12). The endpoint's own default is 20 and its ceiling is 100, and `limit` is the
@@ -218,6 +220,26 @@ const WRITE_FAIL: Record<number, string> = {
 }
 
 const PROFILE_LABEL: AdminRouteLabel = 'โปรไฟล์'
+const SESSIONS_LABEL: AdminRouteLabel = 'ประวัติการเข้าสู่ระบบ'
+
+/**
+ * บังคับออกจากระบบทุกอุปกรณ์ (prototype `revokeAllStaff`, L14594–14599 and L14664–14665).
+ *
+ * ⚠️ THE SHARP END IS THAT IT IS IMMEDIATE AND NOT A SUSPENSION. Every device goes, including the one
+ * its owner is using now, but `isActive` is untouched and the same password still signs in — so a
+ * compromised account needs a password reset as well, and the description says so because that is the
+ * step that gets forgotten. The failure line says "ยังไม่มีเซสชันใดถูกยกเลิก" because the server's
+ * revoke is all-or-nothing: a failure means nothing was ended.
+ */
+const FORCE = {
+  title: 'ยืนยันการบังคับออกจากระบบทุกอุปกรณ์',
+  desc: 'ทุกอุปกรณ์ของบัญชีนี้จะถูกออกจากระบบทันที รวมถึงเครื่องที่เจ้าของบัญชีกำลังใช้งานอยู่ · บัญชียังไม่ถูกระงับ เจ้าของยังเข้าสู่ระบบใหม่ได้ด้วยรหัสผ่านเดิม หากสงสัยว่าบัญชีถูกบุกรุกให้รีเซ็ตรหัสผ่านด้วย',
+  label: 'บังคับออกจากระบบ',
+  busy: 'กำลังดำเนินการ…',
+  ok: (n: string) => `บังคับออกจากระบบทุกอุปกรณ์ของ ${n} แล้ว`,
+  fail: (n: string) =>
+    `บังคับออกจากระบบทุกอุปกรณ์ของ ${n} ไม่สำเร็จ — ยังไม่มีเซสชันใดถูกยกเลิก ลองใหม่อีกครั้ง`,
+} as const
 
 /**
  * `SystemUserResponseDto` → what the dialogs read.
@@ -272,6 +294,29 @@ export function StaffPage({ route }: { route: AdminRoute }) {
 
   /** The row whose record is open for reading. `null` keeps the dialog mounted and closed. */
   const [shown, setShown] = useState<StaffRecord | null>(null)
+
+  /**
+   * บังคับออกจากระบบทุกอุปกรณ์ — the row being confirmed, and the failure line that goes back INTO
+   * the record's notice slot (a toast over a modal is unclickable). The id guards the line against
+   * following the operator to a different row.
+   */
+  const [forcing, setForcing] = useState<StaffRecord | null>(null)
+  const [forceNotice, setForceNotice] = useState<{ id: string; msg: string } | null>(null)
+
+  /**
+   * ⚠️ THE ONLY PLACE E5 IS EVER REQUESTED. `null` unless this session is a SUPER_ADMIN and the row is
+   * not deleted — so an ADMIN or a VIEWER opening a record fires no request at all (it would 403, and
+   * the section is not drawn for them either).
+   */
+  const sessionsFetch = useStaffSessions(canManage && shown && !shown.deleted ? shown.id : null)
+  const sessionsView: StaffSessionsView | undefined =
+    sessionsFetch.status === 'idle'
+      ? undefined
+      : sessionsFetch.status === 'ok'
+        ? { status: 'ok', data: sessionsFetch.data }
+        : sessionsFetch.status === 'error'
+          ? { status: 'error', onRetry: sessionsFetch.reload }
+          : { status: 'loading' }
 
   /**
    * ⚠️ TWO PIECES OF STATE FOR ONE DIALOG, and the split is deliberate. `editing` is the row's DTO
@@ -582,6 +627,30 @@ export function StaffPage({ route }: { route: AdminRoute }) {
     }
   }
 
+  /**
+   * The write behind the confirmation. It never rejects: the dialog closes either way, and the
+   * operator is put back on the record they were reading — with the count refetched on success, and
+   * with the failure line in the notice slot otherwise. `isMe` guards it although the button is not
+   * rendered on your own row: `canRevokeSessions` answers 400 to self, and this is the last place a
+   * UI bug could become that request.
+   */
+  const runForce = async () => {
+    if (!forcing) return
+    const row = forcing
+    if (isMe(row)) return
+    const who = fullName(row) || row.email
+    try {
+      await forceRevokeStaffSessions(row.id)
+      setForcing(null)
+      setShown(row)
+      toast('success', FORCE.ok(who))
+    } catch {
+      setForcing(null)
+      setShown(row)
+      setForceNotice({ id: row.id, msg: FORCE.fail(who) })
+    }
+  }
+
   return (
     <div className="card-shell">
       <PageHeading
@@ -800,7 +869,10 @@ export function StaffPage({ route }: { route: AdminRoute }) {
           one, so `Modal` still gets the `close` event that restores focus to the row. */}
       <StaffDetailDialog
         open={shown !== null}
-        onClose={() => setShown(null)}
+        onClose={() => {
+          setShown(null)
+          setForceNotice(null)
+        }}
         record={shown}
         self={shown ? isMe(shown) : false}
         canManage={canManage}
@@ -820,6 +892,23 @@ export function StaffPage({ route }: { route: AdminRoute }) {
         // the password genuinely do live on another page.
         onGoToProfile={() => {
           const target = ADMIN_PORTAL_ROUTES.find((r) => r.label === PROFILE_LABEL)
+          if (target) navigate(urlOf(target))
+        }}
+        sessions={sessionsView}
+        alert={shown && forceNotice?.id === shown.id ? forceNotice.msg : undefined}
+        onForceRevoke={() => {
+          if (!shown || !canManage || isMe(shown)) return
+          // Close the record to make room, as the edit dialog does for reset and delete: a
+          // confirmation painted over the record it acts on hides who is being acted on.
+          setForceNotice(null)
+          setForcing(shown)
+          setShown(null)
+        }}
+        // Your own row's way to the page that CAN end your other devices. Closes first, as the
+        // prototype does, so the record is not left open behind the navigation.
+        onGoToSessions={() => {
+          const target = ADMIN_PORTAL_ROUTES.find((r) => r.label === SESSIONS_LABEL)
+          setShown(null)
           if (target) navigate(urlOf(target))
         }}
       />
@@ -902,6 +991,25 @@ export function StaffPage({ route }: { route: AdminRoute }) {
         tone={asking?.kind === 'restore' ? 'primary' : 'danger'}
         confirmLabel={asking ? CONFIRM[asking.kind].label : ''}
         busyLabel={asking ? CONFIRM[asking.kind].busy : undefined}
+      />
+
+      {/* บังคับออกจากระบบทุกอุปกรณ์. Its own instance rather than a fourth `asking` kind: dismissing it
+          returns to the RECORD (not the editor), and failing must not close-and-toast like the other
+          three — see `runForce`. */}
+      <ConfirmModal
+        open={forcing !== null}
+        onClose={() => {
+          const row = forcing
+          setForcing(null)
+          if (row) setShown(row)
+        }}
+        onConfirm={runForce}
+        title={FORCE.title}
+        who={forcing ? fullName(forcing) : undefined}
+        description={FORCE.desc}
+        tone="danger"
+        confirmLabel={FORCE.label}
+        busyLabel={FORCE.busy}
       />
 
       {/* The one-shot. It is the RECEIPT for a create or a reset, so there is no toast beside it —

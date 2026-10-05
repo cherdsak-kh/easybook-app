@@ -15,6 +15,8 @@
  *
  * Served (mirrors the real `@Roles` on each):
  *   - auth/system/{csrf,me,logout}          — always answers; no VIEWER distinction
+ *   - auth/system/{sessions,login-history}  — every role; E2/E3 + `system-users/:id/{sessions,
+ *                                             revoke-sessions}` mirror CSRF and `@Roles(SUPER_ADMIN)`
  *   - GET  venues                           — SUPER_ADMIN|ADMIN|VIEWER
  *   - GET  departments / personnel-roles    — SUPER_ADMIN|ADMIN only (VIEWER 403, real contract)
  *   - GET  venue-types / amenities          — SUPER_ADMIN|ADMIN only (VIEWER 403, real contract)
@@ -106,6 +108,11 @@
  *                                                            — force the notification page and the
  *                                                              topbar bell: the reads, the writes,
  *                                                              the D-14 fixtures, the pager
+ *   POST /__control/sessions      { sessionsMode?, historyMode?, revokeMode?, staffMode?,
+ *                                   csrfMode?, selfRow?, reset? }
+ *                                                            — login history & session revocation
+ *                                                              (E1–E6, `login-sessions-stub.mjs`: its
+ *                                                              header lists the modes and the E5 log)
  *   POST /__control/reset                                     — restore the seeds, the version,
  *                                                              every announcement and canned mode,
  *                                                              and the notifications (rows, every
@@ -302,6 +309,7 @@
  */
 import express from 'express';
 import { registerReportsPhase3 } from './reports-phase3-stub.mjs';
+import { registerLoginSessions } from './login-sessions-stub.mjs';
 import cors from 'cors';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -759,6 +767,13 @@ app.get('/api/v1/system-users/:id', (req, res) => {
   const u = SYSTEM_USERS.find((x) => x.id === req.params.id);
   if (!u) return res.status(404).json({ statusCode: 404, message: 'System user not found.' });
   res.json(u);
+});
+
+/* ── login sessions & history (E1–E6): mirrors `@Roles` and the DTO shapes; see the module header ── */
+const loginSessions = registerLoginSessions(app, {
+  getRole: () => role,
+  csrfToken: CSRF_TOKEN,
+  systemUsers: SYSTEM_USERS,
 });
 
 /* ── booking requests ──────────────────────────────────────────────────── */
@@ -2678,6 +2693,8 @@ app.post('/__control/reset', (_req, res) => {
   INTEG = INTEG_DEFAULTS();
   // …and การแจ้งเตือน: a forced `error` or a VIEWER's dismissals must not leak into the next check.
   notifReset();
+  // …and the login sessions: the seeded devices and history, every mode, and the force sign-outs.
+  loginSessions.reset();
   res.json({
     ok: true,
     rows: ROWS.length,

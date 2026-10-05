@@ -1902,3 +1902,91 @@ export async function downloadFile(
   setTimeout(() => URL.revokeObjectURL(href), 1000)
   return 'downloaded'
 }
+
+// ---------------------------------------------------------------------------
+// Login sessions & history (LOGIN-SESSIONS-1) — `/auth/system/sessions*`,
+// `/auth/system/login-history`, and the SUPER_ADMIN pair on `/system-users/:id`.
+//
+// ⚠️ A `handle` IS OPAQUE. It names one session for `DELETE …/sessions/{handle}` and nothing
+// else: never parse it, store it past the render that received it, or log it. Always refetch
+// `getSessions()` after a revoke rather than patching the list locally.
+//
+// ⚠️ E3's 404 means "already gone" (expired, or revoked from another tab) — callers treat it as
+// success and refetch. Its 400 is the caller's OWN current handle, which no UI offers.
+// ---------------------------------------------------------------------------
+
+export type SessionList = components['schemas']['SessionListResponseDto']
+export type SessionItem = components['schemas']['SessionItemDto']
+export type DeviceInfo = components['schemas']['DeviceInfoDto']
+export type RevokeSessionsResult = components['schemas']['RevokeSessionsResponseDto']
+export type LoginHistoryPage = components['schemas']['LoginHistoryPageDto']
+export type LoginHistoryItem = components['schemas']['LoginHistoryItemDto']
+export type LoginEventStatus = components['schemas']['LoginEventStatus']
+export type StaffSessionSummary = components['schemas']['StaffSessionSummaryDto']
+
+/** `limit` is exactly one of these — anything else is a 400, never clamped. */
+export type LoginHistoryLimit = 10 | 20 | 50
+
+/** E1 — the caller's live sessions: `current` plus `others` (lastActiveAt DESC). */
+export async function getSessions(): Promise<SessionList> {
+  const { data, error, response } = await api.GET('/api/v1/auth/system/sessions')
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/** E2 — end every session of the caller EXCEPT the one making the request. Idempotent. */
+export async function revokeOtherSessions(): Promise<RevokeSessionsResult> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.DELETE('/api/v1/auth/system/sessions/others', {
+      params: { header: { 'x-csrf-token': '' } },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/** E3 — end one of the caller's OTHER sessions by its opaque handle. */
+export async function revokeSession(handle: string): Promise<RevokeSessionsResult> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.DELETE('/api/v1/auth/system/sessions/{handle}', {
+      params: { path: { handle }, header: { 'x-csrf-token': '' } },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/** E4 — the caller's own login attempts, newest first, last 90 days. */
+export async function getLoginHistory(params: {
+  page: number
+  limit: LoginHistoryLimit
+}): Promise<LoginHistoryPage> {
+  const { data, error, response } = await api.GET('/api/v1/auth/system/login-history', {
+    params: { query: { page: params.page, limit: params.limit } },
+  })
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/** E5 — SUPER_ADMIN only. A colleague's live-session count and last login. */
+export async function getStaffSessions(id: string): Promise<StaffSessionSummary> {
+  const { data, error, response } = await api.GET('/api/v1/system-users/{id}/sessions', {
+    params: { path: { id } },
+  })
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
+
+/**
+ * E6 — SUPER_ADMIN only. End EVERY session of another account, including the one its owner is
+ * using now. NOT a suspension: `isActive` is untouched. Self is a 400 the UI never offers.
+ */
+export async function forceRevokeStaffSessions(id: string): Promise<RevokeSessionsResult> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/system-users/{id}/revoke-sessions', {
+      params: { path: { id }, header: { 'x-csrf-token': '' } },
+    }),
+  )
+  if (!data) throw new ApiError(response.status, messageFrom(error, response))
+  return data
+}
