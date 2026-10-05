@@ -17,8 +17,8 @@
  *
  * ── NOTHING HERE LINKS TO A SCREEN THAT DOES NOT EXIST ──
  * `links` are `AdminRouteLabel`s; `GuidePage` renders one only when the signed-in role may reach it
- * (`useAcl`) and the label has a designed screen. ติดต่อฝ่ายเทคนิค is never linked: it is still the
- * coming-soon stand-in.
+ * (`useAcl`) and the label has a designed screen. ติดต่อทีมผู้พัฒนา (the last one, designed
+ * 5 ต.ค. 2569) links like any other label now.
  *
  * ── ICONS ──
  * `Ico` (`GuideIcon.tsx`) is the prototype's inline `<svg><path/></svg>` with the two things that

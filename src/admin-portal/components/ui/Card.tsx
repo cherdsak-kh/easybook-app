@@ -18,11 +18,18 @@ import type { ReactNode } from 'react'
 export function Card({
   children,
   className = '',
+  'aria-labelledby': labelledBy,
 }: {
   children: ReactNode
   className?: string
+  /** The id of the card's heading, so the `<section>` landmark has a name. */
+  'aria-labelledby'?: string
 }) {
-  return <section className={`pf-card ${className}`.trim()}>{children}</section>
+  return (
+    <section aria-labelledby={labelledBy} className={`pf-card ${className}`.trim()}>
+      {children}
+    </section>
+  )
 }
 
 export function CardHead({

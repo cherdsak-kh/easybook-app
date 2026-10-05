@@ -1784,6 +1784,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/support/incident": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Relay an incident report to the EasyBook dev team (Discord).
+         * @description Multipart. Text fields plus 0–3 parts named `files`. Nothing is persisted. The reporter role, name and phone are taken from the session, never the body. Image type is decided by magic-byte sniff, never by the declared MIME. Answers 503 SUPPORT_NOT_CONFIGURED when DISCORD_SUPPORT_WEBHOOK_URL is unset or invalid.
+         */
+        post: operations["SupportController_submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard/vitals": {
         parameters: {
             query?: never;
@@ -4419,6 +4439,49 @@ export interface components {
             services: components["schemas"]["HealthServicesDto"];
             /** @description null unless detail = FULL. The server never computes these numbers into an ADMIN/VIEWER body (AC-D17). */
             telemetry: components["schemas"]["SystemHealthTelemetryDto"] | null;
+        };
+        /** @enum {string} */
+        SupportIncidentCategory: "web" | "line" | "booking" | "access" | "other";
+        /** @enum {string} */
+        SupportIncidentSeverity: "normal" | "urgent" | "critical";
+        SupportIncidentFormDto: {
+            /** @example web */
+            category: components["schemas"]["SupportIncidentCategory"];
+            /** @example normal */
+            severity: components["schemas"]["SupportIncidentSeverity"];
+            /** @example /backend/bookings/requests */
+            path: string;
+            /** @description Counted after trimming. Refused, never truncated. */
+            description: string;
+            /** @description Client-built, informational only. Never trusted for the reporter role. */
+            diagnostics?: string;
+            /** @description 0–3 parts, each named `files`. PNG, JPEG or WEBP by content. ≤ 5 MB each; ≤ 9.5 MB combined. */
+            files?: string[];
+        };
+        SupportIncidentResponseDto: {
+            /** @example true */
+            success: boolean;
+            /**
+             * @description Server-minted. Identical to the code in the Discord message heading.
+             * @example INC-1043
+             */
+            code: string;
+            /**
+             * @description ISO 8601 UTC. Same instant as the Discord message timestamp.
+             * @example 2026-10-05T15:31:07.000Z
+             */
+            timestamp: string;
+        };
+        /** @enum {string} */
+        SupportErrorCode: "SUPPORT_NOT_CONFIGURED" | "SUPPORT_RELAY_FAILED" | "SUPPORT_RATE_LIMITED" | "SUPPORT_FILE_TYPE_UNSUPPORTED" | "SUPPORT_FILE_TOO_LARGE" | "SUPPORT_ATTACHMENTS_TOO_LARGE";
+        SupportCodedErrorDto: {
+            /** @example 401 */
+            statusCode: number;
+            /** @example Unauthorized */
+            error: string;
+            /** @example Invalid email or password. */
+            message: string;
+            code: components["schemas"]["SupportErrorCode"];
         };
         DashboardQueueVenueDto: {
             id: string;
@@ -11495,6 +11558,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    SupportController_submit: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-csrf-token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["SupportIncidentFormDto"];
+            };
+        };
+        responses: {
+            /** @description Relayed. `code` is identical to the code in the Discord message heading. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportIncidentResponseDto"];
+                };
+            };
+            /** @description Coded for SUPPORT_FILE_TYPE_UNSUPPORTED; validation / multer refusals (bad enum, empty or over-long field, unknown field, 4th file) are the uncoded house body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportCodedErrorDto"];
+                };
+            };
+            /** @description No session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Missing or invalid CSRF token, or a forced password change is pending. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description SUPPORT_FILE_TOO_LARGE (a file > 5 MB) or SUPPORT_ATTACHMENTS_TOO_LARGE (combined size too large, or Discord refused the upload). */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportCodedErrorDto"];
+                };
+            };
+            /** @description SUPPORT_RATE_LIMITED: more than 5 reports in 10 minutes for this user. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportCodedErrorDto"];
+                };
+            };
+            /** @description SUPPORT_RELAY_FAILED: Discord answered non-2xx, the network failed, or the 10 s time-box elapsed. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportCodedErrorDto"];
+                };
+            };
+            /** @description SUPPORT_NOT_CONFIGURED (coded) when the webhook is unset or invalid; the uncoded house body when the session store is down. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportCodedErrorDto"];
                 };
             };
         };

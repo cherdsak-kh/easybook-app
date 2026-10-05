@@ -22,6 +22,9 @@
  *   - GET  venue-types / amenities          — SUPER_ADMIN|ADMIN only (VIEWER 403, real contract)
  *   - GET  line-users                       — SUPER_ADMIN|ADMIN|VIEWER
  *   - GET  system-users, system-users/:id   — SUPER_ADMIN|ADMIN|VIEWER
+ *   - GET  system/health                    — every role, role-shaped (`support-stub.mjs`)
+ *   - POST system/support/incident          — every role, multipart, CSRF-checked; NO Discord, nothing
+ *                                             leaves the process (`support-stub.mjs`, `/__control/support`)
  *   - GET  system/version                   — every role (no `@Roles`, session only)
  *                                             DEFAULT AGREES WITH `package.json`; drive the
  *                                             disagreement state via `POST /__control/version`
@@ -310,6 +313,7 @@
 import express from 'express';
 import { registerReportsPhase3 } from './reports-phase3-stub.mjs';
 import { registerLoginSessions } from './login-sessions-stub.mjs';
+import { registerSupport } from './support-stub.mjs';
 import cors from 'cors';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -775,6 +779,9 @@ const loginSessions = registerLoginSessions(app, {
   csrfToken: CSRF_TOKEN,
   systemUsers: SYSTEM_USERS,
 });
+
+/* ── ติดต่อทีมผู้พัฒนา: GET system/health + POST system/support/incident; see the module header ── */
+const support = registerSupport(app, { getRole: () => role, csrfToken: CSRF_TOKEN });
 
 /* ── booking requests ──────────────────────────────────────────────────── */
 
@@ -2694,6 +2701,8 @@ app.post('/__control/reset', (_req, res) => {
   notifReset();
   // …and the login sessions: the seeded devices and history, every mode, and the force sign-outs.
   loginSessions.reset();
+  // …and the support screen: forced health / submit modes, the INC- sequence and the rate windows.
+  support.reset();
   res.json({
     ok: true,
     rows: ROWS.length,

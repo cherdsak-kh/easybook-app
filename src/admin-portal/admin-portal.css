@@ -1286,6 +1286,31 @@
      conditionally, so this rule is defence only. */
   .fb-photos   { @apply inline-flex shrink-0 items-center gap-1 rounded-full bg-base-content/10 px-1.5 py-0.5 text-[12px] font-medium text-base-content/80 tabular-nums; }
   .fb-photos[hidden] { display: none; }
+
+  /* ── ติดต่อทีมผู้พัฒนา (`SupportPage`, 5 ต.ค. 2569) ────────────────────────
+     Ported from the prototype's `.sp-scope` block. NO component shims: `btn`, `badge`, `alert`,
+     `label`, `input`, `select` and `textarea` are daisyUI 5 exactly as it ships. Three things only:
+     the 44px touch floor (daisyUI's field and button are 40px, `btn-sm` 32px — height only), the
+     dropzone, and `[hidden]`.
+
+     The prototype's other half — `.sp-scope :is(.btn, .badge, .alert) { border: revert-layer … }`
+     and the matching `.select, .input, .textarea` rule — is NOT ported, on purpose: it undid the
+     CDN build's Preflight-over-daisyUI inversion. This app has no such inversion: measured on the
+     running page, `.btn` / `.input` / `.select` / `.textarea` keep daisyUI's own border, radius and surface. */
+  .sp-scope [hidden] { display: none !important; }
+  .sp-scope :is(.btn, .input, .select) { min-height: 2.75rem; }
+  .sp-scope .input, .sp-scope .select { height: 2.75rem; }
+  /* `relative` is load-bearing, `overflow-hidden` belt-and-braces: the `sr-only` file input inside is
+     `position: absolute`, and with no positioned ancestor its containing block was <body> — measured
+     in the prototype at 1280×800: the document grew to 1252px and scrolled a blank strip below the
+     app shell. */
+  .sp-drop {
+    @apply relative overflow-hidden flex min-h-11 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-control border-2 border-dashed
+           border-base-300 bg-base-200 px-4 py-6 text-center transition-colors;
+  }
+  .sp-drop:hover, .sp-drop.is-over { border-color: var(--color-primary); }
+  .sp-drop.is-over { background-color: color-mix(in oklab, var(--color-primary) 10%, transparent); }
+  .sp-drop:focus-within { outline: 2px solid var(--color-primary); outline-offset: 2px; }
   .fb-type     { @apply inline-flex items-center gap-1.5 rounded-full border border-base-content/20 px-2.5 py-1 text-[13px] font-medium text-base-content/80 whitespace-nowrap; }
   .fb-thumb    { @apply relative block aspect-[16/10] w-full overflow-hidden rounded-control border border-base-300 bg-base-200 transition-[filter] hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary; }
   /* The photo viewer: an absolute layer INSIDE the detail dialog panel, never

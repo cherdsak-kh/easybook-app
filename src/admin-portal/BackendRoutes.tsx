@@ -39,6 +39,7 @@ import { FeedbackPage } from './pages/feedback/FeedbackPage'
 import { IntegrationsPage } from './pages/settings/IntegrationsPage'
 import { ForcePasswordChangePage } from './pages/password/ForcePasswordChangePage'
 import { GuidePage } from './pages/help/GuidePage'
+import { SupportPage } from './pages/help/SupportPage'
 import { LineUsersPage } from './pages/line-users/LineUsersPage'
 import { LoginPage } from './pages/login/LoginPage'
 import { NotificationsPage } from './pages/notifications/NotificationsPage'
@@ -72,7 +73,7 @@ import {
  *
  * The prototype's `DESIGNED` map is the same idea, and the reason it is a map rather than a
  * branch inside the loop is that this is the ONE place the two populations are distinguished —
- * so "which of the 26 are built (25 built, 1 coming soon — ติดต่อฝ่ายเทคนิค)?" is answerable by reading a
+ * so "which of the 26 are built (26 built, 0 coming soon)?" is answerable by reading a
  * single object.
  */
 const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElement>> = {
@@ -133,6 +134,10 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   // filtered by the ACL AND by this very map (`isDesigned`), so it can never offer a button into a
   // stand-in — the guide asks "is this label in DESIGNED?" at render time, hence the lazy callback.
   คู่มือการใช้งาน: (route) => <GuidePage route={route} isDesigned={(label) => label in DESIGNED} />,
+  // The 26th and last. Reachable by all three roles (not in `VIEWER_DENY`): health tiles from the two
+  // existing system endpoints, a public Discord invite, and an incident form the backend relays to the
+  // dev team's Discord. Renamed 5 ต.ค. 2569 (it used to name an in-school technical department).
+  ติดต่อทีมผู้พัฒนา: (route) => <SupportPage route={route} />,
 }
 
 /**
