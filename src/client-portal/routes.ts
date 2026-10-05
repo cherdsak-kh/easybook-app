@@ -19,7 +19,7 @@
  * gate in silence.
  */
 
-/** Every screen in the portal. 20 of them, matching `PAGE_INDEX.md` §1. */
+/** Every screen in the portal. 19 of them, matching `PAGE_INDEX.md` §1. */
 export type ScreenName =
   | 'gate'
   | 'gate-error'
@@ -40,7 +40,6 @@ export type ScreenName =
   | 'issues'
   | 'version'
   | 'manual'
-  | 'rules'
 
 /**
  * What the four boot checks concluded. These are the eleven values `ALLOWED_SCREENS` is keyed by
@@ -107,7 +106,6 @@ const SEGMENT_SCREEN: Record<string, ScreenName> = {
   issues: 'issues',
   version: 'version',
   manual: 'manual',
-  rules: 'rules',
 }
 
 /**
@@ -134,7 +132,7 @@ export function screenOf(pathname: string): ScreenName | null {
  * ⚠️ `venue` / `request` / `sent` are permitted but dockless: they are steps in a flow with one
  * way in and one way out, and a nav bar there invites abandoning a half-filled form.
  *
- * ⚠️ `issues` `version` `manual` `rules` KEEP the dock even though none is a tab. They are
+ * ⚠️ `issues` `version` `manual` KEEP the dock even though none is a tab. They are
  * *reading destinations* reached from Settings, not steps with state in progress — somebody who
  * opened the manual and now wants the home screen should not have to walk back out first.
  *
@@ -156,7 +154,6 @@ export const NAV_SCREENS: readonly ScreenName[] = [
   'settings',
   'version',
   'manual',
-  'rules',
 ]
 
 /**
@@ -176,7 +173,6 @@ export const ALLOWED_SCREENS: Record<GateAccess, readonly ScreenName[]> = {
     'settings',
     'version',
     'manual',
-    'rules',
     'venue',
     'request',
     'sent',
@@ -231,7 +227,6 @@ export const NAV_TAB: Partial<Record<ScreenName, string>> = {
   version: '/settings',
   issues: '/settings',
   manual: '/settings',
-  rules: '/settings',
 }
 
 /** The four dock tabs, in order. Icons are Lucide names from `icons/licon.ts`. */

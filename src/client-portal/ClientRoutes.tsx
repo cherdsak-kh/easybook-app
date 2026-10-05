@@ -17,7 +17,7 @@ import { BookingRequestPage } from './pages/request/BookingRequestPage'
 import { BookingSentPage } from './pages/request/BookingSentPage'
 import { IssuesPage } from './pages/settings/IssuesPage'
 import { SettingsPage } from './pages/settings/SettingsPage'
-import { ManualPage, RulesPage } from './pages/settings/SubScreenTemplate'
+import { ManualPage } from './pages/settings/SubScreenTemplate'
 import { VersionPage } from './pages/settings/VersionPage'
 import { VenueDetailPage } from './pages/venues/VenueDetailPage'
 import { VenuesCatalogPage } from './pages/venues/VenuesCatalogPage'
@@ -26,7 +26,7 @@ import { useResolvedTheme } from '@/hooks/useResolvedTheme'
 import type { ScreenName } from './routes'
 
 /**
- * The client LIFF surface: twenty routes, one shell, one gate.
+ * The client LIFF surface: nineteen routes, one shell, one gate.
  *
  * ── ⚠️ THE ROUTES ARE MAPPED, NEVER HAND-LISTED ──
  * The same rule the back-office follows for its 31: a hand-written `<Route>` list is a second
@@ -34,7 +34,7 @@ import type { ScreenName } from './routes'
  * works while every table says the screen does not exist. Adding a destination means adding a row
  * here and a segment to `SEGMENT_SCREEN` in `routes.ts`, and nothing else.
  *
- * ── `COMING_SOON` is the answer to "which of the twenty are NOT real yet?" ──
+ * ── `COMING_SOON` is the answer to "which of the nineteen are NOT real yet?" ──
  * **None, after Phase 7b.** Eighteen in Phase 2, then six deleted by Phase 3 and the rest by
  * Phases 4–7b: `#/home` was the last row and 7b wrote it out. The table has shrunk to nothing
  * exactly as designed, and the file is now the plain route list it was always heading for.
@@ -58,7 +58,7 @@ import type { ScreenName } from './routes'
 type Stand = { path: string; screen: ScreenName; backTo: string; backLabel: string }
 
 /**
- * 🔴 **EMPTY — the twenty screens are all real.** Phase 7b wrote out `#/home`, the last stand-in,
+ * 🔴 **EMPTY — the nineteen screens are all real.** Phase 7b wrote out `#/home`, the last stand-in,
  * so this renders nothing and the `.map()` below emits no routes.
  *
  * ⚠️ THE `TO_VENUES` CONSTANT WENT WITH THE ROW THAT USED IT, because `noUnusedLocals` leaves no
@@ -161,7 +161,6 @@ export function ClientRoutes() {
           <Route path="/version" element={<VersionPage />} />
           <Route path="/issues" element={<IssuesPage />} />
           <Route path="/manual" element={<ManualPage />} />
-          <Route path="/rules" element={<RulesPage />} />
 
           {COMING_SOON.map((route) => (
             <Route

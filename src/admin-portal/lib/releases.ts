@@ -53,6 +53,18 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '1.1.2',
+    date: '5 ต.ค. 2569',
+    groups: [
+      {
+        t: 'ปรับปรุง',
+        items: [
+          'ปรับโครงสร้างเมนูระบบฝั่งผู้ใช้ (Client Portal Navigation Cleanup) — นำหน้า "ระเบียบและข้อกำหนดการใช้สถานที่" ออกจากเมนูบริการและความช่วยเหลือในหน้าตั้งค่าของระบบจองผ่าน LINE เพื่อลดเมนูที่ยังอยู่ระหว่างการพัฒนาและกระชับการนำทาง',
+        ],
+      },
+    ],
+  },
+  {
     v: '1.1.1',
     date: '5 ต.ค. 2569',
     groups: [

@@ -54,6 +54,18 @@ export interface Release {
 /** Newest first. `VersionPage` relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '1.1.2',
+    date: '5 ต.ค. 2569',
+    groups: [
+      {
+        t: 'ปรับปรุง',
+        items: [
+          'ปรับโครงสร้างเมนูบริการและความช่วยเหลือ — นำหน้า "ระเบียบและข้อกำหนดการใช้สถานที่" ออกจากหน้าตั้งค่า เพื่อลดความซ้ำซ้อนและกระชับการนำทางให้ตรงกับฟังก์ชันที่เปิดใช้งานจริง',
+        ],
+      },
+    ],
+  },
+  {
     v: '1.0.0',
     date: '25 ก.ย. 2569',
     groups: [

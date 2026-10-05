@@ -16,7 +16,7 @@ import { Breadcrumbs, type Crumb } from './Breadcrumbs'
  * ── Two tiers or one, decided by whether there are breadcrumbs ──
  * The one-tier form (`#/home`, `#/settings`, `#/venues`, `#/bookings`) is a title, optionally
  * with a subtitle, over `pt-safe`. The two-tier form (`#/booking/:id`, `#/issues`, `#/manual`,
- * `#/rules`, `#/version`) puts a breadcrumb row above the title with its own hairline divider,
+ * `#/version`) puts a breadcrumb row above the title with its own hairline divider,
  * over `pt-safe-lg` — the extra 8px top is a measured fix for those screens reading cramped at
  * 49px with a single line squeezed between 12px above and below.
  *

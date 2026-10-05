@@ -2,8 +2,9 @@ import { UnderConstruction } from '@/client-portal/components/feedback/UnderCons
 import { SCREEN_WIDTH, ScreenHeader } from '@/client-portal/components/ui/ScreenHeader'
 
 /**
- * `#/manual` · `#/rules` — the two settings sub-screens whose bodies are still pending. Prototype
- * 2094–2118 and 2120–2144, which are **two copies of one screen** differing only in their title.
+ * `#/manual` — the one settings sub-screen whose body is still pending. Prototype
+ * 2094–2118 and 2120–2144, which were **two copies of one screen** differing only in their title
+ * (the other has since been decommissioned).
  * (`#/issues` used to be the third; it is a real form now, in `IssuesPage.tsx`.)
  *
  * ── 🔴 ONE FRAME, TWO TITLES, BECAUSE THE PROTOTYPE IS ONE SHAPE TWICE ──
@@ -30,16 +31,16 @@ import { SCREEN_WIDTH, ScreenHeader } from '@/client-portal/components/ui/Screen
  */
 export function SettingsSubScreen({ title }: { title: string }) {
   return (
-    /* ⚠️ NO `pad-nav` ON THIS SECTION, AND THAT IS THE POINT. Both keep the dock
-       (`NAV_SCREENS` lists them) and highlight the ตั้งค่า tab, so room genuinely does have to be
+    /* ⚠️ NO `pad-nav` ON THIS SECTION, AND THAT IS THE POINT. `#/manual` keeps the dock
+       (`NAV_SCREENS` lists it) and highlight the ตั้งค่า tab, so room genuinely does have to be
        reserved under the content for the floating pill — but `LiffShell` is the SINGLE AUTHORITY
        for that clearance (`LiffShell.tsx:21–28`): it applies `.pad-nav` on the very same condition
        it draws the dock on, so every dock screen is covered without asking, and a screen can no
        longer forget it. 🔴 RE-ADD IT HERE AND IT MEASURES 0px TODAY — that is a delayed fuse, not
-       a reprieve. These two bodies are `UnderConstruction` placeholders that fit the viewport,
+       a reprieve. This body is an `UnderConstruction` placeholder that fits the viewport,
        and `min-h-dvh` + border-box absorbs the section's own `padding-bottom` inside its
-       min-height, so a duplicate is invisible while the content is short. The moment either of
-       the two carries real content that overflows, the second 7rem + safe-area inset starts costing
+       min-height, so a duplicate is invisible while the content is short. The moment it
+       carries real content that overflows, the second 7rem + safe-area inset starts costing
        112px where that inset is 0, ~146px on an iPhone — exactly what the five taller dock screens
        were paying (`claude_planning/fix/20260909_1715_client_dock_double_pad_nav/`). `#/venues` and
        `#/bookings` carry none either — the same pairing as before, read the other way round. */
@@ -58,9 +59,4 @@ export function SettingsSubScreen({ title }: { title: string }) {
 /** `#/manual` — the user manual, once somebody writes one. */
 export function ManualPage() {
   return <SettingsSubScreen title="คู่มือการใช้งานระบบ" />
-}
-
-/** `#/rules` — the organisation's venue-use rules, once somebody writes them. */
-export function RulesPage() {
-  return <SettingsSubScreen title="ระเบียบและข้อกำหนดการใช้สถานที่" />
 }

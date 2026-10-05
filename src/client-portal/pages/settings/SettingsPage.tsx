@@ -72,16 +72,15 @@ const THEMES: readonly { value: ThemeChoice; label: string; icon: LIconName }[] 
   { value: 'system', label: 'ตามระบบ', icon: 'monitor' },
 ]
 
-/** The three help destinations. Same shape, same arrow, and since 1 ก.ย. 2569 the same behaviour. */
+/** The two help destinations. Same shape, same arrow, and since 1 ก.ย. 2569 the same behaviour. */
 const HELP_LINKS: readonly { to: string; label: string; icon: LIconName }[] = [
   { to: '/issues', label: 'แจ้งปัญหา / ข้อเสนอแนะ', icon: 'circleAlert' },
   { to: '/manual', label: 'คู่มือการใช้งานระบบ', icon: 'bookOpen' },
-  { to: '/rules', label: 'ระเบียบและข้อกำหนดการใช้สถานที่', icon: 'fileText' },
 ]
 
 /**
- * The class list every tappable row in this screen shares — three help rows and the version-history
- * row. Copied from the prototype (1905) and kept in one constant so the four cannot drift apart.
+ * The class list every tappable row in this screen shares — two help rows and the version-history
+ * row. Copied from the prototype (1905) and kept in one constant so the three cannot drift apart.
  *
  * ⚠️ `<Link>`, WHERE THE PROTOTYPE WRITES `<button data-go>`. A static file has no router, so a
  * button running `location.hash = …` was its only option; here a router `Link` renders a real

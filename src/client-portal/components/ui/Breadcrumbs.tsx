@@ -8,9 +8,9 @@ import { Link } from 'react-router-dom'
  * browser history. Breadcrumbs do something a back arrow cannot: they NAME the destination they
  * return to. That is what lets them sit alongside LIFF's own control without the two arguing.
  *
- * Used by seven screens: `#/version` `#/issues` `#/manual` `#/rules` `#/booking/:id` (all five
+ * Used by six screens: `#/version` `#/issues` `#/manual` `#/booking/:id` (all four
  * through `ScreenHeader`'s two-tier form) plus `#/venue/:id` and `#/request/:id`, which build
- * their own two-tier header and call this directly. Four call sites, seven screens.
+ * their own two-tier header and call this directly. Four call sites, six screens.
  *
  * ⚠️ The LAST crumb is the current screen and is deliberately not a link. It is rendered with
  * full `text-base-content` while the trail around it is dimmed by the container, so "where you
@@ -26,7 +26,7 @@ import { Link } from 'react-router-dom'
  * had no exception recorded anywhere, so it was fixed rather than written down.
  *
  * The obvious fix — `min-h-11` on the crumbs and nothing else — was **measured and rejected**:
- * tier 1 of the sticky header went **47 → 75 px**, taking `#/manual` `#/rules` `#/issues` from
+ * tier 1 of the sticky header went **47 → 75 px**, taking `#/manual` `#/issues` from
  * 96.75 to **124.75 px** and `#/version` from 114.75 to **142.75 px**. That moves the content
  * start of all seven screens and invalidates geometry already measured against the prototype.
  *
