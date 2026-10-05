@@ -54,6 +54,18 @@ export interface Release {
 /** Newest first. `VersionPage` relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '1.2.0',
+    date: '5 ต.ค. 2569',
+    groups: [
+      {
+        t: 'ใหม่',
+        items: [
+          'เพิ่ม "คู่มือการใช้งานระบบ" ในหน้าตั้งค่า — เริ่มต้นจองสถานที่ได้ใน 3 ขั้นตอน เลือกอ่านคำถามที่พบบ่อยแยกตามหมวด (ขั้นตอนการจอง การติดตามและยกเลิก การแจ้งปัญหา) และโทรหาเจ้าหน้าที่ได้ทันทีเมื่อยังหาคำตอบไม่เจอ',
+        ],
+      },
+    ],
+  },
+  {
     v: '1.1.2',
     date: '5 ต.ค. 2569',
     groups: [

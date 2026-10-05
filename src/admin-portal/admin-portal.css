@@ -2169,6 +2169,32 @@ details[open] .chev { transform: rotate(180deg); }
   [data-rpe-sheet] thead { display: table-header-group; }
   [data-rpe-sheet] tr, [data-rpe-sheet] .rpe-sign { break-inside: avoid; }
   [data-rpe-sheet] h3 { break-after: avoid; }
+
+  /* คู่มือการใช้งาน — print. Only the active article card (`data-gd-print`) reaches paper, with the
+     same two rules as the report sheet above and its own marker so neither can leak into the other:
+     anything that neither CONTAINS the card nor IS or is INSIDE it is removed (sidebar, topbar, the
+     topic menu, the toolbar, toasts), and everything that contains it is flattened to a plain block,
+     because the shell's grid, fixed heights and overflow would clip page two onward. The pager is a
+     screen control, so it goes too. The marker exists only while the guide route is mounted, so
+     Ctrl+P anywhere else prints as before. Paper is always the light theme: the page puts a light
+     data-theme on the card for the duration of the print (see GuidePage). */
+  body:has([data-gd-print]) :not(:has([data-gd-print])):not([data-gd-print]):not([data-gd-print] *) {
+    display: none !important;
+  }
+  body:has([data-gd-print]) :has([data-gd-print]) {
+    display: block !important; position: static !important; inset: auto !important;
+    width: auto !important; min-width: 0 !important; max-width: none !important;
+    height: auto !important; min-height: 0 !important; max-height: none !important;
+    overflow: visible !important; margin: 0 !important; padding: 0 !important;
+    border: 0 !important; border-radius: 0 !important; background: none !important;
+    box-shadow: none !important; transform: none !important;
+  }
+  body:has([data-gd-print]) [data-gd-print] {
+    border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: #fff !important;
+  }
+  body:has([data-gd-print]) [data-gd-print] [data-gd-pager] { display: none !important; }
+  body:has([data-gd-print]) [data-gd-print] :is(section, tr, li) { break-inside: avoid; }
+  body:has([data-gd-print]) [data-gd-print] h3 { break-after: avoid; }
 }
 
 /* C-6 — `table rp-table act-table`: Hub 5 and Hub 6's tables. UNLAYERED + SCOPED like C-2, and one

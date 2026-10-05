@@ -38,6 +38,7 @@ import { DashboardPage } from './pages/dashboard/DashboardPage'
 import { FeedbackPage } from './pages/feedback/FeedbackPage'
 import { IntegrationsPage } from './pages/settings/IntegrationsPage'
 import { ForcePasswordChangePage } from './pages/password/ForcePasswordChangePage'
+import { GuidePage } from './pages/help/GuidePage'
 import { LineUsersPage } from './pages/line-users/LineUsersPage'
 import { LoginPage } from './pages/login/LoginPage'
 import { NotificationsPage } from './pages/notifications/NotificationsPage'
@@ -71,7 +72,8 @@ import {
  *
  * The prototype's `DESIGNED` map is the same idea, and the reason it is a map rather than a
  * branch inside the loop is that this is the ONE place the two populations are distinguished —
- * so "which of the 26 are built (24 built, 2 coming soon)?" is answerable by reading a single object.
+ * so "which of the 26 are built (25 built, 1 coming soon — ติดต่อฝ่ายเทคนิค)?" is answerable by reading a
+ * single object.
  */
 const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElement>> = {
   // `Q1`'s `HOME_PATH` — where every sign-in lands. Reports & dashboard phase 1 (feature
@@ -127,6 +129,10 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   // Reachable by all three roles (not in `VIEWER_DENY`); VIEWER's writes here touch only its own
   // receipts — read state and "delete for me" (Phase 1 D-3).
   'ดูการแจ้งเตือนทั้งหมด': (route) => <NotificationsPage route={route} />,
+  // Reachable by all three roles (not in `VIEWER_DENY`). Static SOP content; its deep links are
+  // filtered by the ACL AND by this very map (`isDesigned`), so it can never offer a button into a
+  // stand-in — the guide asks "is this label in DESIGNED?" at render time, hence the lazy callback.
+  คู่มือการใช้งาน: (route) => <GuidePage route={route} isDesigned={(label) => label in DESIGNED} />,
 }
 
 /**

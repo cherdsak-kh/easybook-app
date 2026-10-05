@@ -5,10 +5,10 @@ import { LIcon } from '@/client-portal/icons/LucideIcon'
  * The placeholder card for a screen that exists in the navigation but not yet in the product.
  * Prototype 1678–1688 (`#/issues`) and the twin at 2094–2165.
  *
- * Used by `#/issues` and `#/manual` — two destinations `#/settings` links to and
- * that `Q-C5` keeps out of scope for this build. They are real routes with real headers and real
- * breadcrumbs precisely so that following the link does not look broken; only the body is
- * pending.
+ * Used by `ComingSoonScreen` (and the showcase). `#/issues` and `#/manual` used to be its two
+ * callers and both are real screens now; what remains is any destination that is in the
+ * navigation but not yet in the product, which is real route + real header + a body that says so
+ * precisely so that following the link does not look broken.
  *
  * ⚠️ `hammer`, NOT `clock`. `clock` already means "the time an activity runs" in the home card
  * and in the request form. Two clocks meaning different things in one app is a collision with
