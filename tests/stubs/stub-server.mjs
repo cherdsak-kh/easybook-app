@@ -1761,7 +1761,6 @@ const NOTIF_GO = {
   feedback: '/backend/feedback',
   venues: '/backend/venues',
   errorLog: '/backend/reports/error-log',
-  bookingSettings: '/backend/settings/booking',
   version: '/backend/help/version',
 };
 
@@ -1827,9 +1826,9 @@ const NOTIF_SEED_SPECS = [
     body: 'สุมาลี พงษ์เจริญ · ครูชำนาญการพิเศษ · กลุ่มสาระการเรียนรู้คณิตศาสตร์ · สิทธิ์เดิม: อนุมัติแล้ว · ยังมีคำขอจองค้างอยู่ 1 รายการ',
     actionLabel: 'ดูข้อมูลผู้ใช้', actionUrl: NOTIF_GO.registrations },
   { days: 15, category: 'SYSTEM', tone: 'SLATE', icon: 'adjustments-horizontal', targetRole: 'ADMIN',
-    title: 'แก้ไขการตั้งค่าระบบการจอง',
-    body: 'เกณฑ์เวลายกเลิกการจองล่วงหน้า 30 นาที → 60 นาที · แก้ไขโดย เชิดศักดิ์ คำไล้ · ผู้ดูแลระบบ · ฝ่ายเทคโนโลยีสารสนเทศ',
-    actionLabel: 'ไปที่หน้าตั้งค่า', actionUrl: NOTIF_GO.bookingSettings },
+    title: 'แก้ไขการตั้งค่าการเชื่อมต่อระบบ',
+    body: 'อัปเดตการตั้งค่าการเชื่อมต่อ LINE Official Account และ Webhook สำเร็จ · แก้ไขโดย เชิดศักดิ์ คำไล้ · ผู้ดูแลระบบ · ฝ่ายเทคโนโลยีสารสนเทศ',
+    actionLabel: 'ไปที่หน้าตั้งค่า', actionUrl: NOTIF_GO.integrations },
   { days: 68, category: 'SYSTEM', tone: 'EMERALD', icon: 'sparkles', targetRole: 'ALL',
     title: 'อัปเดตระบบเป็นเวอร์ชัน v0.7.0',
     body: 'เพิ่มหน้าจัดการคำขอจองและตัวกรองสถานที่ · แก้ไขการแจ้งเตือนซ้ำเมื่ออนุมัติต่อเนื่อง · รีเฟรชหน้าจอเพื่อใช้งานฟีเจอร์ใหม่',

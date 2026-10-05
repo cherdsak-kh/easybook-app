@@ -53,6 +53,18 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '1.1.1',
+    date: '5 ต.ค. 2569',
+    groups: [
+      {
+        t: 'ปรับปรุง',
+        items: [
+          'ปรับโครงสร้างการตั้งค่าระบบ (Clean System Settings Architecture) — ตัดเมนูและปลายทาง "ระบบการจอง" (/backend/settings/booking) ออกจากเมนูด้านข้างและเมนูตั้งค่าด้านบนของระบบหลังบ้าน เพื่อตัด Dead Link ที่ไม่มีฟอร์มจัดการจริงในระบบ โดยกลุ่มการตั้งค่าระบบคงเหลือเฉพาะรายการข้อมูลหลัก (Master Data) และการเชื่อมต่อภายนอกที่ใช้งานได้จริง 5 หมวดหมู่',
+        ],
+      },
+    ],
+  },
+  {
     v: '1.1.0',
     date: '5 ต.ค. 2569',
     groups: [

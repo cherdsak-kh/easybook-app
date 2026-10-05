@@ -25,7 +25,8 @@ import { matchRoutes } from 'react-router-dom'
  * the spec's 4-hub + divider + 2-log structure — a net loss of one row (30 → 29). The old rows'
  * exact wording is history now; see `claude_planning/feature/20260928_2040_reports_phase2_venues_and_operations/`
  * if it is ever needed. 27 since 4 ต.ค. 2569, when the two dead account rows (privacy and
- * notification settings) were removed. Which of the current 27 have a design is `DESIGNED` in `BackendRoutes.tsx`
+ * notification settings) were removed. 26 since 5 ต.ค. 2569, when the dead ระบบการจอง settings
+ * row was removed. Which of the current 26 have a design is `DESIGNED` in `BackendRoutes.tsx`
  * — the rest render the coming-soon stand-in, so it is impossible to walk this file and come away
  * thinking a screen exists when it does not.
  */
@@ -175,12 +176,6 @@ export const ADMIN_PORTAL_ROUTES = [
   },
 
   {
-    label: 'ระบบการจอง',
-    path: 'settings/booking',
-    group: 'การตั้งค่าระบบ',
-    desc: 'ตั้งค่าเงื่อนไขการจอง เช่น ช่วงเวลาและขั้นตอนการอนุมัติ',
-  },
-  {
     label: 'ประเภทสถานที่',
     path: 'settings/venue-types',
     group: 'การตั้งค่าระบบ',
@@ -277,7 +272,7 @@ export const ADMIN_PORTAL_ROUTES = [
 ] as const satisfies readonly AdminRoute[]
 
 /**
- * The 27 labels as a union type.
+ * The 26 labels as a union type.
  *
  * This is what makes `VIEWER_DENY` in `lib/use-acl.ts` impossible to typo. The prototype could
  * only warn about it in a comment — "a typo here is a menu row that never hides rather than a
