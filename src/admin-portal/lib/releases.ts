@@ -53,6 +53,18 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '1.2.1',
+    date: '5 ต.ค. 2569',
+    groups: [
+      {
+        t: 'แก้ไข',
+        items: [
+          'ปรับปรุงเวลาประสานงานฝ่ายอาคารสถานที่ในคู่มือการใช้งานระบบฝั่งผู้ใช้ ให้สอดคล้องกับเวลาปฏิบัติราชการ 08:30–16:30 น.',
+        ],
+      },
+    ],
+  },
+  {
     v: '1.2.0',
     date: '5 ต.ค. 2569',
     groups: [

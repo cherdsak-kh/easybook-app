@@ -18,7 +18,7 @@ import type { ReactNode } from 'react'
  * changes no contract, so it is ONE constant. When org settings land, replace this and nothing else.
  */
 export const OFFICER_CONTACT = {
-  hours: 'จันทร์–ศุกร์ 07:30–16:30 น.',
+  hours: 'จันทร์–ศุกร์ 08:30–16:30 น.',
   unit: 'ฝ่ายบริหารงานทั่วไป (งานอาคารสถานที่)',
   phoneDisplay: '086-705-2387',
   phoneHref: 'tel:0867052387',
