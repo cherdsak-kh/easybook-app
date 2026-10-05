@@ -56,18 +56,16 @@ import { AccountEditor } from '../staff/components/AccountEditor'
 import { routeOf, urlOf, type AdminRoute, type AdminRouteLabel } from '../../routes'
 
 /**
- * The four rows of การตั้งค่าของฉัน, BY LABEL — the same keys the route table uses, and typed, so
+ * The two rows of การตั้งค่าของฉัน, BY LABEL — the same keys the route table uses, and typed, so
  * renaming a menu row breaks the build rather than silently emptying this card.
  */
 const MINE: readonly AdminRouteLabel[] = [
   'เปลี่ยนรหัสผ่าน',
-  'ตั้งค่าการแจ้งเตือน',
-  'ความเป็นส่วนตัว',
   'ประวัติการเข้าสู่ระบบ',
 ]
 
 /**
- * Three of the four rows say exactly what the menu says, so they read their subtitle straight off
+ * One of the two rows says exactly what the menu says, so it reads its subtitle straight off
  * the route table and cannot drift from it. เปลี่ยนรหัสผ่าน is the one override, and the prototype
  * is deliberate about it: the menu answers "what is this page" ("ตั้งรหัสผ่านใหม่สำหรับบัญชีของคุณ")
  * while this card is a list of what you may change — where the fact worth knowing before you press
@@ -300,8 +298,7 @@ export function ProfilePage({ route }: { route: AdminRoute }) {
 
           {/* ══ การตั้งค่าของฉัน ══
               The other half of the rule: what the creating admin did NOT set is yours. The temp
-              password is replaced by you, and the notification and privacy preferences do not live
-              in `system_users` at all. Every one of them is its own screen with its own endpoint,
+              password is replaced by you. Both rows are their own screen with their own endpoint,
               so this card links rather than inlines. */}
           <Card className="overflow-hidden">
             <CardHead title="การตั้งค่าของฉัน" subtitle="ส่วนที่คุณปรับเองได้อย่างอิสระ" />

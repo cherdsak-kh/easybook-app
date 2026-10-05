@@ -14,7 +14,7 @@
  * history and turn "back" into a loop.
  *
  * As designed screens land in P3/P4 they replace their `ComingSoonPage` element one row at a
- * time — the prototype's `DESIGNED` map is that same idea, and the 24 undesigned destinations
+ * time — the prototype's `DESIGNED` map is that same idea, and the 2 undesigned destinations
  * keep rendering the stand-in until each is actually built.
  *
  * ⚠️ `LEGACY_REPORT_REDIRECTS` below (Phase 2, D-6) is a SEPARATE list, deliberately not rows in
@@ -44,6 +44,7 @@ import { NotificationsPage } from './pages/notifications/NotificationsPage'
 import { ChangePasswordPage } from './pages/password/ChangePasswordPage'
 import { OptionsPage } from './pages/options/OptionsPage'
 import { ProfilePage } from './pages/profile/ProfilePage'
+import { SessionsPage } from './pages/profile/SessionsPage'
 import { ActivityLogPage } from './pages/reports/ActivityLogPage'
 import { ErrorLogPage } from './pages/reports/ErrorLogPage'
 import { ExportPage } from './pages/reports/ExportPage'
@@ -70,7 +71,7 @@ import {
  *
  * The prototype's `DESIGNED` map is the same idea, and the reason it is a map rather than a
  * branch inside the loop is that this is the ONE place the two populations are distinguished —
- * so "which of the 30 are built?" is answerable by reading a single object.
+ * so "which of the 26 are built (24 built, 2 coming soon)?" is answerable by reading a single object.
  */
 const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElement>> = {
   // `Q1`'s `HOME_PATH` — where every sign-in lands. Reports & dashboard phase 1 (feature
@@ -96,6 +97,10 @@ const DESIGNED: Partial<Record<AdminRouteLabel, (route: AdminRoute) => ReactElem
   ข้อมูลเวอร์ชันระบบ: (route) => <VersionPage route={route} />,
   โปรไฟล์: (route) => <ProfilePage route={route} />,
   เปลี่ยนรหัสผ่าน: (route) => <ChangePasswordPage route={route} />,
+  // Reachable by all three roles (not in `VIEWER_DENY`) — a personal security view of the caller's OWN
+  // sessions and login history (feature `20261004_2055_login_sessions_and_revocation`). Its two writes
+  // are on the caller's own other devices, so nothing here is write-gated by role.
+  ประวัติการเข้าสู่ระบบ: (route) => <SessionsPage route={route} />,
   // FOUR labels, ONE component — see `OptionsPage`'s header and the comment in `routes.ts`.
   // The two venue vocabularies joined on 25 ส.ค. 2569; everything that differs between the four is
   // a string (or a null) in `option-model.ts`, never a branch in the page.

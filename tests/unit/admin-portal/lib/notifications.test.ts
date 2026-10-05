@@ -81,7 +81,7 @@ describe('actionTarget', () => {
     // ── Phase 2, AC-M7: บันทึกข้อผิดพลาด is now denied to ADMIN too, SUPER_ADMIN only ──
     ['error-log is denied for ADMIN too (Phase 2 ADMIN_DENY)', '/backend/reports/error-log', admin, null],
     ['error-log stays reachable for SUPER_ADMIN', '/backend/reports/error-log', superAdmin, '/backend/reports/error-log'],
-    ['a trailing slash still resolves the route (denied)', '/backend/settings/booking/', viewer, null],
+    ['a trailing slash still resolves the route (denied)', '/backend/settings/integrations/', viewer, null],
     ['an unknown path passes through for the router to 404', '/backend/no-such-page', viewer, '/backend/no-such-page'],
     ['another origin', 'https://evil.example/backend/x', admin, null],
     ['a protocol-relative URL', '//evil.example/backend/x', admin, null],

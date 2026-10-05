@@ -15,6 +15,8 @@
  *
  * Served (mirrors the real `@Roles` on each):
  *   - auth/system/{csrf,me,logout}          — always answers; no VIEWER distinction
+ *   - auth/system/{sessions,login-history}  — every role; E2/E3 + `system-users/:id/{sessions,
+ *                                             revoke-sessions}` mirror CSRF and `@Roles(SUPER_ADMIN)`
  *   - GET  venues                           — SUPER_ADMIN|ADMIN|VIEWER
  *   - GET  departments / personnel-roles    — SUPER_ADMIN|ADMIN only (VIEWER 403, real contract)
  *   - GET  venue-types / amenities          — SUPER_ADMIN|ADMIN only (VIEWER 403, real contract)
@@ -106,6 +108,11 @@
  *                                                            — force the notification page and the
  *                                                              topbar bell: the reads, the writes,
  *                                                              the D-14 fixtures, the pager
+ *   POST /__control/sessions      { sessionsMode?, historyMode?, revokeMode?, staffMode?,
+ *                                   csrfMode?, selfRow?, reset? }
+ *                                                            — login history & session revocation
+ *                                                              (E1–E6, `login-sessions-stub.mjs`: its
+ *                                                              header lists the modes and the E5 log)
  *   POST /__control/reset                                     — restore the seeds, the version,
  *                                                              every announcement and canned mode,
  *                                                              and the notifications (rows, every
@@ -302,6 +309,7 @@
  */
 import express from 'express';
 import { registerReportsPhase3 } from './reports-phase3-stub.mjs';
+import { registerLoginSessions } from './login-sessions-stub.mjs';
 import cors from 'cors';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -759,6 +767,13 @@ app.get('/api/v1/system-users/:id', (req, res) => {
   const u = SYSTEM_USERS.find((x) => x.id === req.params.id);
   if (!u) return res.status(404).json({ statusCode: 404, message: 'System user not found.' });
   res.json(u);
+});
+
+/* ── login sessions & history (E1–E6): mirrors `@Roles` and the DTO shapes; see the module header ── */
+const loginSessions = registerLoginSessions(app, {
+  getRole: () => role,
+  csrfToken: CSRF_TOKEN,
+  systemUsers: SYSTEM_USERS,
 });
 
 /* ── booking requests ──────────────────────────────────────────────────── */
@@ -1746,7 +1761,6 @@ const NOTIF_GO = {
   feedback: '/backend/feedback',
   venues: '/backend/venues',
   errorLog: '/backend/reports/error-log',
-  bookingSettings: '/backend/settings/booking',
   version: '/backend/help/version',
 };
 
@@ -1812,9 +1826,9 @@ const NOTIF_SEED_SPECS = [
     body: 'สุมาลี พงษ์เจริญ · ครูชำนาญการพิเศษ · กลุ่มสาระการเรียนรู้คณิตศาสตร์ · สิทธิ์เดิม: อนุมัติแล้ว · ยังมีคำขอจองค้างอยู่ 1 รายการ',
     actionLabel: 'ดูข้อมูลผู้ใช้', actionUrl: NOTIF_GO.registrations },
   { days: 15, category: 'SYSTEM', tone: 'SLATE', icon: 'adjustments-horizontal', targetRole: 'ADMIN',
-    title: 'แก้ไขการตั้งค่าระบบการจอง',
-    body: 'เกณฑ์เวลายกเลิกการจองล่วงหน้า 30 นาที → 60 นาที · แก้ไขโดย เชิดศักดิ์ คำไล้ · ผู้ดูแลระบบ · ฝ่ายเทคโนโลยีสารสนเทศ',
-    actionLabel: 'ไปที่หน้าตั้งค่า', actionUrl: NOTIF_GO.bookingSettings },
+    title: 'แก้ไขการตั้งค่าการเชื่อมต่อระบบ',
+    body: 'อัปเดตการตั้งค่าการเชื่อมต่อ LINE Official Account และ Webhook สำเร็จ · แก้ไขโดย เชิดศักดิ์ คำไล้ · ผู้ดูแลระบบ · ฝ่ายเทคโนโลยีสารสนเทศ',
+    actionLabel: 'ไปที่หน้าตั้งค่า', actionUrl: NOTIF_GO.integrations },
   { days: 68, category: 'SYSTEM', tone: 'EMERALD', icon: 'sparkles', targetRole: 'ALL',
     title: 'อัปเดตระบบเป็นเวอร์ชัน v0.7.0',
     body: 'เพิ่มหน้าจัดการคำขอจองและตัวกรองสถานที่ · แก้ไขการแจ้งเตือนซ้ำเมื่ออนุมัติต่อเนื่อง · รีเฟรชหน้าจอเพื่อใช้งานฟีเจอร์ใหม่',
@@ -2678,6 +2692,8 @@ app.post('/__control/reset', (_req, res) => {
   INTEG = INTEG_DEFAULTS();
   // …and การแจ้งเตือน: a forced `error` or a VIEWER's dismissals must not leak into the next check.
   notifReset();
+  // …and the login sessions: the seeded devices and history, every mode, and the force sign-outs.
+  loginSessions.reset();
   res.json({
     ok: true,
     rows: ROWS.length,

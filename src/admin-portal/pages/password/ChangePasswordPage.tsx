@@ -24,14 +24,15 @@
  * ── The aside is not filler ──
  * Both of its first two lines answer a question the operator WILL have and would otherwise answer
  * wrongly by guessing. The second is the uncomfortable one and is why the card exists at all:
- * `easybook-service` has no session-revocation machinery, so changing your password does NOT evict
- * anyone already signed in as you. Someone changing their password because they suspect a
- * compromise is doing it to kick an intruder out, and here that does not happen. A screen that
- * stays quiet about that is letting them believe they are safe.
+ * changing your password does NOT evict anyone already signed in as you. Someone changing their
+ * password because they suspect a compromise is doing it to kick an intruder out, and here that
+ * does not happen on its own. A screen that stays quiet about that is letting them believe they are
+ * safe. Since LOGIN-SESSIONS-1 there IS a way to do it — ประวัติการเข้าสู่ระบบ ends other devices on
+ * request — so the line now says where, with a link, instead of saying it cannot be done.
  */
 
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, type ReactNode } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { ApiError, changeOwnPassword } from '@/lib/api-client'
 import { InlineAlert } from '../../components/feedback/InlineAlert'
 import { PageHeading } from '../../components/shell/PageHeading'
@@ -57,15 +58,38 @@ const MSG = {
   saved: 'เปลี่ยนรหัสผ่านเรียบร้อย',
 } as const
 
+/**
+ * The in-app address of ประวัติการเข้าสู่ระบบ, looked up by label so renaming the menu row breaks the
+ * build rather than the link. A real `<Link>`: middle-click and "copy link address" keep working, and
+ * navigation stays in the SPA.
+ */
+const SESSIONS_ROUTE = routeOf('ประวัติการเข้าสู่ระบบ')
+
 /** The three notes in the aside. `d` is the 24×24 outline path. */
-const AFTER: readonly { d: string; text: string }[] = [
+const AFTER: readonly { d: string; text: ReactNode }[] = [
   {
     d: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
     text: 'คุณจะไม่ถูกออกจากระบบ ใช้งานต่อได้ทันทีโดยไม่ต้องเข้าสู่ระบบใหม่ และครั้งถัดไปให้ใช้รหัสผ่านใหม่',
   },
   {
     d: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z',
-    text: 'อุปกรณ์อื่นที่เข้าสู่ระบบบัญชีนี้อยู่จะไม่ถูกออกจากระบบ ระบบยังไม่รองรับการยกเลิกเซสชันจากระยะไกล หากสงสัยว่ามีผู้อื่นเข้าถึงบัญชีของคุณ ให้ติดต่อผู้ดูแลระบบ',
+    text: (
+      <>
+        อุปกรณ์อื่นที่เข้าสู่ระบบบัญชีนี้อยู่จะไม่ถูกออกจากระบบโดยอัตโนมัติ
+        หากต้องการให้อุปกรณ์อื่นออกจากระบบ คุณสามารถจัดการได้ที่หน้า{' '}
+        {SESSIONS_ROUTE ? (
+          <Link
+            to={urlOf(SESSIONS_ROUTE)}
+            className="font-medium text-primary underline underline-offset-2"
+          >
+            ประวัติการเข้าสู่ระบบ
+          </Link>
+        ) : (
+          'ประวัติการเข้าสู่ระบบ'
+        )}{' '}
+        หรือติดต่อผู้ดูแลระบบ
+      </>
+    ),
   },
   {
     d: 'M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z',

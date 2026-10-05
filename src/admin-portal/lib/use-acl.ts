@@ -45,7 +45,6 @@ import type { AdminRouteLabel } from '../routes'
  * สถิติตามฝ่ายและการดำเนินงาน).
  */
 export const VIEWER_DENY: readonly AdminRouteLabel[] = [
-  'ระบบการจอง',
   'ประเภทสถานที่',
   'สิ่งอำนวยความสะดวก',
   'กลุ่ม/ฝ่ายบุคลากร',
