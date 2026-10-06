@@ -20,6 +20,15 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 /** Every mounted menu's close function. */
 const OPEN_MENUS = new Set<() => void>()
 
+/**
+ * Close every open popup menu. For something that is about to cover the screen — the command
+ * palette — and would otherwise leave a menu hanging behind its scrim, racing it for Escape.
+ * Each menu's own `close` runs, so `aria-expanded` and focus rescue behave as for an outside click.
+ */
+export function closeAllMenus(): void {
+  OPEN_MENUS.forEach((close) => close())
+}
+
 export interface PopupMenu {
   open: boolean
   close: () => void

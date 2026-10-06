@@ -190,7 +190,14 @@ export function PageHeading({
           </nav>
         )}
 
-        <h1 className="text-[18px] font-semibold text-base-content th-tight sm:text-[22px]">
+        {/* `tabIndex={-1}`: the command palette focuses this after it navigates, so a keyboard user
+            lands on the new page's heading. Programmatic focus only — it is not in the Tab order.
+            `focus:outline-none` (a plain utility, never `@apply`) because a heading is not a
+            control and a ring on it reads as a stray selection. */}
+        <h1
+          tabIndex={-1}
+          className="text-[18px] font-semibold text-base-content th-tight focus:outline-none sm:text-[22px]"
+        >
           {title ?? route.label}
           {titleExtra}
         </h1>

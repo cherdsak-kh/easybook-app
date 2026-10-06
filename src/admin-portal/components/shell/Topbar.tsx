@@ -1,5 +1,5 @@
 /**
- * The topbar: global search, then the utility cluster — theme, settings shortcut, bell, a
+ * The topbar: the command-palette trigger, then the utility cluster — theme, settings shortcut, bell, a
  * divider, and the account control.
  *
  * Order left→right is appearance, configuration, alerts, then identity. **The account control is
@@ -17,15 +17,16 @@
  * A permanent banner is what you reach for when nothing local can carry the message.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { CommandPalette } from './CommandPalette'
 import { NavIcon } from './nav-icons'
 import { NotifGlyph } from './notif-icons'
 import { NotifReadAll, NotifRow } from './NotifRow'
 import { Skeleton } from '../feedback/Skeleton'
 import { Avatar } from '../ui/Avatar'
 import type { SidebarUser } from './Sidebar'
-import { usePopupMenu } from '../../lib/use-popup-menu'
+import { closeAllMenus, usePopupMenu } from '../../lib/use-popup-menu'
 import {
   TONE_KEY,
   actionTarget,
@@ -136,6 +137,12 @@ const ACCOUNT_LABELS: readonly AdminRouteLabel[] = [
   'ประวัติการเข้าสู่ระบบ',
 ]
 
+/**
+ * The palette must not open over something that owns the keyboard — a native modal, whose own
+ * Escape handling would fight ours. `dialog[open]` includes the session-expired dialog.
+ */
+const dialogIsOpen = () => document.querySelector('dialog[open]') !== null
+
 export function Topbar({
   me,
   onLogout,
@@ -204,6 +211,60 @@ export function Topbar({
 
   const notifRoute = ADMIN_PORTAL_ROUTES.find((r) => r.label === 'ดูการแจ้งเตือนทั้งหมด')!
 
+  // ── Command palette ──────────────────────────────────────────────────────
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  /** `restoreFocus`: Escape, backdrop and the close button return to the trigger; a CHOICE does not. */
+  const closePalette = useCallback((restoreFocus: boolean) => {
+    setPaletteOpen(false)
+    if (restoreFocus) triggerRef.current?.focus()
+  }, [])
+
+  const openPalette = () => {
+    if (paletteOpen || dialogIsOpen()) return
+    // An open topbar menu would otherwise survive behind the scrim and race it for Escape.
+    closeAllMenus()
+    setPaletteOpen(true)
+  }
+
+  // Ctrl/Cmd+K toggles; "/" opens. Bubble phase on `document`; the palette's own Escape/Tab
+  // listener is capture-phase and only exists while it is open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // `code`, not only `key`: on a Thai layout `key` is ก/า, so Ctrl+K reports a different letter.
+      const isK =
+        (e.ctrlKey || e.metaKey) &&
+        !e.altKey &&
+        !e.shiftKey &&
+        (e.code === 'KeyK' || e.key?.toLowerCase() === 'k')
+      if (isK) {
+        if (paletteOpen) {
+          e.preventDefault()
+          closePalette(true)
+        } else if (!dialogIsOpen()) {
+          e.preventDefault()
+          closeAllMenus()
+          setPaletteOpen(true)
+        } // else leave the browser's own Ctrl+K alone
+        return
+      }
+      if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+      if (e.key !== '/' && e.code !== 'Slash') return
+      if (paletteOpen) return
+      const t = e.target as HTMLElement | null
+      const tag = t?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t?.isContentEditable) return
+      if (dialogIsOpen()) return
+      // Only when it actually opened, or the "/" would be typed into the field we just focused.
+      e.preventDefault()
+      closeAllMenus()
+      setPaletteOpen(true)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [paletteOpen, closePalette])
+
   return (
     <header className="mb-3 flex shrink-0 items-center gap-3 rounded-card border border-base-300/70 bg-base-100 px-3 py-2.5 shadow-e1 lg:mb-4 lg:px-5 lg:py-3">
       <label
@@ -218,17 +279,27 @@ export function Topbar({
         </svg>
       </label>
 
-      {/* ═══ Global search ═══
-          A real field rather than an icon button, because a text input stretches to fill this
-          bar and a short label never will.
+      {/* ═══ Command palette trigger ═══
+          Replaced a "search everything" field that searched nothing: there is no cross-entity
+          index, so the box promised a capability the product does not have, and it took 45-105px
+          of a phone bar for a placeholder that still clipped. What operators actually need across
+          26 pages is to JUMP, so this opens a page navigator (Ctrl/Cmd+K, or "/").
 
-          ⚠️ There are deliberately TWO search fields on a data screen, and the placeholders are
-          what say which is which: this one searches the whole back office, the card toolbar's
-          filters that table only. Without the wording they read as one control duplicated. */}
-      <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-control border border-transparent bg-base-200 px-3.5 transition-all focus-within:border-primary/40 focus-within:bg-base-100 focus-within:ring-4 focus-within:ring-primary/10 lg:max-w-md">
+          ONE responsive button rather than a pill plus an icon button: one id, one aria-label,
+          one focus target to restore, and no way for the two to drift apart. Below `sm` it is the
+          44px square (text and kbd hidden); from `sm` up the same element widens into the pill. */}
+      <button
+        ref={triggerRef}
+        type="button"
+        id="cmd-trigger"
+        aria-haspopup="dialog"
+        aria-label="ค้นหาหน้าเมนูและคำสั่ง (Ctrl+K)"
+        onClick={openPalette}
+        className="group flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-control border border-base-300/80 bg-base-200/60 text-base-content/70 transition-all hover:border-primary/40 hover:bg-base-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:w-60 sm:justify-between sm:gap-2.5 sm:px-3 sm:text-left md:w-72 lg:w-80"
+      >
         <svg
           aria-hidden="true"
-          className="h-5 w-5 shrink-0 text-base-content/60"
+          className="h-5 w-5 shrink-0 sm:h-4 sm:w-4 sm:text-base-content/60"
           fill="none"
           stroke="currentColor"
           strokeWidth={1.8}
@@ -236,24 +307,16 @@ export function Topbar({
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
-        <label htmlFor="global-search" className="sr-only">
-          ค้นหาทั้งระบบ
-        </label>
-        {/* Raw <input>, so `keyboardDefaults` never reached it — the search boxes are the one
-            group of controls in the back-office that do not go through FormField. Prediction
-            stays ON: the thing being typed here is a Thai name, which is where a phone
-            keyboard's suggestions and text replacements save the most keystrokes. */}
-        <input
-          id="global-search"
-          type="search"
-          placeholder="ค้นหาทั้งระบบ"
-          className="min-h-11 w-full min-w-0 border-none bg-transparent text-[15px] text-base-content/90 outline-none placeholder:text-base-content/70"
-          autoCorrect="on"
-          autoCapitalize="none"
-          spellCheck
-          enterKeyHint="search"
-        />
-      </div>
+        <span className="hidden min-w-0 flex-1 truncate text-[13px] text-base-content/60 sm:block">
+          ค้นหาหน้าเมนูหรือคำสั่ง...
+        </span>
+        <kbd
+          aria-hidden="true"
+          className="kbd kbd-sm hidden shrink-0 border-base-300 bg-base-100 font-mono text-[11px] text-base-content/70 sm:inline-flex"
+        >
+          Ctrl K
+        </kbd>
+      </button>
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
         {/* ── Theme ─────────────────────────────────────────────────────── */}
@@ -558,6 +621,7 @@ export function Topbar({
           </div>
         </div>
       </div>
+      <CommandPalette open={paletteOpen} onClose={closePalette} acl={acl} />
     </header>
   )
 }
