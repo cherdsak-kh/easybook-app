@@ -49,7 +49,7 @@ import {
  * removing the last row of this card — a `find` that misses returns `undefined`, and a row that
  * silently stops rendering is the kind of loss nobody files a bug for.
  */
-const SUPPORT_LABEL: AdminRouteLabel = 'ติดต่อฝ่ายเทคนิค'
+const SUPPORT_LABEL: AdminRouteLabel = 'ติดต่อทีมผู้พัฒนา'
 
 const GLYPH = {
   ok: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',

@@ -1990,3 +1990,73 @@ export async function forceRevokeStaffSessions(id: string): Promise<RevokeSessio
   if (!data) throw new ApiError(response.status, messageFrom(error, response))
   return data
 }
+
+// ---------------------------------------------------------------------------
+// Support (ติดต่อทีมผู้พัฒนา) — the incident relay.
+// ---------------------------------------------------------------------------
+
+export type SupportIncidentResult = components['schemas']['SupportIncidentResponseDto']
+export type SupportErrorCode = components['schemas']['SupportErrorCode']
+export type SupportIncidentCategory = components['schemas']['SupportIncidentCategory']
+export type SupportIncidentSeverity = components['schemas']['SupportIncidentSeverity']
+type SupportIncidentBody = components['schemas']['SupportIncidentFormDto']
+
+/** What the form hands over: the generated text fields, with real `File`s in place of `files`. */
+export type SupportIncidentInput = Omit<SupportIncidentBody, 'files'> & { files: File[] }
+
+/**
+ * `POST /system/support/incident` — relay one incident report to the EasyBook dev team. Nothing is
+ * persisted on our side, and the webhook behind it never reaches the browser.
+ *
+ * ⚠️ `bodySerializer` RUNS PER ATTEMPT, which is the whole reason the FormData is built there and
+ * not once above. `withCsrfRetry` re-issues the request on a 403, and a consumed multipart body
+ * cannot be sent twice. Returning FormData also makes openapi-fetch drop its JSON Content-Type so
+ * the browser writes the multipart boundary itself.
+ *
+ * ⚠️ The part name is `files`, repeated once per screenshot — NOT `files[]`, and not indexed.
+ *
+ * A failure throws an `ApiError` carrying the raw body (for `supportErrorCode`). For a CODED
+ * failure (400 file type, 413, 429, 502, 503) `message` is already the server's Thai sentence; the
+ * pipe's uncoded 400 has a `string[]` message and arrives as the generic `Request failed (400)`.
+ */
+export async function submitSupportIncident(
+  input: SupportIncidentInput,
+): Promise<SupportIncidentResult> {
+  const { data, error, response } = await withCsrfRetry(() =>
+    api.POST('/api/v1/system/support/incident', {
+      params: { header: { 'x-csrf-token': '' } },
+      // The generated type calls `files` a string[]; the wire wants File parts.
+      body: { ...input, files: input.files as unknown as string[] },
+      bodySerializer(body: SupportIncidentBody) {
+        const form = new FormData()
+        form.append('category', body.category)
+        form.append('severity', body.severity)
+        form.append('path', body.path)
+        form.append('description', body.description)
+        if (body.diagnostics) form.append('diagnostics', body.diagnostics)
+        for (const f of input.files) form.append('files', f, f.name)
+        return form
+      },
+    }),
+  )
+  if (!data) {
+    const err = new ApiError(response.status, messageFrom(error, response))
+    // Stashed for `supportErrorCode()`, the same way `getReportsOverview` does it.
+    ;(err as ApiError & { body?: unknown }).body = error
+    throw err
+  }
+  return data
+}
+
+/**
+ * The `SUPPORT_*` code off a `submitSupportIncident` failure. `undefined` for the pipe's uncoded
+ * 400, the session layer's uncoded 503, or a failure that never reached the server.
+ */
+export function supportErrorCode(err: unknown): SupportErrorCode | undefined {
+  if (!(err instanceof ApiError)) return undefined
+  const body = (err as ApiError & { body?: unknown }).body
+  if (body && typeof body === 'object' && 'code' in body) {
+    return (body as { code?: SupportErrorCode }).code
+  }
+  return undefined
+}
