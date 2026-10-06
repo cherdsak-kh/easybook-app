@@ -54,6 +54,18 @@ export interface Release {
 /** Newest first. `VersionPage` relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '1.4.1',
+    date: '7 ต.ค. 2569',
+    groups: [
+      {
+        t: 'แก้ไข',
+        items: [
+          'แบบฟอร์มลงทะเบียน: แก้ไขปัญหาการพิมพ์ชื่อและนามสกุลบน iPhone เมื่อแตะเลือกคำแนะนำจากคีย์บอร์ดภาษาไทยแล้วข้อความไม่พิมพ์ซ้ำ',
+        ],
+      },
+    ],
+  },
+  {
     v: '1.2.1',
     date: '5 ต.ค. 2569',
     groups: [
