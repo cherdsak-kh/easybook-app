@@ -1,9 +1,12 @@
 /**
- * The topbar: global search, then the utility cluster — theme, settings shortcut, bell.
+ * The topbar: the command-palette trigger, then the utility cluster — theme, settings shortcut, bell, a
+ * divider, and the account control.
  *
- * Order left→right is mode, appearance, configuration, alerts. **The bell stays right-most**
- * because it is the only control here that ever demands attention; the others are things you go
- * looking for.
+ * Order left→right is appearance, configuration, alerts, then identity. **The account control is
+ * right-most**, the corner a signed-in name conventionally lives in, and it is here rather than in
+ * the sidebar because below `lg` the sidebar is a drawer and used to hide who was signed in. The
+ * bell is still the only control that ever demands attention; the others are things you go looking
+ * for.
  *
  * ⚠️ NO "โหมดอ่านอย่างเดียว" CHIP, and it must not come back as a smaller version of itself.
  * It answered a question the product does not ask: a VIEWER is not a session in a degraded mode
@@ -14,13 +17,16 @@
  * A permanent banner is what you reach for when nothing local can carry the message.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { CommandPalette } from './CommandPalette'
 import { NavIcon } from './nav-icons'
 import { NotifGlyph } from './notif-icons'
 import { NotifReadAll, NotifRow } from './NotifRow'
 import { Skeleton } from '../feedback/Skeleton'
-import { usePopupMenu } from '../../lib/use-popup-menu'
+import { Avatar } from '../ui/Avatar'
+import type { SidebarUser } from './Sidebar'
+import { closeAllMenus, usePopupMenu } from '../../lib/use-popup-menu'
 import {
   TONE_KEY,
   actionTarget,
@@ -34,7 +40,12 @@ import { useNotifications } from '../../lib/notifications-context'
 import { useToast } from '../../lib/toast-context'
 import type { Acl } from '../../lib/use-acl'
 import type { ThemeChoice } from '../../lib/use-theme'
-import { ADMIN_PORTAL_ROUTES, urlOf, type AdminRouteEntry } from '../../routes'
+import {
+  ADMIN_PORTAL_ROUTES,
+  urlOf,
+  type AdminRouteEntry,
+  type AdminRouteLabel,
+} from '../../routes'
 
 const ICON = 'h-5 w-5'
 
@@ -119,12 +130,29 @@ const THEME_CHOICES: readonly {
   { value: 'system', label: 'ตามระบบ', Icon: SystemIcon },
 ]
 
+/** The three personal destinations, in the order the prototype lists them. */
+const ACCOUNT_LABELS: readonly AdminRouteLabel[] = [
+  'โปรไฟล์',
+  'เปลี่ยนรหัสผ่าน',
+  'ประวัติการเข้าสู่ระบบ',
+]
+
+/**
+ * The palette must not open over something that owns the keyboard — a native modal, whose own
+ * Escape handling would fight ours. `dialog[open]` includes the session-expired dialog.
+ */
+const dialogIsOpen = () => document.querySelector('dialog[open]') !== null
+
 export function Topbar({
+  me,
+  onLogout,
   acl,
   isDark,
   themeChoice,
   onThemeChange,
 }: {
+  me: SidebarUser
+  onLogout: () => void
   acl: Acl
   isDark: boolean
   themeChoice: ThemeChoice
@@ -133,6 +161,7 @@ export function Topbar({
   const theme = usePopupMenu()
   const settings = usePopupMenu()
   const notif = usePopupMenu()
+  const account = usePopupMenu()
   const listRef = useRef<HTMLDivElement>(null)
   const [readAllAnnouncement, setReadAllAnnouncement] = useState('')
   const navigate = useNavigate()
@@ -182,6 +211,60 @@ export function Topbar({
 
   const notifRoute = ADMIN_PORTAL_ROUTES.find((r) => r.label === 'ดูการแจ้งเตือนทั้งหมด')!
 
+  // ── Command palette ──────────────────────────────────────────────────────
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  /** `restoreFocus`: Escape, backdrop and the close button return to the trigger; a CHOICE does not. */
+  const closePalette = useCallback((restoreFocus: boolean) => {
+    setPaletteOpen(false)
+    if (restoreFocus) triggerRef.current?.focus()
+  }, [])
+
+  const openPalette = () => {
+    if (paletteOpen || dialogIsOpen()) return
+    // An open topbar menu would otherwise survive behind the scrim and race it for Escape.
+    closeAllMenus()
+    setPaletteOpen(true)
+  }
+
+  // Ctrl/Cmd+K toggles; "/" opens. Bubble phase on `document`; the palette's own Escape/Tab
+  // listener is capture-phase and only exists while it is open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // `code`, not only `key`: on a Thai layout `key` is ก/า, so Ctrl+K reports a different letter.
+      const isK =
+        (e.ctrlKey || e.metaKey) &&
+        !e.altKey &&
+        !e.shiftKey &&
+        (e.code === 'KeyK' || e.key?.toLowerCase() === 'k')
+      if (isK) {
+        if (paletteOpen) {
+          e.preventDefault()
+          closePalette(true)
+        } else if (!dialogIsOpen()) {
+          e.preventDefault()
+          closeAllMenus()
+          setPaletteOpen(true)
+        } // else leave the browser's own Ctrl+K alone
+        return
+      }
+      if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+      if (e.key !== '/' && e.code !== 'Slash') return
+      if (paletteOpen) return
+      const t = e.target as HTMLElement | null
+      const tag = t?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t?.isContentEditable) return
+      if (dialogIsOpen()) return
+      // Only when it actually opened, or the "/" would be typed into the field we just focused.
+      e.preventDefault()
+      closeAllMenus()
+      setPaletteOpen(true)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [paletteOpen, closePalette])
+
   return (
     <header className="mb-3 flex shrink-0 items-center gap-3 rounded-card border border-base-300/70 bg-base-100 px-3 py-2.5 shadow-e1 lg:mb-4 lg:px-5 lg:py-3">
       <label
@@ -196,17 +279,27 @@ export function Topbar({
         </svg>
       </label>
 
-      {/* ═══ Global search ═══
-          A real field rather than an icon button, because a text input stretches to fill this
-          bar and a short label never will.
+      {/* ═══ Command palette trigger ═══
+          Replaced a "search everything" field that searched nothing: there is no cross-entity
+          index, so the box promised a capability the product does not have, and it took 45-105px
+          of a phone bar for a placeholder that still clipped. What operators actually need across
+          26 pages is to JUMP, so this opens a page navigator (Ctrl/Cmd+K, or "/").
 
-          ⚠️ There are deliberately TWO search fields on a data screen, and the placeholders are
-          what say which is which: this one searches the whole back office, the card toolbar's
-          filters that table only. Without the wording they read as one control duplicated. */}
-      <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-control border border-transparent bg-base-200 px-3.5 transition-all focus-within:border-primary/40 focus-within:bg-base-100 focus-within:ring-4 focus-within:ring-primary/10 lg:max-w-md">
+          ONE responsive button rather than a pill plus an icon button: one id, one aria-label,
+          one focus target to restore, and no way for the two to drift apart. Below `sm` it is the
+          44px square (text and kbd hidden); from `sm` up the same element widens into the pill. */}
+      <button
+        ref={triggerRef}
+        type="button"
+        id="cmd-trigger"
+        aria-haspopup="dialog"
+        aria-label="ค้นหาหน้าเมนูและคำสั่ง (Ctrl+K)"
+        onClick={openPalette}
+        className="group flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-control border border-base-300/80 bg-base-200/60 text-base-content/70 transition-all hover:border-primary/40 hover:bg-base-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:w-60 sm:justify-between sm:gap-2.5 sm:px-3 sm:text-left md:w-72 lg:w-80"
+      >
         <svg
           aria-hidden="true"
-          className="h-5 w-5 shrink-0 text-base-content/60"
+          className="h-5 w-5 shrink-0 sm:h-4 sm:w-4 sm:text-base-content/60"
           fill="none"
           stroke="currentColor"
           strokeWidth={1.8}
@@ -214,24 +307,16 @@ export function Topbar({
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
-        <label htmlFor="global-search" className="sr-only">
-          ค้นหาทั้งระบบ
-        </label>
-        {/* Raw <input>, so `keyboardDefaults` never reached it — the search boxes are the one
-            group of controls in the back-office that do not go through FormField. Prediction
-            stays ON: the thing being typed here is a Thai name, which is where a phone
-            keyboard's suggestions and text replacements save the most keystrokes. */}
-        <input
-          id="global-search"
-          type="search"
-          placeholder="ค้นหาทั้งระบบ"
-          className="min-h-11 w-full min-w-0 border-none bg-transparent text-[15px] text-base-content/90 outline-none placeholder:text-base-content/70"
-          autoCorrect="on"
-          autoCapitalize="none"
-          spellCheck
-          enterKeyHint="search"
-        />
-      </div>
+        <span className="hidden min-w-0 flex-1 truncate text-[13px] text-base-content/60 sm:block">
+          ค้นหาหน้าเมนูหรือคำสั่ง...
+        </span>
+        <kbd
+          aria-hidden="true"
+          className="kbd kbd-sm hidden shrink-0 border-base-300 bg-base-100 font-mono text-[11px] text-base-content/70 sm:inline-flex"
+        >
+          Ctrl K
+        </kbd>
+      </button>
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
         {/* ── Theme ─────────────────────────────────────────────────────── */}
@@ -457,7 +542,86 @@ export function Topbar({
             </Link>
           </div>
         </div>
+
+        {/* ── Account ────────────────────────────────────────────────────
+            The identity control, right-most. A real <button> carrying aria-expanded +
+            aria-controls, NOT <details>/<summary>, which can carry neither. The panel opens
+            DOWNWARD from the bar, aligned to the right edge so it cannot run off the screen.
+
+            No chevron: the avatar is the affordance, and below `lg` it is the whole control. */}
+        <div className="mx-2 hidden h-6 w-px bg-base-300 sm:block" aria-hidden="true" />
+
+        <div className="relative">
+          <button
+            type="button"
+            {...account.triggerProps}
+            aria-label="เมนูบัญชีผู้ใช้"
+            className="group flex min-h-11 min-w-11 items-center justify-end gap-3 rounded-control px-2 py-1.5 text-right transition-colors hover:bg-base-content/10 aria-expanded:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary lg:pl-3.5 lg:pr-2"
+          >
+            <span className="hidden flex-col items-end text-right lg:flex">
+              <span className="text-[14px] font-semibold leading-tight text-base-content/90 transition-colors group-hover:text-primary">
+                {me.name}
+              </span>
+              {/* ⚠️ THE POSITION (ตำแหน่ง), NEVER THE ROLE. Ported wrong on the first pass — it
+                  printed `ROLE_LABEL[me.role]`, which the prototype's ACL module rejects in as
+                  many words:
+
+                    "The identity card carries the POSITION, not the role. It is the only line
+                     about you that is on screen at all times, and the thing a person recognises
+                     themselves by is their job title — หัวหน้าฝ่ายบริหารงานทั่วไป, not VIEWER."
+
+                  It is also the second half of the SUPER_ADMIN-only rule the profile page already
+                  honours: the RBAC enum stays off every screen for everyone but a SUPER_ADMIN, and
+                  a control that is on screen every second of every session is the last place it
+                  may leak from. Printing the role here would have re-opened, in the most visible
+                  control in the portal, exactly the confusion `ProfilePage`'s header comment
+                  exists to prevent — that a job title and a permission are the same kind of thing.
+
+                  Presentation only. `me.role` still gates the menu through `useAcl`. */}
+              <span className="text-[12px] leading-tight text-base-content/70">{me.position}</span>
+            </span>
+            {/* The fallback is the operator's INITIAL, never the product logo — `Avatar` carries
+                the argument. This control is on screen every second of every session, so whatever
+                sits here is the most-seen image in the portal. The `<img>`'s hairline and backdrop
+                come from `Avatar`'s own `chrome` / `backdrop` defaults, deliberately NOT repeated
+                in `className`: `className` also reaches the initial's disc, which must carry no
+                border and must keep `.ava-fill`'s opaque tint. */}
+            <Avatar
+              src={me.avatarUrl}
+              name={me.name}
+              className="h-10 w-10 rounded-control object-cover ring-1 ring-base-300 transition-shadow group-hover:ring-primary/40 group-aria-expanded:ring-2 group-aria-expanded:ring-primary text-[15px]"
+            />
+          </button>
+
+          <div
+            {...account.menuProps}
+            aria-label="บัญชีผู้ใช้งาน"
+            className="absolute right-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-card border border-base-300 bg-base-100 p-1.5 shadow-e2"
+          >
+            <p className="px-2.5 pb-1.5 pt-1 text-[12px] font-semibold text-base-content/60">
+              บัญชีผู้ใช้งาน
+            </p>
+            {ACCOUNT_LABELS.map((label) => {
+              const route = ADMIN_PORTAL_ROUTES.find((r) => r.label === label)!
+              return (
+                <Link key={label} to={urlOf(route)} className="menu-item">
+                  <NavIcon label={label} className="menu-ico" />
+                  {label}
+                </Link>
+              )
+            })}
+
+            <div className="my-1.5 border-t border-base-300" />
+            {/* Logout lives here because the identity control is the only place it belongs —
+                there is no navbar avatar dropdown in this design. */}
+            <button type="button" className="menu-item menu-item-danger" onClick={onLogout}>
+              <NavIcon label="ออกจากระบบ" className="menu-ico" />
+              ออกจากระบบ
+            </button>
+          </div>
+        </div>
       </div>
+      <CommandPalette open={paletteOpen} onClose={closePalette} acl={acl} />
     </header>
   )
 }

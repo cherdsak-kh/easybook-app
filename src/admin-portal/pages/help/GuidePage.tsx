@@ -1,5 +1,5 @@
 /**
- * `/backend/help/guide` — คู่มือการใช้งานระบบ (SOP & Manual).
+ * `/backend/help/guide` — คู่มือการใช้งานระบบ.
  *
  * Ported from the prototype's `<div data-route="guide">` and its guide module
  * (`master_layout_prototype_v2.html`). The articles are data in `guide-content.tsx`; every decision
@@ -219,7 +219,7 @@ export function GuidePage({
           it is not one of the three roles). */}
       <PageHeading
         route={route}
-        title="คู่มือการใช้งานระบบ (SOP & Manual)"
+        title="คู่มือการใช้งานระบบ"
         desc="คู่มือและขั้นตอนการปฏิบัติงานสำหรับเจ้าหน้าที่ ผู้อนุมัติ และผู้ดูแลระบบ EasyBook"
         toolbar
         actions={

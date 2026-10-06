@@ -30,10 +30,10 @@ import type { SystemUser } from '@/lib/api-client'
 import { HOME_PATH, decideAdminRoute } from './routes'
 
 /**
- * The identity card's view of `/auth/system/me`.
+ * The identity control's view of `/auth/system/me` (the account trigger in the topbar).
  *
  * ⚠️ The name is built HERE and nowhere else. It appears on the one control that is on screen
- * every second of every session, and an early prototype pass hardcoded it — so the sidebar kept
+ * every second of every session, and an early prototype pass hardcoded it — so the shell kept
  * claiming one thing while the profile page said another. A user with neither name falls back
  * to the email rather than to an empty card, because a blank identity control reads as a broken
  * session.
@@ -187,16 +187,16 @@ function ShellBody({
     <NotificationsProvider>
       <div className="flex h-screen overflow-hidden">
         <Sidebar
-          me={me}
           acl={acl}
           counts={{ 'คำขอจองสถานที่': pendingBookings, 'การลงทะเบียน': pendingRegistrations }}
           drawerOpen={drawerOpen}
           onDrawerChange={onDrawerChange}
-          onLogout={onLogout}
         />
 
         <div className="flex min-w-0 flex-1 flex-col p-3 lg:py-4 lg:pl-0 lg:pr-4">
           <Topbar
+            me={me}
+            onLogout={onLogout}
             acl={acl}
             isDark={isDark}
             themeChoice={themeChoice}
