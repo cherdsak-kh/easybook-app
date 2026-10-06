@@ -10,9 +10,9 @@
  * ⚠️ ONE OPEN AT A TIME, ACROSS ALL OF THEM. Two panels hanging off the same bar reads as a
  * rendering bug, and on a phone the second lands on top of the first. That is enforced by a
  * module-level registry rather than by a context, deliberately: these menus do not share a
- * parent — the account menu is at the bottom of the sidebar and the rest hang off the topbar —
- * so a provider would have to wrap the whole shell to express something none of them needs a
- * provider for.
+ * parent — they used to be split between the sidebar and the topbar, and all four now hang off
+ * the topbar — so a provider would have to wrap the whole shell to express something none of them
+ * needs a provider for.
  */
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react'

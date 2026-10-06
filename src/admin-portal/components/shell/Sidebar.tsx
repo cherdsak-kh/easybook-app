@@ -1,8 +1,8 @@
 /**
- * The sidebar: brand, menu, and the identity card that doubles as the account menu.
+ * The sidebar: brand and menu. The identity control (account menu and logout) lives in the topbar.
  *
  * ⚠️ THE MENU HOLDS 23 OF THE 29 DESTINATIONS, AND THAT IS THE DESIGN, not an omission.
- *  · `บัญชีผู้ใช้งาน`'s five leaves live in the account menu at the bottom of this column.
+ *  · `บัญชีผู้ใช้งาน`'s five leaves live in the account menu at the far right of the topbar.
  *    They are the only screens scoped to *the signed-in person* rather than to the system, so
  *    they belong to the identity control and not to the site nav.
  *  · `ดูการแจ้งเตือนทั้งหมด` is reached from the notification panel (P2-B2), for the same
@@ -17,12 +17,10 @@
  * *whether* the box is checked — which is what lets a navigation close it.
  */
 
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { NavGroup, NavRow, NavSection } from './NavRow'
 import { NavIcon } from './nav-icons'
-import { Avatar } from '../ui/Avatar'
 import type { SystemRole } from '../../labels'
-import { usePopupMenu } from '../../lib/use-popup-menu'
 import type { Acl } from '../../lib/use-acl'
 import {
   ADMIN_PORTAL_ROUTES,
@@ -83,18 +81,11 @@ const ALERT_COUNT_LABELS: readonly AdminRouteLabel[] = [
  */
 const DIVIDER_BEFORE: AdminRouteLabel = 'ประวัติการทำรายการ'
 
-/** The three personal destinations, in the order the prototype lists them. */
-const ACCOUNT_LABELS: readonly AdminRouteLabel[] = [
-  'โปรไฟล์',
-  'เปลี่ยนรหัสผ่าน',
-  'ประวัติการเข้าสู่ระบบ',
-]
-
 export interface SidebarUser {
   name: string
   /**
    * ⚠️ THE JOB TITLE (`personnelRole.name`), NOT `ROLE_LABEL[role]` — and the distinction is the
-   * whole point of the field. See the card at the bottom of this file for why.
+   * whole point of the field. See the account trigger in `Topbar.tsx` for why.
    */
   position: string
   /** Still needed: `useAcl` gates the menu by it. It is simply never PRINTED here. */
@@ -106,23 +97,18 @@ const rowsOf = (group: string): AdminRouteEntry[] =>
   ADMIN_PORTAL_ROUTES.filter((r) => r.group === group)
 
 export function Sidebar({
-  me,
   acl,
   counts = {},
   drawerOpen,
   onDrawerChange,
-  onLogout,
 }: {
-  me: SidebarUser
   acl: Acl
   /** Pending counts by label. Absent or `0` renders no pill at all. */
   counts?: Partial<Record<AdminRouteLabel, number>>
   drawerOpen: boolean
   onDrawerChange: (open: boolean) => void
-  onLogout: () => void
 }) {
   const { pathname } = useLocation()
-  const account = usePopupMenu()
 
   // LOW-3: the row the ROUTER would render, not `pathname === urlOf(route)`, which loses the
   // highlight for every spelling the router still accepts (trailing slash, case, `%2D`).
@@ -290,87 +276,6 @@ export function Sidebar({
             )
           })}
         </nav>
-
-        {/* ═══ Identity card — pinned, never scrolls away ═══
-            A real <button> carrying aria-expanded + aria-controls, NOT <details>/<summary>,
-            which can carry neither. The panel opens UPWARD because the card is pinned to the
-            bottom of the viewport and a downward menu would be off-screen. */}
-        <div className="relative shrink-0 p-3">
-          <div
-            {...account.menuProps}
-            className="absolute bottom-full left-3 right-3 z-50 mb-1 overflow-hidden rounded-card border border-base-300 bg-base-100 p-1.5 shadow-e2"
-          >
-            <p className="px-2.5 pb-1.5 pt-1 text-[12px] font-semibold text-base-content/60">
-              บัญชีผู้ใช้งาน
-            </p>
-            {ACCOUNT_LABELS.map((label) => {
-              const route = ADMIN_PORTAL_ROUTES.find((r) => r.label === label)!
-              return (
-                <Link key={label} to={urlOf(route)} className="menu-item" onClick={closeDrawer}>
-                  <NavIcon label={label} className="menu-ico" />
-                  {label}
-                </Link>
-              )
-            })}
-
-            <div className="my-1.5 border-t border-base-300" />
-            {/* Logout lives here because the identity control is the only place it belongs —
-                there is no navbar avatar dropdown in this design. */}
-            <button type="button" className="menu-item menu-item-danger" onClick={onLogout}>
-              <NavIcon label="ออกจากระบบ" className="menu-ico" />
-              ออกจากระบบ
-            </button>
-          </div>
-
-          <button
-            type="button"
-            {...account.triggerProps}
-            className="flex w-full items-center gap-3 rounded-control border border-base-300 bg-base-200 p-2.5 text-left transition-colors hover:bg-base-content/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary aria-expanded:border-primary/40 aria-expanded:bg-primary/10"
-          >
-            {/* The fallback is the operator's INITIAL, never the product logo — `Avatar` carries
-                the argument. This card is on screen every second of every session, so whatever
-                sits here is the most-seen image in the portal. */}
-            <Avatar
-              src={me.avatarUrl}
-              name={me.name}
-              className="h-10 w-10 rounded-control text-[15px]"
-            />
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-[14px] font-semibold text-base-content/90">
-                {me.name}
-              </span>
-              {/* ⚠️ THE POSITION (ตำแหน่ง), NEVER THE ROLE. Ported wrong on the first pass — it
-                  printed `ROLE_LABEL[me.role]`, which the prototype's ACL module rejects in as
-                  many words:
-
-                    "The identity card carries the POSITION, not the role. It is the only line
-                     about you that is on screen at all times, and the thing a person recognises
-                     themselves by is their job title — หัวหน้าฝ่ายบริหารงานทั่วไป, not VIEWER."
-
-                  It is also the second half of the SUPER_ADMIN-only rule the profile page already
-                  honours: the RBAC enum stays off every screen for everyone but a SUPER_ADMIN, and
-                  a card that is on screen every second of every session is the last place it may
-                  leak from. Printing the role here would have re-opened, in the most visible
-                  control in the portal, exactly the confusion `ProfilePage`'s header comment
-                  exists to prevent — that a job title and a permission are the same kind of thing.
-
-                  Presentation only. `me.role` still gates the menu two hundred lines above. */}
-              <span className="truncate text-[12px] text-base-content/70">{me.position}</span>
-            </span>
-            <svg
-              aria-hidden="true"
-              className={`ml-auto h-4 w-4 shrink-0 text-base-content/60 transition-transform ${
-                account.open ? 'rotate-180' : ''
-              }`.trim()}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" d="M18 15l-6-6-6 6" />
-            </svg>
-          </button>
-        </div>
       </aside>
     </>
   )

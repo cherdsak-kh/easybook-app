@@ -53,6 +53,18 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '1.3.1',
+    date: '6 ต.ค. 2569',
+    groups: [
+      {
+        t: 'ปรับปรุง',
+        items: [
+          'ย้ายการ์ดบัญชีผู้ใช้จากแถบข้างไปไว้ที่มุมบนขวาของแถบด้านบน พร้อมปรับสัดส่วนการแสดงผลให้อ่านง่ายและเข้าถึงสะดวกยิ่งขึ้น',
+        ],
+      },
+    ],
+  },
+  {
     v: '1.3.0',
     date: '6 ต.ค. 2569',
     groups: [
