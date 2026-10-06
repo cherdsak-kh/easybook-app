@@ -53,6 +53,19 @@ export interface Release {
 /** Newest first. The page relies on that order and does not sort. */
 export const RELEASES: readonly Release[] = [
   {
+    v: '1.4.1',
+    date: '7 ต.ค. 2569',
+    groups: [
+      {
+        t: 'แก้ไข',
+        items: [
+          'เมนูแถบข้าง (Sidebar): แก้ไขการแสดงผล Scrollbar บนเดสก์ท็อปไม่ให้ล้นทะลุกรอบขอบโค้งมนของการ์ดเมนู',
+          'ระบบลงทะเบียนผู้ใช้ (Client Portal): แก้ไขปัญหาการเลือกคำแนะนำภาษาไทย (Predictive Text) บน iOS ไม่ให้เกิดข้อความซ้ำซ้อนในช่องชื่อ-นามสกุล',
+        ],
+      },
+    ],
+  },
+  {
     v: '1.4.0',
     date: '6 ต.ค. 2569',
     groups: [

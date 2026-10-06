@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { loadOptions, messageFor, submitRegistration } from './registration-api'
 import {
@@ -215,12 +215,19 @@ export function RegistrationPage() {
                   splitting them across two full-width rows makes the form look twice as long as
                   it is. */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* ⚠️ Predictive text (the QuickType bar) is deliberately KEPT on both name fields
+                    — do not add `autoCorrect` / `spellCheck` / `autoCapitalize` overrides here.
+                    On iOS the Thai keyboard natively APPENDS the tapped candidate after the typed
+                    prefix ("เชิด" + tap "เชิดศักดิ์" arrives as "เชิดเชิดศักดิ์"), even in an
+                    uncontrolled input (confirmed on device, 2026-10-07), so React is not the cause.
+                    `dedupePrediction` collapses that one shape in `TextField`'s change handler. */}
                 <TextField
                   id="rg-first"
                   label="ชื่อจริง"
                   value={values.firstName}
                   onChange={(v) => set('firstName', v)}
                   error={errors.firstName}
+                  dedupePrediction
                   autoComplete="given-name"
                   enterKeyHint="next"
                 />
@@ -230,6 +237,7 @@ export function RegistrationPage() {
                   value={values.lastName}
                   onChange={(v) => set('lastName', v)}
                   error={errors.lastName}
+                  dedupePrediction
                   autoComplete="family-name"
                   enterKeyHint="next"
                 />
@@ -314,6 +322,24 @@ export function RegistrationPage() {
  * ⚠️ `aria-describedby` is attached only when there IS a message. Pointing at an element that is
  * not rendered leaves a dangling reference, and some screen readers announce nothing for it while
  * others announce the id.
+ *
+ * ⚠️ `dedupePrediction` (opt-in, the two name fields only) undoes iOS's Thai QuickType append. Tapping
+ * a candidate makes WebKit insert the WHOLE candidate after the typed prefix: "เชิด" + tap
+ * "เชิดศักดิ์" arrives as one input event reading "เชิดเชิดศักดิ์". The handler spots that exact
+ * shape — the new value is the previous value plus an insertion that itself begins with the
+ * previous value — and keeps only the insertion, writing it back to `e.target.value` as well so
+ * the DOM and the state agree. `inserted.length > 1` is required, so a single keystroke repeating
+ * a letter ("ก" -> "กก") is never touched. Not enabled on the phone field: it gets no candidates,
+ * so only a paste could trigger it, and that would be a mistaken collapse.
+ *
+ * Known limits, accepted for one-word name fields:
+ * - A paste at the END of the field whose text starts with the field's whole current value is
+ *   collapsed the same way.
+ * - It compares against the whole field value, so it only catches the duplication when the field
+ *   holds nothing but the typed prefix.
+ * - It assumes a candidate tap is ONE input event. If WebKit delivers it as several (delete +
+ *   insert, or chunks) the guard can slip past; re-plan around `beforeinput` /
+ *   `insertReplacementText` rather than widening this.
  */
 function TextField({
   id,
@@ -322,6 +348,7 @@ function TextField({
   onChange,
   error,
   type = 'text',
+  dedupePrediction = false,
   ...input
 }: {
   id: string
@@ -330,7 +357,27 @@ function TextField({
   onChange: (value: string) => void
   error?: string
   type?: 'text' | 'tel'
+  dedupePrediction?: boolean
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'id' | 'value' | 'onChange' | 'type'>) {
+  const prevValueRef = useRef(value)
+  useEffect(() => {
+    prevValueRef.current = value
+  }, [value])
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    let val = e.target.value
+    const prev = prevValueRef.current
+    if (dedupePrediction && prev && val.length > prev.length && val.startsWith(prev)) {
+      const inserted = val.slice(prev.length)
+      if (inserted.length > 1 && inserted.startsWith(prev)) {
+        val = inserted
+        e.target.value = inserted
+      }
+    }
+    prevValueRef.current = val
+    onChange(val)
+  }
+
   return (
     <div>
       <label htmlFor={id} className="mb-1.5 block text-sm font-medium">
@@ -341,7 +388,7 @@ function TextField({
         type={type}
         required
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={handleChange}
         aria-describedby={error ? `${id}-err` : undefined}
         aria-invalid={error ? true : undefined}
         className={`input input-lg w-full ${error ? 'input-error' : ''}`.trim()}

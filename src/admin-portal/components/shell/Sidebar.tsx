@@ -163,7 +163,7 @@ export function Sidebar({
           works, and rewriting a working rule to match another one's fix is pure ceremony. */}
       <aside
         className="fixed inset-y-0 left-0 z-40 flex w-[288px] -translate-x-full flex-col bg-base-100 transition-transform duration-300
-                   lg:static lg:m-4 lg:translate-x-0 lg:rounded-card lg:border lg:border-base-300/70 lg:shadow-e1"
+                   lg:static lg:m-4 lg:translate-x-0 lg:rounded-card lg:border lg:border-base-300/70 lg:shadow-e1 lg:overflow-hidden"
       >
         {/* ═══ Brand ═══
             The real mark carries its own fixed colours and MUST keep them in both themes — a
